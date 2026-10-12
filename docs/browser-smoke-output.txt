@@ -1,0 +1,5 @@
+2026-10-12 verification
+PASS: source browser game; keyboard movement; all three cave entries/exits; pause; map; waypoint; guide; disk-backed save across a browser restart.
+PASS: self-contained play.html opened directly from disk and accepted movement; zero JavaScript runtime errors.
+PASS: Electron Linux window loaded the aincrad protocol; movement works; renderer preferences preserved; zero JavaScript runtime errors.
+Environment: Chromium 153 and Electron 44.7.0, headless Linux. Test-only root/headless flags were used; Windows/macOS and packaged installers were not tested.

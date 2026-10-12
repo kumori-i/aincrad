@@ -1,0 +1,207 @@
+
+> aincrad@0.1.0 check
+> node scripts/check.mjs
+
+Syntax OK: 16 JavaScript modules.
+TAP version 13
+# Subtest: offline bundle is deterministic, self-contained and has matching CSP hashes
+ok 1 - offline bundle is deterministic, self-contained and has matching CSP hashes
+  ---
+  duration_ms: 33.455505
+  type: 'test'
+  ...
+# Subtest: new storage produces a fresh expedition
+ok 2 - new storage produces a fresh expedition
+  ---
+  duration_ms: 1.377044
+  type: 'test'
+  ...
+# Subtest: valid progress round-trips through local storage
+ok 3 - valid progress round-trips through local storage
+  ---
+  duration_ms: 2.455449
+  type: 'test'
+  ...
+# Subtest: cave position and visited list survive a restart
+ok 4 - cave position and visited list survive a restart
+  ---
+  duration_ms: 0.397144
+  type: 'test'
+  ...
+# Subtest: unknown cave ids and unreachable coordinates fall back safely
+ok 5 - unknown cave ids and unreachable coordinates fall back safely
+  ---
+  duration_ms: 0.209608
+  type: 'test'
+  ...
+# Subtest: invalid cave positions recover inside that cave
+ok 6 - invalid cave positions recover inside that cave
+  ---
+  duration_ms: 0.149791
+  type: 'test'
+  ...
+# Subtest: negative times, NaNs, and unknown fields are not restored
+ok 7 - negative times, NaNs, and unknown fields are not restored
+  ---
+  duration_ms: 0.127698
+  type: 'test'
+  ...
+# Subtest: corrupt JSON is reported and not deleted
+ok 8 - corrupt JSON is reported and not deleted
+  ---
+  duration_ms: 0.329244
+  type: 'test'
+  ...
+# Subtest: future save versions are reported without mutation
+ok 9 - future save versions are reported without mutation
+  ---
+  duration_ms: 0.098705
+  type: 'test'
+  ...
+# Subtest: storage failures are surfaced rather than claiming success
+ok 10 - storage failures are surfaced rather than claiming success
+  ---
+  duration_ms: 0.951068
+  type: 'test'
+  ...
+# Subtest: waypoints are bounded and copied rather than retaining references
+ok 11 - waypoints are bounded and copied rather than retaining references
+  ---
+  duration_ms: 0.798654
+  type: 'test'
+  ...
+# Subtest: loopback server serves the game but not repository metadata or arbitrary paths
+ok 12 - loopback server serves the game but not repository metadata or arbitrary paths
+  ---
+  duration_ms: 54.425198
+  type: 'test'
+  ...
+# Subtest: world width and walking speed define a five-minute reference crossing
+ok 13 - world width and walking speed define a five-minute reference crossing
+  ---
+  duration_ms: 1.995873
+  type: 'test'
+  ...
+# Subtest: one day is one real hour of active simulation
+ok 14 - one day is one real hour of active simulation
+  ---
+  duration_ms: 1.071355
+  type: 'test'
+  ...
+# Subtest: seeded generation is deterministic and bounded
+ok 15 - seeded generation is deterministic and bounded
+  ---
+  duration_ms: 1.794397
+  type: 'test'
+  ...
+# Subtest: spawn is valid and dry
+ok 16 - spawn is valid and dry
+  ---
+  duration_ms: 1.08158
+  type: 'test'
+  ...
+# Subtest: all four edges and corners of the mountain boundary block the player
+ok 17 - all four edges and corners of the mountain boundary block the player
+  ---
+  duration_ms: 0.390634
+  type: 'test'
+  ...
+# Subtest: deep lake and river water are not walkable
+ok 18 - deep lake and river water are not walkable
+  ---
+  duration_ms: 0.278319
+  type: 'test'
+  ...
+# Subtest: all three bridge centers are walkable
+ok 19 - all three bridge centers are walkable
+  ---
+  duration_ms: 0.482419
+  type: 'test'
+  ...
+# Subtest: central path is continuously passable from mountain to mountain
+ok 20 - central path is continuously passable from mountain to mountain
+  ---
+  duration_ms: 55.874909
+  type: 'test'
+  ...
+# Subtest: a real movement simulation traverses the central trail in ~300 seconds
+ok 21 - a real movement simulation traverses the central trail in ~300 seconds
+  ---
+  duration_ms: 408.553134
+  type: 'test'
+  ...
+# Subtest: diagonal input is normalized to the same speed as axial input
+ok 22 - diagonal input is normalized to the same speed as axial input
+  ---
+  duration_ms: 0.802139
+  type: 'test'
+  ...
+# Subtest: sprinting is explicitly faster than the reference walking speed
+ok 23 - sprinting is explicitly faster than the reference walking speed
+  ---
+  duration_ms: 0.392987
+  type: 'test'
+  ...
+# Subtest: large frame gaps are capped and cannot teleport a player across a lake
+ok 24 - large frame gaps are capped and cannot teleport a player across a lake
+  ---
+  duration_ms: 0.478944
+  type: 'test'
+  ...
+# Subtest: nonfinite positions and invalid timesteps are rejected
+ok 25 - nonfinite positions and invalid timesteps are rejected
+  ---
+  duration_ms: 0.180125
+  type: 'test'
+  ...
+# Subtest: trees and rocks have solid trunks / bases
+ok 26 - trees and rocks have solid trunks / bases
+  ---
+  duration_ms: 1.87792
+  type: 'test'
+  ...
+# Subtest: all three cave mouths have a walkable approach and interaction
+ok 27 - all three cave mouths have a walkable approach and interaction
+  ---
+  duration_ms: 1.269917
+  type: 'test'
+  ...
+# Subtest: caves have a safe spawn and a nearby exit
+ok 28 - caves have a safe spawn and a nearby exit
+  ---
+  duration_ms: 0.180756
+  type: 'test'
+  ...
+# Subtest: cave walls are solid
+ok 29 - cave walls are solid
+  ---
+  duration_ms: 0.087679
+  type: 'test'
+  ...
+# Subtest: all cave chambers can be reached from the entrance without crossing walls
+ok 30 - all cave chambers can be reached from the entrance without crossing walls
+  ---
+  duration_ms: 12.17923
+  type: 'test'
+  ...
+# Subtest: world and cave collision rules remain separate
+ok 31 - world and cave collision rules remain separate
+  ---
+  duration_ms: 0.271108
+  type: 'test'
+  ...
+# Subtest: fresh state is independent and contains no agents or OS capabilities
+ok 32 - fresh state is independent and contains no agents or OS capabilities
+  ---
+  duration_ms: 0.42896
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 668.215994

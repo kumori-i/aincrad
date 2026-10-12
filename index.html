@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="dark">
+  <title>Aincrad — Exploration prototype</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app">
+    <canvas id="world" aria-label="Aincrad exploration world. Use WASD or arrow keys to move." tabindex="0"></canvas>
+    <div id="vignette"></div>
+    <section id="welcome" class="welcome">
+      <div class="welcome-copy">
+        <div class="eyebrow"><span class="crest">⌃</span> AINCRAD <span class="build">WORLD ZERO · 0.1</span></div>
+        <h1>A quiet world.<br>Yours to explore.</h1>
+        <p>Beyond the pines, a river finds its way through the mountains. Take the long road. See what lies beneath the ridge.</p>
+        <button id="begin" class="primary">Enter the valley <span>↗</span></button>
+        <div class="welcome-detail">ONE VALLEY <i>·</i> THREE CAVERNS <i>·</i> NO HURRY</div>
+        <div class="welcome-controls"><kbd>W A S D</kbd> move <span>or arrow keys</span><br><kbd>M</kbd> field map <kbd>E</kbd> interact</div>
+      </div>
+      <div class="welcome-foot"><span>A local, single-player exploration prototype</span><span>Original procedural artwork · No account or AI service required</span></div>
+    </section>
+    <section id="hud" class="hidden" aria-label="Game status">
+      <header class="top-left"><div class="brand">AINCRAD <span>EXPLORATION</span></div><div class="clock"><span class="sun-icon">☀</span><b id="clock">08:00</b><span id="day">DAY 01</span><span class="time-note">60 min / day</span></div></header>
+      <aside class="navigation"><div class="minimap-frame"><canvas id="minimap" width="210" height="210" aria-label="Local map"></canvas><span class="north">N</span></div><div class="nav-caption"><span id="nav-label">THE VALLEY</span><button id="open-map" title="Open field map (M)">M ↗</button></div></aside>
+      <div class="location"><div class="eyebrow">YOUR FOOTSTEPS, YOUR STORY</div><h2 id="region">The Trailhead</h2><p id="location-detail">Crown Ridge Valley · 0 / 3 caverns explored</p></div>
+      <div id="waypoint-hud" class="waypoint-hud hidden"></div>
+      <div class="bottom-controls"><button id="help-button"><kbd>H</kbd> Guide</button><button id="pause-button"><kbd>Esc</kbd> Pause</button></div>
+      <div id="interaction" class="interaction hidden"><kbd>E</kbd><span></span></div>
+      <div id="toast" class="toast hidden" role="status"></div>
+      <div id="save-status" class="save-status" role="status">Saved locally</div>
+    </section>
+    <section id="map-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="map-title">
+      <div class="atlas"><header><div><div class="eyebrow">A FIELD GUIDE TO THE VALLEY</div><h2 id="map-title">Crown Ridge & the lowlands</h2></div><button id="close-map" class="close">Close <kbd>M</kbd></button></header>
+        <div class="atlas-body"><canvas id="atlas-map" width="840" height="700" aria-label="World map. Click to place a waypoint."></canvas><div class="atlas-north">N<br>↑</div></div>
+        <footer><div class="legend"><span><i class="player-dot"></i>You</span><span>⌂ Trailhead</span><span>△ Cavern</span><span>⋄ Waypoint</span></div><span id="map-hint">Click to set a waypoint · right-click to clear</span></footer>
+        <div class="atlas-note">The central east–west trail takes approximately 5 minutes at walking speed. Sprinting is faster; detours take longer.</div>
+      </div>
+    </section>
+    <section id="pause-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title"><div class="menu-card"><div class="eyebrow">TAKE YOUR TIME</div><h2 id="pause-title">The valley can wait.</h2><p>World time pauses here and when the window loses focus.</p><button id="resume" class="primary">Return to the trail <span>↗</span></button><button id="save-button" class="secondary">Save expedition</button><button id="return-camp" class="secondary">Return to the trailhead</button><button id="new-expedition" class="text-button">Start a new expedition…</button><p class="small">Position, discoveries, and world time save locally. There is no offline simulation in this build.</p></div></section>
+    <section id="help-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="menu-card guide"><div class="eyebrow">YOUR FIRST FOOTSTEPS</div><h2 id="help-title">Welcome, wanderer.</h2><dl><dt><kbd>W A S D</kbd> / <kbd>↑ ← ↓ →</kbd></dt><dd>Walk. Diagonal movement is normalized.</dd><dt><kbd>Shift</kbd></dt><dd>Hold to run. There is no stamina limit yet.</dd><dt><kbd>E</kbd></dt><dd>Enter caves, leave caves, and read the trail sign.</dd><dt><kbd>M</kbd></dt><dd>Open the field map and choose a waypoint.</dd><dt>Mouse wheel / <kbd>+</kbd> <kbd>−</kbd></dt><dd>Zoom the camera in or out.</dd><dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Save your expedition immediately.</dd><dt><kbd>Esc</kbd> / <kbd>H</kbd></dt><dd>Pause / open this guide.</dd></dl><p>Water, trees, rocks, and mountains are solid. Use the wooden bridges to cross the Silverrun. Cave mouths sit at the foot of the mountains; approach and press E.</p><p class="small">This first build is for exploring. Farming, construction, NPCs, and multiplayer are not implemented.</p><button id="close-help" class="primary">Back to exploring <span>↗</span></button></div></section>
+    <div id="fatal" class="overlay hidden" role="alert"><div class="menu-card"><h2>Something interrupted the expedition.</h2><p id="fatal-message"></p><p>Your last local save is retained. Please reload the application.</p></div></div>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

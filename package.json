@@ -1,0 +1,22 @@
+{
+  "name": "aincrad",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-first, mountain-ringed exploration game. The first foundation for a living world.",
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "web": "node scripts/serve.mjs",
+    "test": "node scripts/check.mjs",
+    "check": "node scripts/check.mjs",
+    "publish:github": "node scripts/publish-github.mjs",
+    "bundle": "node scripts/bundle.mjs"
+  },
+  "optionalDependencies": {
+    "electron": "44.7.0"
+  }
+}
