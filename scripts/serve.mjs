@@ -4,7 +4,7 @@ import { resolve, relative, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const ALLOWED=new Set(['index.html','style.css','icon.svg','src/main.js','src/config.js','src/world.js','src/save.js','src/art.js','src/renderer.js']);
+const ALLOWED=new Set(['index.html','style.css','icon.svg','src/main.js','src/config.js','src/world.js','src/save.js','src/art.js','src/renderer.js','src/npc-state.js','src/resources.js','src/perception.js','src/navigation.js','src/npc-memory.js','src/npc.js','src/controller.js','src/npc-panel.js']);
 const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
 export async function startServer({port=4173,open=false}={}){
   const server=http.createServer(async(req,res)=>{

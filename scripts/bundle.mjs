@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export async function buildBundle(destination=resolve(ROOT,'play.html')){
   let code='(()=>{\nconst __modules=Object.create(null);\n';
-  for(const name of ['config','world','save','art','renderer','main']){
+  for(const name of ['config','npc-state','world','resources','perception','navigation','npc-memory','npc','controller','save','art','renderer','npc-panel','main']){
     let source=(await readFile(resolve(ROOT,`src/${name}.js`),'utf8')).replace(/\r\n?/g,'\n');
     const exports=[...source.matchAll(/export\s+(?:const|function|class)\s+(\w+)/g)].map(m=>m[1]);
     source=source.replace(/import\s*\{([^}]+)\}\s*from\s*['"]\.\/([\w-]+)\.js['"];?/g,(_m,names,dependency)=>`const {${names}}=__modules.${dependency};`);

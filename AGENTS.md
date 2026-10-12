@@ -2,11 +2,11 @@
 
 This is a standalone exploration game, independent of `agentic-workspace`.
 
-## First milestone and non-goals
+## Current milestone and boundaries
 
 Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/trees, and enterable caves. The central reference crossing must remain approximately five minutes at normal walking speed. An in-game day is one hour of unpaused play.
 
-Do not add an LLM dependency, a coding-agent adapter, external commands, account signup, analytics, a cloud backend, or paywalls to the basic game. No game agent should receive OS/filesystem/shell access. Agent simulation is a later milestone, after useful mechanics exist.
+The owner has authorized the single persistent water-learning NPC milestone and desktop packaging. Keep model access optional and local, through a narrow validated desktop bridge. No game agent may receive OS/filesystem/shell access. Do not add a coding-agent adapter, external command execution, signup, analytics, cloud backend, paywalls, or additional NPCs.
 
 ## Boundaries
 
@@ -26,7 +26,7 @@ The optional Python UI harness is in `tests/browser_smoke.py`. It requires Playw
 
 ## Scope discipline
 
-Build the smallest useful next layer: resource interaction/inventory, then farming, then construction. Implement conventional baseline NPC behavior before optional language-model planning. A game action must actually update world state; narration is not completion. Do not redesign the map or replace the renderer without a concrete reason and the owner's approval.
+Implement hydration, water actions, local observed navigation tiles, persistent experience, acquired procedures, collapse and divine rescue for one NPC. Keep the offline experiential controller clearly distinguished from configured language-model planning. A game action must actually update world state; narration is not completion. Do not redesign the map or replace the renderer without a concrete reason and the owner's approval.
 
 ## Publication
 

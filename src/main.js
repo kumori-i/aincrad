@@ -2,6 +2,10 @@ import { CONFIG, SPAWN, CAVES, CAVE_SPAWN, LANDMARKS } from './config.js';
 import { clamp, freshState, moveActor, nearestInteraction, clockTime, regionName, distance, canStand } from './world.js';
 import { loadSave, writeSave, validateSave } from './save.js';
 import { Renderer } from './renderer.js';
+import { NpcController } from './controller.js';
+import { createNpcPanel } from './npc-panel.js';
+import { observeNpc } from './npc.js';
+import { recordEvent } from './npc-memory.js';
 
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries(['world','welcome','hud','begin','clock','day','region','location-detail','minimap','nav-label','interaction','toast','save-status','map-panel','atlas-map','map-title','map-hint','pause-panel','help-panel','waypoint-hud'].map(id=>[id,$(id)]));
@@ -10,6 +14,8 @@ try { storage = window.localStorage; } catch { storage = { getItem(){return null
 const loaded = loadSave(storage);
 let state = loaded.state;
 const renderer = new Renderer(ui.world,state);
+let npcController=new NpcController(state.npc);
+const npcPanel=createNpcPanel({getNpc:()=>state.npc,getController:()=>npcController,renderer,save:()=>save(),notify});
 let started=false, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
 let lastTime=performance.now()/1000, accumulator=0, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
@@ -56,8 +62,8 @@ function returnToCamp(){
   state.scene='valley';state.player={...SPAWN};renderer.snap(state.player);closePanels();save();notify('Returned to the Trailhead.');
 }
 function newExpedition(){
-  if(!window.confirm('Start a new expedition? This replaces your saved position, discoveries, and world time.'))return;
-  state=freshState();saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
+  if(!window.confirm('Start a new expedition? This replaces your saved position, discoveries, world time, and Aster’s memory.'))return;
+  const provider=npcController.provider;npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{provider});saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
 $('open-map').addEventListener('click',()=>togglePanel('map'));
@@ -78,6 +84,8 @@ window.addEventListener('keydown',e=>{
     if(buttons.length){const index=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(index+(e.shiftKey?-1:1)+buttons.length)%buttons.length].focus();}return;
   }
   if(!started)return;
+  if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
+  if(e.code==='KeyN'){e.preventDefault();keys.clear();npcPanel.toggle();return;}
   if(movementCodes.has(e.code)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();if(!panel&&!e.ctrlKey&&!e.metaKey&&!e.altKey)keys.add(e.code);return;}
   if(e.repeat)return;
   if(e.code==='KeyM'){e.preventDefault();togglePanel('map');}
@@ -109,6 +117,7 @@ function fixedUpdate(dt){
   anim.moving=travelled>.01;
   if(dx||dy){const n=Math.hypot(dx,dy);anim.facing={x:dx/n,y:dy/n};}
   state.elapsed+=dt;state.distance+=travelled;
+  const previousEpoch=state.npc.epoch;npcController.tick(dt);if(state.npc.epoch!==previousEpoch){save();if(state.npc.lifecycle==='RECOVERING')notify(state.npc.rescuePresentation==='quiet'?'Aster has received water and is recovering.':'A warm light gathers around Aster. A benevolent presence has supplied water.',7);else if(state.npc.lifecycle==='COLLAPSED')notify('Aster has collapsed from dehydration. Its experience will be retained.',6);}
 }
 function updateHud(now){
   if(now-lastHud<.15)return;lastHud=now;
@@ -136,7 +145,7 @@ function loop(ms){
   if(started&&!panel&&!document.hidden){accumulator+=dt;while(accumulator>=CONFIG.fixedStep){fixedUpdate(CONFIG.fixedStep);accumulator-=CONFIG.fixedStep;}anim.time+=dt;}
   else{anim.moving=false;accumulator=0;if(!started)anim.time+=dt;}
   renderer.render(state,anim,dt,started);
-  if(started){renderer.drawMini(ui.minimap,state,now);updateHud(now);if(now-lastAutosave>10){lastAutosave=now;save();}}
+  if(started){npcPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(now-lastAutosave>10){lastAutosave=now;save();}}
   requestAnimationFrame(loop);
 }
 window.addEventListener('error',e=>{ $('fatal-message').textContent=e.message||'An unexpected runtime error occurred.';$('fatal').classList.remove('hidden'); });
@@ -149,7 +158,10 @@ if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ =
     metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,interaction:nearestInteraction(state.player,state.scene)}),
     teleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene))return false;if(!canStand(x,y,scene))return false;state.scene=scene;state.player={x,y};renderer.snap(state.player);return true;},
     step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;}},
-    start:begin,interact,save:()=>save(true),reset:()=>{state=freshState();renderer.snap(state.player);},
+    start:begin,interact,save:()=>save(true),reset:()=>{npcController.dispose();state=freshState();npcController=new NpcController(state.npc);renderer.snap(state.player);},
+    npc:()=>structuredClone(state.npc),
+    npcStep:(seconds)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep)npcController.tick(Math.min(CONFIG.fixedStep,seconds-t));},
+    npcTeleport:(x,y)=>{if(!canStand(x,y,'valley'))return false;state.npc.position={x,y};state.npc.active=null;state.npc.skillRun=null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'position',value:{x,y},provenance:'debug'});observeNpc(state.npc);return true;},
     light:(elapsed)=>{state.elapsed=clamp(elapsed,0,3600*1000);},
   };
 }

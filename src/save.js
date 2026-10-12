@@ -1,8 +1,9 @@
 import { CONFIG, CAVES, CAVE_SPAWN, LANDMARKS } from './config.js';
 import { freshState, canStand, clamp } from './world.js';
-export function validateSave(raw) {
+import { validateNpc } from './npc-memory.js';
+export function validateSave(raw, {restoring=true}={}) {
   const base = freshState();
-  if (!raw || typeof raw !== 'object' || raw.version !== 1) return base;
+  if (!raw || typeof raw !== 'object' || ![1,2].includes(raw.version)) return base;
   const ids = new Set(CAVES.map(c => c.id));
   base.scene = ids.has(raw.scene) ? raw.scene : 'valley';
   const p = raw.player;
@@ -14,6 +15,7 @@ export function validateSave(raw) {
   base.visitedCaves = [...new Set((Array.isArray(raw.visitedCaves) ? raw.visitedCaves : []).filter(v => ids.has(v)))];
   const wp = raw.waypoint;
   if (wp && Number.isFinite(wp.x) && Number.isFinite(wp.y) && Math.abs(wp.x) < CONFIG.halfSize && Math.abs(wp.y) < CONFIG.halfSize) base.waypoint = { x: wp.x, y: wp.y };
+  if(raw.npc)base.npc=validateNpc(raw.npc,{restoring});
   return base;
 }
 export function loadSave(storage) {
@@ -21,11 +23,11 @@ export function loadSave(storage) {
     const data = storage.getItem(CONFIG.saveKey);
     if (!data) return { state: freshState(), exists: false, error: null };
     const parsed = JSON.parse(data);
-    if (parsed?.version !== 1) return { state: freshState(), exists: false, error: 'The previous save is not compatible. A new expedition is ready.' };
+    if (![1,2].includes(parsed?.version)) return { state: freshState(), exists: false, error: 'The previous save is not compatible. A new expedition is ready.' };
     return { state: validateSave(parsed), exists: true, error: null };
   } catch { return { state: freshState(), exists: false, error: 'The local save could not be read. Your previous data has not been overwritten.' }; }
 }
 export function writeSave(storage, state) {
-  try { storage.setItem(CONFIG.saveKey, JSON.stringify(validateSave(state))); return true; }
+  try { storage.setItem(CONFIG.saveKey, JSON.stringify(validateSave(state,{restoring:false}))); return true; }
   catch { return false; }
 }

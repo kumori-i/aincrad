@@ -1,0 +1,27 @@
+import { CONFIG, NPC_RULES } from './config.js';
+import { distance } from './world.js';
+import { tileKey, tilePoint } from './perception.js';
+
+/** A bounded tile search over observed data. No terrain/world lookup occurs here. */
+export function knownRoute(cells,from,to,maxSteps=30,blockedEdges={},elapsed=0,startKey=null){
+  let start=startKey||tileKey(from);const goal=tileKey(to);
+  if(!cells[start]?.walkable)start=Object.values(cells).filter(c=>c.walkable&&distance(c,from)<NPC_RULES.tileSize*2).sort((a,b)=>distance(a,from)-distance(b,from))[0]?.key;
+  if(!start||!cells[goal]?.walkable)return null;
+  const queue=[start],parent=new Map([[start,null]]);
+  for(let i=0;i<queue.length&&i<2500;i++){
+    const key=queue[i];if(key===goal)break;
+    const [x,y]=key.split(',').map(Number);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const next=`${x+dx},${y+dy}`;
+      const edge=[key,next].sort().join('>');
+      if((blockedEdges[edge]?.retryAfter||0)>elapsed)continue;
+      if(cells[next]?.walkable&&!parent.has(next)){parent.set(next,key);queue.push(next);}
+    }
+  }
+  if(!parent.has(goal))return null;
+  const keys=[];let at=goal;
+  while(at!==start){keys.unshift(at);at=parent.get(at);if(keys.length>maxSteps)return null;}
+  const route=[tilePoint(start),...keys.map(tilePoint),{x:to.x,y:to.y}];
+  if(route.reduce((n,p,i)=>n+(i?distance(route[i-1],p):distance(from,p)),0)>NPC_RULES.maxActionSeconds*CONFIG.walkSpeed)return null;
+  return route.filter((p,i)=>i||distance(from,p)>6);
+}

@@ -3,11 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-jZj8/tQtAD15UhBc+cNo1ApKq30bm2utUa+wdq9OV/c='; style-src 'sha256-Nm5IP1Zf0tY2GrfeUj6tumWSQowR5OO9IjCAslWDync='; img-src data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Q7xthS3co0ptJi1Ur/CQaqqio/N+n6bx60cgakDJQZY='; style-src 'sha256-TriZX5GYyKgOqF7P2Nyx2NKJylaUPSayI9xUUU0y2C8='; img-src data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="dark">
-  <title>Aincrad — Exploration prototype</title>
+  <title>Aincrad — A living-world prototype</title>
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTUiIGZpbGw9IiMxZTM3MzQiLz48cGF0aCBkPSJNOCA0OCAyNyAxNGwxMCAxOCA2LTExIDE0IDI3WiIgZmlsbD0iI2QxZDhiYSIvPjxwYXRoIGQ9Im0yMSAyNSA2LTExIDcgMTItNy0zWiIgZmlsbD0iI2ZmZjJjZiIvPjxwYXRoIGQ9Ik0xNiA1MmMxMi0xMiAyMyA1IDMzLTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzc3YmNiYyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root{--cream:#f0e9d5;--muted:#b5c7b4;--gold:#dfc38c;--ink:#102724;--line:#e9e4cf28}*{box-sizing:border-box}html,body,#app{margin:0;width:100%;height:100%;overflow:hidden}body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#142c28;color:var(--cream);font-size:14px}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--gold);outline-offset:4px}#world{display:block;width:100%;height:100%;outline:0;image-rendering:auto}#vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 160px #11262340}.hidden{display:none!important}.welcome{position:absolute;inset:0;background:linear-gradient(90deg,#102c29ee 0%,#102c29b5 38%,#102c2922 75%);display:flex;align-items:center}.welcome-copy{margin-left:6.5vw;max-width:570px;margin-top:-30px}.eyebrow{font-size:10px;letter-spacing:2.6px;font-weight:650;color:var(--gold)}.welcome .eyebrow{display:flex;align-items:center;gap:10px;letter-spacing:3.4px;font-size:12px}.crest{font-family:Georgia,serif;font-size:42px;line-height:1;border-bottom:1px solid var(--gold);width:30px;height:31px;display:inline-flex;align-items:center;justify-content:center;margin-right:5px}.build{font-size:9px;color:#b8cbbb;letter-spacing:1.8px;margin-left:12px}h1,h2,p{margin:0}h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(44px,5vw,74px);line-height:1.08;letter-spacing:-2.5px;margin:44px 0 24px;text-shadow:0 2px 20px #17332d40}.welcome p{color:#c4d0be;max-width:410px;line-height:1.9;font-size:15px}.primary{display:flex;align-items:center;justify-content:space-between;gap:40px;background:var(--gold);border:0;color:#23362c;padding:17px 24px;border-radius:3px;font-weight:650;text-align:left}.primary:hover{background:#ecd4a4;transform:translateY(-1px)}.welcome .primary{margin-top:33px;min-width:264px}.primary span{font-size:22px;font-weight:400}.welcome-detail{margin-top:26px;font-size:9px;letter-spacing:2px;color:#a9bdaa}.welcome-detail i{font-style:normal;margin:0 8px;color:var(--gold)}.welcome-controls{margin-top:41px;color:#c7d1bc;font-size:12px;line-height:2.6}.welcome-controls span{color:#95ae9b;margin-left:8px}.welcome-controls kbd{margin-right:8px}.welcome-foot{position:absolute;bottom:25px;left:6.5vw;right:30px;display:flex;justify-content:space-between;gap:20px;font-size:10px;color:#d2d9c3a3;letter-spacing:.3px}kbd{font-family:inherit;font-size:10px;display:inline-block;border:1px solid #e8e9d844;background:#0e282c55;border-radius:3px;padding:2px 5px;color:#f4e9d2;line-height:1.5}#hud{position:absolute;inset:0;pointer-events:none}.top-left{position:absolute;left:30px;top:25px;text-shadow:0 2px 8px #10291e}.brand{font-family:Georgia,serif;font-size:20px;letter-spacing:3.3px}.brand span{font-family:system-ui,sans-serif;display:inline-block;font-size:8px;letter-spacing:1.7px;vertical-align:middle;margin-left:14px;opacity:.6;border-left:1px solid #fff4;padding-left:14px}.clock{display:flex;align-items:center;gap:11px;margin-top:12px;font-size:11px}.clock b{letter-spacing:1px;font-size:13px;font-weight:500}.clock #day{letter-spacing:1.5px;color:#e1e4ca}.sun-icon{color:var(--gold);font-size:19px}.time-note{font-size:9px;color:#dde5d398;border-left:1px solid #fff4;padding-left:12px}.navigation{position:absolute;right:25px;top:25px;width:184px;background:#102622dd;border:1px solid #e1d0a644;border-radius:6px;padding:7px;box-shadow:0 7px 25px #10281f44;pointer-events:auto}.minimap-frame{position:relative;width:168px;height:168px;overflow:hidden;border:1px solid #d6cfac44;border-radius:3px;background:#173931}#minimap{width:100%;height:100%;display:block}.north{position:absolute;left:50%;transform:translateX(-50%);top:6px;font-size:9px;font-weight:bold;color:#f5dfab;text-shadow:0 1px 3px #102723}.nav-caption{display:flex;justify-content:space-between;align-items:center;padding:6px 4px 1px;letter-spacing:1.5px;font-size:8px;color:#dedfc8}.nav-caption button{border:0;background:transparent;color:var(--gold);font-size:10px}.location{position:absolute;left:30px;bottom:34px;text-shadow:0 2px 12px #183026}.location .eyebrow{font-size:8px;letter-spacing:2px;color:#dfd8b9}.location h2{font:400 31px Georgia,serif;letter-spacing:-.3px;margin:7px 0}.location p{font-size:10px;letter-spacing:.6px;color:#e4ead3b5}.bottom-controls{position:absolute;bottom:32px;right:26px;display:flex;gap:9px;pointer-events:auto}.bottom-controls button{background:#102822ab;border:1px solid #e7e3c629;border-radius:4px;padding:9px 12px;font-size:10px;backdrop-filter:blur(8px)}.bottom-controls kbd{margin-right:5px}.interaction{position:absolute;left:50%;bottom:105px;transform:translateX(-50%);padding:12px 19px;background:#112b27ed;border:1px solid #c9b78070;border-radius:4px;box-shadow:0 5px 25px #11282055;display:flex;gap:12px;align-items:center;letter-spacing:.3px;font-size:12px}.interaction kbd{background:var(--gold);color:#163529;padding:3px 8px;border:0;font-weight:700;font-size:12px}.toast{position:absolute;left:50%;top:30px;max-width:450px;transform:translateX(-50%);padding:14px 22px;background:#132d28ed;border:1px solid #dcccaa5c;border-radius:4px;text-align:center;line-height:1.7;font-size:12px}.save-status{position:absolute;right:29px;bottom:14px;font-size:8px;letter-spacing:1px;color:#e5e5c58f}.waypoint-hud{position:absolute;top:95px;left:30px;font-size:11px;background:#142c258a;padding:8px 11px;border-left:2px solid var(--gold);line-height:1.6}.overlay{position:absolute;inset:0;background:#061d1ba8;backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}.menu-card{padding:37px 40px;width:430px;max-width:100%;border:1px solid #d8c8964a;border-radius:6px;background:linear-gradient(145deg,#1a3732,#142b29);box-shadow:0 20px 100px #091b2455}.menu-card h2{font:400 33px Georgia,serif;letter-spacing:-.8px;margin:13px 0 18px}.menu-card p{font-size:12px;color:#bdcdbb;line-height:1.8;margin-bottom:20px}.menu-card .primary{width:100%;margin-top:24px;padding:13px 18px}.secondary{display:block;width:100%;padding:13px 15px;border:1px solid #e5d9bb44;border-radius:3px;margin-top:10px;background:#234038}.secondary:hover{background:#314e41}.text-button{border:0;background:none;color:#c6cbb1;font-size:11px;display:block;text-align:center;width:100%;padding:20px 0}.menu-card .small{font-size:10px;color:#90a898;margin:5px 0 0}.guide{width:540px;max-height:92vh;overflow:auto}.guide dl{margin:22px 0}.guide dt{font-size:12px;margin-top:12px;color:#e0d6b6}.guide dd{margin:3px 0 0;font-size:11px;color:#bdcdbb}.atlas{width:min(940px,94vw);max-height:95vh;background:#17362f;border:1px solid #d1bd834f;border-radius:5px;padding:24px 28px 14px;box-shadow:0 24px 100px #00191788;display:flex;flex-direction:column}.atlas header{display:flex;justify-content:space-between;align-items:center;margin-bottom:17px}.atlas h2{font:400 27px Georgia,serif;margin-top:7px}.close{background:none;border:0;color:#d5d7bd;font-size:11px}.close kbd{margin-left:7px}.atlas-body{position:relative;min-height:0;display:flex;justify-content:center;background:#1b352c;border:1px solid #d4c78c29;overflow:hidden}#atlas-map{display:block;width:auto;max-width:100%;height:auto;max-height:calc(95vh - 200px);object-fit:contain;cursor:crosshair}.atlas-north{position:absolute;left:21px;top:16px;color:#e8d8ae;text-align:center;font-size:12px;line-height:1.6}.atlas footer{display:flex;justify-content:space-between;gap:10px;font-size:9px;align-items:center;margin-top:13px;color:#c4ceb5}.legend{display:flex;gap:18px}.legend span{display:flex;align-items:center;gap:6px}.player-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#f8edc8}.atlas-note{font-size:9px;color:#93ab96;margin-top:12px;line-height:1.5}@media(max-width:800px){.welcome-copy{margin-left:6vw;max-width:80vw}.welcome-foot span:last-child{display:none}.welcome h1{margin-top:28px}.welcome .build{display:none}.navigation{width:144px;right:14px;top:14px}.minimap-frame{width:128px;height:128px}.top-left{left:17px;top:18px}.brand span,.time-note{display:none}.location{left:18px;bottom:68px}.location h2{font-size:24px}.bottom-controls{bottom:26px;right:16px}.atlas{padding:17px}.atlas footer{flex-wrap:wrap}.atlas h2{font-size:22px}.welcome-controls{margin-top:20px}.guide{padding:25px}}@media(max-height:700px){.welcome-copy{margin-top:0}.welcome h1{font-size:50px;margin:24px 0 17px}.welcome .primary{margin-top:20px}.welcome-detail{margin-top:18px}.welcome-controls{margin-top:15px}.menu-card{padding:25px}.welcome-foot{bottom:14px}.guide dt{margin-top:8px}}
+
+/* A live inspection drawer does not pause the world. Modal menus still do. */
+.npc-short{position:absolute;left:28px;top:103px;font-size:12px;letter-spacing:.06em;color:#e6ddbe;background:#18382bbb;padding:9px 12px;border-radius:4px;pointer-events:none}
+.npc-panel{position:fixed;z-index:18;right:16px;top:16px;bottom:16px;width:min(410px,calc(100vw - 32px));background:#142f2fef;border:1px solid #91a58b66;border-radius:8px;box-shadow:0 12px 60px #05191699;backdrop-filter:blur(14px);pointer-events:auto;color:#f0e6cc}
+.npc-panel header{display:flex;align-items:center;justify-content:space-between;padding:20px 20px 14px;border-bottom:1px solid #afbc942a}.npc-panel h2{font-size:29px;margin:4px 0}.npc-panel h2 span{font:10px system-ui;letter-spacing:.1em;color:#b4cdb4;margin-left:10px}
+.npc-panel-body{padding:16px 20px;height:calc(100% - 89px);overflow-y:auto;font-size:12px;line-height:1.55}.npc-panel p{margin:10px 0}.npc-panel button{font-size:11px}.npc-panel .secondary{width:100%;margin:8px 0;padding:10px}
+.npc-condition{display:grid;gap:6px}.npc-condition span{display:flex;justify-content:space-between}.npc-condition progress{width:100%;height:7px;accent-color:#a8c0a0}
+.npc-reason{padding:10px;border-left:2px solid #bfb58b;background:#e1dbb208}.npc-panel details{border-top:1px solid #8da78b33;margin:14px 0 0;padding-top:10px}.npc-panel summary{cursor:pointer;color:#e3d5a5;font-weight:600}.npc-panel details details{margin:8px 0;border:0;padding:7px;background:#061c232b}.npc-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;max-height:190px;overflow:auto;color:#b2cbc1;padding:7px;background:#091d25}.npc-panel .small{font-size:10px;color:#b5c4b2}.npc-panel ul{padding-left:18px;font-size:10px;color:#c3d1bb}
+#npc-map{display:block;width:100%;height:auto;max-height:260px;object-fit:contain;margin:12px 0;border:1px solid #8caa8230;image-rendering:pixelated;background:#101f24}.npc-panel label{display:block;margin-top:10px;color:#c6d0b6;font-size:10px}.npc-panel input:not([type=checkbox]),.npc-panel select{width:100%;margin-top:4px;padding:8px;border:1px solid #8ba99466;border-radius:3px;background:#0c272b;color:#eee3c6;font:11px system-ui}.npc-panel .check-row{display:flex;align-items:center;gap:7px}.npc-panel .check-row input{width:auto}.npc-actions{display:flex;gap:6px;margin:10px 0}.npc-actions button{flex:1;padding:9px}.npc-panel button:disabled{opacity:.4;cursor:default}
+@media(max-width:900px){.npc-short{left:16px;top:88px;font-size:10px}.bottom-controls button{font-size:10px}}
 </style>
 </head>
 <body>
@@ -16,21 +26,22 @@
     <div id="vignette"></div>
     <section id="welcome" class="welcome">
       <div class="welcome-copy">
-        <div class="eyebrow"><span class="crest">⌃</span> AINCRAD <span class="build">WORLD ZERO · 0.1</span></div>
+        <div class="eyebrow"><span class="crest">⌃</span> AINCRAD <span class="build">ONE WANDERER · 0.2</span></div>
         <h1>A quiet world.<br>Yours to explore.</h1>
         <p>Beyond the pines, a river finds its way through the mountains. Take the long road. See what lies beneath the ridge.</p>
         <button id="begin" class="primary">Enter the valley <span>↗</span></button>
         <div class="welcome-detail">ONE VALLEY <i>·</i> THREE CAVERNS <i>·</i> NO HURRY</div>
         <div class="welcome-controls"><kbd>W A S D</kbd> move <span>or arrow keys</span><br><kbd>M</kbd> field map <kbd>E</kbd> interact</div>
       </div>
-      <div class="welcome-foot"><span>A local, single-player exploration prototype</span><span>Original procedural artwork · No account or AI service required</span></div>
+      <div class="welcome-foot"><span>A local, single-player exploration prototype</span><span>Your own desktop world · One persistent water-learning NPC</span></div>
     </section>
     <section id="hud" class="hidden" aria-label="Game status">
       <header class="top-left"><div class="brand">AINCRAD <span>EXPLORATION</span></div><div class="clock"><span class="sun-icon">☀</span><b id="clock">08:00</b><span id="day">DAY 01</span><span class="time-note">60 min / day</span></div></header>
       <aside class="navigation"><div class="minimap-frame"><canvas id="minimap" width="210" height="210" aria-label="Local map"></canvas><span class="north">N</span></div><div class="nav-caption"><span id="nav-label">THE VALLEY</span><button id="open-map" title="Open field map (M)">M ↗</button></div></aside>
       <div class="location"><div class="eyebrow">YOUR FOOTSTEPS, YOUR STORY</div><h2 id="region">The Trailhead</h2><p id="location-detail">Crown Ridge Valley · 0 / 3 caverns explored</p></div>
       <div id="waypoint-hud" class="waypoint-hud hidden"></div>
-      <div class="bottom-controls"><button id="help-button"><kbd>H</kbd> Guide</button><button id="pause-button"><kbd>Esc</kbd> Pause</button></div>
+      <div class="npc-short" id="npc-short">Aster · awake</div>
+      <div class="bottom-controls"><button id="open-npc"><kbd>N</kbd> Aster’s mind</button><button id="help-button"><kbd>H</kbd> Guide</button><button id="pause-button"><kbd>Esc</kbd> Pause</button></div>
       <div id="interaction" class="interaction hidden"><kbd>E</kbd><span></span></div>
       <div id="toast" class="toast hidden" role="status"></div>
       <div id="save-status" class="save-status" role="status">Saved locally</div>
@@ -43,7 +54,22 @@
       </div>
     </section>
     <section id="pause-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title"><div class="menu-card"><div class="eyebrow">TAKE YOUR TIME</div><h2 id="pause-title">The valley can wait.</h2><p>World time pauses here and when the window loses focus.</p><button id="resume" class="primary">Return to the trail <span>↗</span></button><button id="save-button" class="secondary">Save expedition</button><button id="return-camp" class="secondary">Return to the trailhead</button><button id="new-expedition" class="text-button">Start a new expedition…</button><p class="small">Position, discoveries, and world time save locally. There is no offline simulation in this build.</p></div></section>
-    <section id="help-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="menu-card guide"><div class="eyebrow">YOUR FIRST FOOTSTEPS</div><h2 id="help-title">Welcome, wanderer.</h2><dl><dt><kbd>W A S D</kbd> / <kbd>↑ ← ↓ →</kbd></dt><dd>Walk. Diagonal movement is normalized.</dd><dt><kbd>Shift</kbd></dt><dd>Hold to run. There is no stamina limit yet.</dd><dt><kbd>E</kbd></dt><dd>Enter caves, leave caves, and read the trail sign.</dd><dt><kbd>M</kbd></dt><dd>Open the field map and choose a waypoint.</dd><dt>Mouse wheel / <kbd>+</kbd> <kbd>−</kbd></dt><dd>Zoom the camera in or out.</dd><dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Save your expedition immediately.</dd><dt><kbd>Esc</kbd> / <kbd>H</kbd></dt><dd>Pause / open this guide.</dd></dl><p>Water, trees, rocks, and mountains are solid. Use the wooden bridges to cross the Silverrun. Cave mouths sit at the foot of the mountains; approach and press E.</p><p class="small">This first build is for exploring. Farming, construction, NPCs, and multiplayer are not implemented.</p><button id="close-help" class="primary">Back to exploring <span>↗</span></button></div></section>
+    <section id="help-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="menu-card guide"><div class="eyebrow">YOUR FIRST FOOTSTEPS</div><h2 id="help-title">Welcome, wanderer.</h2><dl><dt><kbd>W A S D</kbd> / <kbd>↑ ← ↓ →</kbd></dt><dd>Walk. Diagonal movement is normalized.</dd><dt><kbd>Shift</kbd></dt><dd>Hold to run. There is no stamina limit yet.</dd><dt><kbd>E</kbd></dt><dd>Enter caves, leave caves, and read the trail sign.</dd><dt><kbd>M</kbd></dt><dd>Open the field map and choose a waypoint.</dd><dt>Mouse wheel / <kbd>+</kbd> <kbd>−</kbd></dt><dd>Zoom the camera in or out.</dd><dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Save your expedition immediately.</dd><dt><kbd>N</kbd></dt><dd>Inspect Aster, follow its view, and choose a local model.</dd><dt><kbd>Esc</kbd> / <kbd>H</kbd></dt><dd>Pause / open this guide.</dd></dl><p>Water, trees, rocks, and mountains are solid. Use the wooden bridges to cross the Silverrun. Cave mouths sit at the foot of the mountains; approach and press E.</p><p class="small">This first build is for exploring. Aster is learning to obtain water. Press N to inspect its experience. Farming, construction, and multiplayer are not implemented.</p><button id="close-help" class="primary">Back to exploring <span>↗</span></button></div></section>
+
+    <aside id="npc-panel" class="npc-panel hidden" aria-label="Aster inspection">
+      <header><div><div class="eyebrow">ONE PERSISTENT LIFE</div><h2>Aster <span id="npc-lifecycle">AWAKE</span></h2></div><button id="close-npc" class="close">Close <kbd>N</kbd></button></header>
+      <div class="npc-panel-body">
+        <div class="npc-condition"><span>Hydration <b id="npc-hydration-value"></b></span><progress id="npc-hydration" max="100" value="85"></progress><span>Flask <b id="npc-flask"></b></span></div>
+        <button id="follow-npc" class="secondary">Follow Aster</button>
+        <p id="npc-current"></p><div class="eyebrow" id="npc-controller"></div><p id="npc-decision" class="npc-reason"></p>
+        <p id="npc-counts"></p><p id="npc-rescuer" class="small"></p>
+        <details open><summary>Remembered tiles & water</summary><canvas id="npc-map" width="288" height="288" aria-label="Aster’s observed navigation tiles; unexplored tiles are dark"></canvas><p class="small">Dark tiles are unknown. Blue dots are observed water. This is Aster’s memory, not the full world.</p><ul id="npc-sources"></ul></details>
+        <details open><summary>Acquired procedures</summary><div id="npc-skills"></div></details>
+        <details><summary>Recent evidence</summary><div id="npc-history"></div><p id="npc-lesson" class="small"></p></details>
+        <details><summary>Local model planning</summary><p class="small">The offline controller learns action values from experience. Connecting a local language model adds model-assisted decisions. No hosted service or API key is required.</p><label>Local endpoint<input id="npc-endpoint" value="http://127.0.0.1:11434/v1" spellcheck="false"></label><label>Installed model name<input id="npc-model" placeholder="e.g. llama3.2:3b" spellcheck="false"></label><div class="npc-actions"><button id="connect-model">Use local model</button><button id="offline-controller">Use offline learner</button></div><p id="model-status" class="small">No live model configured.</p></details>
+        <details><summary>Development controls</summary><label>Hydration pace<select id="npc-preset"><option value="normal">Normal gameplay</option><option value="accelerated">Accelerated survival cycles</option></select></label><label>Rescue presentation<select id="npc-rescue-presentation"><option value="divine">Benevolent presence</option><option value="quiet">Quiet recovery</option></select></label><label class="check-row"><input type="checkbox" id="npc-learning" checked>Persistent learning enabled</label><button id="npc-demonstrate" class="secondary">Demonstrate collapse and rescue</button><p class="small">The demonstration applies dehydration as a recorded debug action. It preserves Aster’s identity and memory and gives no survival credit.</p></details>
+      </div>
+    </aside>
     <div id="fatal" class="overlay hidden" role="alert"><div class="menu-card"><h2>Something interrupted the expedition.</h2><p id="fatal-message"></p><p>Your last local save is retained. Please reload the application.</p></div></div>
   </main>
   <script>(()=>{
@@ -52,7 +78,7 @@ __modules.config=(()=>{
 /** World distances are in logical pixels. Change rules here, never in the renderer. */
 const CONFIG = Object.freeze({
   title: 'Aincrad',
-  version: '0.1.0',
+  version: '0.2.0',
   seed: 74193,
   halfSize: 24000,
   valleyRadius: 22500,
@@ -83,10 +109,45 @@ const LANDMARKS = Object.freeze([
 const CAVE_SPAWN = Object.freeze({ x: 1320, y: 1510 });
 const CAVE_EXIT = Object.freeze({ x: 1320, y: 1580 });
 
-return {CONFIG,SPAWN,CAVES,LANDMARKS,CAVE_SPAWN,CAVE_EXIT};
+/** NPC time uses the same unpaused simulation seconds as the world. */
+const NPC_RULES = Object.freeze({
+  tileSize: 80, visionRadius: 400, collectionRange: 80,
+  flaskCapacity: 1, drinkHydration: 65, maxActionSeconds: 12,
+  maxSkillSeconds: 35, maxExperience: 400, maxCells: 4096,
+  maxSources: 128, maxSkills: 12, maxModelCallsPerHour: 60,
+});
+const NPC_PRESETS = Object.freeze({
+  normal: { initialHydration: 85, depletionPerSecond: 0.065, rescueDelay: 25, recoverySeconds: 4, rescueHydration: 75 },
+  accelerated: { initialHydration: 42, depletionPerSecond: 0.4, rescueDelay: 7, recoverySeconds: 2, rescueHydration: 78 },
+});
+
+return {CONFIG,SPAWN,CAVES,LANDMARKS,CAVE_SPAWN,CAVE_EXIT,NPC_RULES,NPC_PRESETS};
+})();
+__modules.npc-state=(()=>{
+const { CONFIG, SPAWN, NPC_PRESETS }=__modules.config;
+
+/** Body, learned state and identity are data. Neither models nor artwork own them. */
+function createNpc({preset='normal', learning=true, seed=CONFIG.seed}={}) {
+  const selected=NPC_PRESETS[preset] ? preset : 'normal';
+  return {
+    version:1, id:'aster', name:'Aster', scene:'valley', position:{x:SPAWN.x+160,y:SPAWN.y+40},
+    elapsed:0, hydration:NPC_PRESETS[selected].initialHydration,
+    flask:{capacity:1,water:0,provenance:null,fillEventId:null,creditedFillId:null},
+    lifecycle:'AWAKE', lifecycleAt:0, epoch:0, collapseId:0, rescuedCollapseId:0,
+    preset:selected, rescuePresentation:'divine', learning:Boolean(learning), seed:seed>>>0, rng:seed>>>0,
+    navigationAnchor:null, active:null, skillRun:null, lastResult:null, nextDecisionAt:0, modelBudget:{since:0,calls:0},
+    memory:{nextId:1,experience:[],cells:{},blockedEdges:{},sources:{},skills:[],values:{},lessons:[],trace:[],explorationCredit:0},
+    stats:{independentDrinks:0,collections:0,collapses:0,rescues:0,invalidActions:0,repeatedInvalid:0,modelCalls:0,modelFailures:0,staleResponses:0,skillUses:0,firstWaterAt:null,lastRescuer:null},
+    presentation:{rescueUntil:0,drinkUntil:0}, decision:'A new expedition: no remembered water sources or learned procedures.',
+  };
+}
+
+return {createNpc};
 })();
 __modules.world=(()=>{
 const { CONFIG, CAVES, SPAWN, CAVE_SPAWN, CAVE_EXIT }=__modules.config;
+
+const { createNpc }=__modules.npc-state;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -270,7 +331,7 @@ function regionName(x, y, scene) {
   return y > 0 ? 'Sunfall Meadows' : 'The High Meadows';
 }
 function freshState() {
-  return { version: 1, scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+  return { version: 2, npc: createNpc(), scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);
@@ -281,12 +342,611 @@ function clockTime(elapsed) {
 
 return {clamp,lerp,distance,hash,noise,segmentDistance,riverX,riverWidth,BRIDGES,LAKE,lakeDistance,waterDistance,onBridge,ridgeValue,trailDistance,caveMountain,terrain,forestAmount,objectAtCell,objectsInRect,solidGround,canStandOutside,CAVE_ROOMS,CAVE_CORRIDORS,caveDistance,caveObjectAt,caveObjects,CAVE_OBJECTS,canStandCave,canStand,moveActor,nearestInteraction,regionName,freshState,clockTime};
 })();
+__modules.resources=(()=>{
+const { CONFIG, NPC_RULES }=__modules.config;
+const { riverX, riverWidth, LAKE, waterDistance, canStandOutside, distance, onBridge }=__modules.world;
+
+/** Physical draw points belong to the engine, never the controller's initial knowledge. */
+function waterSource(id, environment={}) {
+  if(typeof id!=='string'||id.length>70)return null;
+  let point,name;
+  const river=/^river:(west|east):(-?\d{1,3})$/.exec(id);
+  const lake=/^lake:(\d{1,2})$/.exec(id);
+  if(river){
+    const row=Number(river[2]);if(Math.abs(row)>145)return null;
+    const y=row*160,x=riverX(y)+(river[1]==='west'?-1:1)*(riverWidth(y)+34);
+    point={x,y};name='Silverrun bank';
+    if(onBridge(x,y)||waterDistance(x,y)<12||waterDistance(x,y)>65)return null;
+  }else if(lake){
+    const n=Number(lake[1]);if(n>=64)return null;
+    const a=n/64*Math.PI*2;
+    let lo=.85,hi=1.2;
+    for(let i=0;i<18;i++){
+      const m=(lo+hi)/2,x=LAKE.x+Math.cos(a)*LAKE.rx*m,y=LAKE.y+Math.sin(a)*LAKE.ry*m;
+      if(waterDistance(x,y)<34)lo=m;else hi=m;
+    }
+    point={x:LAKE.x+Math.cos(a)*LAKE.rx*hi,y:LAKE.y+Math.sin(a)*LAKE.ry*hi};name='Stillwater shore';
+    if(waterDistance(point.x,point.y)>65)return null;
+  }else return null;
+  if(!canStandOutside(point.x,point.y))return null;
+  return {id,name,...point,available:!(environment.unavailableSources||[]).includes(id)};
+}
+function nearbyWaterSources(actor, radius=NPC_RULES.visionRadius, environment={}) {
+  const result=[];
+  for(let row=Math.floor((actor.y-radius)/160);row<=Math.ceil((actor.y+radius)/160);row++){
+    for(const side of ['west','east']){const s=waterSource(`river:${side}:${row}`,environment);if(s&&distance(actor,s)<=radius)result.push(s);}
+  }
+  if(distance(actor,LAKE)<Math.max(LAKE.rx,LAKE.ry)+radius+300){
+    for(let n=0;n<64;n++){const s=waterSource(`lake:${n}`,environment);if(s&&distance(actor,s)<=radius)result.push(s);}
+  }
+  return result;
+}
+function validSourceId(id) { return typeof id==='string' && Boolean(waterSource(id)); }
+function withinWorld(p) { return p && Number.isFinite(p.x)&&Number.isFinite(p.y)&&Math.abs(p.x)<CONFIG.halfSize&&Math.abs(p.y)<CONFIG.halfSize; }
+
+return {waterSource,nearbyWaterSources,validSourceId,withinWorld};
+})();
+__modules.perception=(()=>{
+const { CONFIG, NPC_RULES }=__modules.config;
+const { canStandOutside, terrain, objectAtCell, distance }=__modules.world;
+const { nearbyWaterSources }=__modules.resources;
+
+const tileKey=(p)=>`${Math.round(p.x/NPC_RULES.tileSize)},${Math.round(p.y/NPC_RULES.tileSize)}`;
+function tilePoint(key){const [x,y]=key.split(',').map(Number);return{x:x*NPC_RULES.tileSize,y:y*NPC_RULES.tileSize};}
+function lineOfSight(from,to){
+  const d=distance(from,to),n=Math.max(1,Math.ceil(d/18));
+  for(let i=1;i<n;i++){
+    const x=from.x+(to.x-from.x)*i/n,y=from.y+(to.y-from.y)*i/n;
+    if(terrain(x,y)==='mountain')return false;
+    const cx=Math.floor(x/CONFIG.treeCell),cy=Math.floor(y/CONFIG.treeCell);
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const o=objectAtCell(cx+dx,cy+dy);if(o&&distance(o,{x,y})<o.radius*o.scale)return false;
+    }
+  }
+  return true;
+}
+/** Only local, unoccluded samples and physically visible draw points are returned. */
+function perceive(npc,environment={}){
+  const cells=[],p=npc.position,r=NPC_RULES.visionRadius,s=NPC_RULES.tileSize;
+  for(let y=Math.ceil((p.y-r)/s);y<=Math.floor((p.y+r)/s);y++)for(let x=Math.ceil((p.x-r)/s);x<=Math.floor((p.x+r)/s);x++){
+    const point={x:x*s,y:y*s};if(distance(p,point)>r||!lineOfSight(p,point))continue;
+    cells.push({key:`${x},${y}`,...point,walkable:canStandOutside(point.x,point.y),terrain:terrain(point.x,point.y),observedAt:npc.elapsed});
+  }
+  const sources=nearbyWaterSources(p,r,environment).filter(source=>lineOfSight(p,source));
+  return {at:npc.elapsed,position:{...p},lifecycle:npc.lifecycle,hydration:npc.hydration,flask:{water:npc.flask.water,capacity:npc.flask.capacity},cells,sources};
+}
+
+return {tileKey,tilePoint,lineOfSight,perceive};
+})();
+__modules.navigation=(()=>{
+const { CONFIG, NPC_RULES }=__modules.config;
+const { distance }=__modules.world;
+const { tileKey, tilePoint }=__modules.perception;
+
+/** A bounded tile search over observed data. No terrain/world lookup occurs here. */
+function knownRoute(cells,from,to,maxSteps=30,blockedEdges={},elapsed=0,startKey=null){
+  let start=startKey||tileKey(from);const goal=tileKey(to);
+  if(!cells[start]?.walkable)start=Object.values(cells).filter(c=>c.walkable&&distance(c,from)<NPC_RULES.tileSize*2).sort((a,b)=>distance(a,from)-distance(b,from))[0]?.key;
+  if(!start||!cells[goal]?.walkable)return null;
+  const queue=[start],parent=new Map([[start,null]]);
+  for(let i=0;i<queue.length&&i<2500;i++){
+    const key=queue[i];if(key===goal)break;
+    const [x,y]=key.split(',').map(Number);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const next=`${x+dx},${y+dy}`;
+      const edge=[key,next].sort().join('>');
+      if((blockedEdges[edge]?.retryAfter||0)>elapsed)continue;
+      if(cells[next]?.walkable&&!parent.has(next)){parent.set(next,key);queue.push(next);}
+    }
+  }
+  if(!parent.has(goal))return null;
+  const keys=[];let at=goal;
+  while(at!==start){keys.unshift(at);at=parent.get(at);if(keys.length>maxSteps)return null;}
+  const route=[tilePoint(start),...keys.map(tilePoint),{x:to.x,y:to.y}];
+  if(route.reduce((n,p,i)=>n+(i?distance(route[i-1],p):distance(from,p)),0)>NPC_RULES.maxActionSeconds*CONFIG.walkSpeed)return null;
+  return route.filter((p,i)=>i||distance(from,p)>6);
+}
+
+return {knownRoute};
+})();
+__modules.npc-memory=(()=>{
+const { CONFIG, NPC_RULES, NPC_PRESETS }=__modules.config;
+const { createNpc }=__modules.npc-state;
+const { clamp, canStandOutside, distance }=__modules.world;
+const { waterSource, withinWorld }=__modules.resources;
+const { tileKey, tilePoint }=__modules.perception;
+
+const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill']);
+const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait']);
+const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwise;
+const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
+function compact(value,depth=0){
+  if(depth>5)return null;
+  if(typeof value==='string')return value.slice(0,600);
+  if(typeof value==='number')return Number.isFinite(value)?clamp(value,-1e12,1e12):null;
+  if(typeof value==='boolean'||value===null)return value;
+  if(Array.isArray(value))return value.slice(0,24).map(v=>compact(v,depth+1));
+  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([k])=>!['__proto__','constructor','prototype'].includes(k)).slice(0,24).map(([k,v])=>[k.slice(0,60),compact(v,depth+1)]));
+  return null;
+}
+function recordEvent(npc,type,details={}){
+  const event={id:npc.memory.nextId++,at:npc.elapsed,type,details:compact(details)};
+  npc.memory.experience.push(event);
+  if(npc.memory.experience.length>NPC_RULES.maxExperience){
+    const protectedIds=new Set(npc.memory.skills.flatMap(s=>s.supportingExperience));
+    const removable=npc.memory.experience.findIndex(e=>!protectedIds.has(e.id));
+    npc.memory.experience.splice(removable<0?0:removable,1);
+  }
+  return event;
+}
+function rememberObservation(npc,observation){
+  if(!npc.learning){npc.memory.cells={};npc.memory.sources={};npc.memory.blockedEdges={};}
+  let newCells=0;const newSources=[];
+  for(const cell of observation.cells){
+    const old=npc.memory.cells[cell.key];if(!old)newCells++;
+    npc.memory.cells[cell.key]={...cell,visits:old?.visits||0};
+  }
+  const key=tileKey(npc.position);if(npc.memory.cells[key])npc.memory.cells[key].visits++;
+  for(const source of observation.sources){
+    if(!npc.memory.sources[source.id])newSources.push(source.id);
+    const previous=npc.memory.sources[source.id];
+    npc.memory.sources[source.id]={...source,observedAt:npc.elapsed,confidence:'observed',retryAfter:previous?.available===source.available?(previous.retryAfter||0):0};
+  }
+  const all=Object.values(npc.memory.cells);
+  if(all.length>NPC_RULES.maxCells){
+    all.sort((a,b)=>b.observedAt-a.observedAt);
+    npc.memory.cells=Object.fromEntries(all.slice(0,NPC_RULES.maxCells).map(c=>[c.key,c]));
+  }
+  const sources=Object.values(npc.memory.sources);
+  if(sources.length>NPC_RULES.maxSources){sources.sort((a,b)=>b.observedAt-a.observedAt);npc.memory.sources=Object.fromEntries(sources.slice(0,NPC_RULES.maxSources).map(s=>[s.id,s]));}
+  if(newSources.length||npc.memory.experience.length===0)recordEvent(npc,'observation',{position:npc.position,newCells,newSources,hydration:npc.hydration});
+  return {newCells,newSources};
+}
+function policyContext(npc){
+  const hydration=npc.hydration<20?'critical':npc.hydration<75?'thirsty':'comfortable';
+  const sources=Object.values(npc.memory.sources).filter(s=>s.available);
+  const water=sources.some(s=>distance(s,npc.position)<=NPC_RULES.collectionRange)?'near':sources.length?'known':'unknown';
+  return `${hydration}|${npc.flask.water>0?'water':'empty'}|${water}`;
+}
+function actionCategory(action){return action.type==='move'?(action.sourceId?'move_source':'move_explore'):action.type;}
+function updateValue(npc,context,category,reward){
+  if(!npc.learning)return;
+  const key=`${context}::${category}`,v=npc.memory.values[key]||{attempts:0,value:0};
+  v.attempts++;v.value=clamp(v.value+0.35*(reward-v.value),-12,12);npc.memory.values[key]=v;
+}
+function candidateFromDrink(npc,event){
+  const fill=npc.memory.experience.find(e=>e.id===npc.flask.fillEventId&&e.type==='action'&&e.details.result?.ok&&e.details.action?.type==='fill_flask');
+  if(!fill)return;
+  const sourceId=fill.details.action.sourceId;
+  const earlier=npc.memory.experience.filter(e=>e.type==='action'&&e.id<fill.id&&e.details.result?.ok&&e.details.action?.type==='move'&&e.details.action.sourceId===sourceId).at(-1);
+  const hasApproach=earlier&&fill.at-earlier.at<90;
+  const signature=hasApproach?'approach-fill-drink':'fill-drink';
+  let skill=npc.memory.skills.find(s=>s.signature===signature);
+  const steps=[...(hasApproach?[{type:'move',sourceId:'$sourceId'}]:[]),{type:'fill_flask',sourceId:'$sourceId'},{type:'drink'}];
+  const start=hasApproach?earlier.details.startPosition:fill.details.startPosition;
+  const evidence=[...(hasApproach?[earlier.id]:[]),fill.id,event.id];
+  if(!skill){
+    if(npc.memory.skills.length>=NPC_RULES.maxSkills)return;
+    skill={id:`water-${signature}`,name:hasApproach?'Approach, collect, drink':'Collect and drink',signature,status:'candidate',parameters:['sourceId'],preconditions:{sourceKnown:true,flaskEmpty:true,hydrationBelow:75,inRange:!hasApproach},steps,successCheck:'ordinary hydration gain after independently collected water',failureConditions:['ROUTE_BLOCKED','OUT_OF_REACH','SOURCE_UNAVAILABLE','COLLAPSED','EMPTY_FLASK'],supportingExperience:[],validation:[],successes:0,failures:0};
+    npc.memory.skills.push(skill);
+  }
+  skill.successes++;
+  skill.supportingExperience=[...new Set([...skill.supportingExperience,...evidence])].slice(-36);
+  const changed=skill.validation.some(v=>v.sourceId!==sourceId||distance(v.startPosition,start)>NPC_RULES.tileSize);
+  skill.validation.push({at:npc.elapsed,sourceId,startPosition:{...start},eventId:event.id,outcome:'success'});
+  skill.validation=skill.validation.slice(-16);
+  if(skill.successes>=2&&changed)skill.status='validated';
+  updateValue(npc,fill.details.context,'fill_flask',3);
+  if(hasApproach)updateValue(npc,earlier.details.context,'move_source',2);
+  recordEvent(npc,'skill',{skillId:skill.id,status:skill.status,supportingExperience:evidence,transferEvidence:changed});
+}
+function learnOutcome(npc,action,result,context,startPosition){
+  const previous=npc.memory.experience.filter(e=>e.type==='action').at(-1);
+  if(!result.ok){npc.stats.invalidActions++;if(previous?.details.result?.code===result.code&&previous?.details.action?.type===action.type)npc.stats.repeatedInvalid++;}
+  const event=recordEvent(npc,'action',{action,result,context,startPosition,position:npc.position,hydration:npc.hydration,flask:npc.flask.water});
+  npc.lastResult={eventId:event.id,at:npc.elapsed,...result,action:action.type};
+  npc.memory.trace=[...npc.memory.trace,event.id].slice(-12);
+  let reward=result.ok?-0.03:-2;
+  if(result.waterCollected>0){reward=Math.min(.7,result.waterCollected*.7);npc.flask.fillEventId=event.id;}
+  if(result.independent){reward=8;}
+  if(result.code==='COLLAPSED')reward=-8;
+  if(result.novelCells&&npc.memory.explorationCredit<4){const novelty=Math.min(.25,result.novelCells*.01,4-npc.memory.explorationCredit);reward+=novelty;npc.memory.explorationCredit+=novelty;}
+  reward-=Math.max(0,result.hydrationLost||0)*.02;
+  updateValue(npc,context,actionCategory(action),reward);
+  if(npc.learning&&result.independent)candidateFromDrink(npc,event);
+  if(!result.ok&&action.sourceId&&npc.memory.sources[action.sourceId]){
+    const source=npc.memory.sources[action.sourceId];
+    if(result.code==='SOURCE_UNAVAILABLE')source.available=false;
+    source.retryAfter=npc.elapsed+(result.code==='ROUTE_BLOCKED'?30:result.code==='OUT_OF_REACH'?3:8);
+  }
+  return event;
+}
+function recoveryLesson(npc){
+  const text='Verified: hydration reached zero and consciousness was lost. Rescue water restored some hydration; it was not an independent water-gathering success.';
+  const hypothesis='Hypothesis: reusing actions with successful water outcomes may reduce another collapse.';
+  npc.memory.lessons.push({at:npc.elapsed,verified:text,hypothesis});npc.memory.lessons=npc.memory.lessons.slice(-8);
+  recordEvent(npc,'lesson',{verified:text,hypothesis});
+  if(npc.learning){
+    const last=npc.memory.experience.filter(e=>e.type==='action').at(-1);
+    if(last)updateValue(npc,last.details.context,actionCategory(last.details.action),-5);
+  }
+}
+
+/** Saves are bounded allowlisted data; executable source and unknown fields are discarded. */
+function validateNpc(raw,{restoring=true}={}){
+  const n=createNpc({preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
+  if(!raw||raw.version!==1||raw.id!=='aster')return n;
+  if(withinWorld(raw.position)&&canStandOutside(raw.position.x,raw.position.y))n.position={x:raw.position.x,y:raw.position.y};
+  n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,85,100);
+  for(const k of ['epoch','collapseId','rescuedCollapseId','rng'])n[k]=Math.floor(finite(raw[k],n[k],k==='rng'?4294967295:1e9));
+  if(['AWAKE','COLLAPSED','RECOVERING'].includes(raw.lifecycle))n.lifecycle=raw.lifecycle;
+  n.lifecycleAt=Math.min(n.elapsed,finite(raw.lifecycleAt));n.nextDecisionAt=Math.min(n.elapsed+60,finite(raw.nextDecisionAt));
+  n.decision=str(raw.decision);n.rescuePresentation=raw.rescuePresentation==='quiet'?'quiet':'divine';
+  if(raw.flask){n.flask.water=finite(raw.flask.water,0,1);n.flask.provenance=raw.flask.provenance==='collected'?'collected':null;for(const k of ['fillEventId','creditedFillId'])n.flask[k]=Number.isInteger(raw.flask[k])&&raw.flask[k]>0?raw.flask[k]:null;}
+  for(const k of Object.keys(n.stats)){if(k==='lastRescuer')n.stats[k]=raw.stats?.[k]==='divine'?'divine':null;else if(k==='firstWaterAt')n.stats[k]=raw.stats?.[k]===null?null:finite(raw.stats?.[k],null);else n.stats[k]=Math.floor(finite(raw.stats?.[k]));}
+  const m=raw.memory||{};
+  n.memory.nextId=Math.max(1,Math.floor(finite(m.nextId,1)));
+  n.memory.experience=(Array.isArray(m.experience)?m.experience:[]).filter(e=>Number.isInteger(e?.id)&&e.id>0&&EVENT_TYPES.has(e.type)).slice(-NPC_RULES.maxExperience).map(e=>({id:e.id,at:finite(e.at),type:e.type,details:compact(e.details)||{}}));
+  const ids=new Set(n.memory.experience.map(e=>e.id));n.memory.nextId=Math.max(n.memory.nextId,1+Math.max(0,...ids));
+  for(const [key,c] of Object.entries(m.cells||{}).slice(-NPC_RULES.maxCells)){
+    if(!/^-?\d{1,3},-?\d{1,3}$/.test(key)||!withinWorld(c)||typeof c.walkable!=='boolean')continue;
+    const [x,y]=key.split(',').map(Number);if(c.x!==x*NPC_RULES.tileSize||c.y!==y*NPC_RULES.tileSize)continue;
+    n.memory.cells[key]={key,x:c.x,y:c.y,walkable:c.walkable,terrain:str(c.terrain,20),observedAt:finite(c.observedAt),visits:finite(c.visits)};
+  }
+  for(const [key,edge] of Object.entries(m.blockedEdges||{}).slice(-512)){
+    if(/^-?\d{1,3},-?\d{1,3}>-?\d{1,3},-?\d{1,3}$/.test(key))n.memory.blockedEdges[key]={observedAt:finite(edge.observedAt),retryAfter:Math.min(n.elapsed+60,finite(edge.retryAfter))};
+  }
+  for(const [id,s] of Object.entries(m.sources||{}).slice(-NPC_RULES.maxSources)){
+    const physical=waterSource(id);if(!physical||!withinWorld(s)||distance(physical,s)>1)continue;
+    n.memory.sources[id]={id,name:physical.name,x:s.x,y:s.y,available:s.available!==false,observedAt:finite(s.observedAt),confidence:'observed',retryAfter:finite(s.retryAfter)};
+  }
+  for(const [key,v] of Object.entries(m.values||{}).slice(0,192)){
+    if(!/^(critical|thirsty|comfortable)\|(empty|water)\|(near|known|unknown)::(observe|inspect|move_explore|move_source|fill_flask|drink|wait)$/.test(key))continue;
+    n.memory.values[key]={attempts:finite(v.attempts),value:Number.isFinite(v.value)?clamp(v.value,-12,12):0};
+  }
+  n.memory.lessons=(Array.isArray(m.lessons)?m.lessons:[]).slice(-8).map(l=>({at:finite(l.at),verified:str(l.verified),hypothesis:str(l.hypothesis)}));
+  n.memory.explorationCredit=finite(m.explorationCredit,0,4);n.memory.trace=(Array.isArray(m.trace)?m.trace:[]).filter(id=>ids.has(id)).slice(-12);
+  for(const skill of (Array.isArray(m.skills)?m.skills:[]).slice(0,NPC_RULES.maxSkills)){
+    if(!/^water-(approach-fill-drink|fill-drink)$/.test(skill?.id)||!Array.isArray(skill.steps)||skill.steps.length<2||skill.steps.length>8)continue;
+    if(skill.steps.some(step=>!OPS.has(step?.type)||!['move','fill_flask','drink'].includes(step.type)||(['move','fill_flask'].includes(step.type)&&step.sourceId!=='$sourceId')))continue;
+    const supporting=(skill.supportingExperience||[]).filter(id=>ids.has(id)).slice(-36);if(supporting.length<2)continue;
+    n.memory.skills.push({id:skill.id,name:str(skill.name,80),signature:str(skill.signature,50),status:['candidate','validated','retired'].includes(skill.status)?skill.status:'candidate',parameters:['sourceId'],preconditions:{sourceKnown:true,flaskEmpty:true,hydrationBelow:75,inRange:!skill.steps.some(s=>s.type==='move')},steps:skill.steps.map(step=>step.type==='drink'?{type:'drink'}:{type:step.type,sourceId:'$sourceId'}),successCheck:'ordinary hydration gain after independently collected water',failureConditions:['ROUTE_BLOCKED','OUT_OF_REACH','SOURCE_UNAVAILABLE','COLLAPSED','EMPTY_FLASK'],supportingExperience:supporting,validation:(skill.validation||[]).filter(v=>ids.has(v.eventId)&&withinWorld(v.startPosition)).slice(-16).map(v=>({at:finite(v.at),sourceId:str(v.sourceId,70),startPosition:{x:v.startPosition.x,y:v.startPosition.y},eventId:v.eventId,outcome:v.outcome==='success'?'success':'failure'})),successes:finite(skill.successes),failures:finite(skill.failures)});
+  }
+  // On restart an unfinished procedure is cancelled, with a recorded outcome rather than silently replayed.
+  if(!restoring&&(raw.active||raw.skillRun))n.interrupted=true;
+  if(restoring&&(raw.active||raw.skillRun||raw.interrupted)){recordEvent(n,'action',{action:{type:OPS.has(raw.active?.request?.type)?raw.active.request.type:'wait'},result:{ok:false,code:'RESTART_INTERRUPTED'},context:policyContext(n),startPosition:n.position});n.decision='An interrupted action was cancelled on restart; my experience is retained.';}
+  if(typeof raw.navigationAnchor==='string'&&n.memory.cells[raw.navigationAnchor]?.walkable&&distance(tilePoint(raw.navigationAnchor),n.position)<160)n.navigationAnchor=raw.navigationAnchor;
+  n.modelBudget={since:Math.min(n.elapsed,finite(raw.modelBudget?.since)),calls:finite(raw.modelBudget?.calls,0,60)};
+  n.lastResult=raw.lastResult?compact(raw.lastResult):null;
+  for(const k of ['rescueUntil','drinkUntil'])n.presentation[k]=Math.min(n.elapsed+12,finite(raw.presentation?.[k]));
+  return n;
+}
+
+return {recordEvent,rememberObservation,policyContext,actionCategory,updateValue,learnOutcome,recoveryLesson,validateNpc};
+})();
+__modules.npc=(()=>{
+const { CONFIG, NPC_RULES, NPC_PRESETS }=__modules.config;
+const { canStandOutside, moveActor, distance, clamp }=__modules.world;
+const { waterSource, withinWorld }=__modules.resources;
+const { perceive, tileKey, tilePoint, lineOfSight }=__modules.perception;
+const { knownRoute }=__modules.navigation;
+const { recordEvent, rememberObservation, policyContext, learnOutcome, recoveryLesson }=__modules.npc-memory;
+
+function observeNpc(npc,environment={}){
+  if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,position:{...npc.position},lifecycle:npc.lifecycle,hydration:npc.hydration,flask:{water:npc.flask.water,capacity:npc.flask.capacity},cells:[],sources:[]};
+  const observation=perceive(npc,environment);rememberObservation(npc,observation);return observation;
+}
+function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position}){
+  npc.active=null;const event=learnOutcome(npc,request,result,context,startPosition);
+  npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
+}
+function cleanRequest(raw){
+  if(!raw||typeof raw!=='object'||Array.isArray(raw)||!['observe','move','inspect','fill_flask','drink','wait'].includes(raw.type))return null;
+  const action={type:raw.type};
+  if(['move','inspect','fill_flask'].includes(raw.type)){
+    if(raw.sourceId!==undefined){if(typeof raw.sourceId!=='string'||raw.sourceId.length>70)return null;action.sourceId=raw.sourceId;}
+    else if(raw.type==='move'){if(!withinWorld(raw.target))return null;action.target={x:raw.target.x,y:raw.target.y};}
+    else return null;
+  }
+  if(raw.type==='wait'){if(raw.seconds!==undefined&&(!Number.isFinite(raw.seconds)||raw.seconds<.25||raw.seconds>5))return null;action.seconds=raw.seconds??1;}
+  if(raw.duration!==undefined&&(!Number.isFinite(raw.duration)||raw.duration<=0||raw.duration>NPC_RULES.maxActionSeconds))return null;
+  if(raw.duration!==undefined)action.duration=raw.duration;
+  return action;
+}
+function requestNpcAction(npc,raw,environment={}){
+  if(npc.lifecycle!=='AWAKE')return {ok:false,code:'UNCONSCIOUS'};
+  if(npc.active)return {ok:false,code:'ACTION_BUSY'};
+  const request=cleanRequest(raw),context=policyContext(npc),startPosition={...npc.position};
+  if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
+  const known=request.sourceId?npc.memory.sources[request.sourceId]:null;
+  if(request.sourceId&&!known)return complete(npc,request,{ok:false,code:'UNKNOWN_SOURCE'},context,startPosition);
+  const source=request.sourceId?waterSource(request.sourceId,environment):null;
+  if(request.sourceId&&!source&&request.type==='move')return complete(npc,request,{ok:false,code:'NO_KNOWN_APPROACH'},context,startPosition);
+  if(request.type==='observe'){
+    const previous=Object.keys(npc.memory.cells).length;observeNpc(npc,environment);
+    return complete(npc,request,{ok:true,code:'OBSERVED',novelCells:Math.max(0,Object.keys(npc.memory.cells).length-previous)},context,startPosition);
+  }
+  if(request.type==='inspect'){
+    if(!source||distance(npc.position,known)>NPC_RULES.visionRadius||!lineOfSight(npc.position,known))return complete(npc,request,{ok:false,code:'OUT_OF_VIEW'},context,startPosition);
+    npc.memory.sources[source.id].available=source.available;npc.memory.sources[source.id].observedAt=npc.elapsed;
+    return complete(npc,request,{ok:true,code:'INSPECTED',source:{id:source.id,available:source.available}},context,startPosition);
+  }
+  if(request.type==='fill_flask'){
+    if(distance(npc.position,known)>NPC_RULES.collectionRange)return complete(npc,request,{ok:false,code:'OUT_OF_REACH'},context,startPosition);
+    if(!lineOfSight(npc.position,known))return complete(npc,request,{ok:false,code:'INTERACTION_BLOCKED'},context,startPosition);
+    if(!source||!source.available)return complete(npc,request,{ok:false,code:'SOURCE_UNAVAILABLE'},context,startPosition);
+    if(npc.flask.water>=npc.flask.capacity-.00001)return complete(npc,request,{ok:false,code:'FLASK_FULL'},context,startPosition);
+    const waterCollected=npc.flask.capacity-npc.flask.water;
+    npc.flask.water=npc.flask.capacity;npc.flask.provenance='collected';if(waterCollected>=.25)npc.stats.collections++;
+    return complete(npc,request,{ok:true,code:'COLLECTED',waterCollected,hydrationGain:0,provenance:'collection'},context,startPosition);
+  }
+  if(request.type==='drink'){
+    if(npc.flask.water<=.00001)return complete(npc,request,{ok:false,code:'EMPTY_FLASK'},context,startPosition);
+    if(npc.hydration>=99.999)return complete(npc,request,{ok:false,code:'ALREADY_HYDRATED'},context,startPosition);
+    const consumed=Math.min(npc.flask.water,(100-npc.hydration)/NPC_RULES.drinkHydration);
+    const gain=consumed*NPC_RULES.drinkHydration,provenance=npc.flask.provenance;
+    const independent=provenance==='collected'&&npc.flask.fillEventId!==null&&npc.flask.fillEventId!==npc.flask.creditedFillId&&gain>=15;
+    npc.flask.water=clamp(npc.flask.water-consumed,0,1);npc.hydration=clamp(npc.hydration+gain,0,100);
+    if(independent){npc.stats.independentDrinks++;npc.flask.creditedFillId=npc.flask.fillEventId;if(npc.stats.firstWaterAt===null)npc.stats.firstWaterAt=npc.elapsed;}
+    npc.presentation.drinkUntil=npc.elapsed+2;
+    return complete(npc,request,{ok:true,code:'DRANK',waterConsumed:consumed,hydrationGain:gain,provenance,independent},context,startPosition);
+  }
+  if(request.type==='move'){
+    let target=request.target,route=null;
+    const anchor=npc.navigationAnchor&&npc.memory.cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null;
+    if(source){
+      // The observed source point is a known dry interaction node, even when a coarse
+      // grid cell is wet. Reach it from observed land; never consult hidden terrain.
+      const approaches=Object.values(npc.memory.cells).filter(c=>c.walkable&&distance(c,known)<=NPC_RULES.tileSize*2);
+      approaches.sort((a,b)=>distance(a,npc.position)+distance(a,known)-distance(b,npc.position)-distance(b,known));
+      for(const point of approaches){
+        const edge=[tileKey(point),tileKey(known)].sort().join('>');
+        if((npc.memory.blockedEdges[edge]?.retryAfter||0)>npc.elapsed)continue;
+        const path=knownRoute(npc.memory.cells,npc.position,point,30,npc.memory.blockedEdges,npc.elapsed,anchor);
+        if(!path)continue;
+        const length=path.reduce((sum,p,i)=>sum+distance(i?path[i-1]:npc.position,p),0)+distance(point,known);
+        if(length>NPC_RULES.maxActionSeconds*CONFIG.walkSpeed)continue;
+        route=[...path,{x:known.x,y:known.y}];target={x:known.x,y:known.y};break;
+      }
+      if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
+    }else{
+      const cell=npc.memory.cells[tileKey(target)];
+      if(!cell?.walkable||distance(target,cell)>NPC_RULES.tileSize*.71)return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
+      route=knownRoute(npc.memory.cells,npc.position,target,30,npc.memory.blockedEdges,npc.elapsed,anchor);
+      if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
+    }
+    if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
+    npc.active={request,context,startPosition,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,blockedFor:0,travelled:0};
+  }else npc.active={request,context,startPosition,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration};
+  return {ok:true,code:'STARTED'};
+}
+function collapseNpc(npc,reason='dehydration'){
+  if(npc.lifecycle!=='AWAKE')return false;
+  const active=npc.active;
+  if(active)complete(npc,active.request,{ok:false,code:'COLLAPSED',hydrationLost:active.startHydration},active.context,active.startPosition);
+  if(npc.skillRun){const skill=npc.memory.skills.find(s=>s.id===npc.skillRun.id);if(skill)skill.failures++;npc.skillRun=null;}
+  npc.lifecycle='COLLAPSED';npc.hydration=0;npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.collapseId++;npc.stats.collapses++;
+  recordEvent(npc,'collapse',{collapseId:npc.collapseId,position:npc.position,verifiedCause:'hydration reached zero',reason});
+  npc.decision='I lost consciousness. My identity, observations and experience remain.';return true;
+}
+function rescueNpc(npc,collapseId=npc.collapseId){
+  if(npc.lifecycle!=='COLLAPSED'||collapseId!==npc.collapseId||npc.rescuedCollapseId>=collapseId)return {ok:false,code:'ALREADY_RESCUED'};
+  let safe=canStandOutside(npc.position.x,npc.position.y)?{...npc.position}:null;
+  for(let radius=12;!safe&&radius<=120;radius+=12)for(let i=0;i<16;i++){
+    const p={x:npc.position.x+Math.cos(i*Math.PI/8)*radius,y:npc.position.y+Math.sin(i*Math.PI/8)*radius};
+    if(canStandOutside(p.x,p.y)){safe=p;break;}
+  }
+  if(!safe)return {ok:false,code:'NO_SAFE_RECOVERY_POSITION'};
+  npc.position=safe;npc.hydration=NPC_PRESETS[npc.preset].rescueHydration;
+  npc.rescuedCollapseId=collapseId;npc.lifecycle='RECOVERING';npc.lifecycleAt=npc.elapsed;npc.epoch++;
+  npc.stats.rescues++;npc.stats.lastRescuer='divine';npc.presentation.rescueUntil=npc.elapsed+8;
+  recordEvent(npc,'rescue',{collapseId,hydrationGain:npc.hydration,provenance:'divine',position:npc.position,verified:'Water was received during recovery.',observedAttribution:npc.rescuePresentation==='quiet'?'The source of the intervention was not observed.':'A warmth and a benevolent presence; divine attribution is an interpretation, not a witnessed human action.'});
+  recoveryLesson(npc);npc.decision=npc.rescuePresentation==='quiet'?'I woke with water. The source of the intervention was not observed.':'I woke with water from a benevolent presence. This rescue did not count as independent survival.';
+  return {ok:true,code:'RESCUED',provenance:'divine'};
+}
+function tickNpc(npc,dt,environment={}){
+  if(!Number.isFinite(dt)||dt<=0)return;
+  dt=Math.min(dt,.25);npc.elapsed+=dt;
+  const rules=NPC_PRESETS[npc.preset];
+  if(npc.lifecycle==='COLLAPSED'){
+    if(npc.elapsed-npc.lifecycleAt>=rules.rescueDelay)rescueNpc(npc);
+    return;
+  }
+  if(npc.lifecycle==='RECOVERING'){
+    if(npc.elapsed-npc.lifecycleAt>=rules.recoverySeconds){npc.lifecycle='AWAKE';npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.nextDecisionAt=npc.elapsed;recordEvent(npc,'recovery',{collapseId:npc.collapseId,hydration:npc.hydration,identity:npc.id});}
+    return;
+  }
+  npc.hydration=Math.max(0,npc.hydration-rules.depletionPerSecond*dt);
+  if(npc.hydration<=0){collapseNpc(npc);return;}
+  const active=npc.active;if(!active)return;
+  if(active.request.type==='wait'){
+    if(npc.elapsed>=active.expiresAt)complete(npc,active.request,{ok:true,code:'WAITED',hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);
+    return;
+  }
+  const target=active.route[active.index];
+  if(!target){complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled,hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);return;}
+  const dx=target.x-npc.position.x,dy=target.y-npc.position.y,d=Math.hypot(dx,dy);
+  if(d<3){if(npc.memory.cells[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;return;}
+  const moved=moveActor(npc.position,dx,dy,Math.min(dt,d/CONFIG.walkSpeed),false,'valley');active.travelled+=moved;
+  active.blockedFor=moved<.05?active.blockedFor+dt:0;
+  if(active.blockedFor>1||npc.elapsed>active.expiresAt){
+    const code=active.blockedFor>1?'ROUTE_BLOCKED':'ACTION_TIMEOUT';
+    if(active.blockedFor>1){
+      const from=active.index?active.route[active.index-1]:active.startPosition;
+      npc.navigationAnchor=tileKey(from);
+      const edge=[tileKey(from),tileKey(target)].sort().join('>');
+      npc.memory.blockedEdges[edge]={observedAt:npc.elapsed,retryAfter:npc.elapsed+60};
+      const entries=Object.entries(npc.memory.blockedEdges);if(entries.length>512)delete npc.memory.blockedEdges[entries[0][0]];
+    }
+    complete(npc,active.request,{ok:false,code,distance:active.travelled,hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);
+  }
+}
+function changeNpcPreset(npc,preset){
+  if(!NPC_PRESETS[preset])return false;
+  npc.preset=preset;recordEvent(npc,'debug',{setting:'hydration preset',value:preset,provenance:'debug',hydrationGain:0});return true;
+}
+function demonstrateCollapse(npc){
+  if(npc.lifecycle!=='AWAKE')return false;
+  recordEvent(npc,'debug',{setting:'hydration',value:0,provenance:'debug'});npc.hydration=0;return collapseNpc(npc,'explicit developer demonstration');
+}
+
+return {observeNpc,requestNpcAction,collapseNpc,rescueNpc,tickNpc,changeNpcPreset,demonstrateCollapse};
+})();
+__modules.controller=(()=>{
+const { NPC_RULES }=__modules.config;
+const { distance }=__modules.world;
+const { tileKey, tilePoint }=__modules.perception;
+const { knownRoute }=__modules.navigation;
+const { observeNpc, requestNpcAction, tickNpc }=__modules.npc;
+const { policyContext, actionCategory, recordEvent }=__modules.npc-memory;
+
+function random(npc){npc.rng=(Math.imul(npc.rng,1664525)+1013904223)>>>0;return npc.rng/4294967296;}
+function decisionObservation(npc){
+  const available=Object.values(npc.memory.sources).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,12);
+  const cells=Object.values(npc.memory.cells).filter(c=>distance(c,npc.position)<=NPC_RULES.visionRadius+80).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,48);
+  return {
+    identity:{id:npc.id,name:npc.name},objective:'Remain conscious and become independently capable of obtaining water.',
+    condition:{hydration:npc.hydration,lifecycle:npc.lifecycle,flask:{water:npc.flask.water,capacity:npc.flask.capacity},position:{...npc.position}},
+    observedAt:npc.elapsed,knownSources:available.map(s=>({...s,distance:Math.round(distance(s,npc.position))})),
+    knownTiles:cells.map(c=>({x:c.x,y:c.y,walkable:c.walkable,terrain:c.terrain,observedAt:c.observedAt})),
+    recentExperience:npc.learning?npc.memory.experience.slice(-6):[],
+    lessons:npc.learning?npc.memory.lessons.slice(-3):[],
+    skills:npc.learning?npc.memory.skills.filter(s=>s.status!=='retired').map(s=>({id:s.id,status:s.status,preconditions:s.preconditions,steps:s.steps,successes:s.successes,failures:s.failures,supportingExperience:s.supportingExperience.slice(-9)})):[],
+    actionStatus:npc.active?{type:npc.active.request.type,remaining:Math.max(0,npc.active.expiresAt-npc.elapsed)}:null,
+    actions:{observe:{},move:{target:'An observed traversable tile {x,y}, or sourceId from knownSources; at most 12 seconds.'},inspect:{sourceId:'known source'},fill_flask:{sourceId:'known source; collection range 80'},drink:{},wait:{seconds:'0.25 to 5'}},
+  };
+}
+/** A real, small tabular learner. It is not a language model or a scripted mock. */
+class LocalLearnerProvider {
+  constructor(){this.kind='local-learner';this.label='Offline experiential learner';}
+  decide(npc){
+    const choices=[{type:'observe'},{type:'wait',seconds:1.5},{type:'drink'}];
+    const anchor=npc.navigationAnchor&&npc.memory.cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null;
+    const cells=Object.values(npc.memory.cells).filter(c=>c.walkable&&distance(c,npc.position)>100&&distance(c,npc.position)<340&&knownRoute(npc.memory.cells,npc.position,c,30,npc.memory.blockedEdges,npc.elapsed,anchor));
+    if(cells.length){
+      // Explore observed low-visit tiles in varying directions, never a seeded resource route.
+      cells.sort((a,b)=>(a.visits||0)-(b.visits||0)||distance(b,npc.position)-distance(a,npc.position));
+      const target=cells[Math.floor(random(npc)*Math.min(20,cells.length))];
+      choices.push({type:'move',target:{x:target.x,y:target.y}});
+    }
+    const sources=Object.values(npc.memory.sources).filter(s=>s.available&&(s.retryAfter||0)<=npc.elapsed).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
+    if(sources.length){
+      choices.push({type:'fill_flask',sourceId:sources[0].id},{type:'inspect',sourceId:sources[0].id});
+      if(distance(sources[0],npc.position)>NPC_RULES.collectionRange)choices.push({type:'move',sourceId:sources[0].id});
+    }
+    const context=policyContext(npc),risk=1+Math.min(npc.stats.collapses,3)*.15;
+    const ranked=choices.map(action=>{
+      const value=npc.learning?npc.memory.values[`${context}::${actionCategory(action)}`]:null;
+      const score=(value?.value||0)*risk+2/Math.sqrt(1+(value?.attempts||0))+random(npc)*.22;
+      return {action,score,value};
+    }).sort((a,b)=>b.score-a.score);
+    const selected=random(npc)<.10?ranked[Math.floor(random(npc)*ranked.length)]:ranked[0];
+    return {action:selected.action,reason:selected.value?`Experience-weighted experiment: ${actionCategory(selected.action)} (${selected.value.attempts} previous outcomes).`:`Untried bounded experiment: ${actionCategory(selected.action)}.`,provider:this.kind};
+  }
+}
+class DesktopModelProvider {
+  constructor(bridge,label='Configured local model'){this.bridge=bridge;this.kind='local-model';this.label=label;}
+  decide(npc){return this.bridge.decide(decisionObservation(npc));}
+  cancel(){Promise.resolve(this.bridge.cancel()).catch(()=>{});}
+}
+class NpcController {
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={}}={}){
+    this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;
+    this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;
+    observeNpc(npc,environment);
+  }
+  setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
+  cancel(){this.generation++;this.pending=null;this.readyDecision=null;this.provider.cancel?.();}
+  dispose(){this.disposed=true;this.cancel();}
+  selectSkill(){
+    const n=this.npc;if(!n.learning||n.flask.water>.00001||n.hydration>=75)return null;
+    const candidates=n.memory.skills.filter(s=>s.status!=='retired').sort((a,b)=>((b.successes/(1+b.failures))+(b.status==='validated'?2:0))-((a.successes/(1+a.failures))+(a.status==='validated'?2:0)));
+    for(const skill of candidates){
+      const sources=Object.values(n.memory.sources).filter(s=>s.available&&(s.retryAfter||0)<=n.elapsed&&(!skill.preconditions.inRange||distance(n.position,s)<=NPC_RULES.collectionRange)).sort((a,b)=>distance(a,n.position)-distance(b,n.position));
+      if(sources.length)return {skill,sourceId:sources[0].id};
+    }
+    return null;
+  }
+  startSkill(skill,sourceId){
+    const n=this.npc,source=n.memory.sources[sourceId];
+    if(!n.learning||!skill||skill.status==='retired'||!source?.available||n.flask.water>.00001||n.hydration>=75||skill.preconditions.inRange&&distance(n.position,source)>NPC_RULES.collectionRange)return false;
+    n.skillRun={id:skill.id,sourceId,cursor:0,awaiting:false,lastEventId:0,startedAt:n.elapsed,independentBefore:n.stats.independentDrinks};
+    n.stats.skillUses++;n.decision=`Reusing ${skill.status} procedure “${skill.name}”, supported by events ${skill.supportingExperience.slice(-3).join(', ')}.`;
+    recordEvent(n,'decision',{kind:'learned skill',skillId:skill.id,sourceId,supportingExperience:skill.supportingExperience.slice(-6)});return true;
+  }
+  progressSkill(){
+    const n=this.npc,run=n.skillRun;if(!run)return;
+    const skill=n.memory.skills.find(s=>s.id===run.id);
+    if(!skill||n.elapsed-run.startedAt>NPC_RULES.maxSkillSeconds){n.skillRun=null;recordEvent(n,'skill',{skillId:run.id,outcome:'PROCEDURE_TIMEOUT'});return;}
+    if(n.active)return;
+    if(run.awaiting){
+      if(!n.lastResult||n.lastResult.eventId<=run.lastEventId)return;
+      if(!n.lastResult.ok){
+        skill.failures++;if(skill.failures>=3&&skill.failures>skill.successes)skill.status='retired';
+        recordEvent(n,'skill',{skillId:run.id,outcome:n.lastResult.code,eventId:n.lastResult.eventId});n.skillRun=null;return;
+      }
+      run.cursor++;run.awaiting=false;
+    }
+    if(run.cursor>=skill.steps.length){
+      recordEvent(n,'skill',{skillId:run.id,outcome:n.stats.independentDrinks>run.independentBefore?'INDEPENDENT_SUCCESS':'NO_INDEPENDENT_GAIN'});n.skillRun=null;return;
+    }
+    const step=skill.steps[run.cursor],request={type:step.type,...(step.sourceId?{sourceId:run.sourceId}:{})};
+    run.lastEventId=n.lastResult?.eventId||0;run.awaiting=true;requestNpcAction(n,request,this.environment);
+  }
+  applyDecision(decision){
+    const n=this.npc;
+    if(!decision||typeof decision!=='object')throw new Error('Model returned no structured decision.');
+    n.decision=String(decision.reason||'A bounded action was selected.').slice(0,600);
+    recordEvent(n,'decision',{provider:this.provider.kind,summary:n.decision});
+    if(decision.skillId){const skill=n.memory.skills.find(s=>s.id===decision.skillId);if(this.startSkill(skill,decision.sourceId))return;}
+    requestNpcAction(n,decision.action,this.environment);
+  }
+  decide(){
+    const n=this.npc;
+    const skill=this.selectSkill();if(skill&&this.startSkill(skill.skill,skill.sourceId))return;
+    if(this.provider.kind==='local-learner'){this.applyDecision(this.provider.decide(n));return;}
+    if(!n.modelBudget)n.modelBudget={since:n.elapsed,calls:0};
+    if(n.elapsed-n.modelBudget.since>=3600)n.modelBudget={since:n.elapsed,calls:0};
+    if(n.modelBudget.calls>=NPC_RULES.maxModelCallsPerHour||n.elapsed<this.cooldownUntil){
+      n.decision='Local model budget/backoff active; the offline experiential learner is continuing.';
+      requestNpcAction(n,this.fallback.decide(n).action,this.environment);return;
+    }
+    const generation=this.generation,epoch=n.epoch,condition=policyContext(n);
+    n.modelBudget.calls++;n.stats.modelCalls++;this.pending={at:n.elapsed};
+    let call;
+    try{call=this.provider.decide(n);}catch(error){call=Promise.reject(error);}
+    Promise.resolve(call).then(decision=>{
+      if(this.disposed)return;
+      if(generation!==this.generation||epoch!==n.epoch||n.lifecycle!=='AWAKE'||n.active||policyContext(n)!==condition){n.stats.staleResponses++;recordEvent(n,'provider',{code:'STALE_RESPONSE',gameplayFailure:false});return;}
+      this.pending=null;this.failures=0;this.readyDecision={decision,generation,epoch,condition};
+    }).catch(error=>{
+      if(this.disposed||generation!==this.generation)return;
+      this.pending=null;n.stats.modelFailures++;this.failures++;this.cooldownUntil=n.elapsed+(this.failures>=2?30:5);
+      recordEvent(n,'provider',{code:'MODEL_SERVICE_FAILURE',message:String(error.message||error).slice(0,400),gameplayFailure:false});
+      n.decision='Model service unavailable. The offline experiential learner will continue after backoff.';
+    }).finally(()=>{if(generation===this.generation)this.pending=null;});
+  }
+  tick(dt){
+    if(this.disposed)return;
+    const n=this.npc;tickNpc(n,dt,this.environment);
+    if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;}
+    if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);this.senseAt=n.elapsed;}
+    if(n.lifecycle!=='AWAKE'||n.active||this.pending)return;
+    if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;if(ready.generation===this.generation&&ready.epoch===n.epoch&&ready.condition===policyContext(n))this.applyDecision(ready.decision);else{n.stats.staleResponses++;recordEvent(n,'provider',{code:'STALE_RESPONSE',gameplayFailure:false});}return;}
+    if(n.skillRun){this.progressSkill();return;}
+    if(n.elapsed>=n.nextDecisionAt)this.decide();
+  }
+}
+
+return {decisionObservation,LocalLearnerProvider,DesktopModelProvider,NpcController};
+})();
 __modules.save=(()=>{
 const { CONFIG, CAVES, CAVE_SPAWN, LANDMARKS }=__modules.config;
 const { freshState, canStand, clamp }=__modules.world;
-function validateSave(raw) {
+const { validateNpc }=__modules.npc-memory;
+function validateSave(raw, {restoring=true}={}) {
   const base = freshState();
-  if (!raw || typeof raw !== 'object' || raw.version !== 1) return base;
+  if (!raw || typeof raw !== 'object' || ![1,2].includes(raw.version)) return base;
   const ids = new Set(CAVES.map(c => c.id));
   base.scene = ids.has(raw.scene) ? raw.scene : 'valley';
   const p = raw.player;
@@ -298,6 +958,7 @@ function validateSave(raw) {
   base.visitedCaves = [...new Set((Array.isArray(raw.visitedCaves) ? raw.visitedCaves : []).filter(v => ids.has(v)))];
   const wp = raw.waypoint;
   if (wp && Number.isFinite(wp.x) && Number.isFinite(wp.y) && Math.abs(wp.x) < CONFIG.halfSize && Math.abs(wp.y) < CONFIG.halfSize) base.waypoint = { x: wp.x, y: wp.y };
+  if(raw.npc)base.npc=validateNpc(raw.npc,{restoring});
   return base;
 }
 function loadSave(storage) {
@@ -305,12 +966,12 @@ function loadSave(storage) {
     const data = storage.getItem(CONFIG.saveKey);
     if (!data) return { state: freshState(), exists: false, error: null };
     const parsed = JSON.parse(data);
-    if (parsed?.version !== 1) return { state: freshState(), exists: false, error: 'The previous save is not compatible. A new expedition is ready.' };
+    if (![1,2].includes(parsed?.version)) return { state: freshState(), exists: false, error: 'The previous save is not compatible. A new expedition is ready.' };
     return { state: validateSave(parsed), exists: true, error: null };
   } catch { return { state: freshState(), exists: false, error: 'The local save could not be read. Your previous data has not been overwritten.' }; }
 }
 function writeSave(storage, state) {
-  try { storage.setItem(CONFIG.saveKey, JSON.stringify(validateSave(state))); return true; }
+  try { storage.setItem(CONFIG.saveKey, JSON.stringify(validateSave(state,{restoring:false}))); return true; }
   catch { return false; }
 }
 
@@ -544,12 +1205,37 @@ function drawCaveObject(g,o,tint) {
   g.restore();
 }
 
-return {canvas,poly,ellipse,line,groundColor,makeGroundChunk,getSprite,drawObject,drawAvatar,drawBridge,drawCamp,drawCaveEntrance,drawCaveObject};
+/** Original pixel character artwork; presentation never advances physiology. */
+function drawNpc(g,npc,time){
+  const p=npc.position,collapsed=npc.lifecycle==='COLLAPSED',moving=npc.active?.request.type==='move'&&npc.active.blockedFor<.1;
+  g.save();g.translate(p.x,p.y);
+  if(npc.presentation.rescueUntil>npc.elapsed){
+    const glow=g.createRadialGradient(0,-14,2,0,-14,58);glow.addColorStop(0,'#f2ce8555');glow.addColorStop(1,'#f2ce8500');g.fillStyle=glow;g.fillRect(-60,-75,120,120);
+    for(let i=0;i<3;i++)ellipse(g,Math.sin(time*2+i*2)*18,-18-((time*.3+i*.25)%1)*50,1.8,1.8,'#ffe2a2');
+  }
+  ellipse(g,0,2,collapsed?23:12,5,'#10282e66');
+  g.save();if(collapsed){g.translate(19,0);g.rotate(-Math.PI/2);}
+  const step=moving?Math.sin(time*13)*3:0;
+  g.fillStyle='#304945';g.fillRect(-8,-13+step,6,14);g.fillRect(2,-13-step,6,14);
+  g.fillStyle='#617456';g.fillRect(-10,-31,20,20);g.fillStyle='#91a980';g.fillRect(-9,-32,5,20);
+  g.fillStyle='#314d53';g.fillRect(-7,-24,14,13);
+  g.fillStyle='#e3bd98';g.fillRect(-8,-44,16,13);g.fillStyle='#615645';g.fillRect(-9,-47,18,9);g.fillRect(-9,-43,4,14);
+  g.fillStyle='#253a36';if(!collapsed){g.fillRect(-4,-36,2,2);g.fillRect(3,-36,2,2);}
+  g.fillStyle='#dabd9a';g.fillRect(-13,-27,4,11);g.fillRect(10,-27,4,11);
+  g.fillStyle=npc.flask.water>.01?'#8fcad5':'#655b4f';g.fillRect(12,-18,5,9);g.fillStyle='#bb9863';g.fillRect(13,-20,3,3);
+  g.restore();
+  if(npc.presentation.drinkUntil>npc.elapsed){g.fillStyle='#98d7eb';g.fillRect(12,-50,3,5);g.fillRect(18,-42,2,4);}
+  g.font='9px Georgia, serif';g.textAlign='center';g.fillStyle='#152d29cc';g.fillRect(-21,-66,42,13);g.fillStyle='#f5e8c8';g.fillText('Aster',0,-56);
+  g.fillStyle='#233c37';g.fillRect(-18,-72,36,3);g.fillStyle=collapsed?'#b88774':'#a8d0b1';g.fillRect(-18,-72,36*npc.hydration/100,3);
+  g.restore();
+}
+
+return {canvas,poly,ellipse,line,groundColor,makeGroundChunk,getSprite,drawObject,drawAvatar,drawBridge,drawCamp,drawCaveEntrance,drawCaveObject,drawNpc};
 })();
 __modules.renderer=(()=>{
 const { CONFIG, CAVES, SPAWN, CAVE_EXIT, LANDMARKS }=__modules.config;
 const { clamp, lerp, hash, noise, terrain, ridgeValue, objectsInRect, riverX, riverWidth, BRIDGES, waterDistance, caveDistance, CAVE_OBJECTS, clockTime }=__modules.world;
-const { canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject }=__modules.art;
+const { canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject, drawNpc }=__modules.art;
 
 class Renderer {
   constructor(target, state) {
@@ -557,7 +1243,7 @@ class Renderer {
     if(!this.ctx)throw new Error('A Canvas 2D context is required to run Aincrad.');
     this.camera={x:state.player.x-220,y:state.player.y-70};this.zoom=1.55;this.targetZoom=1.55;
     this.chunks=new Map();this.caveCanvas=null;this.caveMask=null;this.mapCanvas=null;this.scene=state.scene;
-    this.frame=0;this.lastMini=0;this.resize();
+    this.followNpc=false;this.inspectorOpen=false;this.viewportOffsetX=0;this.frame=0;this.lastMini=0;this.resize();
   }
   resize(){this.width=window.innerWidth;this.height=window.innerHeight;this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);}
   snap(p){this.camera={...p};}
@@ -568,15 +1254,16 @@ class Renderer {
     if(this.chunks.size>CONFIG.maxCachedChunks)this.chunks.delete(this.chunks.keys().next().value);
     return c;
   }
-  screenPoint(x,y){return{x:(x-this.camera.x)*this.zoom+this.width/2,y:(y-this.camera.y)*this.zoom+this.height/2};}
+  screenPoint(x,y){return{x:(x-this.camera.x)*this.zoom+this.width/2-this.viewportOffsetX,y:(y-this.camera.y)*this.zoom+this.height/2};}
   render(state, anim, dt, started) {
-    const g=this.ctx,p=state.player;this.frame++;
+    this.viewportOffsetX=this.inspectorOpen?Math.min(430,this.width*.53)/2:0;
+    const g=this.ctx,p=this.followNpc&&state.scene==='valley'?state.npc.position:state.player;this.frame++;
     if(this.scene!==state.scene){this.scene=state.scene;this.snap(p);this.caveCanvas=null;}
     const target={x:p.x+(started?0:-220),y:p.y+(started?-40:-70)};
     const ease=1-Math.exp(-dt*8);
     this.camera.x=lerp(this.camera.x,target.x,ease);this.camera.y=lerp(this.camera.y,target.y,ease);this.zoom=lerp(this.zoom,this.targetZoom,1-Math.exp(-dt*10));
     g.setTransform(this.dpr,0,0,this.dpr,0,0);g.fillStyle='#172f2c';g.fillRect(0,0,this.width,this.height);
-    g.save();g.translate(this.width/2,this.height/2);g.scale(this.zoom,this.zoom);g.translate(-this.camera.x,-this.camera.y);
+    g.save();g.translate(this.width/2-this.viewportOffsetX,this.height/2);g.scale(this.zoom,this.zoom);g.translate(-this.camera.x,-this.camera.y);
     const view={x:this.camera.x-this.width/this.zoom/2-200,y:this.camera.y-this.height/this.zoom/2-220,w:this.width/this.zoom+400,h:this.height/this.zoom+540};
     if(state.scene==='valley') this.drawValley(g,state,anim,view);else this.drawCave(g,state,anim,view);
     g.restore();
@@ -606,10 +1293,12 @@ class Renderer {
     objects.push({kind:'camp',x:SPAWN.x,y:SPAWN.y-10});
     for(const c of CAVES)objects.push({kind:'cave',x:c.x,y:c.y,definition:c});
     objects.push({kind:'player',x:state.player.x,y:state.player.y});
+    if(state.npc)objects.push({kind:'npc',x:state.npc.position.x,y:state.npc.position.y});
     objects.sort((a,b)=>a.y-b.y);
     for(const o of objects) {
       if(o.x<v.x-400||o.x>v.x+v.w+400||o.y<v.y-100||o.y>v.y+v.h+400)continue;
       if(o.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,state.scene);
+      else if(o.kind==='npc')drawNpc(g,state.npc,anim.time);
       else if(o.kind==='camp')drawCamp(g,SPAWN.x,SPAWN.y-10,anim.time);
       else if(o.kind==='cave')drawCaveEntrance(g,o.definition,anim.time);
       else drawObject(g,o,state.player);
@@ -712,11 +1401,105 @@ class Renderer {
 
 return {Renderer};
 })();
+__modules.npc-panel=(()=>{
+const { NPC_RULES }=__modules.config;
+const { changeNpcPreset, demonstrateCollapse }=__modules.npc;
+const { DesktopModelProvider, LocalLearnerProvider }=__modules.controller;
+const { recordEvent }=__modules.npc-memory;
+
+const $=id=>document.getElementById(id);
+function add(parent,tag,text,className=''){const node=document.createElement(tag);node.textContent=text;if(className)node.className=className;parent.append(node);return node;}
+function createNpcPanel({getNpc,getController,renderer,save,notify}){
+  const panel=$('npc-panel'),bridge=window.aincradAgent;
+  let visible=false,lastRefresh=-1,lastEvidence=-1;
+  function close(){visible=false;renderer.inspectorOpen=false;panel.classList.add('hidden');$('world').focus();}
+  function toggle(){visible=!visible;renderer.inspectorOpen=visible;panel.classList.toggle('hidden',!visible);if(visible){lastRefresh=-1;update(performance.now()/1000);$('close-npc').focus();}else $('world').focus();}
+  $('open-npc').addEventListener('click',toggle);$('close-npc').addEventListener('click',close);
+  $('follow-npc').addEventListener('click',()=>{renderer.followNpc=!renderer.followNpc;$('follow-npc').textContent=renderer.followNpc?'Follow your avatar':'Follow Aster';$('world').focus();});
+  $('npc-preset').addEventListener('change',()=>{changeNpcPreset(getNpc(),$('npc-preset').value);save();});
+  $('npc-rescue-presentation').addEventListener('change',()=>{const n=getNpc();n.rescuePresentation=$('npc-rescue-presentation').value==='quiet'?'quiet':'divine';recordEvent(n,'debug',{setting:'rescue presentation',value:n.rescuePresentation,provenance:'debug'});save();});
+  $('npc-learning').addEventListener('change',()=>{const n=getNpc();n.learning=$('npc-learning').checked;n.skillRun=null;getController().cancel();recordEvent(n,'debug',{setting:'persistent learning',value:n.learning,provenance:'debug'});save();});
+  $('npc-demonstrate').addEventListener('click',()=>{if(demonstrateCollapse(getNpc())){save();notify('Developer demonstration: dehydration was applied. Rescue will retain Aster’s identity and experience.');}else notify('Aster is already unconscious or recovering.');});
+  async function configure(enabled){
+    try{
+      if(!bridge)throw new Error('Local model planning is available in the desktop application.');
+      getController().cancel();
+      const config=await bridge.configure({enabled,endpoint:enabled?$('npc-endpoint').value:'http://127.0.0.1:11434/v1',model:enabled?$('npc-model').value:''});
+      getController().setProvider(enabled?new DesktopModelProvider(bridge,config.model):new LocalLearnerProvider());
+      $('model-status').textContent=enabled?'Configured. The next decision will contact your local model.':'Offline experiential learner active.';save();
+    }catch(error){$('model-status').textContent=error.message;}
+  }
+  $('connect-model').addEventListener('click',()=>configure(true));$('offline-controller').addEventListener('click',()=>configure(false));
+  if(bridge){bridge.status().then(status=>{
+    $('npc-endpoint').value=status.endpoint;$('npc-model').value=status.model;
+    if(status.enabled)getController().setProvider(new DesktopModelProvider(bridge,status.model));
+  }).catch(error=>{$('model-status').textContent=error.message;});}
+  else{$('connect-model').disabled=true;$('offline-controller').disabled=true;$('model-status').textContent='Offline experiential learner. Local model settings are available in the desktop app.';}
+  function drawMap(n){
+    const canvas=$('npc-map'),g=canvas.getContext('2d'),size=canvas.width,half=720,scale=size/(half*2);
+    g.fillStyle='#101f24';g.fillRect(0,0,size,size);
+    for(const c of Object.values(n.memory.cells)){
+      const x=(c.x-n.position.x+half)*scale,y=(c.y-n.position.y+half)*scale;
+      if(x<-20||y<-20||x>size||y>size)continue;
+      g.fillStyle=c.walkable?'#506e53':c.terrain==='water'||c.terrain==='shallows'?'#436b7a':'#514f46';
+      g.globalAlpha=n.elapsed-c.observedAt>60?.45:.9;g.fillRect(x-8,y-8,NPC_RULES.tileSize*scale-1,NPC_RULES.tileSize*scale-1);
+    }
+    g.globalAlpha=1;
+    for(const s of Object.values(n.memory.sources)){
+      const x=(s.x-n.position.x+half)*scale,y=(s.y-n.position.y+half)*scale;
+      g.fillStyle=s.available?'#83d1e9':'#d3846e';g.beginPath();g.arc(x,y,3,0,Math.PI*2);g.fill();
+    }
+    g.fillStyle='#fff0c1';g.beginPath();g.arc(size/2,size/2,4,0,Math.PI*2);g.fill();
+  }
+  function update(now){
+    const n=getNpc();$('npc-short').textContent=`Aster · ${n.lifecycle.toLowerCase()} · ${Math.round(n.hydration)}% water`;
+    if(!visible||now-lastRefresh<.5)return;lastRefresh=now;
+    $('npc-lifecycle').textContent=n.lifecycle;$('npc-hydration').value=n.hydration;$('npc-hydration-value').textContent=`${n.hydration.toFixed(1)} / 100`;
+    $('npc-flask').textContent=`${Math.round(n.flask.water*100)}% · ${n.flask.provenance||'empty'}`;
+    $('npc-current').textContent=n.skillRun?`Procedure: ${n.skillRun.id} (${n.skillRun.cursor+1})`:n.active?`Action: ${n.active.request.type}`:getController().pending?'Waiting for local inference':'Choosing an experiment';
+    $('npc-controller').textContent=getController().provider.label;
+    $('npc-decision').textContent=n.decision;
+    $('npc-counts').textContent=`${n.stats.independentDrinks} independent drinks · ${n.stats.collapses} collapses · ${n.stats.rescues} rescues`;
+    $('npc-rescuer').textContent=`Last rescuer: ${n.stats.lastRescuer||'none'}. Rescue is not independent success.`;
+    $('npc-preset').value=n.preset;$('npc-rescue-presentation').value=n.rescuePresentation;$('npc-learning').checked=n.learning;
+    const sources=$('npc-sources');sources.replaceChildren();
+    const known=Object.values(n.memory.sources).sort((a,b)=>b.observedAt-a.observedAt).slice(0,8);
+    if(!known.length)add(sources,'li','No water sources observed yet.');
+    for(const source of known)add(sources,'li',`${source.id} · ${source.available?'observed available':'unavailable'} · ${Math.floor(n.elapsed-source.observedAt)}s old`);
+    drawMap(n);
+    if(lastEvidence===n.memory.nextId)return;lastEvidence=n.memory.nextId;
+    const skills=$('npc-skills');skills.replaceChildren();
+    if(!n.memory.skills.length)add(skills,'p','No acquired procedures. Aster begins with an empty library.','small');
+    for(const skill of n.memory.skills){
+      const details=document.createElement('details');skills.append(details);
+      add(details,'summary',`${skill.name} · ${skill.status} (${skill.successes} successes / ${skill.failures} failures)`);
+      add(details,'p',skill.steps.map(step=>`${step.type}${step.sourceId?'(sourceId)':''}`).join(' → '),'small');
+      add(details,'p','Evidence: '+skill.supportingExperience.join(', '),'small');
+      for(const id of skill.supportingExperience.slice(-3)){const event=n.memory.experience.find(e=>e.id===id);if(event)add(details,'pre',JSON.stringify(event,null,2));}
+      add(details,'p',skill.status==='validated'?'Repeated success under changed starting conditions; reliability is limited to tested conditions.':'One successful sequence creates a candidate, not a universally reliable routine.','small');
+    }
+    const history=$('npc-history');history.replaceChildren();
+    for(const event of n.memory.experience.slice(-14).reverse()){
+      const details=document.createElement('details');history.append(details);
+      const d=event.details;add(details,'summary',`#${event.id} · ${Math.floor(event.at)}s · ${event.type} · ${d.result?.code||d.code||d.provenance||d.skillId||''}`);
+      add(details,'pre',JSON.stringify(d,null,2));
+    }
+    const lesson=n.memory.lessons.at(-1);$('npc-lesson').textContent=lesson?`${lesson.verified} ${lesson.hypothesis}`:'No collapse lesson yet. Facts and hypotheses are kept separate.';
+  }
+  return {toggle,close,update};
+}
+
+return {createNpcPanel};
+})();
 __modules.main=(()=>{
 const { CONFIG, SPAWN, CAVES, CAVE_SPAWN, LANDMARKS }=__modules.config;
 const { clamp, freshState, moveActor, nearestInteraction, clockTime, regionName, distance, canStand }=__modules.world;
 const { loadSave, writeSave, validateSave }=__modules.save;
 const { Renderer }=__modules.renderer;
+const { NpcController }=__modules.controller;
+const { createNpcPanel }=__modules.npc-panel;
+const { observeNpc }=__modules.npc;
+const { recordEvent }=__modules.npc-memory;
 
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries(['world','welcome','hud','begin','clock','day','region','location-detail','minimap','nav-label','interaction','toast','save-status','map-panel','atlas-map','map-title','map-hint','pause-panel','help-panel','waypoint-hud'].map(id=>[id,$(id)]));
@@ -725,6 +1508,8 @@ try { storage = window.localStorage; } catch { storage = { getItem(){return null
 const loaded = loadSave(storage);
 let state = loaded.state;
 const renderer = new Renderer(ui.world,state);
+let npcController=new NpcController(state.npc);
+const npcPanel=createNpcPanel({getNpc:()=>state.npc,getController:()=>npcController,renderer,save:()=>save(),notify});
 let started=false, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
 let lastTime=performance.now()/1000, accumulator=0, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
@@ -771,8 +1556,8 @@ function returnToCamp(){
   state.scene='valley';state.player={...SPAWN};renderer.snap(state.player);closePanels();save();notify('Returned to the Trailhead.');
 }
 function newExpedition(){
-  if(!window.confirm('Start a new expedition? This replaces your saved position, discoveries, and world time.'))return;
-  state=freshState();saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
+  if(!window.confirm('Start a new expedition? This replaces your saved position, discoveries, world time, and Aster’s memory.'))return;
+  const provider=npcController.provider;npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{provider});saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
 $('open-map').addEventListener('click',()=>togglePanel('map'));
@@ -793,6 +1578,8 @@ window.addEventListener('keydown',e=>{
     if(buttons.length){const index=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(index+(e.shiftKey?-1:1)+buttons.length)%buttons.length].focus();}return;
   }
   if(!started)return;
+  if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
+  if(e.code==='KeyN'){e.preventDefault();keys.clear();npcPanel.toggle();return;}
   if(movementCodes.has(e.code)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();if(!panel&&!e.ctrlKey&&!e.metaKey&&!e.altKey)keys.add(e.code);return;}
   if(e.repeat)return;
   if(e.code==='KeyM'){e.preventDefault();togglePanel('map');}
@@ -824,6 +1611,7 @@ function fixedUpdate(dt){
   anim.moving=travelled>.01;
   if(dx||dy){const n=Math.hypot(dx,dy);anim.facing={x:dx/n,y:dy/n};}
   state.elapsed+=dt;state.distance+=travelled;
+  const previousEpoch=state.npc.epoch;npcController.tick(dt);if(state.npc.epoch!==previousEpoch){save();if(state.npc.lifecycle==='RECOVERING')notify(state.npc.rescuePresentation==='quiet'?'Aster has received water and is recovering.':'A warm light gathers around Aster. A benevolent presence has supplied water.',7);else if(state.npc.lifecycle==='COLLAPSED')notify('Aster has collapsed from dehydration. Its experience will be retained.',6);}
 }
 function updateHud(now){
   if(now-lastHud<.15)return;lastHud=now;
@@ -851,7 +1639,7 @@ function loop(ms){
   if(started&&!panel&&!document.hidden){accumulator+=dt;while(accumulator>=CONFIG.fixedStep){fixedUpdate(CONFIG.fixedStep);accumulator-=CONFIG.fixedStep;}anim.time+=dt;}
   else{anim.moving=false;accumulator=0;if(!started)anim.time+=dt;}
   renderer.render(state,anim,dt,started);
-  if(started){renderer.drawMini(ui.minimap,state,now);updateHud(now);if(now-lastAutosave>10){lastAutosave=now;save();}}
+  if(started){npcPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(now-lastAutosave>10){lastAutosave=now;save();}}
   requestAnimationFrame(loop);
 }
 window.addEventListener('error',e=>{ $('fatal-message').textContent=e.message||'An unexpected runtime error occurred.';$('fatal').classList.remove('hidden'); });
@@ -864,7 +1652,10 @@ if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ =
     metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,interaction:nearestInteraction(state.player,state.scene)}),
     teleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene))return false;if(!canStand(x,y,scene))return false;state.scene=scene;state.player={x,y};renderer.snap(state.player);return true;},
     step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;}},
-    start:begin,interact,save:()=>save(true),reset:()=>{state=freshState();renderer.snap(state.player);},
+    start:begin,interact,save:()=>save(true),reset:()=>{npcController.dispose();state=freshState();npcController=new NpcController(state.npc);renderer.snap(state.player);},
+    npc:()=>structuredClone(state.npc),
+    npcStep:(seconds)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep)npcController.tick(Math.min(CONFIG.fixedStep,seconds-t));},
+    npcTeleport:(x,y)=>{if(!canStand(x,y,'valley'))return false;state.npc.position={x,y};state.npc.active=null;state.npc.skillRun=null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'position',value:{x,y},provenance:'debug'});observeNpc(state.npc);return true;},
     light:(elapsed)=>{state.elapsed=clamp(elapsed,0,3600*1000);},
   };
 }

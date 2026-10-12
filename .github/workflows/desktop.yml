@@ -1,0 +1,51 @@
+name: Desktop application
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run bundle
+      - run: npm run check
+      - name: Exercise the Windows desktop window
+        if: runner.os == 'Windows'
+        run: npm run smoke
+      - name: Exercise the Linux desktop window
+        if: runner.os == 'Linux'
+        run: npm run smoke
+      - name: Build portable Windows app
+        if: runner.os == 'Windows'
+        run: npm run package:win
+      - name: Build Linux app folder
+        if: runner.os == 'Linux'
+        run: npm run package:linux
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: Aincrad-Windows-x64
+          path: release/Aincrad-*-Windows-x64.zip
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: Aincrad-Linux-x64
+          path: release/linux-unpacked/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-smoke-${{ runner.os }}
+          path: test-results/

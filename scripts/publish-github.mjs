@@ -46,6 +46,9 @@ async function main(){
  if(connectorIndex>=0){
   const destination=process.argv[connectorIndex+1];
   if(!destination||destination.startsWith('--'))throw new Error('Use --prepare-connector followed by a local manifest path.');
+  const head=run('git',['rev-parse','HEAD'],{capture:true,allowFail:true});
+  const expected=head.status===0?head.stdout.trim():BASE;
+  if(!/^[a-f0-9]{40}$/.test(expected))throw new Error('Could not resolve the source checkout baseline.');
   const prepared=[];
   for(const rel of files){
    const data=await readFile(join(ROOT,rel));
@@ -53,7 +56,7 @@ async function main(){
    const sha=createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
    prepared.push({path:rel,mode:'100644',sha,size_bytes:data.length,encoding,content:data.toString(encoding==='base64'?'base64':'utf8')});
   }
-  await writeFile(resolve(destination),JSON.stringify({repository_full_name:REPO,branch_name:'main',expected_sha:BASE,files:prepared}));
+  await writeFile(resolve(destination),JSON.stringify({repository_full_name:REPO,branch_name:'main',expected_sha:expected,files:prepared}));
   console.log(`Prepared validated publication manifest: ${resolve(destination)}. No remote changes made.`);
   console.log('Verify push permission and the expected main SHA, then publish the complete tree and commit without force.');
   return;

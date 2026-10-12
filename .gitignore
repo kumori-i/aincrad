@@ -6,3 +6,5 @@ Thumbs.db
 .env.*
 coverage/
 test-results/
+
+release/

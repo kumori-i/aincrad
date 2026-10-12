@@ -1,6 +1,6 @@
 {
   "name": "aincrad",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A local-first, mountain-ringed exploration game. The first foundation for a living world.",
   "type": "module",
@@ -14,9 +14,45 @@
     "test": "node scripts/check.mjs",
     "check": "node scripts/check.mjs",
     "publish:github": "node scripts/publish-github.mjs",
-    "bundle": "node scripts/bundle.mjs"
+    "bundle": "node scripts/bundle.mjs",
+    "smoke": "node scripts/start.mjs --smoke-test",
+    "evaluate": "node scripts/evaluate-npc.mjs",
+    "package:win": "electron-builder --win zip --x64 --publish never",
+    "package:linux": "electron-builder --linux dir --x64 --publish never"
   },
-  "optionalDependencies": {
+  "productName": "Aincrad",
+  "build": {
+    "appId": "io.kumori.aincrad",
+    "productName": "Aincrad",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "src/**/*",
+      "index.html",
+      "style.css",
+      "icon.svg",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "signAndEditExecutable": false,
+      "artifactName": "Aincrad-${version}-Windows-${arch}.zip"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "category": "Game"
+    }
+  },
+  "devDependencies": {
+    "electron-builder": "26.15.3",
     "electron": "44.7.0"
   }
 }

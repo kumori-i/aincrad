@@ -1,27 +1,21 @@
-# From an explorable valley to a living world
+# Aincrad milestones
 
-## Completed foundation: World Zero
+## 0.1 — World foundation (complete)
 
-Controllable avatar, mountain boundary, lake and river, bridge crossings, meadows and trees, three cave entrances/interiors, minimap and field atlas, local saves, and a configurable one-hour day. A runnable source project and offline build exist. GitHub publishing is prepared but must be performed by the owner with the included helper.
+Human-controlled exploration, calibrated five-minute reference crossing, one-hour day, mountain-bounded valley, water/bridges, three caves, maps/waypoints, local saves and an isolated Electron shell.
 
-## Next: physical resources and inventory
+## 0.2 — One persistent water-learning NPC (implemented)
 
-Make a small set of trees/rocks gatherable. Add inventory with quantities and capacity. Resource state must persist and be separate from cosmetic artwork. The human can inspect and perform each action. Tests must prove resource conservation and save/reload consistency.
+Aster’s hydration and flask; validated collection/drinking/movement; local perception and observed navigation tiles; persistent experience, resource knowledge and action values; data-acquired candidate/validated procedures; idempotent collapse/divine rescue/recovery; an inspection/evidence drawer; an optional bounded local-model bridge; controlled offline evaluations; desktop packaging and smoke tests.
 
-## Then: one crop, with real consequences
+The desktop app and offline controller have been exercised in Linux. Windows packaging is available; physical Windows/macOS installation and actual live-model learning need target-machine verification. Keep that distinction explicit.
 
-Till, plant, water, grow and harvest one crop. Growth uses authoritative game time, not animation timing. Add visible feedback and simple tooltips explaining rules. Keep a viable starting food/seed supply. Test that seeds and harvests cannot duplicate through interrupted actions.
+## Next small milestones
 
-## Then: constrained building
+1. Longer target-PC runs and live local-model evaluation, with the same matched memory-disabled comparison and explicit inference budgets.
+2. Improve exploration/navigation and procedure transfer using failure evidence from those runs. Keep model-service failure separate from gameplay failure.
+3. Optional player water possession and player-assisted rescue, with real possession/consumption and truthful rescuer attribution.
+4. A Phaser tile/sprite renderer if the owner wants the pixel-world presentation used by `agentic-workspace`. Keep the current world scale, calibrated timings and engine authority.
+5. Additional meaningful resource/farming mechanics before adding more agents or social roles.
 
-Allow a few grid-validated pieces or predefined small structures. Material cost, location checks, ownership, collision and save migration precede freeform construction. Confirm that buildings cannot trap the player or block every crossing.
-
-## Then: baseline inhabitants
-
-Begin with one rule-driven NPC using the same inventory, movement and game-action API as the human. Add needs only after the world can actually satisfy them. Test a settlement's resource budget and recovery with an accelerated developer clock.
-
-## Later: optional adaptive planning
-
-An optional model may choose high-level goals and discuss commitments. Routine execution remains conventional game code. Add observation boundaries, memory budgets, inference limits, truthful action status and behavior when inference is unavailable. Do not replace working survival routines with continuous model calls.
-
-Multiplayer, background hosting, offline catch-up, distinctive cave generation and a larger world are separate design decisions, not implicit commitments for the next milestone.
+Do not jump directly to a society, a large agent population or arbitrary host tools. Preserve a playable human avatar and a small testable simulation.

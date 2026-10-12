@@ -38,4 +38,4 @@ test('all cave chambers can be reached from the entrance without crossing walls'
   for(const room of CAVE_ROOMS)assert.ok(queue.some(([x,y])=>Math.hypot(x*grid-room.x,y*grid-room.y)<70),`unreachable room ${room.x},${room.y}`);
 });
 test('world and cave collision rules remain separate',()=>{assert.ok(terrain(0,0)!=='mountain');assert.equal(canStand(0,0,'lantern'),false);});
-test('fresh state is independent and contains no agents or OS capabilities',()=>{const a=freshState(),b=freshState();a.player.x=12;a.discoveries.push('lake');assert.notEqual(a.player.x,b.player.x);assert.deepEqual(b.discoveries,['trailhead']);assert.equal(b.scene,'valley');});
+test('fresh worlds have independent human and NPC state',()=>{const a=freshState(),b=freshState();a.player.x=12;a.discoveries.push('lake');assert.notEqual(a.player.x,b.player.x);assert.deepEqual(b.discoveries,['trailhead']);assert.equal(b.scene,'valley');assert.notEqual(a.npc,b.npc);assert.equal(b.npc.id,'aster');assert.deepEqual(b.npc.memory.skills,[]);});

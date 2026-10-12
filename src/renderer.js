@@ -1,6 +1,6 @@
 import { CONFIG, CAVES, SPAWN, CAVE_EXIT, LANDMARKS } from './config.js';
 import { clamp, lerp, hash, noise, terrain, ridgeValue, objectsInRect, riverX, riverWidth, BRIDGES, waterDistance, caveDistance, CAVE_OBJECTS, clockTime } from './world.js';
-import { canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject } from './art.js';
+import { canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject, drawNpc } from './art.js';
 
 export class Renderer {
   constructor(target, state) {
@@ -8,7 +8,7 @@ export class Renderer {
     if(!this.ctx)throw new Error('A Canvas 2D context is required to run Aincrad.');
     this.camera={x:state.player.x-220,y:state.player.y-70};this.zoom=1.55;this.targetZoom=1.55;
     this.chunks=new Map();this.caveCanvas=null;this.caveMask=null;this.mapCanvas=null;this.scene=state.scene;
-    this.frame=0;this.lastMini=0;this.resize();
+    this.followNpc=false;this.inspectorOpen=false;this.viewportOffsetX=0;this.frame=0;this.lastMini=0;this.resize();
   }
   resize(){this.width=window.innerWidth;this.height=window.innerHeight;this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);}
   snap(p){this.camera={...p};}
@@ -19,15 +19,16 @@ export class Renderer {
     if(this.chunks.size>CONFIG.maxCachedChunks)this.chunks.delete(this.chunks.keys().next().value);
     return c;
   }
-  screenPoint(x,y){return{x:(x-this.camera.x)*this.zoom+this.width/2,y:(y-this.camera.y)*this.zoom+this.height/2};}
+  screenPoint(x,y){return{x:(x-this.camera.x)*this.zoom+this.width/2-this.viewportOffsetX,y:(y-this.camera.y)*this.zoom+this.height/2};}
   render(state, anim, dt, started) {
-    const g=this.ctx,p=state.player;this.frame++;
+    this.viewportOffsetX=this.inspectorOpen?Math.min(430,this.width*.53)/2:0;
+    const g=this.ctx,p=this.followNpc&&state.scene==='valley'?state.npc.position:state.player;this.frame++;
     if(this.scene!==state.scene){this.scene=state.scene;this.snap(p);this.caveCanvas=null;}
     const target={x:p.x+(started?0:-220),y:p.y+(started?-40:-70)};
     const ease=1-Math.exp(-dt*8);
     this.camera.x=lerp(this.camera.x,target.x,ease);this.camera.y=lerp(this.camera.y,target.y,ease);this.zoom=lerp(this.zoom,this.targetZoom,1-Math.exp(-dt*10));
     g.setTransform(this.dpr,0,0,this.dpr,0,0);g.fillStyle='#172f2c';g.fillRect(0,0,this.width,this.height);
-    g.save();g.translate(this.width/2,this.height/2);g.scale(this.zoom,this.zoom);g.translate(-this.camera.x,-this.camera.y);
+    g.save();g.translate(this.width/2-this.viewportOffsetX,this.height/2);g.scale(this.zoom,this.zoom);g.translate(-this.camera.x,-this.camera.y);
     const view={x:this.camera.x-this.width/this.zoom/2-200,y:this.camera.y-this.height/this.zoom/2-220,w:this.width/this.zoom+400,h:this.height/this.zoom+540};
     if(state.scene==='valley') this.drawValley(g,state,anim,view);else this.drawCave(g,state,anim,view);
     g.restore();
@@ -57,10 +58,12 @@ export class Renderer {
     objects.push({kind:'camp',x:SPAWN.x,y:SPAWN.y-10});
     for(const c of CAVES)objects.push({kind:'cave',x:c.x,y:c.y,definition:c});
     objects.push({kind:'player',x:state.player.x,y:state.player.y});
+    if(state.npc)objects.push({kind:'npc',x:state.npc.position.x,y:state.npc.position.y});
     objects.sort((a,b)=>a.y-b.y);
     for(const o of objects) {
       if(o.x<v.x-400||o.x>v.x+v.w+400||o.y<v.y-100||o.y>v.y+v.h+400)continue;
       if(o.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,state.scene);
+      else if(o.kind==='npc')drawNpc(g,state.npc,anim.time);
       else if(o.kind==='camp')drawCamp(g,SPAWN.x,SPAWN.y-10,anim.time);
       else if(o.kind==='cave')drawCaveEntrance(g,o.definition,anim.time);
       else drawObject(g,o,state.player);

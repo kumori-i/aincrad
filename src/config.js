@@ -1,7 +1,7 @@
 /** World distances are in logical pixels. Change rules here, never in the renderer. */
 export const CONFIG = Object.freeze({
   title: 'Aincrad',
-  version: '0.1.0',
+  version: '0.2.0',
   seed: 74193,
   halfSize: 24000,
   valleyRadius: 22500,
@@ -31,3 +31,15 @@ export const LANDMARKS = Object.freeze([
 ]);
 export const CAVE_SPAWN = Object.freeze({ x: 1320, y: 1510 });
 export const CAVE_EXIT = Object.freeze({ x: 1320, y: 1580 });
+
+/** NPC time uses the same unpaused simulation seconds as the world. */
+export const NPC_RULES = Object.freeze({
+  tileSize: 80, visionRadius: 400, collectionRange: 80,
+  flaskCapacity: 1, drinkHydration: 65, maxActionSeconds: 12,
+  maxSkillSeconds: 35, maxExperience: 400, maxCells: 4096,
+  maxSources: 128, maxSkills: 12, maxModelCallsPerHour: 60,
+});
+export const NPC_PRESETS = Object.freeze({
+  normal: { initialHydration: 85, depletionPerSecond: 0.065, rescueDelay: 25, recoverySeconds: 4, rescueHydration: 75 },
+  accelerated: { initialHydration: 42, depletionPerSecond: 0.4, rescueDelay: 7, recoverySeconds: 2, rescueHydration: 78 },
+});

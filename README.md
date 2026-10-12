@@ -1,146 +1,119 @@
 # Aincrad
 
-**A quiet world. Yours to explore.**
+**Your own desktop world, with one persistent life learning to survive.**
 
-A local, single-player exploration prototype: a mountain-ringed valley, a winding river and lake, meadows, trees, three enterable caves, and a human-controlled wanderer. This is the playable world foundation—not an agent demonstration and not a finished survival game.
+Aincrad 0.2 is a single-player Electron application: a mountain-ringed valley, river and lake, meadows, trees, three enterable caves, your controllable avatar, and one persistent NPC named Aster.
 
-![Aincrad, captured from the running game](docs/mountain-preview.png)
+## Run the application
 
-## Play immediately
+Download **Aincrad-0.2.0-Windows-x64.zip**, extract the **entire ZIP into a folder**, then double-click **Aincrad.exe**. Keep the supporting files beside it. The chat delivery includes this Windows build; automated builds are also available under [Desktop application workflow artifacts](https://github.com/kumori-i/aincrad/actions/workflows/desktop.yml).
 
-Open **`play.html`** in a desktop browser. It is a self-contained build: no account, hosting, internet connection, package installation, or AI service is required to play. Download/extract it before opening; a file-preview pane is not a game runtime.
+The packaged app opens its own window. Playing does not require a browser, Node.js, an application account, an API key or a model service. The default controller learns locally from its game experience. Saved progress stays in your application profile.
 
-Browser privacy settings can prevent saving from a `file:` URL. For a stable local origin and normal browser storage, use the local server below. Browser mode and the optional desktop app have separate saves.
+This is an unsigned portable prototype, not a signed installer. The Windows package was built in Linux; desktop runtime verification was performed in Linux. A physical Windows/macOS machine has not been tested in this development session.
 
-## Run from source on your PC
-
-Install Node.js **22.12.0 or newer**, then open a terminal in this folder.
-
-### No-install local browser mode
+To run from source, install Node.js **22.12.0 or newer**:
 
 ```sh
-npm run web
-```
-
-The game opens at `http://127.0.0.1:4173`. Keep the terminal open while playing. Press Ctrl+C to stop it. Only loopback is bound; this does not expose a multiplayer server or your filesystem to the internet. The server serves only the game's explicitly allowed assets.
-
-No `npm install` is needed for this mode. For a different port:
-
-```sh
-npm run web -- --port 4174
-```
-
-Changing the port changes the browser's storage origin and therefore the save slot. Use the same port to continue an existing expedition.
-
-### Optional standalone desktop window
-
-```sh
+git clone https://github.com/kumori-i/aincrad.git
+cd aincrad
 npm ci
 npm start
 ```
 
-Electron is an **optional** dependency pinned to `44.7.0`. Its runtime may download on the first launch; internet access is needed for that setup, not for subsequent play. `npm start` uses Electron's CLI to support its lazy runtime download. No browser tab, application login, or API key is needed in desktop mode.
+For a development build:
 
-The desktop launcher is included but has **not been run on a physical Windows or macOS machine**. It is not a signed installer. If its optional installation fails, `npm run web` still works. The committed `package-lock.json` pins the desktop dependency tree; use `npm ci` for a reproducible installation. The Linux Electron window has been exercised in a headless test environment.
+```sh
+npm run package:win    # Windows x64 portable ZIP in release/
+npm run package:linux  # Linux application folder in release/linux-unpacked/
+```
 
-Press **F11** in desktop mode to toggle fullscreen.
+The initial setup downloads Electron; subsequent offline play needs no network connection. The repository’s `play.html` and `npm run web` remain optional browser/development paths. Local model connection is available in the desktop app.
+
+## Watch Aster learn
+
+Enter the valley and press **N** for Aster’s inspection drawer. Choose **Follow Aster** to watch its view. The drawer shows hydration, flask contents, lifecycle, current action/procedure, observed water sources, a remembered tile map, recent authoritative results, acquired procedures and supporting evidence.
+
+Aster begins with an empty flask, no known source coordinates and an empty procedure library. The default offline experiential controller tries bounded actions and updates its action values from their actual outcomes. Successful collection/drinking sequences become candidate procedures; successes under changed starting conditions provide validation evidence. Those acquired procedures affect later choices.
+
+Collecting fills the flask and does not hydrate the body. Drinking consumes its contents. Hydration drains in unpaused simulation time. At zero, Aster collapses and its current action is cancelled. After an interval, divine rescue restores partial hydration; the flask, position, identity, discoveries and memories are retained. A golden effect distinguishes rescue from normal drinking. Rescue is not counted as independent water acquisition.
+
+For quicker observation, open **Development controls → Accelerated survival cycles**. This changes Aster’s hydration rate and recovery intervals; your movement speed and the world’s one-hour day are preserved. Use normal gameplay settings for long journeys and live-model latency. **Demonstrate collapse and rescue** is an explicitly recorded debug action; it gives no independent-survival credit. Rescue presentation can be a benevolent presence or quiet recovery. Player-assisted rescue is not implemented yet.
+
+A meaningful independent success is a collected-water drink restoring at least 15 hydration, credited at most once per fill. Tiny top-ups and full-health drinking cannot farm the counter.
+
+## Optional local language model
+
+The offline learner works without a language model. For model-assisted decisions, use an already running local OpenAI-compatible server, such as [Ollama](https://docs.ollama.com/api/openai-compatibility).
+
+For example, after installing Ollama, download a local model:
+
+```sh
+ollama pull llama3.2:3b
+```
+
+Start `ollama serve` if its background service is not already running. In Aincrad press **N → Local model planning**, enter:
+
+- Endpoint: `http://127.0.0.1:11434/v1`
+- Model: `llama3.2:3b` (or the exact name of another installed model)
+
+Click **Use local model**. **Use offline learner** returns to local experiential control. No rented GPU or hosted model account is required. Model runtime speed depends on your hardware. Only loopback endpoints are supported in this version; the game never executes model-generated host code.
+
+Configuration is stored as `agent-model.json` inside Electron’s Aincrad user-data folder. The example in [docs/local-model.example.json](docs/local-model.example.json) documents timeout, token and hourly-call limits. The model receives the NPC’s local/remembered observations, condition, relevant experience and acquired procedures. It cannot see the complete map or the player’s private state, or call rescue as a tool.
+
+The model’s ordinary language knowledge comes from pretraining; this is not a blank-slate mind. Live language-model behavior was **not tested** because no actual model was configured. The HTTP/IPC integration was tested with a clearly labeled mock server, and the default learner was tested separately.
 
 ## Controls
 
 | Control | Action |
 | --- | --- |
-| WASD / arrow keys | Walk |
-| Hold Shift | Run, without a stamina limit |
-| E | Enter a cave, exit a cave, or read the trail sign |
-| M | Open/close the field map |
-| Click the world map | Place a waypoint |
-| Right-click the world map | Clear the waypoint |
+| WASD / arrow keys | Walk your avatar |
+| Hold Shift | Run |
+| E | Enter/exit caves or read the trail sign |
+| N | Open Aster’s live inspection drawer |
+| M | Field map; click to set a waypoint |
+| Right-click field map | Clear waypoint |
 | Mouse wheel / + / − | Zoom |
-| H | Open/close the guide |
-| Esc | Pause/resume or close an open panel |
-| Ctrl+S / Command+S | Save locally |
+| H | Guide |
+| Esc | Pause/resume or close a modal menu |
+| Ctrl+S / Command+S | Save |
+| F11 | Desktop fullscreen |
 
-The map and menus pause the simulation. Losing window focus also pauses. The game does not run an offline simulation while closed or asleep.
+Modal menus and focus loss pause the world and Aster. The inspection drawer stays live. Closing the app stops simulation; it does not run a settlement in the background. A new expedition explicitly replaces the saved world and Aster’s memory.
 
-## What is in this build
+## What is supplied and what is learned
 
-- **A bounded valley:** the impassable Crown Ridge surrounds the walkable world. Mountain peaks are original procedural artwork, not downloaded assets.
-- **An actual five-minute reference crossing:** the east–west boundary span is 45,000 logical pixels and walking speed is 150 logical pixels/second. The central trail and its bridge are kept clear. The character's radius reduces the usable span slightly; the automated 300-second movement test reaches the opposite boundary. Detours and diagonal routes differ; sprinting is faster.
-- **Water:** Stillwater Lake connects to the Silverrun. Water is solid in this build; three wooden bridges provide crossings. Swimming is not implemented.
-- **Meadows and woods:** seeded vegetation, tree/rock collision, shoreline reeds, wildflowers, subtle ripples and butterflies.
-- **Three cave entrances:** Lantern Hollow, Amber Grotto, and Echo Cavern. Each opens into a separately visited interior with navigable branching chambers and solid walls, then returns you to its own exterior entrance. The first build reuses the chamber layout with different crystal palettes; they are not three unique dungeon designs yet.
-- **A controllable avatar:** animated walking, normalized diagonal movement, collision sliding, running, smooth camera following, and zoom.
-- **Navigation:** local minimap, full field atlas, landmarks, cave discovery tracking, and optional waypoints. Waypoint estimates are straight-line walking estimates, not pathfinding.
-- **Local persistence:** position, current cave, discoveries, waypoints, and world time. Saves occur about every ten seconds, at transitions, on pause/focus loss, and on explicit save. Invalid coordinates recover to a safe location; unreadable saves are not silently overwritten.
-- **A configurable clock:** one in-game day takes one hour of unpaused play. It starts at 08:00 and includes subtle day/evening/night lighting. This clock is already available as a foundation for later gameplay; it does not yet affect survival.
+The developer supplies physical rules, senses, action schemas, collision handling, observed-tile navigation, feedback, high-level motivation and the rescue mechanic. Aster acquires resource knowledge, contextual action values and restricted procedures from actual experience. There is no seeded water route or preloaded survival procedure.
 
-Not implemented: farming actions, resource inventory, construction, needs, NPCs/agents, learning, combat, multiplayer, sound, or background/offline settlement simulation. The camp objects are decorative except for the trail sign.
+The visual world still uses its original Canvas renderer. Tile-based navigation and memory are implemented. A Phaser tile/sprite world like `agentic-workspace` is feasible as a later renderer milestone, while preserving these simulation rules.
 
-## Publish to the existing GitHub repository
+The east–west reference span remains 45,000 logical pixels at 150 pixels/second: approximately five minutes on foot. One world day takes one hour of unpaused play. Human cave exploration, maps, waypoints and save recovery remain available; Aster stays in the valley for this milestone.
 
-Target: **[kumori-i/aincrad](https://github.com/kumori-i/aincrad)**, branch **main**.
+Not included: additional NPCs, professions, society, combat, crafting, farming, multiplayer, sound, a signed installer or a pretrained/finetuned custom model.
 
-With Git and GitHub CLI (`gh`) installed, run from this extracted `aincrad` folder:
+## Verification and evaluation
 
 ```sh
-gh auth login
-npm run publish:github
+npm run check     # Source syntax and deterministic rules/provider tests
+npm run bundle    # Rebuild the optional offline browser build
+npm run smoke     # Isolated desktop lifecycle/UI check, no live inference
+npm run evaluate  # Eight matched offline learning/memory-disabled trials
 ```
 
-The helper checks the authenticated account and push permission, tests the source, and clones the existing repository into a separate temporary folder. It copies the explicit project file list, commits with your configured Git identity, and performs a normal push to `main`. It does **not** create a repository or change visibility. It never force-pushes, resets another checkout, removes branches, or changes global Git authentication settings.
+The evaluation uses fixed world geometry, matched controller RNG seeds, 300 simulation seconds per initial trial and a matched 120-second changed-starting-position phase. It measures independent drinking, collapses, rescues, invalid repetition, time to water and procedure use. Memory-disabled runs still log outcomes for inspection, but do not retrieve learned values/procedures and retain only current local map observations.
 
-It will only update the initial README-only commit. If someone has since added different work, it stops before copying files rather than overwriting that work. If these exact files are already published, it exits without another commit. A normal push also rejects concurrent non-fast-forward updates. The temporary checkout is retained on failure for recovery.
-
-Set Git's `user.name` and `user.email` to your own identity if the helper reports that they are missing. Do not put tokens in the game or paste them into chat.
-
-Local-only validation (does not contact GitHub):
-
-```sh
-npm run publish:github -- --check-only
-```
-
-For a connected GitHub account, prepare the same validated file set with `npm run publish:github -- --prepare-connector ../aincrad-publication.json`. The publisher must verify push permission and the expected branch head in that manifest, create the full tree and commit on top of that head, then update `main` without force. This initial-import helper stops if different work has already been added. For subsequent development, use a regular clone and Git commits.
-
-Run the published project:
-
-```sh
-git clone https://github.com/kumori-i/aincrad.git
-cd aincrad
-npm run web
-```
-
-## Water-learning NPC milestone status
-
-The attached NPC specification is preserved in [docs/NPC-MILESTONE.md](docs/NPC-MILESTONE.md), with the project name corrected to Aincrad. **It is a specification, not implemented functionality in this archive.** This recovery build restores and renames the available exploration source; it does not claim to recover the missing NPC implementation from the interrupted attempt. The partially uploaded Git tree was not a complete runnable NPC build.
-
-The renamed application uses its own Aincrad save namespace; it does not delete the old prototype's saves or automatically import them. Browser and desktop saves remain separate.
+Results are in [docs/npc-evaluation.json](docs/npc-evaluation.json). These are small controlled offline trials, not a live-LLM benchmark or a guarantee that every successive attempt improves. See [verification](docs/TESTING.md) and [architecture](docs/architecture.md).
 
 ## Development
 
+Read [AGENTS.md](AGENTS.md). Keep the engine authoritative; edit source modules and regenerate `play.html`. Original procedural artwork remains in `src/art.js`. The restricted model bridge is in `desktop/`. The NPC brief is preserved in [docs/NPC-MILESTONE.md](docs/NPC-MILESTONE.md).
+
+The explicit publication helper can prepare reviewed repository files for a connected GitHub account:
+
 ```sh
-npm run check   # JavaScript syntax validation and the Node test suite
-npm run bundle  # Rebuild the self-contained play.html after source edits
-npm run web    # Run the modular source directly
+npm run publish:github -- --prepare-connector ../aincrad-publication.json
 ```
 
-No transpiler, package manager downloads, game engine installation, or model access is needed for browser development. The renderer uses the browser's Canvas 2D API. Do not edit `play.html` by hand; edit `src/`, `style.css`, or `index.html` and rebuild it.
+The manifest includes the source checkout’s commit as its expected remote head. Verify target push permission and that head before a normal, non-forced update. Installation, launching and tests never publish. For ordinary development, use Git commits in a regular checkout.
 
-See [architecture](docs/architecture.md), [verification and limitations](docs/TESTING.md), and [next milestones](docs/ROADMAP.md). Read [AGENTS.md](AGENTS.md) before making changes with a coding assistant.
-
-## Project map
-
-```text
-src/config.js       World dimensions, clock, speed, spawn and landmark definitions
-src/world.js        Seeded terrain, collisions, movement, cave geometry, time
-src/save.js         Bounded save schema and recovery
-src/art.js          Original procedural sprites and ground artwork
-src/renderer.js     Camera, streamed ground chunks, lighting, maps
-src/main.js         Human input, UI, fixed timestep, transitions, save lifecycle
-desktop/main.cjs    Optional isolated Electron shell
-scripts/           Local server, offline bundle, validation, explicit GitHub helper
-tests/             Rules, persistence, server, bundle and optional UI smoke checks
-docs/              Design notes, verification record, actual gameplay screenshots
-play.html          Generated self-contained playable build
-```
-
-The application ships no external artwork, font files, or model weights. A project license has not been selected; choose one before distributing this as an open-source project. Optional dependencies retain their own licenses.
+A project license has not been selected. Electron and other development dependencies retain their own licenses.
