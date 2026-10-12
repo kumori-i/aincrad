@@ -26,7 +26,9 @@ jobs:
         run: npm run smoke
       - name: Exercise the Linux desktop window
         if: runner.os == 'Linux'
-        run: npm run smoke
+        # Hosted Ubuntu runners cannot use Electron's downloaded SUID helper.
+        # This flag applies only to this isolated smoke process.
+        run: npm run smoke -- --no-sandbox
       - name: Build portable Windows app
         if: runner.os == 'Windows'
         run: npm run package:win

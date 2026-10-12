@@ -16,7 +16,7 @@ A separate Playwright desktop run exercised the real IPC and HTTP request path w
 
 Rendered screenshots were inspected. The inspection drawer preserves visible space for the followed character at small window widths. Existing human keyboard movement, every cave entry/exit, map, help and pause were exercised with the NPC integrated. Pause stopped the NPC clock.
 
-This isolated Linux container requires test-only headless/root launch flags. Normal launching keeps the renderer sandbox configured and does not add those flags. These checks are not a sustained hardware performance benchmark or an operating-system sandbox certification.
+The isolated Linux smoke processes use test-only headless launch flags. GitHub's Ubuntu runner also passes `--no-sandbox` because the downloaded SUID helper is not root-owned; the local root container requires the same test-only flag. Normal launching keeps the renderer sandbox configured and does not add those flags. These checks are not a sustained hardware performance benchmark or an operating-system sandbox certification.
 
 ## Controlled offline evaluation
 
