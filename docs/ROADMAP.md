@@ -1,21 +1,17 @@
-# Aincrad milestones
+# Aincrad roadmap
 
-## 0.1 — World foundation (complete)
+## Current foundation — 0.3
 
-Human-controlled exploration, calibrated five-minute reference crossing, one-hour day, mountain-bounded valley, water/bridges, three caves, maps/waypoints, local saves and an isolated Electron shell.
+- Desktop development through npm build/start/dev, following agentic-workspace.
+- Original detailed pixel presentation, static idle art, wood-and-parchment interface.
+- Human exploration, shared physical collision, valley/river/lake and three caves.
+- One persistent water-learning NPC with local perception, observed navigation, experience and acquired procedures.
+- Observable hydration consequences, collapse, partial divine rescue and retained memory.
+- Improved exploration with frontier/revisit/failure feedback.
+- Optional bounded local-model planning; default offline learning.
 
-## 0.2 — One persistent water-learning NPC (implemented)
+## Next research milestones
 
-Aster’s hydration and flask; validated collection/drinking/movement; local perception and observed navigation tiles; persistent experience, resource knowledge and action values; data-acquired candidate/validated procedures; idempotent collapse/divine rescue/recovery; an inspection/evidence drawer; an optional bounded local-model bridge; controlled offline evaluations; desktop packaging and smoke tests.
+Evaluate longer unattended learning and more diverse starting conditions. Improve procedural generalization using measured results rather than adding prewritten survival routines. Validate actual local-model performance separately from offline learning.
 
-The desktop app and offline controller have been exercised in Linux. Windows packaging is available; physical Windows/macOS installation and actual live-model learning need target-machine verification. Keep that distinction explicit.
-
-## Next small milestones
-
-1. Longer target-PC runs and live local-model evaluation, with the same matched memory-disabled comparison and explicit inference budgets.
-2. Improve exploration/navigation and procedure transfer using failure evidence from those runs. Keep model-service failure separate from gameplay failure.
-3. Optional player water possession and player-assisted rescue, with real possession/consumption and truthful rescuer attribution.
-4. A Phaser tile/sprite renderer if the owner wants the pixel-world presentation used by `agentic-workspace`. Keep the current world scale, calibrated timings and engine authority.
-5. Additional meaningful resource/farming mechanics before adding more agents or social roles.
-
-Do not jump directly to a society, a large agent population or arbitrary host tools. Preserve a playable human avatar and a small testable simulation.
+Player-assisted water/rescue, further needs, additional agents and social roles are future explicit milestones. Build a stronger single-character foundation before adding a society. Farming, construction, crafting, combat and multiplayer are outside the current scope.

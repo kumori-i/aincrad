@@ -27,7 +27,7 @@ test('local perception respects radius and tree occlusion; no full map or player
 test('collapse cancels a bounded active action and occurs once',()=>{const n=createNpc();observeNpc(n);requestNpcAction(n,{type:'wait',seconds:5});n.hydration=.001;tickNpc(n,.1);assert.equal(n.lifecycle,'COLLAPSED');assert.equal(n.active,null);assert.equal(n.stats.collapses,1);assert.equal(n.lastResult.code,'COLLAPSED');assert.equal(collapseNpc(n),false);tickNpc(n,.1);assert.equal(n.stats.collapses,1);assert.equal(requestNpcAction(n,{type:'move',target:{x:0,y:0}}).code,'UNCONSCIOUS');});
 test('divine rescue is idempotent, gives no independent credit, preserves the flask and does not provide fast travel',()=>{const {n,s}=nearSource();recordEvent(n,'observation',{test:'retained'});requestNpcAction(n,{type:'fill_flask',sourceId:s.id});requestNpcAction(n,{type:'drink'});const skills=JSON.stringify(n.memory.skills),position={...n.position},water=n.flask.water,independent=n.stats.independentDrinks;collapseNpc(n);const id=n.collapseId;assert.equal(rescueNpc(n,id).ok,true);assert.equal(rescueNpc(n,id).ok,false);assert.deepEqual(n.position,position);assert.equal(n.flask.water,water);assert.equal(n.stats.independentDrinks,independent);assert.equal(n.stats.rescues,1);assert.equal(n.stats.lastRescuer,'divine');assert.equal(JSON.stringify(n.memory.skills),skills);assert.equal(n.id,'aster');assert.equal(n.lifecycle,'RECOVERING');assert.ok(n.memory.lessons.at(-1).verified.includes('not an independent'));});
 test('collapse/recovery save restart retains timers, evidence, acquired skills and one corresponding rescue',()=>{const {n,s}=nearSource();requestNpcAction(n,{type:'fill_flask',sourceId:s.id});requestNpcAction(n,{type:'drink'});collapseNpc(n);advance(n,3);const restored=validateNpc(JSON.parse(JSON.stringify(n)));assert.equal(restored.lifecycle,'COLLAPSED');assert.equal(restored.id,n.id);assert.deepEqual(restored.memory.skills,n.memory.skills);advance(restored,5);assert.equal(restored.stats.rescues,1);assert.equal(restored.lifecycle,'RECOVERING');const again=validateNpc(JSON.parse(JSON.stringify(restored)));advance(again,3);assert.equal(again.lifecycle,'AWAKE');assert.equal(again.stats.rescues,1);assert.deepEqual(again.position,n.position);});
-test('successful experience creates a candidate, changes later selection and transfers to a different starting position',()=>{const {n,s}=nearSource();requestNpcAction(n,{type:'fill_flask',sourceId:s.id});requestNpcAction(n,{type:'drink'});assert.equal(n.memory.skills[0].status,'candidate');n.hydration=40;n.flask.water=0;const c=new NpcController(n);for(let i=0;i<8;i++)c.tick(.1);assert.ok(n.skillRun);assert.equal(n.stats.skillUses,1);for(let i=0;i<8;i++)c.tick(.1);assert.ok(n.stats.independentDrinks>=2);let other;for(let row=14;row<30;row++){const candidate=waterSource(`river:east:${row}`);if(candidate&&canStandOutside(candidate.x+8,candidate.y)){other=candidate;break;}}assert.ok(other);n.position={x:other.x+8,y:other.y};observeNpc(n);n.flask.water=0;n.hydration=40;requestNpcAction(n,{type:'fill_flask',sourceId:other.id});requestNpcAction(n,{type:'drink'});assert.equal(n.memory.skills[0].status,'validated');assert.ok(n.memory.skills[0].supportingExperience.length>=4);});
+test('successful experience creates a candidate, changes later selection and transfers to a different starting position',()=>{const {n,s}=nearSource();requestNpcAction(n,{type:'fill_flask',sourceId:s.id});requestNpcAction(n,{type:'drink'});assert.equal(n.memory.skills[0].status,'candidate');n.hydration=40;n.flask.water=0;const c=new NpcController(n);for(let i=0;i<8;i++)c.tick(.1);assert.ok(n.skillRun);assert.equal(n.stats.skillUses,1);for(let i=0;i<30&&n.stats.independentDrinks<2;i++)c.tick(.1);assert.ok(n.stats.independentDrinks>=2);c.dispose();let other;for(let row=14;row<30;row++){const candidate=waterSource(`river:east:${row}`);if(candidate&&canStandOutside(candidate.x+8,candidate.y)){other=candidate;break;}}assert.ok(other);n.position={x:other.x+8,y:other.y};observeNpc(n);n.flask.water=0;n.hydration=40;requestNpcAction(n,{type:'fill_flask',sourceId:other.id});requestNpcAction(n,{type:'drink'});assert.equal(n.memory.skills[0].status,'validated');assert.ok(n.memory.skills[0].supportingExperience.length>=4);});
 test('tiny top-ups, rescue water and repeated full-health drinking do not farm independent progress',()=>{const {n,s}=nearSource(99.9);requestNpcAction(n,{type:'fill_flask',sourceId:s.id});requestNpcAction(n,{type:'drink'});assert.equal(n.stats.independentDrinks,0);requestNpcAction(n,{type:'fill_flask',sourceId:s.id});assert.equal(n.stats.collections,1);for(let i=0;i<10;i++)requestNpcAction(n,{type:'drink'});assert.equal(n.stats.independentDrinks,0);});
 test('interrupted saves cancel an unfinished action once on actual restart, and migrate exploration saves',()=>{const state=freshState(),store=memoryStorage();observeNpc(state.npc);requestNpcAction(state.npc,{type:'wait',seconds:5});assert.equal(writeSave(store,state),true);const restored=loadSave(store).state;assert.equal(restored.npc.active,null);assert.equal(restored.npc.memory.experience.filter(e=>e.details.result?.code==='RESTART_INTERRUPTED').length,1);writeSave(store,restored);assert.equal(loadSave(store).state.npc.memory.experience.filter(e=>e.details.result?.code==='RESTART_INTERRUPTED').length,1);const old=validateSave({version:1,scene:'valley',player:{x:5000,y:0},elapsed:99});assert.equal(old.elapsed,99);assert.equal(old.npc.id,'aster');});
 test('saved procedures are restricted operations, source data are bounded, and malformed/executable skills are discarded',()=>{const n=createNpc();n.hydration=Infinity;n.memory.skills=[{id:'water-fill-drink',steps:[{type:'exec',command:'anything'},{type:'drink'}],supportingExperience:[1,2]}];n.memory.cells={'__proto__':{x:0,y:0},'999,999':{x:79920,y:79920,walkable:true}};const clean=validateNpc(JSON.parse(JSON.stringify(n)));assert.equal(clean.memory.skills.length,0);assert.equal(Object.keys(clean.memory.cells).length,0);assert.ok(Number.isFinite(clean.hydration));});
@@ -59,3 +59,54 @@ test('a completed model response is queued until the next simulation tick, so in
 
 test('a distant interaction does not reveal current availability of a remembered resource',()=>{const {n,s}=nearSource();n.position={x:s.x+300,y:s.y};const result=requestNpcAction(n,{type:'fill_flask',sourceId:s.id},{unavailableSources:[s.id]});assert.equal(result.code,'OUT_OF_REACH');assert.equal(n.memory.sources[s.id].available,true);});
 test('an unconscious NPC does not refresh its observed map or discover resources',()=>{const {n,s}=nearSource();const observedAt=n.memory.sources[s.id].observedAt;collapseNpc(n);advance(n,2);const result=observeNpc(n,{unavailableSources:[s.id]});assert.equal(result.sources.length,0);assert.equal(n.memory.sources[s.id].observedAt,observedAt);assert.equal(n.memory.sources[s.id].available,true);});
+
+test('normal dehydration is visible within minutes, with one warning and one critical event before collapse',()=>{
+  const n=createNpc();const untilZero=NPC_PRESETS.normal.initialHydration/NPC_PRESETS.normal.depletionPerSecond;
+  assert.ok(untilZero>=120&&untilZero<=180);assert.ok(100/NPC_PRESETS.normal.depletionPerSecond<=180);
+  for(let frame=0;frame<Math.ceil(untilZero/CONFIG.fixedStep)+1;frame++)tickNpc(n,CONFIG.fixedStep);
+  assert.equal(n.lifecycle,'COLLAPSED');assert.equal(n.stats.collapses,1);
+  const conditions=n.memory.experience.filter(e=>e.type==='condition');
+  assert.deepEqual(conditions.map(e=>e.details.code),['THIRST_WARNING','CRITICAL_THIRST']);
+  assert.ok(conditions[0].details.secondsUntilCollapse>conditions[1].details.secondsUntilCollapse);
+  assert.equal(validateNpc(JSON.parse(JSON.stringify(n))).memory.experience.filter(e=>e.type==='condition').length,2);
+});
+test('accelerated first survival window lasts about 50 seconds and rescue provides another full opportunity',()=>{
+  const n=createNpc({preset:'accelerated'}),rules=NPC_PRESETS.accelerated;
+  assert.ok(rules.initialHydration/rules.depletionPerSecond>=45&&rules.initialHydration/rules.depletionPerSecond<=60);
+  for(let frame=0;frame<50/CONFIG.fixedStep+2;frame++)tickNpc(n,CONFIG.fixedStep);
+  assert.equal(n.lifecycle,'COLLAPSED');rescueNpc(n);
+  assert.ok(n.hydration/rules.depletionPerSecond>=45);assert.equal(n.flask.water,0);assert.equal(n.stats.independentDrinks,0);
+});
+test('standing still does not inflate visit counts, and an empty-flask failure applies across thirst contexts',()=>{
+  const n=createNpc();observeNpc(n);const key=tileKey(n.position),visits=n.memory.cells[key].visits;
+  for(let i=0;i<10;i++)observeNpc(n);assert.equal(n.memory.cells[key].visits,visits);
+  requestNpcAction(n,{type:'drink'});const provider=new LocalLearnerProvider();
+  for(const hydration of [85,60,10]){n.hydration=hydration;for(let i=0;i<8;i++)assert.notEqual(provider.decide(n).action.type,'drink');}
+});
+test('a blocked snap inside a coarse tile chooses another observed entry instead of looping on that center',()=>{
+  const cells={};for(let y=-1;y<=1;y++)for(let x=0;x<=2;x++){const key=`${x},${y}`;cells[key]={key,x:x*80,y:y*80,walkable:true};}
+  const from={x:10,y:0},to={x:160,y:0},blocked={'0,0>0,0':{retryAfter:60}};
+  const revised=knownRoute(cells,from,to,30,blocked,1);assert.ok(revised);assert.notDeepEqual(revised[0],{x:0,y:0});
+  assert.deepEqual(knownRoute(cells,from,to,30,blocked,61)[0],{x:0,y:0});
+});
+test('failed water availability still allows frontier exploration rather than idle loops or repeated mapped targets',()=>{
+  const unavailableSources=[];for(let row=-145;row<=145;row++)for(const side of ['west','east'])unavailableSources.push(`river:${side}:${row}`);for(let i=0;i<64;i++)unavailableSources.push(`lake:${i}`);
+  for(const seed of [74193,3,11]){
+    const n=createNpc({seed}),controller=new NpcController(n,{environment:{unavailableSources}}),initial=Object.keys(n.memory.cells).length,targets=[];
+    for(let frame=0;frame<60/CONFIG.fixedStep;frame++){
+      const before=n.lastResult?.eventId;controller.tick(CONFIG.fixedStep);
+      if(n.lastResult?.eventId!==before&&n.lastResult?.action==='move'&&n.lastResult.code==='ARRIVED')targets.push(tileKey(n.position));
+    }
+    assert.ok(Object.keys(n.memory.cells).length>initial+80,`Seed ${seed} should expand actual observed territory.`);
+    assert.ok(new Set(targets).size>=8,`Seed ${seed} should reach multiple distinct frontiers.`);
+    assert.equal(targets.some((key,i)=>i>0&&key===targets[i-1]),false);
+    assert.equal(n.stats.independentDrinks,0);assert.ok(n.memory.explorationCredit<=4);
+  }
+});
+test('new exploration memory remains bounded and old NPC saves acquire it safely',()=>{
+  const n=createNpc();observeNpc(n);n.memory.exploration.recentTargets=Array(100).fill(tileKey(n.position));
+  const restored=validateNpc(JSON.parse(JSON.stringify(n)));assert.equal(restored.memory.exploration.recentTargets.length,12);
+  assert.deepEqual(restored.memory.exploration.origin,n.position);
+  delete n.memory.exploration;const old=validateNpc(JSON.parse(JSON.stringify(n)));assert.deepEqual(old.memory.exploration,{origin:null,lastVisited:null,recentTargets:[],heading:null});
+  observeNpc(old);assert.deepEqual(old.memory.exploration.origin,old.position);
+});

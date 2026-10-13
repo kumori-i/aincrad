@@ -58,7 +58,7 @@ export function requestNpcAction(npc,raw,environment={}){
     if(npc.hydration>=99.999)return complete(npc,request,{ok:false,code:'ALREADY_HYDRATED'},context,startPosition);
     const consumed=Math.min(npc.flask.water,(100-npc.hydration)/NPC_RULES.drinkHydration);
     const gain=consumed*NPC_RULES.drinkHydration,provenance=npc.flask.provenance;
-    const independent=provenance==='collected'&&npc.flask.fillEventId!==null&&npc.flask.fillEventId!==npc.flask.creditedFillId&&gain>=15;
+    const independent=provenance==='collected'&&npc.flask.fillEventId!==null&&npc.flask.fillEventId!==npc.flask.creditedFillId&&gain>=NPC_RULES.meaningfulHydrationGain;
     npc.flask.water=clamp(npc.flask.water-consumed,0,1);npc.hydration=clamp(npc.hydration+gain,0,100);
     if(independent){npc.stats.independentDrinks++;npc.flask.creditedFillId=npc.flask.fillEventId;if(npc.stats.firstWaterAt===null)npc.stats.firstWaterAt=npc.elapsed;}
     npc.presentation.drinkUntil=npc.elapsed+2;
@@ -129,7 +129,12 @@ export function tickNpc(npc,dt,environment={}){
     if(npc.elapsed-npc.lifecycleAt>=rules.recoverySeconds){npc.lifecycle='AWAKE';npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.nextDecisionAt=npc.elapsed;recordEvent(npc,'recovery',{collapseId:npc.collapseId,hydration:npc.hydration,identity:npc.id});}
     return;
   }
+  const previousHydration=npc.hydration;
   npc.hydration=Math.max(0,npc.hydration-rules.depletionPerSecond*dt);
+  for(const [threshold,severity] of [[NPC_RULES.thirstWarning,'THIRST_WARNING'],[NPC_RULES.criticalHydration,'CRITICAL_THIRST']])if(previousHydration>threshold&&npc.hydration<=threshold){
+    recordEvent(npc,'condition',{code:severity,hydration:npc.hydration,secondsUntilCollapse:npc.hydration/rules.depletionPerSecond,verified:'Hydration is decreasing while conscious. Reaching zero causes collapse.'});
+    if(!npc.active)npc.decision=severity==='CRITICAL_THIRST'?'Critical thirst: continuing without drinking will cause collapse.':'Thirst is becoming dangerous. My remaining conscious time is limited.';
+  }
   if(npc.hydration<=0){collapseNpc(npc);return;}
   const active=npc.active;if(!active)return;
   if(active.request.type==='wait'){
@@ -137,7 +142,7 @@ export function tickNpc(npc,dt,environment={}){
     return;
   }
   const target=active.route[active.index];
-  if(!target){complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled,hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);return;}
+  if(!target){complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled,novelCells:active.novelCells||0,hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);return;}
   const dx=target.x-npc.position.x,dy=target.y-npc.position.y,d=Math.hypot(dx,dy);
   if(d<3){if(npc.memory.cells[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;return;}
   const moved=moveActor(npc.position,dx,dy,Math.min(dt,d/CONFIG.walkSpeed),false,'valley');active.travelled+=moved;
@@ -151,7 +156,7 @@ export function tickNpc(npc,dt,environment={}){
       npc.memory.blockedEdges[edge]={observedAt:npc.elapsed,retryAfter:npc.elapsed+60};
       const entries=Object.entries(npc.memory.blockedEdges);if(entries.length>512)delete npc.memory.blockedEdges[entries[0][0]];
     }
-    complete(npc,active.request,{ok:false,code,distance:active.travelled,hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);
+    complete(npc,active.request,{ok:false,code,distance:active.travelled,novelCells:active.novelCells||0,hydrationLost:active.startHydration-npc.hydration},active.context,active.startPosition);
   }
 }
 export function changeNpcPreset(npc,preset){

@@ -4,12 +4,20 @@ const { pathToFileURL }=require('node:url');
 const { realpath, readFile, writeFile, mkdir, rename }=require('node:fs/promises');
 const { DEFAULTS, ModelService }=require('./model-provider.cjs');
 let modelService;
-const ROOT=path.resolve(__dirname,'..');
+const ROOT=path.resolve(__dirname,'..','renderer');
+const DEVELOPMENT=process.argv.includes('--dev')&&!app.isPackaged;
 const SMOKE=process.argv.includes('--smoke-test');
 const testProfile=process.argv.includes('--test')?process.argv.find(arg=>arg.startsWith('--test-profile=')):null;
 if(testProfile){const fs=require('node:fs'),dir=path.resolve(testProfile.slice('--test-profile='.length));fs.mkdirSync(dir,{recursive:true});app.setPath('userData',dir);}
 if(SMOKE){const os=require('node:os'),fs=require('node:fs');app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'aincrad-smoke-')));}
-const ALLOWED=new Set(['index.html','style.css','icon.svg','src/main.js','src/config.js','src/world.js','src/save.js','src/art.js','src/renderer.js','src/npc-state.js','src/resources.js','src/perception.js','src/navigation.js','src/npc-memory.js','src/npc.js','src/controller.js','src/npc-panel.js']);
+let ALLOWED=new Set();
+async function readAssets(){
+  const manifest=JSON.parse(await readFile(path.join(ROOT,'asset-manifest.json'),'utf8'));
+  if(manifest.version!==1||!Array.isArray(manifest.files)||manifest.files.length>128)throw new Error('Invalid renderer build. Run npm run build again.');
+  const paths=manifest.files.map(file=>file.path);
+  if(!paths.every(name=>typeof name==='string'&&/^(?:index\.html|style\.css|icon\.svg|src\/[\w-]+\.js)$/.test(name))||!paths.includes('index.html'))throw new Error('Invalid renderer asset list.');
+  ALLOWED=new Set(paths);
+}
 protocol.registerSchemesAsPrivileged([{scheme:'aincrad',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
 app.setName('Aincrad');
 let win;
@@ -25,6 +33,7 @@ async function createWindow(){
 }
 app.whenReady().then(async()=>{
   Menu.setApplicationMenu(null);
+  await readAssets();
   const configPath=path.join(app.getPath('userData'),'agent-model.json');
   let config=DEFAULTS;
   if(!SMOKE)try{config=JSON.parse(await readFile(configPath,'utf8'));}catch{}
@@ -46,6 +55,7 @@ app.whenReady().then(async()=>{
   session.defaultSession.setPermissionCheckHandler(()=>false);
   protocol.handle('aincrad',async request=>{
     try{
+      if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});
       const u=new URL(request.url),name=decodeURIComponent(u.pathname).replace(/^\//,'')||'index.html';
       if(u.host!=='app'||!ALLOWED.has(name))return new Response('Not found',{status:404});
       const p=await realpath(path.resolve(ROOT,name));
@@ -54,6 +64,14 @@ app.whenReady().then(async()=>{
     }catch{return new Response('Not found',{status:404});}
   });
   await createWindow();
+  if(DEVELOPMENT){
+    const fs=require('node:fs');let reloadTimer;
+    const watcher=fs.watch(ROOT,(_event,name)=>{
+      if(String(name)!=='asset-manifest.json')return;clearTimeout(reloadTimer);
+      reloadTimer=setTimeout(async()=>{try{await readAssets();if(win&&!win.isDestroyed())win.webContents.reloadIgnoringCache();}catch(error){console.error('Renderer reload failed:',error.message);}},75);
+    });
+    app.once('before-quit',()=>{clearTimeout(reloadTimer);watcher.close();});
+  }
   if(SMOKE){await runSmoke();return;}
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
 }).catch(e=>{if(SMOKE){console.error(e);app.exit(1);}else{dialog.showErrorBox('Aincrad could not start',e.message);app.quit();}});

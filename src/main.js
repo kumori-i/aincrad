@@ -66,6 +66,7 @@ function newExpedition(){
   const provider=npcController.provider;npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{provider});saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
+$('watch-aster').addEventListener('click',()=>{begin();npcPanel.follow(true);npcPanel.toggle();});
 $('open-map').addEventListener('click',()=>togglePanel('map'));
 $('close-map').addEventListener('click',closePanels);
 $('help-button').addEventListener('click',()=>togglePanel('help'));
@@ -122,11 +123,13 @@ function fixedUpdate(dt){
 function updateHud(now){
   if(now-lastHud<.15)return;lastHud=now;
   const c=clockTime(state.elapsed);ui.clock.textContent=`${String(c.hour).padStart(2,'0')}:${String(c.minute).padStart(2,'0')}`;ui.day.textContent='DAY '+String(c.day).padStart(2,'0');
-  ui.region.textContent=regionName(state.player.x,state.player.y,state.scene);
-  ui['location-detail'].textContent=`${state.scene==='valley'?'Crown Ridge Valley':'Beneath Crown Ridge'} · ${state.visitedCaves.length} / 3 caverns explored`;
+  const following=renderer.followNpc&&state.scene==='valley',subject=following?state.npc.position:state.player;
+  ui.region.textContent=regionName(subject.x,subject.y,state.scene);
+  $('location-kicker').textContent=following?'ASTER’S JOURNEY':'YOUR FOOTSTEPS, YOUR STORY';
+  ui['location-detail'].textContent=`${following?'Following Aster':state.scene==='valley'?'Crown Ridge Valley':'Beneath Crown Ridge'} · ${state.visitedCaves.length} / 3 caverns explored`;
   ui['nav-label'].textContent=state.scene==='valley'?'THE VALLEY':'UNDER THE RIDGE';
   const action=nearestInteraction(state.player,state.scene);
-  ui.interaction.classList.toggle('hidden',!action||Boolean(panel));
+  ui.interaction.classList.toggle('hidden',!action||Boolean(panel)||following);
   if(action)ui.interaction.querySelector('span').textContent=action.type==='enter'?'Enter '+action.name:action.name;
   if(state.scene==='valley'){
     for(const l of LANDMARKS)if(!state.discoveries.includes(l.id)&&distance(l,state.player)<(l.kind==='cave'?350:1000)){state.discoveries.push(l.id);notify('Discovered · '+l.name);}

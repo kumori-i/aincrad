@@ -1,45 +1,53 @@
-# Verification — Aincrad 0.2
+# Verification — Aincrad 0.3
 
-Date: 2026-10-12.
+Date: 2026-10-13.
 
-## Automated checks
+## Source workflow and checks
 
-`npm run check` passes all 56 tests. These cover the preserved human world rules and five-minute traversal; save migration and recovery; hydration timing; collection versus drinking; invalid, out-of-range and unavailable interactions; local perception and occlusion; unconscious perception; observed-only navigation; blocked-route feedback and revision; candidate acquisition and changed-condition validation; meaningful credit limits; collapse/action cancellation; idempotent rescue and provenance; retained identity/skills and no rescue teleport; interrupted saves; late/paused model responses; bounded local endpoints; restricted output; call limits and cancellation.
+`npm run check` passes all **62 tests**, including six new regressions for visible dehydration timing/warnings, accelerated rescue opportunity, stationary visit accounting and remembered empty-flask failure, blocked same-tile snapping, exploration when water is unavailable, and bounded exploration save migration. Existing world traversal, collision/caves, lifecycle, acquired procedures, save handling and optional-provider checks remain covered.
 
-`npm run bundle` produces a deterministic self-contained build with verified CSP hashes. Browser development remains available, while the desktop application is the primary deliverable.
+`npm run build` creates internal desktop and renderer assets in ignored `dist/`. Tests verify deterministic asset manifests, source hashes, restrictive CSP, stale-module removal and exclusion of desktop/repository files from renderer serving. Generated `play.html` and the old browser-only harness were removed.
 
-## Rendered application verification
+The source command structure was compared directly with the current `kumori-i/agentic-workspace` repository. An actual Linux `npm run dev` test in an isolated source copy verified opening the secure application origin, renderer CSS edits rebuilding and reloading with changed computed styles, desktop edits restarting Electron, and Ctrl+C closing the whole process tree. Plain reload retained cached CSS during initial QA; development reload now bypasses cache.
 
-`npm run smoke` exercises the actual Linux Electron window in an isolated profile, with inference disabled. It checks the custom application protocol, sandboxed renderer configuration, narrow model bridge, one persistent NPC, collapse, partial rescue, recovery, identity retention and no rescue teleport.
+## Rendered desktop verification
 
-A separate Playwright desktop run exercised the real IPC and HTTP request path with an explicitly scripted local mock server. It then switched to the offline learner, observed actual independent water drinking and acquired procedures in the running renderer, saved during collapse, closed the application and reopened the same disk-backed profile. Identity, position, acquired procedures and collapsed state were retained; exactly one rescue occurred after recovery. No JavaScript runtime errors were reported.
+`npm run smoke` passes with the actual built Electron application, isolated user profile and inference disabled. It exercises the application protocol, renderer isolation, narrow model bridge, one persistent NPC, real collapse, partial rescue, recovery, identity retention and no rescue teleport or independent rescue credit.
 
-Rendered screenshots were inspected. The inspection drawer preserves visible space for the followed character at small window widths. Existing human keyboard movement, every cave entry/exit, map, help and pause were exercised with the NPC integrated. Pause stopped the NPC clock.
+Separate Electron UI verification exercised the title’s Watch Aster control, journal follow, the normal offline controller and visible hydration/collapse countdown. A five-simulation-minute run at the actual 1/60 timestep produced **3 independent drinks, 0 collapses and an acquired procedure**, before the explicitly recorded developer collapse test.
 
-The isolated Linux smoke processes use test-only headless launch flags. GitHub's Ubuntu runner also passes `--no-sandbox` because the downloaded SUID helper is not root-owned; the local root container requires the same test-only flag. Normal launching keeps the renderer sandbox configured and does not add those flags. These checks are not a sustained hardware performance benchmark or an operating-system sandbox certification.
+That test saved during collapse with the world paused, closed the whole application, and reopened the same disk-backed profile. Position, identity, procedures, collapsed lifecycle and timers persisted. Exactly one rescue supplied partial hydration without independent drinking credit. Recovery completed normally.
 
-## Controlled offline evaluation
+Human keyboard movement, all three cave entry/exit pairs, field map, guide and pause were exercised in Electron. Modal pause stopped the NPC clock. Screenshots at 1440×900 and 900×600 were inspected; follow mode keeps the actor visible beside the journal. HUD region/minimap track the viewed actor and temporary messages stay in the visible world area. No JavaScript runtime errors were reported.
 
-Eight matched controller-seed trials use the actual game timestep (`1/60` second), fixed world geometry/seed 74193, accelerated hydration, 300 simulation seconds and a matched 120-second changed-starting-position phase. Both conditions use the same controller; the disabled condition does not retrieve learned values/procedures and keeps only current local map observations. Both still log authoritative outcomes for measurement.
+Original pixel art was inspected in river, camp, forest, cliff entrance and cave scenes. Idle-avatar render pixels were identical at separated animation times. Sampled nearest-neighbor 3×3 display blocks had no differing pixels within each block. Trees/idle bodies do not sway or bounce; walking and ripples use discrete frames. The integrated test measured approximately 59 FPS in this headless environment; this is not a sustained hardware performance benchmark.
 
-Mean per trial:
+The isolated Linux tests use headless flags and, where required by the root container/hosted Ubuntu SUID-helper configuration, a test-only `--no-sandbox` flag. Normal launching retains the renderer security configuration and adds no test flags. These tests do not certify an operating-system sandbox or physical user hardware.
 
-| Metric | Learning enabled | Learning disabled |
+## Paired offline evaluation
+
+Eight matched controller seeds per preset use fixed world geometry/seed 74193, the actual 1/60 timestep, 300 simulation seconds and a matched 120-second changed-start phase. Both conditions share physical rules and basic action affordances. The control does not retrieve persistent values, procedures, previous terrain, failed routes or visit histories; it retains current local observations and logs outcomes for measurement.
+
+Means per trial:
+
+| Metric | Persistent learning | Memory disabled |
 | --- | ---: | ---: |
-| Initial independent drinks | 1.25 | 1.375 |
-| Initial collapses | 0.25 | 0.625 |
-| Initial rescues | 0.25 | 0.625 |
-| Repeated unsuccessful requests | 0.25 | 5.75 |
-| Changed-start independent drinks | 1.125 | 0.875 |
-| Changed-start collapses | 0 | 0 |
-| Changed-start acquired-procedure uses | 1.875 | 0 |
+| Normal independent drinks | 3 | 0 |
+| Normal collapses | 0 | 2 |
+| Normal revisited exploration arrivals | 0 | 28.25 |
+| Normal repeated invalid actions | 1.125 | 0.25 |
+| Normal changed-start independent drinks | 2 | 0 |
+| Fast independent drinks | 6.875 | 0 |
+| Fast collapses | 0.375 | 5 |
+| Fast revisited exploration arrivals | 0 | 25.625 |
+| Fast repeated invalid actions | 3.625 | 0.125 |
 
-Memory changed later selection, reduced collapse/repetition in these trials, and supported acquired-procedure reuse at changed starting conditions. It did not improve every metric: initial independent drink counts were slightly lower with learning enabled. These small controlled results do not establish universal improvement or live language-model performance. Full trial data, timing and definitions are in `npc-evaluation.json`.
+All normal persistent-learning trials independently drank before any collapse, with first water in roughly 30–87 seconds. Learning did not require death. Revisited exploration arrivals are repeated successful exploratory target tiles within the last twelve such arrivals, not every physical crossing and not resource returns. A revisit may be justified; the metric alone does not prove circling.
 
-An independent drink restores at least 15 hydration from collected water and is credited once per fill. The changed starting position is an explicit matched evaluation setup, not a rescue teleport. No model service or paid inference is used by evaluation.
+The result has a clear tradeoff: learners attempted more resource routes and produced more repeated invalid actions than the disabled control. Some accelerated trials still collapsed. These small controlled results do not establish universal reliability, improvement in every metric, or live-model performance. Complete trial data and definitions are in `npc-evaluation.json`.
 
-## Packaging and remaining limits
+## Limits
 
-The portable Windows x64 ZIP is built with Electron 44.7.0 and Electron Builder 26.15.3. It includes the runtime and opens as `Aincrad.exe` after extracting the full folder. Linux application packaging is also available. The Windows build is unsigned; it is not a signed installer. A physical Windows/macOS machine has not been tested in this session. The desktop workflow supplies Windows/Linux checks and build artifacts for further verification.
+No actual language model was configured for this update. Local HTTP/provider fixtures are labeled mocks; offline learning is evaluated separately. Windows/Linux source-build and desktop smoke checks run in GitHub Actions. A physical Windows/macOS machine and signed installer have not been tested in this session. Optional distribution commands remain available, but source development does not require packaging.
 
-No actual language model was configured here. Provider/HTTP fixtures are labeled mocks and are not claimed as live inference or learned behavior. Use the README’s exact local-model setup to evaluate your own installed model. Player-assisted rescue, long unattended runs, additional needs/agents and a complete visual tile-world conversion remain outside this milestone.
+Player-assisted rescue, additional needs/agents, society, long unattended runs and broader procedural generalization remain future milestones.

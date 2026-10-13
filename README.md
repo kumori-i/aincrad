@@ -1,119 +1,103 @@
 # Aincrad
 
-**Your own desktop world, with one persistent life learning to survive.**
+An original pixel-art desktop world with one persistent NPC learning to survive. Built with Electron and a fixed-step local simulation.
 
-Aincrad 0.2 is a single-player Electron application: a mountain-ringed valley, river and lake, meadows, trees, three enterable caves, your controllable avatar, and one persistent NPC named Aster.
+## Clone, build, and run
 
-## Run the application
-
-Download **Aincrad-0.2.0-Windows-x64.zip**, extract the **entire ZIP into a folder**, then double-click **Aincrad.exe**. Keep the supporting files beside it. The chat delivery includes this Windows build; automated builds are also available under [Desktop application workflow artifacts](https://github.com/kumori-i/aincrad/actions/workflows/desktop.yml).
-
-The packaged app opens its own window. Playing does not require a browser, Node.js, an application account, an API key or a model service. The default controller learns locally from its game experience. Saved progress stays in your application profile.
-
-This is an unsigned portable prototype, not a signed installer. The Windows package was built in Linux; desktop runtime verification was performed in Linux. A physical Windows/macOS machine has not been tested in this development session.
-
-To run from source, install Node.js **22.12.0 or newer**:
+Install Node.js **22.12.0 or newer**, then:
 
 ```sh
 git clone https://github.com/kumori-i/aincrad.git
 cd aincrad
-npm ci
+npm install
+npm run build
 npm start
 ```
 
-For a development build:
+`npm start` also builds automatically. It opens the desktop application directly. For ongoing development:
 
 ```sh
-npm run package:win    # Windows x64 portable ZIP in release/
-npm run package:linux  # Linux application folder in release/linux-unpacked/
+npm run dev
 ```
 
-The initial setup downloads Electron; subsequent offline play needs no network connection. The repository’s `play.html` and `npm run web` remain optional browser/development paths. Local model connection is available in the desktop app.
+Development mode watches source changes, rebuilds, and reloads the desktop window. Desktop code changes restart the application. `npm ci` can replace `npm install` when installing exactly from the lockfile.
+
+The workflow follows [agentic-workspace](https://github.com/kumori-i/agentic-workspace): source → build → Electron. Generated application files belong in ignored `dist/`. There is no committed `play.html` or webpage to open. The HTML inside the renderer is an internal Electron asset.
+
+The first installation downloads the Electron runtime. Once installed, the default game runs offline. No application account, API key, or model service is required. Progress saves in the application’s local profile.
+
+## A pixel valley
+
+Original pixel terrain, shoreline edges, textured grass, layered trees, cliffs, bridges, caves, and characters are rendered through a low-resolution buffer with nearest-neighbor scaling. Standing characters and trees stay still; walking uses discrete frames. The interface uses solid wood frames and parchment surfaces.
+
+![Aincrad pixel valley and Aster’s journal](docs/pixel-journal.png)
+
+The physical world keeps its mountain-ringed valley, lake and river, three enterable caves, human avatar, and shared collision rules. The reference east–west trail still takes about five minutes on foot. A day remains one hour of unpaused play. The visual renderer does not change simulation rules.
 
 ## Watch Aster learn
 
-Enter the valley and press **N** for Aster’s inspection drawer. Choose **Follow Aster** to watch its view. The drawer shows hydration, flask contents, lifecycle, current action/procedure, observed water sources, a remembered tile map, recent authoritative results, acquired procedures and supporting evidence.
+Choose **Watch Aster learn** on the title screen, or press **N** to open Aster’s journal and **Follow Aster**. The always-visible condition card shows hydration and the estimated time until collapse if it does not drink. Click it to open the journal.
 
-Aster begins with an empty flask, no known source coordinates and an empty procedure library. The default offline experiential controller tries bounded actions and updates its action values from their actual outcomes. Successful collection/drinking sequences become candidate procedures; successes under changed starting conditions provide validation evidence. Those acquired procedures affect later choices.
+Aster starts with an empty flask, no known water sources, and no acquired procedures. The offline experiential learner selects bounded actions and updates action values from authoritative results. Exploration uses locally observed terrain and avoids repeatedly revisiting the same area. It does not receive a full map or a seeded route to water.
 
-Collecting fills the flask and does not hydrate the body. Drinking consumes its contents. Hydration drains in unpaused simulation time. At zero, Aster collapses and its current action is cancelled. After an interval, divine rescue restores partial hydration; the flask, position, identity, discoveries and memories are retained. A golden effect distinguishes rescue from normal drinking. Rescue is not counted as independent water acquisition.
+**Collection and drinking are separate.** Collecting fills the flask; drinking consumes the contents and restores body hydration. Successful real collection/drinking traces become candidate procedures. Repeated success under changed starting conditions supplies validation evidence and affects later choices.
 
-For quicker observation, open **Development controls → Accelerated survival cycles**. This changes Aster’s hydration rate and recovery intervals; your movement speed and the world’s one-hour day are preserved. Use normal gameplay settings for long journeys and live-model latency. **Demonstrate collapse and rescue** is an explicitly recorded debug action; it gives no independent-survival credit. Rescue presentation can be a benevolent presence or quiet recovery. Player-assisted rescue is not implemented yet.
+Aster does not have to collapse before learning: successful drinking and unsuccessful requests already provide feedback. Collapse is an additional negative consequence. At zero hydration it cancels the active action, falls unconscious, and later receives partial divine rescue. Identity, position, experience, discovered terrain, and acquired procedures are retained. Rescue does not refill the flask or earn independent-survival credit.
 
-A meaningful independent success is a collected-water drink restoring at least 15 hydration, credited at most once per fill. Tiny top-ups and full-health drinking cannot farm the counter.
+Normal hydration drains at 0.6 points per active second: about 2 minutes 22 seconds from the initial 85, or 2 minutes 47 seconds from full, without drinking. The faster setting begins at 75 and drains 1.5 points per second, giving about 50 seconds. The journal includes a faster demonstration pace and a clearly labeled forced-collapse control. These change NPC hydration/recovery only, preserving human movement and the world clock. The time estimate counts active, unpaused simulation time.
 
-## Optional local language model
+A meaningful independent drink restores at least 15 hydration from collected water and is credited at most once per fill. Tiny top-ups, full-health drinking, and rescue cannot farm this counter. Player-assisted rescue is not included yet.
 
-The offline learner works without a language model. For model-assisted decisions, use an already running local OpenAI-compatible server, such as [Ollama](https://docs.ollama.com/api/openai-compatibility).
+## Optional local model
 
-For example, after installing Ollama, download a local model:
+The offline learner is not a language model. Optional model-assisted planning works through a bounded local OpenAI-compatible service, such as [Ollama](https://docs.ollama.com/api/openai-compatibility).
 
 ```sh
 ollama pull llama3.2:3b
 ```
 
-Start `ollama serve` if its background service is not already running. In Aincrad press **N → Local model planning**, enter:
+Start `ollama serve` if its background service is not already running. Open **N → Local model planning**, set endpoint `http://127.0.0.1:11434/v1` and model `llama3.2:3b`, then choose **Use local model**. **Use offline learner** switches back.
 
-- Endpoint: `http://127.0.0.1:11434/v1`
-- Model: `llama3.2:3b` (or the exact name of another installed model)
+Only loopback endpoints are supported. The model receives local/remembered NPC observations and relevant experience, never the complete map or the player’s private state. It cannot run host code or invoke rescue. Timeouts, response-size limits, call limits, and stale-response rejection bound the optional service. Settings are in the application profile; [the configuration example](docs/local-model.example.json) documents the limits.
 
-Click **Use local model**. **Use offline learner** returns to local experiential control. No rented GPU or hosted model account is required. Model runtime speed depends on your hardware. Only loopback endpoints are supported in this version; the game never executes model-generated host code.
-
-Configuration is stored as `agent-model.json` inside Electron’s Aincrad user-data folder. The example in [docs/local-model.example.json](docs/local-model.example.json) documents timeout, token and hourly-call limits. The model receives the NPC’s local/remembered observations, condition, relevant experience and acquired procedures. It cannot see the complete map or the player’s private state, or call rescue as a tool.
-
-The model’s ordinary language knowledge comes from pretraining; this is not a blank-slate mind. Live language-model behavior was **not tested** because no actual model was configured. The HTTP/IPC integration was tested with a clearly labeled mock server, and the default learner was tested separately.
+Live language-model behavior has not been tested in this development session. Provider/HTTP integration uses explicitly labeled fixtures; offline learning is evaluated separately.
 
 ## Controls
 
 | Control | Action |
 | --- | --- |
-| WASD / arrow keys | Walk your avatar |
+| WASD / arrow keys | Walk |
 | Hold Shift | Run |
 | E | Enter/exit caves or read the trail sign |
-| N | Open Aster’s live inspection drawer |
-| M | Field map; click to set a waypoint |
+| N | Aster’s journal and follow control |
+| M | Field map; click for a waypoint |
 | Right-click field map | Clear waypoint |
-| Mouse wheel / + / − | Zoom |
+| Mouse wheel / + / − | Pixel camera zoom |
 | H | Guide |
-| Esc | Pause/resume or close a modal menu |
+| Esc | Pause/resume or close a modal |
 | Ctrl+S / Command+S | Save |
-| F11 | Desktop fullscreen |
+| F11 | Fullscreen |
 
-Modal menus and focus loss pause the world and Aster. The inspection drawer stays live. Closing the app stops simulation; it does not run a settlement in the background. A new expedition explicitly replaces the saved world and Aster’s memory.
+Modal menus and focus loss pause the world. The journal stays live. Closing the app stops simulation; there is no background settlement simulation. Starting a new expedition explicitly replaces the saved world and Aster’s memory.
 
-## What is supplied and what is learned
-
-The developer supplies physical rules, senses, action schemas, collision handling, observed-tile navigation, feedback, high-level motivation and the rescue mechanic. Aster acquires resource knowledge, contextual action values and restricted procedures from actual experience. There is no seeded water route or preloaded survival procedure.
-
-The visual world still uses its original Canvas renderer. Tile-based navigation and memory are implemented. A Phaser tile/sprite world like `agentic-workspace` is feasible as a later renderer milestone, while preserving these simulation rules.
-
-The east–west reference span remains 45,000 logical pixels at 150 pixels/second: approximately five minutes on foot. One world day takes one hour of unpaused play. Human cave exploration, maps, waypoints and save recovery remain available; Aster stays in the valley for this milestone.
-
-Not included: additional NPCs, professions, society, combat, crafting, farming, multiplayer, sound, a signed installer or a pretrained/finetuned custom model.
-
-## Verification and evaluation
+## Verify and package
 
 ```sh
-npm run check     # Source syntax and deterministic rules/provider tests
-npm run bundle    # Rebuild the optional offline browser build
-npm run smoke     # Isolated desktop lifecycle/UI check, no live inference
-npm run evaluate  # Eight matched offline learning/memory-disabled trials
+npm run check       # Syntax, engine, learning, save and provider tests
+npm run build       # Build the desktop app in dist/
+npm run smoke       # Isolated Electron lifecycle check, no live inference
+npm run evaluate    # Matched offline learning trials
 ```
 
-The evaluation uses fixed world geometry, matched controller RNG seeds, 300 simulation seconds per initial trial and a matched 120-second changed-starting-position phase. It measures independent drinking, collapses, rescues, invalid repetition, time to water and procedure use. Memory-disabled runs still log outcomes for inspection, but do not retrieve learned values/procedures and retain only current local map observations.
-
-Results are in [docs/npc-evaluation.json](docs/npc-evaluation.json). These are small controlled offline trials, not a live-LLM benchmark or a guarantee that every successive attempt improves. See [verification](docs/TESTING.md) and [architecture](docs/architecture.md).
-
-## Development
-
-Read [AGENTS.md](AGENTS.md). Keep the engine authoritative; edit source modules and regenerate `play.html`. Original procedural artwork remains in `src/art.js`. The restricted model bridge is in `desktop/`. The NPC brief is preserved in [docs/NPC-MILESTONE.md](docs/NPC-MILESTONE.md).
-
-The explicit publication helper can prepare reviewed repository files for a connected GitHub account:
+Windows and Linux CI check the source build and launch the actual Electron application. Optional distribution commands remain available:
 
 ```sh
-npm run publish:github -- --prepare-connector ../aincrad-publication.json
+npm run package:win
+npm run package:linux
 ```
 
-The manifest includes the source checkout’s commit as its expected remote head. Verify target push permission and that head before a normal, non-forced update. Installation, launching and tests never publish. For ordinary development, use Git commits in a regular checkout.
+Packaging is not required to develop or run the project. Windows distributions remain unsigned prototypes. See [verification](docs/TESTING.md), [architecture](docs/architecture.md), and the [NPC brief](docs/NPC-MILESTONE.md).
 
-A project license has not been selected. Electron and other development dependencies retain their own licenses.
+Read [AGENTS.md](AGENTS.md) before editing. World rules are authoritative; original pixel artwork is in `src/art.js`, drawing in `src/renderer.js`, and the restricted local-model bridge in `desktop/`. Publication is a separately invoked task, never part of installation, build, launching, or tests.
+
+Not included yet: additional NPCs, society, professions, crafting, farming, combat, multiplayer, sound, or a signed installer. A project license has not been selected; dependencies retain their own licenses.

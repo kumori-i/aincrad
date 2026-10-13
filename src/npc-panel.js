@@ -1,4 +1,4 @@
-import { NPC_RULES } from './config.js';
+import { NPC_RULES, NPC_PRESETS } from './config.js';
 import { changeNpcPreset, demonstrateCollapse } from './npc.js';
 import { DesktopModelProvider, LocalLearnerProvider } from './controller.js';
 import { recordEvent } from './npc-memory.js';
@@ -8,10 +8,11 @@ function add(parent,tag,text,className=''){const node=document.createElement(tag
 export function createNpcPanel({getNpc,getController,renderer,save,notify}){
   const panel=$('npc-panel'),bridge=window.aincradAgent;
   let visible=false,lastRefresh=-1,lastEvidence=-1;
-  function close(){visible=false;renderer.inspectorOpen=false;panel.classList.add('hidden');$('world').focus();}
-  function toggle(){visible=!visible;renderer.inspectorOpen=visible;panel.classList.toggle('hidden',!visible);if(visible){lastRefresh=-1;update(performance.now()/1000);$('close-npc').focus();}else $('world').focus();}
-  $('open-npc').addEventListener('click',toggle);$('close-npc').addEventListener('click',close);
-  $('follow-npc').addEventListener('click',()=>{renderer.followNpc=!renderer.followNpc;$('follow-npc').textContent=renderer.followNpc?'Follow your avatar':'Follow Aster';$('world').focus();});
+  function close(){visible=false;renderer.inspectorOpen=false;$('app').dataset.inspecting='false';panel.classList.add('hidden');$('world').focus();}
+  function toggle(){visible=!visible;renderer.inspectorOpen=visible;$('app').dataset.inspecting=String(visible);panel.classList.toggle('hidden',!visible);if(visible){lastRefresh=-1;update(performance.now()/1000);$('close-npc').focus();}else $('world').focus();}
+  $('open-npc').addEventListener('click',toggle);$('npc-short').addEventListener('click',toggle);$('close-npc').addEventListener('click',close);
+  function follow(enabled){renderer.followNpc=enabled;$('follow-npc').textContent=enabled?'Follow your avatar':'Follow Aster';if(enabled)renderer.snap(getNpc().position);$('world').focus();}
+  $('follow-npc').addEventListener('click',()=>follow(!renderer.followNpc));
   $('npc-preset').addEventListener('change',()=>{changeNpcPreset(getNpc(),$('npc-preset').value);save();});
   $('npc-rescue-presentation').addEventListener('change',()=>{const n=getNpc();n.rescuePresentation=$('npc-rescue-presentation').value==='quiet'?'quiet':'divine';recordEvent(n,'debug',{setting:'rescue presentation',value:n.rescuePresentation,provenance:'debug'});save();});
   $('npc-learning').addEventListener('change',()=>{const n=getNpc();n.learning=$('npc-learning').checked;n.skillRun=null;getController().cancel();recordEvent(n,'debug',{setting:'persistent learning',value:n.learning,provenance:'debug'});save();});
@@ -33,11 +34,11 @@ export function createNpcPanel({getNpc,getController,renderer,save,notify}){
   else{$('connect-model').disabled=true;$('offline-controller').disabled=true;$('model-status').textContent='Offline experiential learner. Local model settings are available in the desktop app.';}
   function drawMap(n){
     const canvas=$('npc-map'),g=canvas.getContext('2d'),size=canvas.width,half=720,scale=size/(half*2);
-    g.fillStyle='#101f24';g.fillRect(0,0,size,size);
+    g.fillStyle='#24372d';g.fillRect(0,0,size,size);
     for(const c of Object.values(n.memory.cells)){
       const x=(c.x-n.position.x+half)*scale,y=(c.y-n.position.y+half)*scale;
       if(x<-20||y<-20||x>size||y>size)continue;
-      g.fillStyle=c.walkable?'#506e53':c.terrain==='water'||c.terrain==='shallows'?'#436b7a':'#514f46';
+      g.fillStyle=c.walkable?'#7c9b4a':c.terrain==='water'||c.terrain==='shallows'?'#4799aa':'#805932';
       g.globalAlpha=n.elapsed-c.observedAt>60?.45:.9;g.fillRect(x-8,y-8,NPC_RULES.tileSize*scale-1,NPC_RULES.tileSize*scale-1);
     }
     g.globalAlpha=1;
@@ -48,8 +49,16 @@ export function createNpcPanel({getNpc,getController,renderer,save,notify}){
     g.fillStyle='#fff0c1';g.beginPath();g.arc(size/2,size/2,4,0,Math.PI*2);g.fill();
   }
   function update(now){
-    const n=getNpc();$('npc-short').textContent=`Aster · ${n.lifecycle.toLowerCase()} · ${Math.round(n.hydration)}% water`;
-    if(!visible||now-lastRefresh<.5)return;lastRefresh=now;
+    if(now-lastRefresh<.5)return;lastRefresh=now;
+    const n=getNpc(),pace=NPC_PRESETS[n.preset]||NPC_PRESETS.normal;
+    const condition=n.lifecycle==='COLLAPSED'?'collapsed':n.lifecycle==='RECOVERING'?'recovering':n.hydration<=NPC_RULES.criticalHydration?'critical':n.hydration<=NPC_RULES.thirstWarning?'thirsty':'healthy';
+    const seconds=Math.ceil(n.hydration/pace.depletionPerSecond);
+    const remaining=n.lifecycle==='COLLAPSED'?Math.max(0,Math.ceil(pace.rescueDelay-(n.elapsed-n.lifecycleAt))):Math.max(0,Math.ceil(pace.recoverySeconds-(n.elapsed-n.lifecycleAt)));
+    const survival=n.lifecycle==='AWAKE'?`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')} to collapse without drinking`:n.lifecycle==='COLLAPSED'?`Rescue in ${remaining}s · memories retained`:`Recovering · ${remaining}s · memories retained`;
+    $('npc-short').dataset.condition=condition;$('npc-condition').dataset.condition=condition;
+    $('npc-short').textContent=`Aster · ${n.lifecycle==='AWAKE'?(condition==='healthy'?'awake':condition):n.lifecycle.toLowerCase()} · ${Math.round(n.hydration)}% water\n${survival}`;
+    $('npc-survival').textContent=survival+' · active play time';
+    if(!visible)return;
     $('npc-lifecycle').textContent=n.lifecycle;$('npc-hydration').value=n.hydration;$('npc-hydration-value').textContent=`${n.hydration.toFixed(1)} / 100`;
     $('npc-flask').textContent=`${Math.round(n.flask.water*100)}% · ${n.flask.provenance||'empty'}`;
     $('npc-current').textContent=n.skillRun?`Procedure: ${n.skillRun.id} (${n.skillRun.cursor+1})`:n.active?`Action: ${n.active.request.type}`:getController().pending?'Waiting for local inference':'Choosing an experiment';
@@ -82,5 +91,5 @@ export function createNpcPanel({getNpc,getController,renderer,save,notify}){
     }
     const lesson=n.memory.lessons.at(-1);$('npc-lesson').textContent=lesson?`${lesson.verified} ${lesson.hypothesis}`:'No collapse lesson yet. Facts and hypotheses are kept separate.';
   }
-  return {toggle,close,update};
+  return {toggle,close,update,follow};
 }

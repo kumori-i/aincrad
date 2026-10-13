@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "worldSeed": 74193,
   "controller": "offline tabular experiential learner (not a language model and not a scripted survival mock)",
   "liveInferenceTested": false,
@@ -14,23 +14,32 @@
     "y": 960
   },
   "independentSuccessDefinition": "ordinary collected-water drinking giving at least 15 hydration; at most one credited success per fill",
+  "revisitedTargetDefinition": "a completed exploration movement ending in one of the previous 12 exploration arrival tiles; source approaches are excluded",
   "summary": {
     "withLearning": {
-      "initialIndependentDrinks": 1.25,
-      "initialCollapses": 0.25,
-      "initialRescues": 0.25,
-      "initialRepeatedInvalid": 0.25,
-      "transferIndependentDrinks": 1.125,
-      "transferCollapses": 0,
-      "transferSkillUses": 1.875
+      "initialIndependentDrinks": 6.875,
+      "initialCollections": 6.875,
+      "initialCollapses": 0.375,
+      "initialRescues": 0.375,
+      "initialRepeatedInvalid": 3.625,
+      "initialSkillUses": 8,
+      "initialRevisitedExplorationTargets": 0,
+      "initialDistinctExplorationTargets": 39.125,
+      "transferIndependentDrinks": 3.25,
+      "transferCollapses": 0.375,
+      "transferSkillUses": 5.375
     },
     "withoutLearning": {
-      "initialIndependentDrinks": 1.375,
-      "initialCollapses": 0.625,
-      "initialRescues": 0.625,
-      "initialRepeatedInvalid": 5.75,
-      "transferIndependentDrinks": 0.875,
-      "transferCollapses": 0,
+      "initialIndependentDrinks": 0,
+      "initialCollections": 0,
+      "initialCollapses": 5,
+      "initialRescues": 5,
+      "initialRepeatedInvalid": 0.125,
+      "initialSkillUses": 0,
+      "initialRevisitedExplorationTargets": 25.625,
+      "initialDistinctExplorationTargets": 29.75,
+      "transferIndependentDrinks": 0,
+      "transferCollapses": 2,
       "transferSkillUses": 0
     }
   },
@@ -40,367 +49,38 @@
         "seed": 74193,
         "learning": true,
         "initial": {
-          "independentDrinks": 1,
-          "collections": 2,
+          "independentDrinks": 6,
+          "collections": 6,
           "collapses": 1,
           "rescues": 1,
-          "invalidActions": 17,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 277.58333333340954,
-          "skills": 1
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 4,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.566666666663423,
-          "skillUses": 2
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 2,
-            "failures": 1
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 74193,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 1,
-          "collections": 2,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 53,
-          "repeatedInvalid": 8,
-          "timeToFirstWater": 274.6666666667455,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
           "invalidActions": 19,
-          "repeatedInvalid": 4,
-          "timeToFirstWater": 51.56666666661977,
-          "skillUses": 0
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 3,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 1,
-          "collections": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 17,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 27.316666666666396,
-          "skills": 1
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 2,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.3333333333303017,
-          "skillUses": 2
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 2,
-            "failures": 1
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 3,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 1,
-          "collections": 2,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 34,
-          "repeatedInvalid": 8,
-          "timeToFirstWater": 150.38333333334515,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 3,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 11.899999999989177,
-          "skillUses": 0
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 11,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 2,
-          "collections": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 12,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 25.683333333333156,
-          "skills": 1
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 3,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.3333333333303017,
-          "skillUses": 2
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 3,
-            "failures": 1
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 11,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 2,
-          "collections": 3,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 36,
-          "repeatedInvalid": 4,
-          "timeToFirstWater": 188.75000000004235,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 20,
-          "repeatedInvalid": 4,
-          "timeToFirstWater": 54.099999999950796,
-          "skillUses": 0
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 29,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 1,
-          "collections": 2,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 19,
-          "repeatedInvalid": 2,
-          "timeToFirstWater": 37.39999999999916,
-          "skills": 1
-        },
-        "transfer": {
-          "independentDrinks": 2,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 5,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.7833333333298924,
-          "skillUses": 3
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 3,
-            "failures": 1
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 29,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 1,
-          "collections": 1,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 49,
-          "repeatedInvalid": 11,
-          "timeToFirstWater": 93.28333333332932,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 22,
           "repeatedInvalid": 3,
-          "timeToFirstWater": 93.01666666658207,
-          "skillUses": 0
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 47,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 2,
-          "collections": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 11,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 27.933333333333028,
-          "skills": 1
+          "timeToFirstWater": 30.09999999999957,
+          "skills": 1,
+          "skillUses": 6,
+          "explorationArrivals": 54,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 54
         },
         "transfer": {
-          "independentDrinks": 1,
+          "independentDrinks": 4,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 8,
+          "invalidActions": 1,
           "repeatedInvalid": 0,
           "timeToFirstWater": 3.3333333333303017,
-          "skillUses": 2
+          "skillUses": 2,
+          "explorationArrivals": 0,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 0
         },
         "finalSkills": [
           {
             "id": "water-approach-fill-drink",
             "status": "validated",
-            "successes": 3,
-            "failures": 1
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 47,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 2,
-          "collections": 5,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 27,
-          "repeatedInvalid": 2,
-          "timeToFirstWater": 54.23333333333154,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 13,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 15.533333333319206,
-          "skillUses": 0
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 103,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 2,
-          "collections": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 15,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 16.666666666667002,
-          "skills": 1
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 3,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.699999999996635,
-          "skillUses": 2
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 3,
-            "failures": 1
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 103,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 2,
-          "collections": 3,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 23,
-          "repeatedInvalid": 5,
-          "timeToFirstWater": 47.233333333331935,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 8,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 12.36666666665542,
-          "skillUses": 0
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 211,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 13,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0
-        },
-        "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 6,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 14.516666666653464,
-          "skillUses": 0
-        },
-        "finalSkills": [
+            "successes": 9,
+            "failures": 6
+          },
           {
             "id": "water-fill-drink",
             "status": "candidate",
@@ -410,26 +90,477 @@
         ]
       },
       "withoutLearning": {
-        "seed": 211,
+        "seed": 74193,
         "learning": false,
         "initial": {
-          "independentDrinks": 1,
-          "collections": 1,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 47,
-          "repeatedInvalid": 6,
-          "timeToFirstWater": 40.68333333333231,
-          "skills": 0
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 7,
+          "repeatedInvalid": 1,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 63,
+          "revisitedExplorationTargets": 28,
+          "distinctExplorationTargets": 24
         },
         "transfer": {
           "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 5,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 24,
+          "revisitedExplorationTargets": 9,
+          "distinctExplorationTargets": 15
+        },
+        "finalSkills": []
+      }
+    },
+    {
+      "withLearning": {
+        "seed": 3,
+        "learning": true,
+        "initial": {
+          "independentDrinks": 8,
+          "collections": 8,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 24,
-          "repeatedInvalid": 10,
+          "invalidActions": 11,
+          "repeatedInvalid": 3,
+          "timeToFirstWater": 26.616666666666436,
+          "skills": 2,
+          "skillUses": 8,
+          "explorationArrivals": 26,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 26
+        },
+        "transfer": {
+          "independentDrinks": 4,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 12,
+          "repeatedInvalid": 5,
+          "timeToFirstWater": 3.899999999996453,
+          "skillUses": 11,
+          "explorationArrivals": 21,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 21
+        },
+        "finalSkills": [
+          {
+            "id": "water-fill-drink",
+            "status": "validated",
+            "successes": 3,
+            "failures": 0
+          },
+          {
+            "id": "water-approach-fill-drink",
+            "status": "retired",
+            "successes": 9,
+            "failures": 10
+          }
+        ]
+      },
+      "withoutLearning": {
+        "seed": 3,
+        "learning": false,
+        "initial": {
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 7,
+          "repeatedInvalid": 0,
           "timeToFirstWater": null,
-          "skillUses": 0
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 61,
+          "revisitedExplorationTargets": 27,
+          "distinctExplorationTargets": 29
+        },
+        "transfer": {
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 3,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 23,
+          "revisitedExplorationTargets": 8,
+          "distinctExplorationTargets": 14
+        },
+        "finalSkills": []
+      }
+    },
+    {
+      "withLearning": {
+        "seed": 11,
+        "learning": true,
+        "initial": {
+          "independentDrinks": 5,
+          "collections": 5,
+          "collapses": 1,
+          "rescues": 1,
+          "invalidActions": 15,
+          "repeatedInvalid": 3,
+          "timeToFirstWater": 59.04999999999793,
+          "skills": 2,
+          "skillUses": 8,
+          "explorationArrivals": 46,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 46
+        },
+        "transfer": {
+          "independentDrinks": 2,
+          "collapses": 1,
+          "rescues": 0,
+          "invalidActions": 14,
+          "repeatedInvalid": 2,
+          "timeToFirstWater": 3.4499999999968622,
+          "skillUses": 4,
+          "explorationArrivals": 20,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 20
+        },
+        "finalSkills": [
+          {
+            "id": "water-approach-fill-drink",
+            "status": "retired",
+            "successes": 6,
+            "failures": 7
+          },
+          {
+            "id": "water-fill-drink",
+            "status": "candidate",
+            "successes": 1,
+            "failures": 0
+          }
+        ]
+      },
+      "withoutLearning": {
+        "seed": 11,
+        "learning": false,
+        "initial": {
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 6,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 64,
+          "revisitedExplorationTargets": 21,
+          "distinctExplorationTargets": 37
+        },
+        "transfer": {
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 4,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 24,
+          "revisitedExplorationTargets": 12,
+          "distinctExplorationTargets": 12
+        },
+        "finalSkills": []
+      }
+    },
+    {
+      "withLearning": {
+        "seed": 29,
+        "learning": true,
+        "initial": {
+          "independentDrinks": 6,
+          "collections": 6,
+          "collapses": 1,
+          "rescues": 1,
+          "invalidActions": 18,
+          "repeatedInvalid": 6,
+          "timeToFirstWater": 26.349999999999785,
+          "skills": 1,
+          "skillUses": 8,
+          "explorationArrivals": 44,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 44
+        },
+        "transfer": {
+          "independentDrinks": 2,
+          "collapses": 1,
+          "rescues": 0,
+          "invalidActions": 14,
+          "repeatedInvalid": 4,
+          "timeToFirstWater": 3.3333333333303017,
+          "skillUses": 7,
+          "explorationArrivals": 20,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 20
+        },
+        "finalSkills": [
+          {
+            "id": "water-approach-fill-drink",
+            "status": "retired",
+            "successes": 8,
+            "failures": 9
+          }
+        ]
+      },
+      "withoutLearning": {
+        "seed": 29,
+        "learning": false,
+        "initial": {
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 7,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 62,
+          "revisitedExplorationTargets": 30,
+          "distinctExplorationTargets": 29
+        },
+        "transfer": {
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 2,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 24,
+          "revisitedExplorationTargets": 10,
+          "distinctExplorationTargets": 14
+        },
+        "finalSkills": []
+      }
+    },
+    {
+      "withLearning": {
+        "seed": 47,
+        "learning": true,
+        "initial": {
+          "independentDrinks": 8,
+          "collections": 8,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 18,
+          "repeatedInvalid": 7,
+          "timeToFirstWater": 28.949999999999637,
+          "skills": 2,
+          "skillUses": 11,
+          "explorationArrivals": 42,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 42
+        },
+        "transfer": {
+          "independentDrinks": 2,
+          "collapses": 1,
+          "rescues": 0,
+          "invalidActions": 17,
+          "repeatedInvalid": 4,
+          "timeToFirstWater": 3.4499999999968622,
+          "skillUses": 7,
+          "explorationArrivals": 19,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 19
+        },
+        "finalSkills": [
+          {
+            "id": "water-fill-drink",
+            "status": "candidate",
+            "successes": 1,
+            "failures": 0
+          },
+          {
+            "id": "water-approach-fill-drink",
+            "status": "retired",
+            "successes": 9,
+            "failures": 10
+          }
+        ]
+      },
+      "withoutLearning": {
+        "seed": 47,
+        "learning": false,
+        "initial": {
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 6,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 64,
+          "revisitedExplorationTargets": 27,
+          "distinctExplorationTargets": 24
+        },
+        "transfer": {
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 5,
+          "repeatedInvalid": 1,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 23,
+          "revisitedExplorationTargets": 12,
+          "distinctExplorationTargets": 11
+        },
+        "finalSkills": []
+      }
+    },
+    {
+      "withLearning": {
+        "seed": 103,
+        "learning": true,
+        "initial": {
+          "independentDrinks": 8,
+          "collections": 8,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 2,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": 41.14999999999895,
+          "skills": 1,
+          "skillUses": 5,
+          "explorationArrivals": 24,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 24
+        },
+        "transfer": {
+          "independentDrinks": 4,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 10,
+          "repeatedInvalid": 3,
+          "timeToFirstWater": 3.933333333329756,
+          "skillUses": 8,
+          "explorationArrivals": 8,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 8
+        },
+        "finalSkills": [
+          {
+            "id": "water-approach-fill-drink",
+            "status": "validated",
+            "successes": 12,
+            "failures": 5
+          }
+        ]
+      },
+      "withoutLearning": {
+        "seed": 103,
+        "learning": false,
+        "initial": {
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 7,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 63,
+          "revisitedExplorationTargets": 30,
+          "distinctExplorationTargets": 30
+        },
+        "transfer": {
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 4,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 24,
+          "revisitedExplorationTargets": 9,
+          "distinctExplorationTargets": 13
+        },
+        "finalSkills": []
+      }
+    },
+    {
+      "withLearning": {
+        "seed": 211,
+        "learning": true,
+        "initial": {
+          "independentDrinks": 8,
+          "collections": 8,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 8,
+          "repeatedInvalid": 1,
+          "timeToFirstWater": 37.78333333333247,
+          "skills": 1,
+          "skillUses": 8,
+          "explorationArrivals": 21,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 21
+        },
+        "transfer": {
+          "independentDrinks": 4,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 1,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": 3.3333333333303017,
+          "skillUses": 3,
+          "explorationArrivals": 0,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 0
+        },
+        "finalSkills": [
+          {
+            "id": "water-approach-fill-drink",
+            "status": "validated",
+            "successes": 12,
+            "failures": 3
+          }
+        ]
+      },
+      "withoutLearning": {
+        "seed": 211,
+        "learning": false,
+        "initial": {
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 4,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 65,
+          "revisitedExplorationTargets": 25,
+          "distinctExplorationTargets": 28
+        },
+        "transfer": {
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 2,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 25,
+          "revisitedExplorationTargets": 11,
+          "distinctExplorationTargets": 14
         },
         "finalSkills": []
       }
@@ -439,30 +570,37 @@
         "seed": 509,
         "learning": true,
         "initial": {
-          "independentDrinks": 1,
-          "collections": 4,
+          "independentDrinks": 6,
+          "collections": 6,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 9,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 19.86666666666682,
-          "skills": 1
+          "invalidActions": 20,
+          "repeatedInvalid": 6,
+          "timeToFirstWater": 34.616666666665985,
+          "skills": 1,
+          "skillUses": 10,
+          "explorationArrivals": 56,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 56
         },
         "transfer": {
-          "independentDrinks": 1,
+          "independentDrinks": 4,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 3,
+          "invalidActions": 1,
           "repeatedInvalid": 0,
-          "timeToFirstWater": 3.53333333333012,
-          "skillUses": 2
+          "timeToFirstWater": 5.583333333328255,
+          "skillUses": 1,
+          "explorationArrivals": 0,
+          "revisitedExplorationTargets": 0,
+          "distinctExplorationTargets": 0
         },
         "finalSkills": [
           {
             "id": "water-approach-fill-drink",
             "status": "validated",
-            "successes": 2,
-            "failures": 1
+            "successes": 10,
+            "failures": 7
           }
         ]
       },
@@ -470,32 +608,679 @@
         "seed": 509,
         "learning": false,
         "initial": {
-          "independentDrinks": 1,
-          "collections": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 25,
-          "repeatedInvalid": 2,
-          "timeToFirstWater": 14.10000000000028,
-          "skills": 0
+          "independentDrinks": 0,
+          "collections": 0,
+          "collapses": 5,
+          "rescues": 5,
+          "invalidActions": 8,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skills": 0,
+          "skillUses": 0,
+          "explorationArrivals": 64,
+          "revisitedExplorationTargets": 17,
+          "distinctExplorationTargets": 37
         },
         "transfer": {
-          "independentDrinks": 1,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 7,
-          "repeatedInvalid": 2,
-          "timeToFirstWater": 22.266666666646415,
-          "skillUses": 0
+          "independentDrinks": 0,
+          "collapses": 2,
+          "rescues": 2,
+          "invalidActions": 1,
+          "repeatedInvalid": 0,
+          "timeToFirstWater": null,
+          "skillUses": 0,
+          "explorationArrivals": 25,
+          "revisitedExplorationTargets": 12,
+          "distinctExplorationTargets": 13
         },
         "finalSkills": []
       }
     }
   ],
+  "normal": {
+    "preset": "normal",
+    "rules": {
+      "initialHydration": 85,
+      "depletionPerSecond": 0.6,
+      "rescueDelay": 14,
+      "recoverySeconds": 3,
+      "rescueHydration": 75
+    },
+    "summary": {
+      "withLearning": {
+        "initialIndependentDrinks": 3,
+        "initialCollections": 3,
+        "initialCollapses": 0,
+        "initialRescues": 0,
+        "initialRepeatedInvalid": 1.125,
+        "initialSkillUses": 1.25,
+        "initialRevisitedExplorationTargets": 0,
+        "initialDistinctExplorationTargets": 39.25,
+        "transferIndependentDrinks": 2,
+        "transferCollapses": 0,
+        "transferSkillUses": 2.5
+      },
+      "withoutLearning": {
+        "initialIndependentDrinks": 0,
+        "initialCollections": 0,
+        "initialCollapses": 2,
+        "initialRescues": 2,
+        "initialRepeatedInvalid": 0.25,
+        "initialSkillUses": 0,
+        "initialRevisitedExplorationTargets": 28.25,
+        "initialDistinctExplorationTargets": 32.625,
+        "transferIndependentDrinks": 0,
+        "transferCollapses": 1,
+        "transferSkillUses": 0
+      }
+    },
+    "trials": [
+      {
+        "withLearning": {
+          "seed": 74193,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 9,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": 30.09999999999957,
+            "skills": 1,
+            "skillUses": 2,
+            "explorationArrivals": 62,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 62
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 1,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 3.3333333333303017,
+            "skillUses": 2,
+            "explorationArrivals": 0,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 0
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 5,
+              "failures": 1
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 74193,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 6,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 66,
+            "revisitedExplorationTargets": 29,
+            "distinctExplorationTargets": 32
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 4,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 24,
+            "revisitedExplorationTargets": 7,
+            "distinctExplorationTargets": 17
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 3,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 16,
+            "repeatedInvalid": 4,
+            "timeToFirstWater": 38.01666666666579,
+            "skills": 1,
+            "skillUses": 4,
+            "explorationArrivals": 53,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 53
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 1,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": 6.983333333326982,
+            "skillUses": 1,
+            "explorationArrivals": 0,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 0
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 5,
+              "failures": 4
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 3,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 4,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 65,
+            "revisitedExplorationTargets": 26,
+            "distinctExplorationTargets": 36
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 1,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 26,
+            "revisitedExplorationTargets": 6,
+            "distinctExplorationTargets": 18
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 11,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 4,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": 57.816666666664666,
+            "skills": 2,
+            "skillUses": 0,
+            "explorationArrivals": 10,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 10
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 7,
+            "repeatedInvalid": 2,
+            "timeToFirstWater": 3.5166666666634683,
+            "skillUses": 3,
+            "explorationArrivals": 22,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 22
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 4,
+              "failures": 1
+            },
+            {
+              "id": "water-fill-drink",
+              "status": "candidate",
+              "successes": 1,
+              "failures": 0
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 11,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 3,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 68,
+            "revisitedExplorationTargets": 27,
+            "distinctExplorationTargets": 32
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 1,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 26,
+            "revisitedExplorationTargets": 9,
+            "distinctExplorationTargets": 15
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 29,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 10,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": 59.5499999999979,
+            "skills": 2,
+            "skillUses": 1,
+            "explorationArrivals": 40,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 40
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 1,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 3.566666666663423,
+            "skillUses": 2,
+            "explorationArrivals": 0,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 0
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 4,
+              "failures": 1
+            },
+            {
+              "id": "water-fill-drink",
+              "status": "candidate",
+              "successes": 1,
+              "failures": 0
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 29,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 6,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 66,
+            "revisitedExplorationTargets": 32,
+            "distinctExplorationTargets": 29
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 3,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 25,
+            "revisitedExplorationTargets": 7,
+            "distinctExplorationTargets": 18
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 47,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 5,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 87.04999999999634,
+            "skills": 2,
+            "skillUses": 0,
+            "explorationArrivals": 18,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 18
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 3,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 3.6499999999966803,
+            "skillUses": 2,
+            "explorationArrivals": 5,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 5
+          },
+          "finalSkills": [
+            {
+              "id": "water-fill-drink",
+              "status": "validated",
+              "successes": 2,
+              "failures": 0
+            },
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 3,
+              "failures": 1
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 47,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 5,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 65,
+            "revisitedExplorationTargets": 25,
+            "distinctExplorationTargets": 34
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 5,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 23,
+            "revisitedExplorationTargets": 7,
+            "distinctExplorationTargets": 16
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 103,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 13,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": 85.66666666666309,
+            "skills": 1,
+            "skillUses": 2,
+            "explorationArrivals": 55,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 55
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 1,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 3.3333333333303017,
+            "skillUses": 2,
+            "explorationArrivals": 0,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 0
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 5,
+              "failures": 1
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 103,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 7,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 67,
+            "revisitedExplorationTargets": 32,
+            "distinctExplorationTargets": 32
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 5,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 24,
+            "revisitedExplorationTargets": 6,
+            "distinctExplorationTargets": 18
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 211,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 4,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 68.13333333333075,
+            "skills": 2,
+            "skillUses": 0,
+            "explorationArrivals": 13,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 13
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 12,
+            "repeatedInvalid": 3,
+            "timeToFirstWater": 3.86666666666315,
+            "skillUses": 6,
+            "explorationArrivals": 19,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 19
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 4,
+              "failures": 4
+            },
+            {
+              "id": "water-fill-drink",
+              "status": "candidate",
+              "successes": 1,
+              "failures": 0
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 211,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 3,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 67,
+            "revisitedExplorationTargets": 27,
+            "distinctExplorationTargets": 31
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 4,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 24,
+            "revisitedExplorationTargets": 9,
+            "distinctExplorationTargets": 15
+          },
+          "finalSkills": []
+        }
+      },
+      {
+        "withLearning": {
+          "seed": 509,
+          "learning": true,
+          "initial": {
+            "independentDrinks": 3,
+            "collections": 3,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 7,
+            "repeatedInvalid": 1,
+            "timeToFirstWater": 47.76666666666524,
+            "skills": 2,
+            "skillUses": 1,
+            "explorationArrivals": 63,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 63
+          },
+          "transfer": {
+            "independentDrinks": 2,
+            "collapses": 0,
+            "rescues": 0,
+            "invalidActions": 1,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": 3.3333333333303017,
+            "skillUses": 2,
+            "explorationArrivals": 0,
+            "revisitedExplorationTargets": 0,
+            "distinctExplorationTargets": 0
+          },
+          "finalSkills": [
+            {
+              "id": "water-approach-fill-drink",
+              "status": "validated",
+              "successes": 4,
+              "failures": 1
+            },
+            {
+              "id": "water-fill-drink",
+              "status": "candidate",
+              "successes": 1,
+              "failures": 0
+            }
+          ]
+        },
+        "withoutLearning": {
+          "seed": 509,
+          "learning": false,
+          "initial": {
+            "independentDrinks": 0,
+            "collections": 0,
+            "collapses": 2,
+            "rescues": 2,
+            "invalidActions": 5,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skills": 0,
+            "skillUses": 0,
+            "explorationArrivals": 69,
+            "revisitedExplorationTargets": 28,
+            "distinctExplorationTargets": 35
+          },
+          "transfer": {
+            "independentDrinks": 0,
+            "collapses": 1,
+            "rescues": 1,
+            "invalidActions": 3,
+            "repeatedInvalid": 0,
+            "timeToFirstWater": null,
+            "skillUses": 0,
+            "explorationArrivals": 24,
+            "revisitedExplorationTargets": 8,
+            "distinctExplorationTargets": 14
+          },
+          "finalSkills": []
+        }
+      }
+    ]
+  },
   "limitations": [
     "Fixed matched world geometry; the controller RNG seeds vary.",
     "These are controlled offline trials; they do not establish performance for a live language model.",
+    "The initial expedition origin and action affordances are infrastructure supplied to both conditions. Persistent values, procedural skills, past terrain, failed routes and visit histories are disabled in the control.",
     "The transfer is an explicit evaluation setup at the same safe position for both conditions, never a rescue teleport.",
+    "A revisit may be justified by obstacles or returning to another frontier; it is not by itself proof of aimless circling.",
     "No guarantee that each successive attempt improves."
   ]
 }

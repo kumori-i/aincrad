@@ -6,7 +6,7 @@ This is a standalone exploration game, independent of `agentic-workspace`.
 
 Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/trees, and enterable caves. The central reference crossing must remain approximately five minutes at normal walking speed. An in-game day is one hour of unpaused play.
 
-The owner has authorized the single persistent water-learning NPC milestone and desktop packaging. Keep model access optional and local, through a narrow validated desktop bridge. No game agent may receive OS/filesystem/shell access. Do not add a coding-agent adapter, external command execution, signup, analytics, cloud backend, paywalls, or additional NPCs.
+The owner has authorized one persistent water-learning NPC, a substantial Stardew-inspired original pixel presentation, improved survival pacing/exploration, and a simple desktop source workflow. Keep model access optional and local, through a narrow validated desktop bridge. No game agent may receive OS/filesystem/shell access. Do not add a coding-agent adapter, external command execution, signup, analytics, cloud backend, paywalls, or additional NPCs.
 
 ## Boundaries
 
@@ -20,13 +20,13 @@ The owner has authorized the single persistent water-learning NPC milestone and 
 
 ## Verification
 
-Run `npm run check` and `npm run bundle` after any code edit. The bundle is generated and committed for immediate play. Keep its CSP hashes valid; normalize text line endings. Visual changes also require actual rendered screenshots. Browser-only checks do not establish that Windows Electron installation or an installer works.
+Run `npm run check` and `npm run build` after code edits. The application build is generated into ignored `dist/`; do not commit generated renderer bundles or distribute an HTML webpage. Preserve the strict application protocol and renderer CSP; normalize text line endings. `npm start` launches Electron and `npm run dev` rebuilds/reloads the desktop application. Visual changes also require actual rendered screenshots. Browser-only checks do not establish that Windows Electron installation or an installer works.
 
-The optional Python UI harness is in `tests/browser_smoke.py`. It requires Playwright and Chromium. Its documented offline mode uses a memory storage adapter because about:blank has no storage origin; do not present that as a physical-disk persistence test.
+Use `npm run smoke` for the actual Electron application and rendered desktop screenshots for visual QA. Disk persistence must be tested by closing and reopening an isolated application profile.
 
 ## Scope discipline
 
-Implement hydration, water actions, local observed navigation tiles, persistent experience, acquired procedures, collapse and divine rescue for one NPC. Keep the offline experiential controller clearly distinguished from configured language-model planning. A game action must actually update world state; narration is not completion. Do not redesign the map or replace the renderer without a concrete reason and the owner's approval.
+Implement hydration, water actions, local observed navigation tiles, persistent experience, acquired procedures, collapse and divine rescue for one NPC. Keep the offline experiential controller clearly distinguished from configured language-model planning. A game action must actually update world state; narration is not completion. The owner has explicitly requested the pixel visual redesign. Preserve authoritative geometry/collisions and the exploration scale while replacing its presentation; do not add unrelated map mechanics or copy proprietary game artwork.
 
 ## Publication
 

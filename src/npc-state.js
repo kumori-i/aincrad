@@ -10,7 +10,7 @@ export function createNpc({preset='normal', learning=true, seed=CONFIG.seed}={})
     lifecycle:'AWAKE', lifecycleAt:0, epoch:0, collapseId:0, rescuedCollapseId:0,
     preset:selected, rescuePresentation:'divine', learning:Boolean(learning), seed:seed>>>0, rng:seed>>>0,
     navigationAnchor:null, active:null, skillRun:null, lastResult:null, nextDecisionAt:0, modelBudget:{since:0,calls:0},
-    memory:{nextId:1,experience:[],cells:{},blockedEdges:{},sources:{},skills:[],values:{},lessons:[],trace:[],explorationCredit:0},
+    memory:{nextId:1,experience:[],cells:{},blockedEdges:{},sources:{},skills:[],values:{},lessons:[],trace:[],explorationCredit:0,exploration:{origin:null,lastVisited:null,recentTargets:[],heading:null}},
     stats:{independentDrinks:0,collections:0,collapses:0,rescues:0,invalidActions:0,repeatedInvalid:0,modelCalls:0,modelFailures:0,staleResponses:0,skillUses:0,firstWaterAt:null,lastRescuer:null},
     presentation:{rescueUntil:0,drinkUntil:0}, decision:'A new expedition: no remembered water sources or learned procedures.',
   };

@@ -4,7 +4,7 @@ import { clamp, canStandOutside, distance } from './world.js';
 import { waterSource, withinWorld } from './resources.js';
 import { tileKey, tilePoint } from './perception.js';
 
-const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill']);
+const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition']);
 const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait']);
 const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwise;
 const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
@@ -28,13 +28,22 @@ export function recordEvent(npc,type,details={}){
   return event;
 }
 export function rememberObservation(npc,observation){
-  if(!npc.learning){npc.memory.cells={};npc.memory.sources={};npc.memory.blockedEdges={};}
+  if(!npc.learning){
+    // The expedition's initial position is controller infrastructure in both conditions.
+    // Visited terrain, failures, direction history and target history require memory.
+    const origin=npc.memory.exploration.origin;
+    npc.memory.cells={};npc.memory.sources={};npc.memory.blockedEdges={};npc.memory.exploration={origin,lastVisited:null,recentTargets:[],heading:null};
+  }
+  if(!npc.memory.exploration.origin)npc.memory.exploration.origin={...observation.position};
   let newCells=0;const newSources=[];
   for(const cell of observation.cells){
     const old=npc.memory.cells[cell.key];if(!old)newCells++;
     npc.memory.cells[cell.key]={...cell,visits:old?.visits||0};
   }
-  const key=tileKey(npc.position);if(npc.memory.cells[key])npc.memory.cells[key].visits++;
+  // A visit is an entered tile, not another second of standing on the same tile.
+  const key=tileKey(npc.position);
+  if(npc.memory.cells[key]&&npc.memory.exploration.lastVisited!==key){npc.memory.cells[key].visits++;npc.memory.exploration.lastVisited=key;}
+  if(npc.active?.request.type==='move')npc.active.novelCells=(npc.active.novelCells||0)+newCells;
   for(const source of observation.sources){
     if(!npc.memory.sources[source.id])newSources.push(source.id);
     const previous=npc.memory.sources[source.id];
@@ -75,7 +84,7 @@ function candidateFromDrink(npc,event){
   const evidence=[...(hasApproach?[earlier.id]:[]),fill.id,event.id];
   if(!skill){
     if(npc.memory.skills.length>=NPC_RULES.maxSkills)return;
-    skill={id:`water-${signature}`,name:hasApproach?'Approach, collect, drink':'Collect and drink',signature,status:'candidate',parameters:['sourceId'],preconditions:{sourceKnown:true,flaskEmpty:true,hydrationBelow:75,inRange:!hasApproach},steps,successCheck:'ordinary hydration gain after independently collected water',failureConditions:['ROUTE_BLOCKED','OUT_OF_REACH','SOURCE_UNAVAILABLE','COLLAPSED','EMPTY_FLASK'],supportingExperience:[],validation:[],successes:0,failures:0};
+    skill={id:`water-${signature}`,name:hasApproach?'Approach, collect, drink':'Collect and drink',signature,status:'candidate',parameters:['sourceId'],preconditions:{sourceKnown:true,flaskEmpty:true,hydrationBelow:100-NPC_RULES.meaningfulHydrationGain,inRange:!hasApproach},steps,successCheck:'ordinary hydration gain after independently collected water',failureConditions:['ROUTE_BLOCKED','OUT_OF_REACH','SOURCE_UNAVAILABLE','COLLAPSED','EMPTY_FLASK'],supportingExperience:[],validation:[],successes:0,failures:0};
     npc.memory.skills.push(skill);
   }
   skill.successes++;
@@ -94,18 +103,33 @@ export function learnOutcome(npc,action,result,context,startPosition){
   const event=recordEvent(npc,'action',{action,result,context,startPosition,position:npc.position,hydration:npc.hydration,flask:npc.flask.water});
   npc.lastResult={eventId:event.id,at:npc.elapsed,...result,action:action.type};
   npc.memory.trace=[...npc.memory.trace,event.id].slice(-12);
-  let reward=result.ok?-0.03:-2;
+  let reward=result.ok?-.12:-2;
+  if(action.type==='wait')reward-=Math.max(.25,action.seconds||1)*.18;
+  if(action.type==='move'&&!action.sourceId){
+    // A blocked edge is local evidence, not evidence that all exploration is bad.
+    if(result.code==='ROUTE_BLOCKED')reward=-.65;
+    const travel=distance(startPosition,npc.position);
+    if(travel>NPC_RULES.tileSize/2){
+      const key=tileKey(npc.position),exploration=npc.memory.exploration;
+      const repeat=exploration.recentTargets.includes(key);
+      exploration.recentTargets=[...exploration.recentTargets,key].slice(-12);
+      exploration.heading={x:(npc.position.x-startPosition.x)/travel,y:(npc.position.y-startPosition.y)/travel};
+      if(repeat)reward-=.8;
+    }
+  }
   if(result.waterCollected>0){reward=Math.min(.7,result.waterCollected*.7);npc.flask.fillEventId=event.id;}
+  if(result.provenance==='collected'&&(result.hydrationGain||0)>=NPC_RULES.meaningfulHydrationGain)reward=Math.min(8,result.hydrationGain/NPC_RULES.drinkHydration*8);
   if(result.independent){reward=8;}
   if(result.code==='COLLAPSED')reward=-8;
-  if(result.novelCells&&npc.memory.explorationCredit<4){const novelty=Math.min(.25,result.novelCells*.01,4-npc.memory.explorationCredit);reward+=novelty;npc.memory.explorationCredit+=novelty;}
+  if(result.novelCells&&npc.memory.explorationCredit<4){const urgency=clamp(npc.hydration/75,0,1);const novelty=Math.min(.65,result.novelCells*.03,4-npc.memory.explorationCredit)*urgency;reward+=novelty;npc.memory.explorationCredit+=novelty;}
   reward-=Math.max(0,result.hydrationLost||0)*.02;
-  updateValue(npc,context,actionCategory(action),reward);
+  // Tiny top-ups neither create success credit nor overwrite meaningful drinking evidence.
+  if(!(result.code==='DRANK'&&!result.independent&&(result.hydrationGain||0)<NPC_RULES.meaningfulHydrationGain))updateValue(npc,context,actionCategory(action),reward);
   if(npc.learning&&result.independent)candidateFromDrink(npc,event);
   if(!result.ok&&action.sourceId&&npc.memory.sources[action.sourceId]){
     const source=npc.memory.sources[action.sourceId];
     if(result.code==='SOURCE_UNAVAILABLE')source.available=false;
-    source.retryAfter=npc.elapsed+(result.code==='ROUTE_BLOCKED'?30:result.code==='OUT_OF_REACH'?3:8);
+    source.retryAfter=npc.elapsed+(['ROUTE_BLOCKED','NO_KNOWN_ROUTE'].includes(result.code)?30:result.code==='OUT_OF_REACH'?3:8);
   }
   return event;
 }
@@ -115,8 +139,11 @@ export function recoveryLesson(npc){
   npc.memory.lessons.push({at:npc.elapsed,verified:text,hypothesis});npc.memory.lessons=npc.memory.lessons.slice(-8);
   recordEvent(npc,'lesson',{verified:text,hypothesis});
   if(npc.learning){
-    const last=npc.memory.experience.filter(e=>e.type==='action').at(-1);
-    if(last)updateValue(npc,last.details.context,actionCategory(last.details.action),-5);
+    const recent=npc.memory.experience.filter(e=>e.type==='action').slice(-8);
+    // Survival failure revises recent unproductive choices, not rescue or actual drinking.
+    for(const [index,event] of recent.entries())if(!event.details.result?.hydrationGain&&!event.details.result?.waterCollected){
+      updateValue(npc,event.details.context,actionCategory(event.details.action),-1.5*(index+1)/recent.length);
+    }
   }
 }
 
@@ -125,7 +152,7 @@ export function validateNpc(raw,{restoring=true}={}){
   const n=createNpc({preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
   if(!raw||raw.version!==1||raw.id!=='aster')return n;
   if(withinWorld(raw.position)&&canStandOutside(raw.position.x,raw.position.y))n.position={x:raw.position.x,y:raw.position.y};
-  n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,85,100);
+  n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,n.hydration,100);
   for(const k of ['epoch','collapseId','rescuedCollapseId','rng'])n[k]=Math.floor(finite(raw[k],n[k],k==='rng'?4294967295:1e9));
   if(['AWAKE','COLLAPSED','RECOVERING'].includes(raw.lifecycle))n.lifecycle=raw.lifecycle;
   n.lifecycleAt=Math.min(n.elapsed,finite(raw.lifecycleAt));n.nextDecisionAt=Math.min(n.elapsed+60,finite(raw.nextDecisionAt));
@@ -153,12 +180,17 @@ export function validateNpc(raw,{restoring=true}={}){
     n.memory.values[key]={attempts:finite(v.attempts),value:Number.isFinite(v.value)?clamp(v.value,-12,12):0};
   }
   n.memory.lessons=(Array.isArray(m.lessons)?m.lessons:[]).slice(-8).map(l=>({at:finite(l.at),verified:str(l.verified),hypothesis:str(l.hypothesis)}));
+  const exploration=m.exploration||{};
+  if(withinWorld(exploration.origin))n.memory.exploration.origin={x:exploration.origin.x,y:exploration.origin.y};
+  n.memory.exploration.lastVisited=typeof exploration.lastVisited==='string'&&n.memory.cells[exploration.lastVisited]?exploration.lastVisited:null;
+  n.memory.exploration.recentTargets=(Array.isArray(exploration.recentTargets)?exploration.recentTargets:[]).filter(key=>typeof key==='string'&&n.memory.cells[key]).slice(-12);
+  if(Number.isFinite(exploration.heading?.x)&&Number.isFinite(exploration.heading?.y)&&Math.hypot(exploration.heading.x,exploration.heading.y)<=1.01)n.memory.exploration.heading={x:exploration.heading.x,y:exploration.heading.y};
   n.memory.explorationCredit=finite(m.explorationCredit,0,4);n.memory.trace=(Array.isArray(m.trace)?m.trace:[]).filter(id=>ids.has(id)).slice(-12);
   for(const skill of (Array.isArray(m.skills)?m.skills:[]).slice(0,NPC_RULES.maxSkills)){
     if(!/^water-(approach-fill-drink|fill-drink)$/.test(skill?.id)||!Array.isArray(skill.steps)||skill.steps.length<2||skill.steps.length>8)continue;
     if(skill.steps.some(step=>!OPS.has(step?.type)||!['move','fill_flask','drink'].includes(step.type)||(['move','fill_flask'].includes(step.type)&&step.sourceId!=='$sourceId')))continue;
     const supporting=(skill.supportingExperience||[]).filter(id=>ids.has(id)).slice(-36);if(supporting.length<2)continue;
-    n.memory.skills.push({id:skill.id,name:str(skill.name,80),signature:str(skill.signature,50),status:['candidate','validated','retired'].includes(skill.status)?skill.status:'candidate',parameters:['sourceId'],preconditions:{sourceKnown:true,flaskEmpty:true,hydrationBelow:75,inRange:!skill.steps.some(s=>s.type==='move')},steps:skill.steps.map(step=>step.type==='drink'?{type:'drink'}:{type:step.type,sourceId:'$sourceId'}),successCheck:'ordinary hydration gain after independently collected water',failureConditions:['ROUTE_BLOCKED','OUT_OF_REACH','SOURCE_UNAVAILABLE','COLLAPSED','EMPTY_FLASK'],supportingExperience:supporting,validation:(skill.validation||[]).filter(v=>ids.has(v.eventId)&&withinWorld(v.startPosition)).slice(-16).map(v=>({at:finite(v.at),sourceId:str(v.sourceId,70),startPosition:{x:v.startPosition.x,y:v.startPosition.y},eventId:v.eventId,outcome:v.outcome==='success'?'success':'failure'})),successes:finite(skill.successes),failures:finite(skill.failures)});
+    n.memory.skills.push({id:skill.id,name:str(skill.name,80),signature:str(skill.signature,50),status:['candidate','validated','retired'].includes(skill.status)?skill.status:'candidate',parameters:['sourceId'],preconditions:{sourceKnown:true,flaskEmpty:true,hydrationBelow:100-NPC_RULES.meaningfulHydrationGain,inRange:!skill.steps.some(s=>s.type==='move')},steps:skill.steps.map(step=>step.type==='drink'?{type:'drink'}:{type:step.type,sourceId:'$sourceId'}),successCheck:'ordinary hydration gain after independently collected water',failureConditions:['ROUTE_BLOCKED','OUT_OF_REACH','SOURCE_UNAVAILABLE','COLLAPSED','EMPTY_FLASK'],supportingExperience:supporting,validation:(skill.validation||[]).filter(v=>ids.has(v.eventId)&&withinWorld(v.startPosition)).slice(-16).map(v=>({at:finite(v.at),sourceId:str(v.sourceId,70),startPosition:{x:v.startPosition.x,y:v.startPosition.y},eventId:v.eventId,outcome:v.outcome==='success'?'success':'failure'})),successes:finite(skill.successes),failures:finite(skill.failures)});
   }
   // On restart an unfinished procedure is cancelled, with a recorded outcome rather than silently replayed.
   if(!restoring&&(raw.active||raw.skillRun))n.interrupted=true;

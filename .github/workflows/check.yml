@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
-  rules-and-bundle:
+  rules-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,11 +14,5 @@ jobs:
           node-version: '22'
       - name: Validate source and run deterministic checks
         run: npm run check
-      - name: Rebuild offline game
-        run: npm run bundle
-      - name: Check that the committed offline build is current
-        run: git diff --exit-code -- play.html
-      - uses: actions/upload-artifact@v4
-        with:
-          name: aincrad-offline-game
-          path: play.html
+      - name: Build internal desktop assets
+        run: npm run build

@@ -5,7 +5,10 @@ import { tileKey, tilePoint } from './perception.js';
 /** A bounded tile search over observed data. No terrain/world lookup occurs here. */
 export function knownRoute(cells,from,to,maxSteps=30,blockedEdges={},elapsed=0,startKey=null){
   let start=startKey||tileKey(from);const goal=tileKey(to);
-  if(!cells[start]?.walkable)start=Object.values(cells).filter(c=>c.walkable&&distance(c,from)<NPC_RULES.tileSize*2).sort((a,b)=>distance(a,from)-distance(b,from))[0]?.key;
+  const blocked=(a,b)=>(blockedEdges[[a,b].sort().join('>')]?.retryAfter||0)>elapsed;
+  // A failed snap to the center of the current coarse tile is also real route evidence.
+  // Choose another observed entry node instead of retrying the same obstructed segment.
+  if(!cells[start]?.walkable||blocked(start,start))start=Object.values(cells).filter(c=>c.walkable&&distance(c,from)<NPC_RULES.tileSize*2&&!blocked(c.key,c.key)&&!blocked(tileKey(from),c.key)).sort((a,b)=>distance(a,from)-distance(b,from))[0]?.key;
   if(!start||!cells[goal]?.walkable)return null;
   const queue=[start],parent=new Map([[start,null]]);
   for(let i=0;i<queue.length&&i<2500;i++){
