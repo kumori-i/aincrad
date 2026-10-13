@@ -75,7 +75,9 @@ app.whenReady().then(async()=>{
   if(SMOKE){await runSmoke();return;}
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
 }).catch(e=>{if(SMOKE){console.error(e);app.exit(1);}else{dialog.showErrorBox('Aincrad could not start',e.message);app.quit();}});
-app.on('window-all-closed',()=>{modelService?.cancel();if(process.platform!=='darwin')app.quit();});
+// Commit pending localStorage writes after renderer unload and before quitting.
+app.on('window-all-closed',()=>{modelService?.cancel();session.defaultSession.flushStorageData();if(process.platform!=='darwin')app.quit();});
+app.on('will-quit',()=>{if(app.isReady())session.defaultSession.flushStorageData();});
 
 async function runSmoke(){
   const deadline=setTimeout(()=>{console.error('Desktop smoke test timed out.');app.exit(1);},20000);
@@ -89,23 +91,33 @@ async function runSmoke(){
       document.getElementById('begin').click();document.getElementById('open-npc').click();
       const initial=window.__aincrad.npc();assert(initial.id==='aster','Persistent NPC is absent');
       assert(initial.memory.skills.length===0,'Initial skill library must be empty');
+      assert(Object.keys(initial.memory.sources).length>0,'Starter water must be locally observed');
+      assert(initial.nourishment>0&&initial.health===100&&initial.inventory.capacity===3,'Multi-need body did not initialize');
+      for(const id of ['npc-nourishment','npc-health','npc-feelings','npc-environment'])assert(document.getElementById(id),'Missing body display: '+id);
+      window.__aincrad.worldSettings({hourOverride:14,weatherOverride:'clear'});
+      const clock=window.__aincrad.environment().elapsed;window.__aincrad.npcStep(2);
+      const warm=window.__aincrad.npc();assert(warm.nourishment<initial.nourishment&&warm.hydration<initial.hydration,'Food and water must drain independently');
+      assert(warm.sensation.hour===14&&warm.sensation.weather==='clear'&&Number.isFinite(warm.sensation.feltTemperature),'Weather did not reach the body');
+      assert(Math.abs(window.__aincrad.environment().elapsed-clock-2)<0.001,'Shared environment clock advanced incorrectly');
+      window.__aincrad.worldSettings({hourOverride:null,weatherOverride:null});
       const preset=document.getElementById('npc-preset');preset.value='accelerated';preset.dispatchEvent(new Event('change'));
       document.getElementById('npc-demonstrate').click();const collapsed=window.__aincrad.npc();
       assert(collapsed.lifecycle==='COLLAPSED','Demonstration must actually collapse the body');
       window.__aincrad.npcStep(7.2);const rescued=window.__aincrad.npc();
       assert(rescued.lifecycle==='RECOVERING','World rescue did not occur');
-      assert(rescued.stats.rescues===1&&rescued.stats.independentDrinks===0,'Rescue received independent credit');
+      assert(rescued.stats.rescues===1&&rescued.stats.independentDrinks===0&&rescued.stats.independentMeals===0,'Rescue received independent credit');
+      assert(rescued.nourishment>0&&rescued.health>0&&rescued.inventory.apples.length===0,'Partial body rescue or inventory provenance failed');
       assert(JSON.stringify(rescued.position)===JSON.stringify(collapsed.position),'Rescue fast-travelled the NPC');
       window.__aincrad.npcStep(2.2);const awake=window.__aincrad.npc();assert(awake.lifecycle==='AWAKE','Recovery did not complete');
       assert(awake.id===initial.id&&awake.stats.collapses===1,'Identity or lifecycle counts changed');
       window.__aincrad.save();assert(document.getElementById('fatal').classList.contains('hidden'),'A renderer error occurred');
-      return {identity:awake.id,lifecycle:awake.lifecycle,collapses:awake.stats.collapses,rescues:awake.stats.rescues,provider:'offline experiential learner; no live inference'};
+      return {identity:awake.id,lifecycle:awake.lifecycle,collapses:awake.stats.collapses,rescues:awake.stats.rescues,nourishment:awake.nourishment,hydration:awake.hydration,health:awake.health,weather:awake.sensation.weather,provider:'offline experiential learner; no live inference'};
     })()`);
     await new Promise(resolve=>setTimeout(resolve,650));
     const output=path.join(process.cwd(),'test-results');await mkdir(output,{recursive:true});
     await writeFile(path.join(output,'desktop-smoke.png'),(await win.webContents.capturePage()).toPNG());
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(result,null,2));
-    console.log('PASS: desktop launch, sandboxed renderer configuration, local bridge, one persistent NPC, collapse, rescue provenance, recovery, retained identity and no rescue teleport.');
+    console.log('PASS: desktop launch, sandboxed renderer configuration, local bridge, multi-need body/UI, observed starter water, shared weather clock, collapse, rescue provenance, recovery, retained identity and no rescue teleport.');
     clearTimeout(deadline);app.exit(0);
   }catch(error){clearTimeout(deadline);console.error(error);app.exit(1);}
 }

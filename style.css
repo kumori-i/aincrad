@@ -19,3 +19,9 @@
 #app[data-inspecting=true] .toast,#app[data-inspecting=true] .interaction{left:calc((100% - 414px) / 2);max-width:calc(100vw - 450px)}
 #app[data-inspecting=true] .bottom-controls,#app[data-inspecting=true] .save-status{right:414px}
 @media(max-width:900px){#app[data-inspecting=true] .toast,#app[data-inspecting=true] .interaction{left:calc((100% - 402px) / 2);max-width:calc(100vw - 426px);width:390px}#app[data-inspecting=true] .toast{top:180px}#app[data-inspecting=true] .bottom-controls button:first-child{display:none}#app[data-inspecting=true] .bottom-controls,#app[data-inspecting=true] .save-status{right:404px}}
+
+.world-weather{font-size:9px;line-height:1.5;color:var(--muted);margin-top:5px}
+.npc-short{top:135px;line-height:1.55}.waypoint-hud{top:231px}
+.npc-condition progress{height:11px}.npc-condition #npc-nourishment::-webkit-progress-value{background:#86a64d;box-shadow:inset 0 2px #b0c56d}.npc-condition #npc-health::-webkit-progress-value{background:#bc775b;box-shadow:inset 0 2px #d99a78}
+.body-detail,.npc-inventory{display:grid;gap:4px;font-size:10px;margin-top:5px}.npc-feelings{padding:10px;background:#efce91;border:2px solid #c79e64;margin-top:12px}.npc-feelings p{margin:5px 0;line-height:1.5}.npc-feelings .eyebrow{font-size:9px}
+@media(max-width:900px){.npc-short{top:122px}.waypoint-hud{top:212px}.world-weather{font-size:8px;max-width:215px}#app[data-inspecting=true] .toast{top:209px}}

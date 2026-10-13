@@ -6,6 +6,7 @@ import { NpcController } from './controller.js';
 import { createNpcPanel } from './npc-panel.js';
 import { observeNpc } from './npc.js';
 import { recordEvent } from './npc-memory.js';
+import { tickEnvironment, environmentConditions, environmentHour } from './environment.js';
 
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries(['world','welcome','hud','begin','clock','day','region','location-detail','minimap','nav-label','interaction','toast','save-status','map-panel','atlas-map','map-title','map-hint','pause-panel','help-panel','waypoint-hud'].map(id=>[id,$(id)]));
@@ -14,8 +15,8 @@ try { storage = window.localStorage; } catch { storage = { getItem(){return null
 const loaded = loadSave(storage);
 let state = loaded.state;
 const renderer = new Renderer(ui.world,state);
-let npcController=new NpcController(state.npc);
-const npcPanel=createNpcPanel({getNpc:()=>state.npc,getController:()=>npcController,renderer,save:()=>save(),notify});
+let npcController=new NpcController(state.npc,{environment:state.environment});
+const npcPanel=createNpcPanel({getNpc:()=>state.npc,getController:()=>npcController,renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
 let started=false, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
 let lastTime=performance.now()/1000, accumulator=0, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
@@ -35,8 +36,9 @@ function openPanel(name){
   if(!started)return;
   closePanels();panel=name;ui[name+'-panel'].classList.remove('hidden');keys.clear();anim.moving=false;
   if(name==='map'){
-    ui['map-title'].textContent=state.scene==='valley'?'Crown Ridge & the lowlands':CAVES.find(c=>c.id===state.scene)?.name||'Cavern';
-    ui['map-hint'].textContent=state.scene==='valley'?'Click to set a waypoint · right-click to clear':'The stairs lead back to the valley';
+    const viewedScene=renderer.viewScene(state);
+    ui['map-title'].textContent=viewedScene==='valley'?'Crown Ridge & the lowlands':CAVES.find(c=>c.id===viewedScene)?.name||'Cavern';
+    ui['map-hint'].textContent=renderer.viewScene(state)==='valley'?'Click to set a waypoint · right-click to clear':'The stairs lead back to the valley';
     renderer.drawAtlas(ui['atlas-map'],state);
   }
   const dialog=ui[name+'-panel'];dialog.querySelector('button')?.focus();save();
@@ -55,7 +57,7 @@ function interact(){
   }else if(action.type==='exit'){
     const c=CAVES.find(c=>c.id===state.scene);
     state.scene='valley';state.player={x:c.x,y:c.y+95};renderer.snap(state.player);keys.clear();notify('Back beneath the open sky.');save();
-  }else notify('The central trail runs east–west. Follow the river north to Stillwater Lake. Three marked caverns lie beneath Crown Ridge. Press M to plan your route.',10);
+  }else notify('The central trail runs east–west. Follow the river north to Stillwater Lake. Marked caverns lie beneath Crown Ridge, and Willow Refuge offers shelter near the starting pond. Press M to plan your route.',10);
 }
 function returnToCamp(){
   if(!window.confirm('Return to the Trailhead? Your discoveries and world time will be kept.'))return;
@@ -63,7 +65,7 @@ function returnToCamp(){
 }
 function newExpedition(){
   if(!window.confirm('Start a new expedition? This replaces your saved position, discoveries, world time, and Aster’s memory.'))return;
-  const provider=npcController.provider;npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{provider});saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
+  const provider=npcController.provider;npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{provider,environment:state.environment});saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
 $('watch-aster').addEventListener('click',()=>{begin();npcPanel.follow(true);npcPanel.toggle();});
@@ -105,7 +107,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseForFoc
 window.addEventListener('pagehide',()=>{if(started)save();});
 window.addEventListener('beforeunload',()=>{if(started)save();});
 ui['atlas-map'].addEventListener('click',e=>{
-  if(state.scene!=='valley')return;
+  if(renderer.viewScene(state)!=='valley')return;
   const r=ui['atlas-map'].getBoundingClientRect();
   const p=renderer.atlasPoint((e.clientX-r.left)/r.width*ui['atlas-map'].width,(e.clientY-r.top)/r.height*ui['atlas-map'].height);
   if(!p)return;state.waypoint=p;renderer.drawAtlas(ui['atlas-map'],state);save();
@@ -117,17 +119,19 @@ function fixedUpdate(dt){
   const travelled=moveActor(state.player,dx,dy,dt,keys.has('ShiftLeft')||keys.has('ShiftRight'),state.scene);
   anim.moving=travelled>.01;
   if(dx||dy){const n=Math.hypot(dx,dy);anim.facing={x:dx/n,y:dy/n};}
-  state.elapsed+=dt;state.distance+=travelled;
-  const previousEpoch=state.npc.epoch;npcController.tick(dt);if(state.npc.epoch!==previousEpoch){save();if(state.npc.lifecycle==='RECOVERING')notify(state.npc.rescuePresentation==='quiet'?'Aster has received water and is recovering.':'A warm light gathers around Aster. A benevolent presence has supplied water.',7);else if(state.npc.lifecycle==='COLLAPSED')notify('Aster has collapsed from dehydration. Its experience will be retained.',6);}
+  state.elapsed+=dt;state.distance+=travelled;tickEnvironment(state.environment,dt);
+  const previousEpoch=state.npc.epoch;npcController.tick(dt);if(state.npc.epoch!==previousEpoch){save();if(state.npc.lifecycle==='RECOVERING')notify(state.npc.rescuePresentation==='quiet'?'Aster has received care and is recovering.':'A warm light gathers around Aster. A benevolent presence is helping her recover.',7);else if(state.npc.lifecycle==='COLLAPSED')notify('Aster has collapsed from '+(state.npc.collapseCause||'severe deprivation')+'. Her experience will be retained.',6);}
 }
 function updateHud(now){
   if(now-lastHud<.15)return;lastHud=now;
-  const c=clockTime(state.elapsed);ui.clock.textContent=`${String(c.hour).padStart(2,'0')}:${String(c.minute).padStart(2,'0')}`;ui.day.textContent='DAY '+String(c.day).padStart(2,'0');
-  const following=renderer.followNpc&&state.scene==='valley',subject=following?state.npc.position:state.player;
-  ui.region.textContent=regionName(subject.x,subject.y,state.scene);
+  const c=clockTime(state.elapsed),hour=environmentHour(state.environment),minute=Math.floor(hour*60);c.hour=Math.floor(minute/60);c.minute=minute%60;ui.clock.textContent=`${String(c.hour).padStart(2,'0')}:${String(c.minute).padStart(2,'0')}`;ui.day.textContent='DAY '+String(c.day).padStart(2,'0');
+  const following=renderer.followNpc,subject=renderer.viewSubject(state),viewedScene=renderer.viewScene(state);
+  ui.region.textContent=regionName(subject.x,subject.y,viewedScene);
+  const conditions=environmentConditions(state.environment,{position:subject,scene:viewedScene,thermal:following?state.npc.thermal:undefined});
+  $('world-weather').textContent=`${conditions.sheltered?'Sheltered':conditions.weather} · ${conditions.airTemperature.toFixed(0)}°C · feels ${conditions.feltTemperature.toFixed(0)}°C${state.environment.settings.hourOverride!==null||state.environment.settings.weatherOverride!==null?' · TEST':''}`;
   $('location-kicker').textContent=following?'ASTER’S JOURNEY':'YOUR FOOTSTEPS, YOUR STORY';
-  ui['location-detail'].textContent=`${following?'Following Aster':state.scene==='valley'?'Crown Ridge Valley':'Beneath Crown Ridge'} · ${state.visitedCaves.length} / 3 caverns explored`;
-  ui['nav-label'].textContent=state.scene==='valley'?'THE VALLEY':'UNDER THE RIDGE';
+  ui['location-detail'].textContent=`${following?'Following Aster':viewedScene==='valley'?'Crown Ridge Valley':'Beneath Crown Ridge'} · ${state.visitedCaves.length} / ${CAVES.length} caverns explored`;
+  ui['nav-label'].textContent=viewedScene==='valley'?'THE VALLEY':'UNDER THE RIDGE';
   const action=nearestInteraction(state.player,state.scene);
   ui.interaction.classList.toggle('hidden',!action||Boolean(panel)||following);
   if(action)ui.interaction.querySelector('span').textContent=action.type==='enter'?'Enter '+action.name:action.name;
@@ -135,11 +139,11 @@ function updateHud(now){
     for(const l of LANDMARKS)if(!state.discoveries.includes(l.id)&&distance(l,state.player)<(l.kind==='cave'?350:1000)){state.discoveries.push(l.id);notify('Discovered · '+l.name);}
   }
   const wp=state.waypoint;
-  ui['waypoint-hud'].classList.toggle('hidden',!wp||state.scene!=='valley');
-  if(wp&&state.scene==='valley'){
-    const seconds=distance(wp,state.player)/CONFIG.walkSpeed;
+  ui['waypoint-hud'].classList.toggle('hidden',!wp||viewedScene!=='valley');
+  if(wp&&viewedScene==='valley'){
+    const seconds=distance(wp,subject)/CONFIG.walkSpeed;
     if(seconds<.7){state.waypoint=null;notify('You reached your waypoint.');}
-    else{const a=Math.atan2(wp.y-state.player.y,wp.x-state.player.x),dirs=['→','↘','↓','↙','←','↖','↑','↗'];const dir=dirs[(Math.round(a/(Math.PI/4))+8)%8];ui['waypoint-hud'].textContent=`${dir} Waypoint · ~${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')} direct walk`;}
+    else{const a=Math.atan2(wp.y-subject.y,wp.x-subject.x),dirs=['→','↘','↓','↙','←','↖','↑','↗'];const dir=dirs[(Math.round(a/(Math.PI/4))+8)%8];ui['waypoint-hud'].textContent=`${dir} Waypoint · ~${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')} direct walk`;}
   }
   if(now>toastUntil)ui.toast.classList.add('hidden');
 }
@@ -160,11 +164,13 @@ if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ =
     snapshot:()=>structuredClone(state),
     metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,interaction:nearestInteraction(state.player,state.scene)}),
     teleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene))return false;if(!canStand(x,y,scene))return false;state.scene=scene;state.player={x,y};renderer.snap(state.player);return true;},
-    step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;}},
-    start:begin,interact,save:()=>save(true),reset:()=>{npcController.dispose();state=freshState();npcController=new NpcController(state.npc);renderer.snap(state.player);},
+    step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;tickEnvironment(state.environment,dt);npcController.tick(dt);}},
+    start:begin,interact,save:()=>save(true),reset:()=>{npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{environment:state.environment});renderer.snap(state.player);},
     npc:()=>structuredClone(state.npc),
-    npcStep:(seconds)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep)npcController.tick(Math.min(CONFIG.fixedStep,seconds-t));},
-    npcTeleport:(x,y)=>{if(!canStand(x,y,'valley'))return false;state.npc.position={x,y};state.npc.active=null;state.npc.skillRun=null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'position',value:{x,y},provenance:'debug'});observeNpc(state.npc);return true;},
-    light:(elapsed)=>{state.elapsed=clamp(elapsed,0,3600*1000);},
+    npcStep:(seconds)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.elapsed+=dt;tickEnvironment(state.environment,dt);npcController.tick(dt);}},
+    npcTeleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene)||!canStand(x,y,scene))return false;state.npc.position={x,y};state.npc.scene=scene;state.npc.epoch++;state.npc.active=null;state.npc.skillRun=null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'position',value:{x,y},provenance:'debug'});observeNpc(state.npc,state.environment);return true;},
+    light:(elapsed)=>{state.elapsed=clamp(elapsed,0,3600*1000);state.environment.elapsed=state.elapsed;tickEnvironment(state.environment,1e-9);},
+    environment:()=>structuredClone(state.environment),
+    worldSettings:(settings)=>{state.environment.settings.hourOverride=Number.isFinite(settings.hourOverride)&&settings.hourOverride>=0&&settings.hourOverride<24?settings.hourOverride:null;state.environment.settings.weatherOverride=['clear','cloudy','rainy','windy'].includes(settings.weatherOverride)?settings.weatherOverride:null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'world conditions',value:state.environment.settings,provenance:'debug'});},
   };
 }

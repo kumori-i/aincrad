@@ -1,5 +1,6 @@
 /** Original palette-limited pixel artwork. Two world units are one art pixel. */
 import { hash, noise, terrain, waterDistance, ridgeValue, clamp } from './world.js';
+import { NPC_RULES } from './config.js';
 
 export const ART_PIXEL = 2;
 export function canvas(w, h) { const c=document.createElement('canvas');c.width=Math.ceil(w);c.height=Math.ceil(h);return c; }
@@ -189,8 +190,23 @@ export function drawCamp(g,x,y,time){
   rect(g,55,-30,3,15,'#654d32');rect(g,44,-39,25,11,'#624a31');rect(g,45,-38,23,9,'#d9b675');rect(g,46,-37,21,1,'#efd092');pixelLine(g,[[49,-33],[62,-33],[59,-35]],'#765633');
   g.restore();
 }
+function drawRefugeBluff(g,c){
+  g.save();g.translate(snap(c.x),snap(c.y));g.scale(ART_PIXEL,ART_PIXEL);
+  // This stepped bluff occupies the same clearing as caveMountain's physical outcrop.
+  pixelPoly(g,[[-35,45],[-63,35],[-85,18],[-105,-5],[-117,-37],[-121,-65],[-114,-95],[-99,-123],[-76,-147],[-48,-162],[-22,-170],[24,-170],[55,-160],[80,-143],[100,-121],[115,-94],[122,-63],[116,-32],[106,-6],[84,21],[60,36],[35,45],[35,-18],[-35,-18]],'#465b60');
+  const shelves=[[-46,-161,94,14],[-73,-142,146,17],[-96,-122,191,18],[-109,-101,219,18],[-116,-78,233,18],[-116,-55,233,19],[-109,-31,219,15]];
+  for(let i=0;i<shelves.length;i++){
+    const [x,y,w,h]=shelves[i];rect(g,x,y,w,h,i%2?'#718780':'#809087');rect(g,x,y,w,2,'#b3b9a0');rect(g,x+2,y+3,Math.floor(w*.45),h-5,'#8f9d8c');rect(g,x+Math.floor(w*.68),y+3,Math.floor(w*.32)-2,h-4,'#586e73');rect(g,x+2,y+h-2,w-4,2,'#405960');
+    for(let k=8;k<w-6;k+=21){rect(g,x+k+(i%2)*5,y+3,1,h-5,'#526d70');rect(g,x+k+3,y+4,7,1,'#acb49b');}
+    for(let k=0;k<8;k++){const mx=x+4+Math.floor(hash(k,i,772)*(w-9)),my=y+4+Math.floor(hash(k,i,614)*Math.max(1,h-7));rect(g,mx,my,3,1,k%3?'#849773':'#b3b58b');}
+  }
+  for(const [x,y,w,h] of [[-103,-11,67,14],[36,-11,67,14],[-80,10,44,13],[36,10,44,13],[-58,27,22,10],[36,27,22,10]]){rect(g,x,y,w,h,'#71867a');rect(g,x,y,w,2,'#aab594');rect(g,x+w-5,y+3,4,h-4,'#4b6466');rect(g,x+2,y+h-2,w-3,2,'#40585a');}
+  for(let i=0;i<18;i++){const x=-62+Math.floor(hash(i,0,531)*125),y=-155-Math.floor(hash(i,1,352)*13);rect(g,x,y,4+(i%4),2,'#6d8758');rect(g,x+1,y,3,1,'#a0af71');}
+  pixelPoly(g,[[-111,-72],[-113,-82],[-111,-93],[-107,-101],[-104,-96],[-106,-86],[-103,-74]],'#6b855e');pixelPoly(g,[[107,-32],[111,-38],[108,-49],[103,-44],[103,-36]],'#79926a');
+  g.restore();
+}
 export function drawCaveEntrance(g,c){
-  drawObject(g,{x:c.x-14,y:c.y-50,kind:'mountain',variant:1,scale:.85});
+  if(c.id==='refuge')drawRefugeBluff(g,c);else drawObject(g,{x:c.x-14,y:c.y-50,kind:'mountain',variant:1,scale:.85});
   g.save();g.translate(snap(c.x),snap(c.y));g.scale(ART_PIXEL,ART_PIXEL);pixelOval(g,0,8,34,7,'#21372c66');
   pixelPoly(g,[[-36,8],[-34,-13],[-28,-28],[-17,-38],[14,-38],[27,-27],[34,-12],[36,8]],'#53646a');
   pixelPoly(g,[[-32,7],[-30,-11],[-24,-25],[-14,-33],[13,-33],[25,-23],[30,-9],[32,7]],'#929d89');
@@ -211,16 +227,76 @@ export function drawCaveObject(g,o,tint){
   }else{pixelPoly(g,[[-13,3],[-8,-18],[-3,-26],[3,-9],[6,-16],[13,2],[5,6]],'#465463');pixelPoly(g,[[-12,2],[-8,-18],[-3,-25],[-3,0]],'#8d9692');pixelPoly(g,[[-3,-25],[3,-9],[4,4],[-3,0]],'#617681');rect(g,-5,-16,1,9,'#bdc0a4');}
   g.restore();
 }
+/** Apples on the ground are drawn from actual finite stock, never an animation counter. */
+export function drawApplePatch(g,patch,stock,capacity=patch.capacity||3){
+  g.save();g.translate(snap(patch.x),snap(patch.y));g.scale(ART_PIXEL,ART_PIXEL);
+  pixelOval(g,0,2,26,9,'#29452f44');
+  // A low orchard understory keeps the gather point visibly accessible.
+  for(const [x,y,variant] of [[-17,-8,0],[15,-6,1],[-7,6,2]]){
+    pixelOval(g,x,y+2,10,5,'#2d5535');pixelOval(g,x-1,y,10,5,'#548a3b');pixelOval(g,x-3,y-2,6,3,'#91b44f');
+    rect(g,x-7,y,3,1,'#acc868');rect(g,x+3,y+1,3,1,'#3e7035');rect(g,x-2,y+3,2,3,'#826542');
+    if(variant!==2){rect(g,x-8,y-4,1,3,'#b3bf76');rect(g,x-9,y-4,3,1,'#e9ddb1');}
+  }
+  const count=Math.min(6,Math.max(0,Math.ceil(Math.max(0,stock)/Math.max(1,capacity)*Math.min(6,capacity))));
+  const fruit=[[-4,-6],[13,1],[-17,5],[4,9],[22,-4],[-25,-6]];
+  for(let i=0;i<count;i++){
+    const [x,y]=fruit[i];pixelOval(g,x,y+3,4,2,'#2c493344');
+    rect(g,x-1,y-5,1,3,'#654932');rect(g,x,y-5,3,1,'#a7bc61');
+    pixelPoly(g,[[x-3,y-2],[x-1,y-3],[x+1,y-2],[x+3,y-3],[x+5,y-1],[x+4,y+3],[x+1,y+4],[x-2,y+3]],'#8e3c31');
+    pixelPoly(g,[[x-2,y-2],[x,y-2],[x+1,y-1],[x+3,y-2],[x+4,y],[x+3,y+2],[x-1,y+2]],'#cf6246');
+    rect(g,x-1,y-1,2,1,'#f4a16a');
+  }
+  if(!count){rect(g,-4,0,3,1,'#8a754a');rect(g,5,3,2,1,'#a88e56');}
+  g.restore();
+}
+/** Decorative fauna has no inventory, decision policy, or simulation side effects. */
+export function drawFauna(g,animal,time){
+  const facing=animal.facing||{x:1,y:0},flip=facing.x<0?-1:1,frame=animal.moving?Math.floor(time*6)%4:0;
+  g.save();g.translate(snap(animal.x),snap(animal.y));g.scale(ART_PIXEL*flip,ART_PIXEL);
+  const step=frame===1?-1:frame===3?1:0;
+  if(animal.kind==='fish'){
+    g.globalAlpha=.7;pixelPoly(g,[[-6,0],[-3,-3],[3,-3],[6,0],[3,2],[-3,2]],'#215969');
+    pixelPoly(g,[[-6,0],[-9,-3],[-9,3]],'#2e7180');rect(g,0,-2,4,1,'#78b9b4');rect(g,4,-1,1,1,'#143f50');
+    if(frame===1||frame===3)rect(g,-8,0,2,1,'#6caeb0');
+  }else if(animal.kind==='rabbit'){
+    pixelOval(g,0,2,8,3,'#25453144');pixelOval(g,-1,-4,7,5,'#685c48');pixelOval(g,-2,-5,6,4,'#ad9e78');
+    pixelOval(g,5,-7,4,4,'#c5b48a');rect(g,4,-15,2,7,'#7a654d');rect(g,5,-15,1,6,'#dbc4a0');rect(g,8,-14,2,6,'#8d7455');rect(g,8,-13,1,4,'#d6b297');
+    pixelOval(g,-7,-4,2,2,'#e0d7b7');rect(g,-5,-1+step,3,2,'#d2c29e');rect(g,3,-1-step,4,2,'#d2c29e');rect(g,7,-8,1,1,'#323b2e');rect(g,9,-6,1,1,'#81664a');
+  }else if(animal.kind==='deer'){
+    pixelOval(g,0,2,17,4,'#24473144');pixelOval(g,-2,-15,14,7,'#694c35');pixelOval(g,-3,-17,12,5,'#b88c57');pixelOval(g,-3,-13,10,3,'#ddbd83');
+    for(const [x,offset] of [[-11,step],[-5,-step],[6,-step],[11,step]]){rect(g,x,-12+offset,2,13-offset,'#705238');rect(g,x,-1,3,2,'#453f32');}
+    pixelPoly(g,[[8,-15],[9,-25],[15,-29],[19,-25],[15,-18],[14,-11]],'#b98b55');pixelOval(g,17,-27,6,3,'#d1a971');rect(g,20,-27,3,2,'#63543d');rect(g,18,-28,1,1,'#343e2e');
+    pixelPoly(g,[[11,-27],[8,-32],[11,-31],[15,-27]],'#9a754b');pixelPoly(g,[[17,-29],[19,-33],[21,-31],[20,-28]],'#c5a475');rect(g,-15,-21,2,5,'#e4c99a');
+    for(const [x,y] of [[-10,-19],[-5,-18],[0,-20],[4,-18]])rect(g,x,y,2,1,'#e3c28a');
+  }else if(animal.kind==='bird'){
+    pixelOval(g,0,2,5,2,'#284c3144');pixelPoly(g,[[-5,-3],[-2,-8],[3,-7],[5,-4],[3,0],[-2,0]],'#546b66');
+    pixelOval(g,2,-7,3,3,'#8bada1');rect(g,5,-7,3,1,'#d3ad68');rect(g,3,-8,1,1,'#263d36');
+    pixelPoly(g,[[-3,-4],[-8,-5],[-5,-1],[0,-1]],frame===1||frame===3?'#aac3a9':'#6f9182');rect(g,-1,0,1,2,'#a78b53');rect(g,2,0,1,2,'#a78b53');
+  }else{
+    for(const [x,y,petal] of [[-7,0,'#eed582'],[1,-3,'#e9adbd'],[8,2,'#f0e4ba']]){rect(g,x,y-4,1,5,'#537f3e');rect(g,x-1,y-5,3,1,petal);rect(g,x,y-6,1,3,petal);rect(g,x,y-5,1,1,'#af9053');}
+  }
+  g.restore();
+}
+export function drawShelterLamp(g,x,y){
+  g.save();g.translate(snap(x),snap(y));g.scale(ART_PIXEL,ART_PIXEL);
+  pixelOval(g,0,0,22,10,'#d5a55214');pixelOval(g,0,0,14,7,'#e7bf7422');
+  rect(g,-3,-16,6,12,'#594c38');rect(g,-4,-17,8,2,'#b39560');rect(g,-2,-14,4,8,'#ecba65');rect(g,-1,-13,2,6,'#f7df9c');rect(g,-4,-5,8,2,'#917341');rect(g,-1,-3,2,4,'#665439');
+  g.restore();
+}
 export function drawNpc(g,npc,time){
   const p=npc.position,collapsed=npc.lifecycle==='COLLAPSED',moving=npc.active?.request.type==='move'&&npc.active.blockedFor<.1;
   const target=npc.active?.route?.[npc.active.index],dx=target?target.x-p.x:0,dy=target?target.y-p.y:1,len=Math.hypot(dx,dy)||1,facing={x:dx/len,y:dy/len};
   g.save();g.translate(snap(p.x),snap(p.y));g.scale(ART_PIXEL,ART_PIXEL);
   if(npc.presentation.rescueUntil>npc.elapsed){pixelOval(g,0,-12,23,28,'#e9ca6e22');pixelOval(g,0,-12,17,22,'#e9ca6e22');for(let i=0;i<4;i++){const phase=(Math.floor(time*5)+i*7)%25,x=[-13,12,-7,7][i];rect(g,x,-10-phase,1,2,'#f9df99');rect(g,x-1,-9-phase,3,1,'#f9df99');}}
-  pixelOval(g,0,2,collapsed?13:7,3,'#203b2e66');g.save();drawPerson(g,facing,moving?Math.floor(time*7)%4:0,true,npc.flask.water,collapsed);g.restore();
+  pixelOval(g,0,2,collapsed?13:7,3,'#203b2e66');g.save();drawPerson(g,facing,moving?Math.floor(time*7)%4:0,true,npc.flask.water,collapsed,npc.scene||'valley');g.restore();
   if(npc.presentation.drinkUntil>npc.elapsed){rect(g,8,-26,1,3,'#b3e7dc');rect(g,11,-22,1,2,'#78bfcc');}
+  if(npc.presentation.eatUntil>npc.elapsed){pixelOval(g,11,-25,3,3,'#ce7350');rect(g,10,-29,1,2,'#8e7641');rect(g,11,-28,2,1,'#b6c774');rect(g,9,-26,1,1,'#f1c483');}
   // A compact status plate is pixel-aligned; the inspector carries the full evidence and history.
   rect(g,-11,-37,22,8,'#24382cf0');rect(g,-10,-36,20,1,'#d6c58b');
   const glyphs=['010101111101101','111100111001111','111010010010010','111100110100111','110101110101101'];
   for(let letter=0;letter<glyphs.length;letter++)for(let pixel=0;pixel<15;pixel++)if(glyphs[letter][pixel]==='1')rect(g,-9+letter*4+pixel%3,-35+Math.floor(pixel/3),1,1,'#f3e2b6');
-  rect(g,-10,-40,20,2,'#2e4633');rect(g,-10,-40,Math.max(0,Math.round(20*npc.hydration/100)),2,collapsed?'#ba7354':npc.hydration<30?'#dba554':'#9dc876');g.restore();
+  rect(g,-10,-40,20,2,'#2e4633');rect(g,-10,-40,Math.max(0,Math.round(20*npc.hydration/100)),2,collapsed||npc.hydration<=NPC_RULES.criticalHydration?'#cf7756':npc.hydration<=NPC_RULES.thirstWarning?'#dba554':'#7ac2c2');
+  if(Number.isFinite(npc.nourishment)){rect(g,-10,-43,20,2,'#3d392c');rect(g,-10,-43,Math.max(0,Math.round(20*npc.nourishment/100)),2,npc.nourishment<=NPC_RULES.criticalNourishment?'#cf7756':npc.nourishment<=NPC_RULES.hungerWarning?'#dba554':'#d1b46b');}
+  const hot=npc.feelings?.heat||0,cold=npc.feelings?.cold||0;if(hot>.25||cold>.25){const color=hot>cold?'#ea9a61':'#a8d3e5';rect(g,13,-35,3,7,color);rect(g,12,-31,5,3,color);rect(g,14,-34,1,4,'#faf0c3');}
+  g.restore();
 }

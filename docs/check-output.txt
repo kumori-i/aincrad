@@ -1,207 +1,115 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 
-> aincrad@0.1.0 check
+> aincrad@0.4.0 check
 > node scripts/check.mjs
 
-Syntax OK: 16 JavaScript modules.
-TAP version 13
-# Subtest: offline bundle is deterministic, self-contained and has matching CSP hashes
-ok 1 - offline bundle is deterministic, self-contained and has matching CSP hashes
-  ---
-  duration_ms: 33.455505
-  type: 'test'
-  ...
-# Subtest: new storage produces a fresh expedition
-ok 2 - new storage produces a fresh expedition
-  ---
-  duration_ms: 1.377044
-  type: 'test'
-  ...
-# Subtest: valid progress round-trips through local storage
-ok 3 - valid progress round-trips through local storage
-  ---
-  duration_ms: 2.455449
-  type: 'test'
-  ...
-# Subtest: cave position and visited list survive a restart
-ok 4 - cave position and visited list survive a restart
-  ---
-  duration_ms: 0.397144
-  type: 'test'
-  ...
-# Subtest: unknown cave ids and unreachable coordinates fall back safely
-ok 5 - unknown cave ids and unreachable coordinates fall back safely
-  ---
-  duration_ms: 0.209608
-  type: 'test'
-  ...
-# Subtest: invalid cave positions recover inside that cave
-ok 6 - invalid cave positions recover inside that cave
-  ---
-  duration_ms: 0.149791
-  type: 'test'
-  ...
-# Subtest: negative times, NaNs, and unknown fields are not restored
-ok 7 - negative times, NaNs, and unknown fields are not restored
-  ---
-  duration_ms: 0.127698
-  type: 'test'
-  ...
-# Subtest: corrupt JSON is reported and not deleted
-ok 8 - corrupt JSON is reported and not deleted
-  ---
-  duration_ms: 0.329244
-  type: 'test'
-  ...
-# Subtest: future save versions are reported without mutation
-ok 9 - future save versions are reported without mutation
-  ---
-  duration_ms: 0.098705
-  type: 'test'
-  ...
-# Subtest: storage failures are surfaced rather than claiming success
-ok 10 - storage failures are surfaced rather than claiming success
-  ---
-  duration_ms: 0.951068
-  type: 'test'
-  ...
-# Subtest: waypoints are bounded and copied rather than retaining references
-ok 11 - waypoints are bounded and copied rather than retaining references
-  ---
-  duration_ms: 0.798654
-  type: 'test'
-  ...
-# Subtest: loopback server serves the game but not repository metadata or arbitrary paths
-ok 12 - loopback server serves the game but not repository metadata or arbitrary paths
-  ---
-  duration_ms: 54.425198
-  type: 'test'
-  ...
-# Subtest: world width and walking speed define a five-minute reference crossing
-ok 13 - world width and walking speed define a five-minute reference crossing
-  ---
-  duration_ms: 1.995873
-  type: 'test'
-  ...
-# Subtest: one day is one real hour of active simulation
-ok 14 - one day is one real hour of active simulation
-  ---
-  duration_ms: 1.071355
-  type: 'test'
-  ...
-# Subtest: seeded generation is deterministic and bounded
-ok 15 - seeded generation is deterministic and bounded
-  ---
-  duration_ms: 1.794397
-  type: 'test'
-  ...
-# Subtest: spawn is valid and dry
-ok 16 - spawn is valid and dry
-  ---
-  duration_ms: 1.08158
-  type: 'test'
-  ...
-# Subtest: all four edges and corners of the mountain boundary block the player
-ok 17 - all four edges and corners of the mountain boundary block the player
-  ---
-  duration_ms: 0.390634
-  type: 'test'
-  ...
-# Subtest: deep lake and river water are not walkable
-ok 18 - deep lake and river water are not walkable
-  ---
-  duration_ms: 0.278319
-  type: 'test'
-  ...
-# Subtest: all three bridge centers are walkable
-ok 19 - all three bridge centers are walkable
-  ---
-  duration_ms: 0.482419
-  type: 'test'
-  ...
-# Subtest: central path is continuously passable from mountain to mountain
-ok 20 - central path is continuously passable from mountain to mountain
-  ---
-  duration_ms: 55.874909
-  type: 'test'
-  ...
-# Subtest: a real movement simulation traverses the central trail in ~300 seconds
-ok 21 - a real movement simulation traverses the central trail in ~300 seconds
-  ---
-  duration_ms: 408.553134
-  type: 'test'
-  ...
-# Subtest: diagonal input is normalized to the same speed as axial input
-ok 22 - diagonal input is normalized to the same speed as axial input
-  ---
-  duration_ms: 0.802139
-  type: 'test'
-  ...
-# Subtest: sprinting is explicitly faster than the reference walking speed
-ok 23 - sprinting is explicitly faster than the reference walking speed
-  ---
-  duration_ms: 0.392987
-  type: 'test'
-  ...
-# Subtest: large frame gaps are capped and cannot teleport a player across a lake
-ok 24 - large frame gaps are capped and cannot teleport a player across a lake
-  ---
-  duration_ms: 0.478944
-  type: 'test'
-  ...
-# Subtest: nonfinite positions and invalid timesteps are rejected
-ok 25 - nonfinite positions and invalid timesteps are rejected
-  ---
-  duration_ms: 0.180125
-  type: 'test'
-  ...
-# Subtest: trees and rocks have solid trunks / bases
-ok 26 - trees and rocks have solid trunks / bases
-  ---
-  duration_ms: 1.87792
-  type: 'test'
-  ...
-# Subtest: all three cave mouths have a walkable approach and interaction
-ok 27 - all three cave mouths have a walkable approach and interaction
-  ---
-  duration_ms: 1.269917
-  type: 'test'
-  ...
-# Subtest: caves have a safe spawn and a nearby exit
-ok 28 - caves have a safe spawn and a nearby exit
-  ---
-  duration_ms: 0.180756
-  type: 'test'
-  ...
-# Subtest: cave walls are solid
-ok 29 - cave walls are solid
-  ---
-  duration_ms: 0.087679
-  type: 'test'
-  ...
-# Subtest: all cave chambers can be reached from the entrance without crossing walls
-ok 30 - all cave chambers can be reached from the entrance without crossing walls
-  ---
-  duration_ms: 12.17923
-  type: 'test'
-  ...
-# Subtest: world and cave collision rules remain separate
-ok 31 - world and cave collision rules remain separate
-  ---
-  duration_ms: 0.271108
-  type: 'test'
-  ...
-# Subtest: fresh state is independent and contains no agents or OS capabilities
-ok 32 - fresh state is independent and contains no agents or OS capabilities
-  ---
-  duration_ms: 0.42896
-  type: 'test'
-  ...
-1..32
-# tests 32
-# suites 0
-# pass 32
-# fail 0
-# cancelled 0
-# skipped 0
-# todo 0
-# duration_ms 668.215994
+Syntax OK: 35 JavaScript modules.
+✔ food depletes twice as often as water and body integration is frame-rate independent and paused (52.243583ms)
+✔ warning and critical body risk teach consequences before bodily injury and collapse (3.688941ms)
+✔ zero reserves damage health gradually rather than instantly killing Aster (3.005477ms)
+✔ actual apples are finite, gathered separately, carried in bounded inventory and consumed for nourishment (88.977343ms)
+✔ apple top-ups do not farm useful meal credit and full bodies do not consume supplies (38.194806ms)
+✔ full inventory rejects gathering without consuming physical stock (61.360295ms)
+✔ distant remembered food cannot leak depletion and unobserved resources cannot be targeted (20.600865ms)
+✔ cave entry and exit belong to Aster, use local observations, and preserve separate scene maps (40.667071ms)
+✔ heat and wet windy cold produce functional discomfort while caves provide actual thermal relief only (45.1683ms)
+✔ cause-aware rescue is scene-safe, idempotent, does not refill supplies or grant meal progress (19.163941ms)
+✔ body, scene maps and depleted resources survive save/restart without executing arbitrary fields (56.675449ms)
+✔ cave perception respects walls and interruption creates a real bounded action outcome (19.718219ms)
+✔ Aster moves through observed cave tiles with the same authoritative collision rules (13.89513ms)
+✔ bounded experience retains evidence for carried supplies across restart (33.53792ms)
+✔ desktop build contains deterministic renderer assets and desktop runtime with restrictive CSP (167.308001ms)
+✔ fresh Aster habitat has a dry bank and observed reachable water without preloading food (26.979394ms)
+✔ food patches and all supplied habitat trail segments are physically walkable (248.284061ms)
+✔ seeded weather and renewal advance only with positive simulation time and agree across timestep partitions (7.410151ms)
+✔ day curve peaks at 2 PM, cools at night, and weather changes felt conditions (0.844668ms)
+✔ physical tree canopies provide daytime shade (2.008408ms)
+✔ food collection depletes physical stocks, rejects arbitrary sources/amounts, and renews after ten active minutes (0.573978ms)
+✔ environment persistence preserves bounded seed, overrides and depleted stocks while rejecting untrusted fields (1.145913ms)
+✔ ambient animals fish and plants are seeded bounded and clock-driven without food mutations (12.411055ms)
+✔ urgent hunger competes with and outweighs an acquired water procedure (217.026401ms)
+✔ an acquired water procedure does not bypass a configured model decision (101.012219ms)
+✔ continuous warning and critical costs change experience before collapse, including during a wait (1.488992ms)
+✔ continuous credit follows elapsed seconds rather than action frequency (1.0574ms)
+✔ useful gathering and eating produce a bounded evidence-backed food template and retain provenance (58.380147ms)
+✔ shelter learning credits actual recovery and repeated comfortable visits do not fabricate new success (25.5419ms)
+✔ a more urgent actionable need interrupts a running activity with recorded consequences (119.642454ms)
+✔ changed need context invalidates delayed model decisions (56.602358ms)
+✔ model observations expose body, current-scene remembered tiles and only discovered resource locations (45.306559ms)
+✔ save validation rejects forged inventory evidence and preserves bounded genuine apples (46.14954ms)
+✔ tiny food top-ups and repeated mapped observations do not create useful-relief value or skill credit (423.824469ms)
+✔ food policy conserves whole apples and offers preparation within bounded carrying capacity (46.594298ms)
+✔ out-of-range cave exits are approached over observed terrain before exiting (29.501725ms)
+✔ crossing from thermal warning into critical strain invalidates pending model context (45.110157ms)
+✔ unmet urgent exposure favors searching actual observed frontiers over unrelated top-ups (26.254082ms)
+✔ NPC starts with one identity, an empty flask, no source map and no learned procedures (2.549948ms)
+✔ hydration follows simulation seconds independent of step frequency and time does not advance while paused (21.929996ms)
+✔ flask collection changes contents but not hydration, and drinking consumes collected water (77.351406ms)
+✔ empty/full flask, full hydration, unknown sources and out-of-range actions fail with specific feedback (68.717995ms)
+✔ unavailable sources are engine outcomes and stale resource knowledge is revised (43.841633ms)
+✔ movement cannot target hidden terrain and navigation consumes only known tiles (32.051857ms)
+✔ local perception respects radius and tree occlusion; no full map or player private state is exposed (37.756798ms)
+✔ collapse cancels a bounded active action and occurs once (29.960275ms)
+✔ divine rescue is idempotent, gives no independent credit, preserves the flask and does not provide fast travel (35.9071ms)
+✔ collapse/recovery save restart retains timers, evidence, acquired skills and one corresponding rescue (55.937923ms)
+✔ successful experience creates a candidate, changes later selection and transfers to a different starting position (116.592781ms)
+✔ tiny top-ups, rescue water and repeated full-health drinking do not farm independent progress (24.117846ms)
+✔ interrupted saves cancel an unfinished action once on actual restart, and migrate exploration saves (22.126523ms)
+✔ saved procedures are restricted operations, source data are bounded, and malformed/executable skills are discarded (0.313304ms)
+✔ late model decisions after collapse are discarded rather than reviving or moving the NPC (44.817675ms)
+✔ model service failures are recorded separately and do not invalidate acquired procedures (87.73221ms)
+✔ a physically blocked observed route supplies failure evidence and the next plan avoids the failed edge (53.436789ms)
+✔ a completed model response is queued until the next simulation tick, so inference cannot change a paused world (100.793299ms)
+✔ a distant interaction does not reveal current availability of a remembered resource (30.585058ms)
+✔ an unconscious NPC does not refresh its observed map or discover resources (27.079797ms)
+✔ normal water reserve lasts seven minutes and low hydration produces warning before gradual damage (1.076528ms)
+✔ accelerated needs use three times normal depletion while rescue provides another opportunity (0.235347ms)
+✔ standing still does not inflate visit counts, and an empty-flask failure applies across thirst contexts (262.247576ms)
+✔ a blocked snap inside a coarse tile chooses another observed entry instead of looping on that center (0.345993ms)
+✔ failed water availability still allows frontier exploration rather than idle loops or repeated mapped targets (4996.37736ms)
+✔ new exploration memory remains bounded and old NPC saves acquire it safely (41.078863ms)
+✔ model configuration admits bounded loopback endpoints and excludes credentials, remote hosts and arbitrary paths (1.903279ms)
+✔ model output is structured restricted actions, not executable host code (4.471764ms)
+✔ provider exercises the real HTTP request contract using an explicitly labeled fixture without live inference (68.291641ms)
+✔ provider call limits and cancellation bound inference independently of gameplay (47.803191ms)
+✔ model decisions admit bounded food and shelter actions while rejecting mixed references and hidden host tools (0.466476ms)
+✔ model bridge retains joint priorities and bounded procedure candidates, excluding unrelated state (44.654994ms)
+✔ new storage produces a fresh expedition (1.843459ms)
+✔ valid progress round-trips through local storage (9.441343ms)
+✔ cave position and visited list survive a restart (2.579632ms)
+✔ unknown cave ids and unreachable coordinates fall back safely (0.417211ms)
+✔ invalid cave positions recover inside that cave (0.278171ms)
+✔ negative times, NaNs, and unknown fields are not restored (0.299844ms)
+✔ corrupt JSON is reported and not deleted (0.479275ms)
+✔ future save versions are reported without mutation (0.202115ms)
+✔ storage failures are surfaced rather than claiming success (0.980954ms)
+✔ waypoints are bounded and copied rather than retaining references (0.513647ms)
+✔ loopback renderer QA serves only built game assets, never desktop or repository files (126.077809ms)
+✔ world width and walking speed define a five-minute reference crossing (1.497866ms)
+✔ one day is one real hour of active simulation (1.032632ms)
+✔ seeded generation is deterministic and bounded (1.74499ms)
+✔ spawn is valid and dry (1.178883ms)
+✔ all four edges and corners of the mountain boundary block the player (0.238762ms)
+✔ deep lake and river water are not walkable (0.313344ms)
+✔ all three bridge centers are walkable (2.991605ms)
+✔ central path is continuously passable from mountain to mountain (79.023681ms)
+✔ a real movement simulation traverses the central trail in ~300 seconds (814.970852ms)
+✔ diagonal input is normalized to the same speed as axial input (0.649182ms)
+✔ sprinting is explicitly faster than the reference walking speed (0.587008ms)
+✔ large frame gaps are capped and cannot teleport a player across a lake (0.498394ms)
+✔ nonfinite positions and invalid timesteps are rejected (0.145891ms)
+✔ trees and rocks have solid trunks / bases (3.102844ms)
+✔ all cave mouths have a walkable approach and interaction (2.522376ms)
+✔ caves have a safe spawn and a nearby exit (0.288487ms)
+✔ cave walls are solid (0.093862ms)
+✔ all cave chambers can be reached from the entrance without crossing walls (8.016076ms)
+✔ world and cave collision rules remain separate (0.136536ms)
+✔ fresh worlds have independent human and NPC state (0.698998ms)
+ℹ tests 101
+ℹ suites 0
+ℹ pass 101
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6359.607964

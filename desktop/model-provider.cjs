@@ -11,21 +11,40 @@ function validateObservation(raw){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||Buffer.byteLength(JSON.stringify(raw))>65536)throw new Error('Observation is missing or exceeds its size limit.');
   const c=raw.condition;
   if(!c||c.lifecycle!=='AWAKE'||!Number.isFinite(c.hydration)||c.hydration<0||c.hydration>100||!c.position||!Number.isFinite(c.position.x)||!Number.isFinite(c.position.y)||Math.abs(c.position.x)>24000||Math.abs(c.position.y)>24000)throw new Error('Invalid NPC condition.');
-  for(const [name,limit] of [['knownSources',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12]])if(!Array.isArray(raw[name])||raw[name].length>limit)throw new Error(`Invalid ${name}.`);
-  return Object.fromEntries(['identity','objective','condition','observedAt','knownSources','knownTiles','recentExperience','lessons','skills','actionStatus','actions'].map(key=>[key,raw[key]]));
+  for(const key of ['nourishment','health'])if(c[key]!==undefined&&(!Number.isFinite(c[key])||c[key]<0||c[key]>100))throw new Error('Invalid NPC '+key+'.');
+  const arrays={};
+  for(const [name,limit] of [['knownSources',12],['knownFoods',12],['knownShelters',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12],['procedureCandidates',12]]){
+    const value=raw[name]??(['knownFoods','knownShelters','procedureCandidates'].includes(name)?[]:undefined);
+    if(!Array.isArray(value)||value.length>limit)throw new Error('Invalid '+name+'.');arrays[name]=value;
+  }
+  const result=Object.fromEntries(['identity','objective','condition','observedAt','environment','feelings','physiologicalPriorities','knownExit','procedureUse','actionStatus','actions'].filter(key=>raw[key]!==undefined).map(key=>[key,raw[key]]));
+  return {...result,...arrays};
+}
+const ACTIONS=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait']);
+function references(value){
+  const result={};
+  for(const key of ['sourceId','foodId','shelterId'])if(value[key]!==undefined){
+    if(typeof value[key]!=='string'||!value[key].length||value[key].length>70)throw new Error('Invalid action reference.');result[key]=value[key];
+  }
+  if(Object.keys(result).length>1)throw new Error('Choose one action target.');return result;
 }
 function parseDecision(content){
   if(typeof content!=='string'||content.length>16000)throw new Error('The model response is empty or too large.');
   const value=JSON.parse(content.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('The model response must be a JSON object.');
   const reason=typeof value.reason==='string'?value.reason.slice(0,600):'Local model selected a bounded experiment.';
-  if(typeof value.skillId==='string'&&typeof value.sourceId==='string')return {skillId:value.skillId.slice(0,80),sourceId:value.sourceId.slice(0,70),reason};
-  if(!value.action||!['observe','move','inspect','fill_flask','drink','wait'].includes(value.action.type))throw new Error('The model requested an unsupported action.');
-  const a=value.action,action={type:a.type};
-  if(typeof a.sourceId==='string')action.sourceId=a.sourceId.slice(0,70);
-  if(a.target&&Number.isFinite(a.target.x)&&Number.isFinite(a.target.y))action.target={x:a.target.x,y:a.target.y};
-  if(a.seconds!==undefined)action.seconds=a.seconds;
-  if(a.duration!==undefined)action.duration=a.duration;
+  if(value.skillId!==undefined){
+    if(typeof value.skillId!=='string'||!value.skillId.length||value.skillId.length>80)throw new Error('Invalid procedure reference.');
+    return {skillId:value.skillId,...references(value),reason};
+  }
+  if(!value.action||!ACTIONS.has(value.action.type))throw new Error('The model requested an unsupported action.');
+  const a=value.action,action={type:a.type,...references(a)};
+  if(a.target!==undefined){
+    if(Object.keys(action).length>1||!Number.isFinite(a.target?.x)||!Number.isFinite(a.target?.y)||Math.abs(a.target.x)>=24000||Math.abs(a.target.y)>=24000)throw new Error('Invalid movement target.');
+    action.target={x:a.target.x,y:a.target.y};
+  }
+  if(a.seconds!==undefined){if(!Number.isFinite(a.seconds)||a.seconds<.25||a.seconds>5)throw new Error('Invalid wait duration.');action.seconds=a.seconds;}
+  if(a.duration!==undefined){if(!Number.isFinite(a.duration)||a.duration<=0||a.duration>12)throw new Error('Invalid action duration.');action.duration=a.duration;}
   return {action,reason};
 }
 async function boundedResponseText(response){
@@ -48,7 +67,7 @@ class ModelService {
     const controller=new AbortController();this.pending=controller;this.calls++;
     const timer=setTimeout(()=>controller.abort(),this.config.timeoutMs);
     try{
-      const response=await this.fetch(this.config.endpoint+'/chat/completions',{method:'POST',redirect:'error',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({model:this.config.model,temperature:.25,max_tokens:this.config.maxTokens,response_format:{type:'json_object'},messages:[{role:'system',content:'You control one embodied NPC in Aincrad. Remain conscious and become independently capable of obtaining water. Use only the supplied local observations, retrieved experience and acquired procedures. Do not invent source coordinates or claim success. The engine validates and executes all actions. Rescue is not an independent success. Propose one bounded experiment as {"action":{"type":"observe|move|inspect|fill_flask|drink|wait",...},"reason":"compact evidence-based reasoning"}, or select a supplied procedure as {"skillId":"known id","sourceId":"known id","reason":"..."}. Return JSON only. You have no operating-system, filesystem, code-execution or rescue tool.'},{role:'user',content:JSON.stringify(observation)}]})});
+      const response=await this.fetch(this.config.endpoint+'/chat/completions',{method:'POST',redirect:'error',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({model:this.config.model,temperature:.25,max_tokens:this.config.maxTokens,response_format:{type:'json_object'},messages:[{role:'system',content:'You control Aster, one embodied NPC in Aincrad. Sustain nourishment, hydration and health while managing actual heat/cold discomfort. Compare competing needs and observed travel costs; choose useful actions before conditions become critical. Use only the supplied local observations, body feelings, retrieved experience and acquired procedures. Food, water and shelter routines compete; none has unconditional priority. Do not invent resource locations, current availability, future weather or successful outcomes. The engine validates and executes all actions. Rescue is not an independent success. Propose one bounded experiment as {"action":{"type":"observe|move|inspect|fill_flask|drink|gather_food|eat|enter_shelter|exit_shelter|wait",...},"reason":"compact evidence-based reasoning"}, or select a supplied procedure as {"skillId":"known id","sourceId":"known water id","reason":"..."}. For food procedures use foodId instead of sourceId; for shelter procedures use shelterId. Choose exactly one matching reference. Return JSON only. You have no operating-system, filesystem, code-execution or rescue tool.'},{role:'user',content:JSON.stringify(observation)}]})});
       if(!response.ok)throw new Error(`Local model returned HTTP ${response.status}.`);
       if(Number(response.headers?.get?.('content-length')||0)>131072)throw new Error('Local model response exceeds the size limit.');
       const text=await boundedResponseText(response);

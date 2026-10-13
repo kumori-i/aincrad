@@ -5,7 +5,7 @@ import { validateSave, loadSave, writeSave } from '../src/save.js';
 import { CONFIG, CAVE_SPAWN } from '../src/config.js';
 const memory=()=>{const m=new Map();return{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)};};
 test('new storage produces a fresh expedition',()=>{assert.equal(loadSave(memory()).exists,false);});
-test('valid progress round-trips through local storage',()=>{const m=memory(),s=freshState();s.elapsed=713;s.discoveries.push('lake');assert.equal(writeSave(m,s),true);assert.deepEqual(loadSave(m).state,s);});
+test('valid progress round-trips through local storage',()=>{const m=memory(),s=freshState();s.elapsed=713;s.environment.elapsed=713;s.environment.foodStocks.forEach(e=>e.renewAt=1313);s.discoveries.push('lake');assert.equal(writeSave(m,s),true);assert.equal(loadSave(m).state.elapsed,713);assert.deepEqual(loadSave(m).state.discoveries,s.discoveries);assert.equal(loadSave(m).state.environment.elapsed,713);});
 test('cave position and visited list survive a restart',()=>{const m=memory(),s=freshState();s.scene='amber';s.player={...CAVE_SPAWN};s.visitedCaves=['amber'];writeSave(m,s);assert.deepEqual(loadSave(m).state,s);});
 test('unknown cave ids and unreachable coordinates fall back safely',()=>{const s=validateSave({version:1,scene:'evil',player:{x:1e100,y:1e100}});assert.equal(s.scene,'valley');assert.deepEqual(s.player,freshState().player);});
 test('invalid cave positions recover inside that cave',()=>{const s=validateSave({version:1,scene:'echo',player:{x:0,y:0}});assert.deepEqual(s.player,CAVE_SPAWN);assert.equal(s.scene,'echo');});

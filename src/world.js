@@ -1,6 +1,7 @@
-import { CONFIG, CAVES, SPAWN, CAVE_SPAWN, CAVE_EXIT } from './config.js';
+import { CONFIG, CAVES, SPAWN, CAVE_SPAWN, CAVE_EXIT, PONDS, APPLE_PATCHES, STARTER_NPC_SPAWN } from './config.js';
 
 import { createNpc } from './npc-state.js';
+import { createEnvironment } from './environment.js';
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -33,8 +34,13 @@ export function lakeDistance(x, y) {
   const a = Math.atan2(dy, dx);
   return (Math.hypot(dx, dy) - 1 - Math.sin(a * 5 + 0.6) * .038 - Math.sin(a * 9) * .015) * 2500;
 }
+export function pondDistance(x, y, pond) {
+  return (Math.hypot((x - pond.x) / pond.rx, (y - pond.y) / pond.ry) - 1) * Math.min(pond.rx, pond.ry);
+}
 export function waterDistance(x, y) {
-  return Math.min(Math.abs(x - riverX(y)) - riverWidth(y), lakeDistance(x, y));
+  let d = Math.min(Math.abs(x - riverX(y)) - riverWidth(y), lakeDistance(x, y));
+  for (const pond of PONDS) d = Math.min(d, pondDistance(x, y, pond));
+  return d;
 }
 export function onBridge(x, y) {
   return BRIDGES.some(b => Math.abs(y - b.y) < 70 && Math.abs(x - b.x) < riverWidth(b.y) + 110);
@@ -42,17 +48,24 @@ export function onBridge(x, y) {
 export function ridgeValue(x, y) {
   return Math.pow(Math.abs(x) / CONFIG.valleyRadius, 8) + Math.pow(Math.abs(y) / CONFIG.valleyRadius, 8);
 }
+export const HABITAT_TRAILS = [
+  [SPAWN.x, SPAWN.y, STARTER_NPC_SPAWN.x, STARTER_NPC_SPAWN.y],
+  [276, 760, 276, 1100], [276, 1100, 460, 1360],
+  [276, 760, 276, 470], [276, 470, 880, 470], [880, 470, 880, 700],
+  [880, 700, 1750, 1050], [1750, 1050, 2680, 1840], [2680, 1840, 2800, 1535],
+];
 const CAVE_TRAILS = [
   [-12000, -21700, -12000, -12600],
   [14500, -21600, 14500, -12600],
   [21400, 10700, 21400, 11800],
 ];
+const ALL_TRAIL_SEGMENTS = [...CAVE_TRAILS, ...HABITAT_TRAILS];
 export function trailDistance(x, y) {
   // The central east/west route is guaranteed clear, including a real bridge.
   let d = Math.abs(y);
   if (Math.abs(x) < 21600) d = Math.min(d, Math.abs(y + 12600), Math.abs(y - 11800));
   d = Math.min(d, Math.abs(x - (6500 + Math.sin(y / 4700) * 700)));
-  for (const s of CAVE_TRAILS) d = Math.min(d, segmentDistance(x, y, ...s));
+  for (const s of ALL_TRAIL_SEGMENTS) d = Math.min(d, segmentDistance(x, y, ...s));
   return d;
 }
 export function caveMountain(x, y) {
@@ -80,7 +93,7 @@ export function objectAtCell(cx, cy) {
   const h = hash(cx, cy, 12863);
   const x = (cx + .16 + hash(cx, cy, 6921) * .68) * CONFIG.treeCell;
   const y = (cy + .16 + hash(cx, cy, 1839) * .68) * CONFIG.treeCell;
-  if (trailDistance(x, y) < 115 || distance({ x, y }, SPAWN) < 240 || CAVES.some(c => distance(c, { x, y }) < 330)) return null;
+  if (trailDistance(x, y) < 115 || distance({ x, y }, SPAWN) < 240 || CAVES.some(c => distance(c, { x, y }) < 330) || APPLE_PATCHES.some(p => distance(p, { x, y }) < 150) || distance({ x, y }, STARTER_NPC_SPAWN) < 130) return null;
   const t = terrain(x, y);
   if (!['forest', 'meadow', 'scree'].includes(t)) return null;
   const density = t === 'forest' ? .85 : t === 'scree' ? .32 : .16;
@@ -184,7 +197,7 @@ export function regionName(x, y, scene) {
   return y > 0 ? 'Sunfall Meadows' : 'The High Meadows';
 }
 export function freshState() {
-  return { version: 2, npc: createNpc(), scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+  return { version: 3, environment: createEnvironment(), npc: createNpc(), scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 export function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);

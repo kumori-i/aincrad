@@ -25,7 +25,7 @@ test('sprinting is explicitly faster than the reference walking speed',()=>{
 test('large frame gaps are capped and cannot teleport a player across a lake',()=>{const p={x:0,y:0};moveActor(p,1,0,900);assert.ok(p.x<=CONFIG.walkSpeed*.25+1e-6);});
 test('nonfinite positions and invalid timesteps are rejected',()=>{assert.equal(canStand(NaN,0),false);assert.equal(canStand(Infinity,0),false);const p={...SPAWN};assert.equal(moveActor(p,1,0,NaN),0);assert.equal(moveActor(p,1,0,-1),0);assert.deepEqual(p,SPAWN);});
 test('trees and rocks have solid trunks / bases',()=>{const objects=objectsInRect(4000,3500,2200,2200);assert.ok(objects.length>0);for(const o of objects)assert.equal(canStandOutside(o.x,o.y),false);});
-test('all three cave mouths have a walkable approach and interaction',()=>{
+test('all cave mouths have a walkable approach and interaction',()=>{
   for(const c of CAVES){for(let y=c.y+55;y<c.y+500;y+=20)assert.ok(canStandOutside(c.x,y),`${c.id}: ${y}`);assert.equal(nearestInteraction({x:c.x,y:c.y+55},'valley')?.id,c.id);}
 });
 test('caves have a safe spawn and a nearby exit',()=>{assert.ok(canStandCave(CAVE_SPAWN.x,CAVE_SPAWN.y));assert.equal(nearestInteraction(CAVE_SPAWN,'lantern').type,'exit');assert.ok(canStandCave(CAVE_EXIT.x,CAVE_EXIT.y));});

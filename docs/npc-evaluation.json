@@ -1,1286 +1,1516 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "worldSeed": 74193,
-  "controller": "offline tabular experiential learner (not a language model and not a scripted survival mock)",
+  "controller": "offline factored experiential learner with supplied physiology, action affordances, navigation and bounded recognition templates",
   "liveInferenceTested": false,
   "modelConfiguration": null,
-  "preset": "accelerated",
-  "trialCount": 8,
-  "simulationSeconds": 300,
-  "transferSeconds": 120,
   "timestep": 0.016666666666666666,
-  "transferStartingPosition": {
-    "x": -550.7394707709968,
-    "y": 960
+  "seeds": [
+    74193,
+    3
+  ],
+  "workerConcurrency": 4,
+  "pairedTrialsPerScenario": 2,
+  "normalRules": {
+    "initialHydration": 85,
+    "depletionPerSecond": 0.23809523809523808,
+    "initialNourishment": 85,
+    "nourishmentDepletionPerSecond": 0.47619047619047616,
+    "rescueDelay": 14,
+    "recoverySeconds": 3,
+    "rescueHydration": 75,
+    "rescueNourishment": 75
   },
-  "independentSuccessDefinition": "ordinary collected-water drinking giving at least 15 hydration; at most one credited success per fill",
-  "revisitedTargetDefinition": "a completed exploration movement ending in one of the previous 12 exploration arrival tiles; source approaches are excluded",
-  "summary": {
-    "withLearning": {
-      "initialIndependentDrinks": 6.875,
-      "initialCollections": 6.875,
-      "initialCollapses": 0.375,
-      "initialRescues": 0.375,
-      "initialRepeatedInvalid": 3.625,
-      "initialSkillUses": 8,
-      "initialRevisitedExplorationTargets": 0,
-      "initialDistinctExplorationTargets": 39.125,
-      "transferIndependentDrinks": 3.25,
-      "transferCollapses": 0.375,
-      "transferSkillUses": 5.375
-    },
-    "withoutLearning": {
-      "initialIndependentDrinks": 0,
-      "initialCollections": 0,
-      "initialCollapses": 5,
-      "initialRescues": 5,
-      "initialRepeatedInvalid": 0.125,
-      "initialSkillUses": 0,
-      "initialRevisitedExplorationTargets": 25.625,
-      "initialDistinctExplorationTargets": 29.75,
-      "transferIndependentDrinks": 0,
-      "transferCollapses": 2,
-      "transferSkillUses": 0
-    }
-  },
-  "trials": [
+  "independentSuccessDefinition": "ordinary collected water/food consumption giving at least 15 useful reserve points; water at most once per fill, apple at most once per collected item",
+  "control": "Same body, affordances and physiological priorities; no retained past terrain/resources/routes, action values, temporal learning or procedures. Current local observations remain available.",
+  "scenarios": [
     {
-      "withLearning": {
-        "seed": 74193,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 6,
-          "collections": 6,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 19,
-          "repeatedInvalid": 3,
-          "timeToFirstWater": 30.09999999999957,
-          "skills": 1,
-          "skillUses": 6,
-          "explorationArrivals": 54,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 54
-        },
-        "transfer": {
-          "independentDrinks": 4,
+      "id": "ordinary",
+      "seconds": 600,
+      "description": "Fresh pond-side start; actual clock and seeded weather; finite food stocks.",
+      "summary": {
+        "withLearning": {
+          "independentDrinks": 3,
+          "independentMeals": 6,
+          "warningSeconds": 75.27500000000597,
+          "criticalSeconds": 29.399999999998972,
+          "injuries": 12.074217453288915,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 1,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.3333333333303017,
+          "invalidActions": 16.5,
+          "repeatedInvalid": 3.5,
           "skillUses": 2,
-          "explorationArrivals": 0,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 0
+          "riskCost": 143.3333226347833,
+          "travel": 35952.5,
+          "shelteredSeconds": 0
         },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 9,
-            "failures": 6
-          },
-          {
-            "id": "water-fill-drink",
-            "status": "candidate",
-            "successes": 1,
-            "failures": 0
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 74193,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 7,
-          "repeatedInvalid": 1,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 63,
-          "revisitedExplorationTargets": 28,
-          "distinctExplorationTargets": 24
-        },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 5,
+        "withoutLearning": {
+          "independentDrinks": 2,
+          "independentMeals": 6,
+          "warningSeconds": 64.99166666666426,
+          "criticalSeconds": 0,
+          "injuries": 0,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 0.5,
           "repeatedInvalid": 0,
-          "timeToFirstWater": null,
           "skillUses": 0,
-          "explorationArrivals": 24,
-          "revisitedExplorationTargets": 9,
-          "distinctExplorationTargets": 15
+          "riskCost": 61.3298250482012,
+          "travel": 68117.5,
+          "shelteredSeconds": 0
+        }
+      },
+      "trials": [
+        {
+          "withLearning": {
+            "seed": 74193,
+            "learning": true,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 600,
+            "stats": {
+              "independentDrinks": 3,
+              "independentMeals": 6,
+              "gatherings": 6,
+              "collections": 3,
+              "warningSeconds": 0,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 13,
+              "repeatedInvalid": 1,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 2,
+              "firstWaterAt": 108.58333333332845,
+              "firstFoodAt": 66.68333333333084,
+              "lastRescuer": null
+            },
+            "riskCost": 5.304256613529983,
+            "travel": 22360,
+            "shelteredSeconds": 0,
+            "minimumHydration": 59.15079365079953,
+            "minimumNourishment": 53.18253968257761,
+            "maximumStrain": 4.221944808611548,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 499.8832983087513,
+                "y": 1120.0000000047462
+              },
+              "hydration": 87.26817997317738,
+              "nourishment": 69.28571428577925,
+              "health": 100
+            },
+            "discovered": {
+              "water": 27,
+              "food": 3,
+              "shelters": 0
+            },
+            "skills": [
+              {
+                "id": "food-gather-eat",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 5,
+                "failures": 0
+              },
+              {
+                "id": "water-approach-fill-drink",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 3,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 400
+          },
+          "withoutLearning": {
+            "seed": 74193,
+            "learning": false,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 600,
+            "stats": {
+              "independentDrinks": 2,
+              "independentMeals": 6,
+              "gatherings": 6,
+              "collections": 2,
+              "warningSeconds": 24.049999999999915,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 1,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": 86.6333333333297,
+              "firstFoodAt": 64.18333333333098,
+              "lastRescuer": null
+            },
+            "riskCost": 22.87581097889086,
+            "travel": 67980,
+            "shelteredSeconds": 0,
+            "minimumHydration": 64.37698412698882,
+            "minimumNourishment": 33.55555555560818,
+            "maximumStrain": 13.475783379114706,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 240.05706222474421,
+                "y": 860.037032831809
+              },
+              "hydration": 71.22125843196545,
+              "nourishment": 69.28571428577925,
+              "health": 100
+            },
+            "discovered": {
+              "water": 6,
+              "food": 0,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
+          }
         },
-        "finalSkills": []
-      }
+        {
+          "withLearning": {
+            "seed": 3,
+            "learning": true,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 600,
+            "stats": {
+              "independentDrinks": 3,
+              "independentMeals": 6,
+              "gatherings": 8,
+              "collections": 3,
+              "warningSeconds": 150.55000000001195,
+              "criticalSeconds": 58.799999999997944,
+              "injuries": 24.14843490657783,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 20,
+              "repeatedInvalid": 6,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 2,
+              "firstWaterAt": 58.26666666666464,
+              "firstFoodAt": 64.3166666666643,
+              "lastRescuer": null
+            },
+            "riskCost": 281.3623886560366,
+            "travel": 49545,
+            "shelteredSeconds": 0,
+            "minimumHydration": 60.257936507945544,
+            "minimumNourishment": 32.055555555577826,
+            "maximumStrain": 93.40419329305819,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 635.6492664303444,
+                "y": 872.7483031645666
+              },
+              "hydration": 99.45238095238108,
+              "nourishment": 69.28571428577925,
+              "health": 87.09506509347565
+            },
+            "discovered": {
+              "water": 24,
+              "food": 4,
+              "shelters": 1
+            },
+            "skills": [
+              {
+                "id": "water-approach-fill-drink",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 3,
+                "failures": 0
+              },
+              {
+                "id": "food-gather-eat",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 3,
+                "failures": 0
+              },
+              {
+                "id": "food-approach-gather-eat",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 3,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 400
+          },
+          "withoutLearning": {
+            "seed": 3,
+            "learning": false,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 600,
+            "stats": {
+              "independentDrinks": 2,
+              "independentMeals": 6,
+              "gatherings": 6,
+              "collections": 2,
+              "warningSeconds": 105.9333333333286,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 0,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": 67.98333333333076,
+              "firstFoodAt": 66.6499999999975,
+              "lastRescuer": null
+            },
+            "riskCost": 99.78383911751155,
+            "travel": 68255,
+            "shelteredSeconds": 0,
+            "minimumHydration": 64.64285714286518,
+            "minimumNourishment": 31.365079365101508,
+            "maximumStrain": 66.34819329305807,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 297.54168779847413,
+                "y": 1199.941808437044
+              },
+              "hydration": 72.07014212772643,
+              "nourishment": 69.28571428577897,
+              "health": 100
+            },
+            "discovered": {
+              "water": 2,
+              "food": 1,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
+          }
+        }
+      ]
     },
     {
-      "withLearning": {
-        "seed": 3,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 8,
-          "collections": 8,
+      "id": "hot-afternoon",
+      "seconds": 240,
+      "hour": 14,
+      "weather": "clear",
+      "nearRefuge": true,
+      "description": "Matched evaluation start near a locally visible refuge and apple patch, with empty inventory and flask; clear afternoon.",
+      "summary": {
+        "withLearning": {
+          "independentDrinks": 1,
+          "independentMeals": 2,
+          "warningSeconds": 77.80833333333021,
+          "criticalSeconds": 0,
+          "injuries": 0,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 11,
-          "repeatedInvalid": 3,
-          "timeToFirstWater": 26.616666666666436,
-          "skills": 2,
-          "skillUses": 8,
-          "explorationArrivals": 26,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 26
-        },
-        "transfer": {
-          "independentDrinks": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 12,
+          "invalidActions": 9.5,
           "repeatedInvalid": 5,
-          "timeToFirstWater": 3.899999999996453,
-          "skillUses": 11,
-          "explorationArrivals": 21,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 21
+          "skillUses": 13.5,
+          "riskCost": 52.87972387235475,
+          "travel": 15898.5,
+          "shelteredSeconds": 126.59999999999624
         },
-        "finalSkills": [
-          {
-            "id": "water-fill-drink",
-            "status": "validated",
-            "successes": 3,
-            "failures": 0
-          },
-          {
-            "id": "water-approach-fill-drink",
-            "status": "retired",
-            "successes": 9,
-            "failures": 10
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 3,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 7,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 61,
-          "revisitedExplorationTargets": 27,
-          "distinctExplorationTargets": 29
-        },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 3,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 23,
-          "revisitedExplorationTargets": 8,
-          "distinctExplorationTargets": 14
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 11,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 5,
-          "collections": 5,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 15,
-          "repeatedInvalid": 3,
-          "timeToFirstWater": 59.04999999999793,
-          "skills": 2,
-          "skillUses": 8,
-          "explorationArrivals": 46,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 46
-        },
-        "transfer": {
-          "independentDrinks": 2,
-          "collapses": 1,
-          "rescues": 0,
-          "invalidActions": 14,
-          "repeatedInvalid": 2,
-          "timeToFirstWater": 3.4499999999968622,
-          "skillUses": 4,
-          "explorationArrivals": 20,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 20
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "retired",
-            "successes": 6,
-            "failures": 7
-          },
-          {
-            "id": "water-fill-drink",
-            "status": "candidate",
-            "successes": 1,
-            "failures": 0
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 11,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 6,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 64,
-          "revisitedExplorationTargets": 21,
-          "distinctExplorationTargets": 37
-        },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 4,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 24,
-          "revisitedExplorationTargets": 12,
-          "distinctExplorationTargets": 12
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 29,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 6,
-          "collections": 6,
-          "collapses": 1,
-          "rescues": 1,
-          "invalidActions": 18,
-          "repeatedInvalid": 6,
-          "timeToFirstWater": 26.349999999999785,
-          "skills": 1,
-          "skillUses": 8,
-          "explorationArrivals": 44,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 44
-        },
-        "transfer": {
-          "independentDrinks": 2,
-          "collapses": 1,
-          "rescues": 0,
-          "invalidActions": 14,
-          "repeatedInvalid": 4,
-          "timeToFirstWater": 3.3333333333303017,
-          "skillUses": 7,
-          "explorationArrivals": 20,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 20
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "retired",
-            "successes": 8,
-            "failures": 9
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 29,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 7,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 62,
-          "revisitedExplorationTargets": 30,
-          "distinctExplorationTargets": 29
-        },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 2,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 24,
-          "revisitedExplorationTargets": 10,
-          "distinctExplorationTargets": 14
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 47,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 8,
-          "collections": 8,
+        "withoutLearning": {
+          "independentDrinks": 0.5,
+          "independentMeals": 1,
+          "warningSeconds": 121.15833333333967,
+          "criticalSeconds": 51.749999999997705,
+          "injuries": 36.90000000000123,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 18,
-          "repeatedInvalid": 7,
-          "timeToFirstWater": 28.949999999999637,
-          "skills": 2,
-          "skillUses": 11,
-          "explorationArrivals": 42,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 42
-        },
-        "transfer": {
-          "independentDrinks": 2,
-          "collapses": 1,
-          "rescues": 0,
-          "invalidActions": 17,
-          "repeatedInvalid": 4,
-          "timeToFirstWater": 3.4499999999968622,
-          "skillUses": 7,
-          "explorationArrivals": 19,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 19
-        },
-        "finalSkills": [
-          {
-            "id": "water-fill-drink",
-            "status": "candidate",
-            "successes": 1,
-            "failures": 0
+          "invalidActions": 46.5,
+          "repeatedInvalid": 43.5,
+          "skillUses": 0,
+          "riskCost": 339.7408978420038,
+          "travel": 11363,
+          "shelteredSeconds": 162.90833333337008
+        }
+      },
+      "trials": [
+        {
+          "withLearning": {
+            "seed": 74193,
+            "learning": true,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 2,
+              "gatherings": 2,
+              "collections": 1,
+              "warningSeconds": 75.23333333333035,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 10,
+              "repeatedInvalid": 6,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 13,
+              "firstWaterAt": 189.65000000004306,
+              "firstFoodAt": 69.58333333333067,
+              "lastRescuer": null
+            },
+            "riskCost": 47.12170717221129,
+            "travel": 17377,
+            "shelteredSeconds": 133.04999999999802,
+            "minimumHydration": 36.36344924357739,
+            "minimumNourishment": 51.873015873023405,
+            "maximumStrain": 60.904486666663345,
+            "final": {
+              "scene": "refuge",
+              "position": {
+                "x": 1320,
+                "y": 1510
+              },
+              "hydration": 85.11055443759268,
+              "nourishment": 60.7142857143117,
+              "health": 100
+            },
+            "discovered": {
+              "water": 8,
+              "food": 3,
+              "shelters": 1
+            },
+            "skills": [
+              {
+                "id": "food-approach-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 0
+              },
+              {
+                "id": "shelter-approach-enter-rest",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 3,
+                "failures": 1
+              },
+              {
+                "id": "water-approach-fill-drink",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 1,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 299
           },
-          {
-            "id": "water-approach-fill-drink",
-            "status": "retired",
-            "successes": 9,
-            "failures": 10
+          "withoutLearning": {
+            "seed": 74193,
+            "learning": false,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 2,
+              "gatherings": 3,
+              "collections": 1,
+              "warningSeconds": 86.31666666666305,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 6,
+              "repeatedInvalid": 4,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": 236.73333333341387,
+              "firstFoodAt": 63.16666666666436,
+              "lastRescuer": null
+            },
+            "riskCost": 98.50730091262116,
+            "travel": 11858,
+            "shelteredSeconds": 92.88333333332935,
+            "minimumHydration": 20.192502998733364,
+            "minimumNourishment": 54.23015873017596,
+            "maximumStrain": 75.04313999999815,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 959.0852644566083,
+                "y": 694.9633286560334
+              },
+              "hydration": 84.13958040063817,
+              "nourishment": 60.7142857143117,
+              "health": 100
+            },
+            "discovered": {
+              "water": 3,
+              "food": 1,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
           }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 47,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 6,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 64,
-          "revisitedExplorationTargets": 27,
-          "distinctExplorationTargets": 24
         },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 5,
-          "repeatedInvalid": 1,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 23,
-          "revisitedExplorationTargets": 12,
-          "distinctExplorationTargets": 11
-        },
-        "finalSkills": []
-      }
+        {
+          "withLearning": {
+            "seed": 3,
+            "learning": true,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 2,
+              "gatherings": 3,
+              "collections": 1,
+              "warningSeconds": 80.38333333333006,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 9,
+              "repeatedInvalid": 4,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 14,
+              "firstWaterAt": 232.9666666667442,
+              "firstFoodAt": 68.31666666666408,
+              "lastRescuer": null
+            },
+            "riskCost": 58.63774057249822,
+            "travel": 14420,
+            "shelteredSeconds": 120.14999999999446,
+            "minimumHydration": 24.30459662437086,
+            "minimumNourishment": 52.47619047619787,
+            "maximumStrain": 46.10120999999958,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 869.8796733915739,
+                "y": 959.9999999996693
+              },
+              "hydration": 87.17268162111687,
+              "nourishment": 60.7142857143117,
+              "health": 100
+            },
+            "discovered": {
+              "water": 8,
+              "food": 3,
+              "shelters": 1
+            },
+            "skills": [
+              {
+                "id": "shelter-approach-enter-rest",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 3,
+                "failures": 0
+              },
+              {
+                "id": "food-approach-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 0
+              },
+              {
+                "id": "water-approach-fill-drink",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 1,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 362
+          },
+          "withoutLearning": {
+            "seed": 3,
+            "learning": false,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 0,
+              "warningSeconds": 156.00000000001629,
+              "criticalSeconds": 103.49999999999541,
+              "injuries": 73.80000000000246,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 87,
+              "repeatedInvalid": 83,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": null,
+              "firstFoodAt": null,
+              "lastRescuer": null
+            },
+            "riskCost": 580.9744947713864,
+            "travel": 10868,
+            "shelteredSeconds": 232.93333333341084,
+            "minimumHydration": 27.4987433273934,
+            "minimumNourishment": 0,
+            "maximumStrain": 7.80725,
+            "final": {
+              "scene": "refuge",
+              "position": {
+                "x": 1109.9289704539806,
+                "y": 881.7803975707862
+              },
+              "hydration": 27.4987433273934,
+              "nourishment": 0,
+              "health": 26.200000000002284
+            },
+            "discovered": {
+              "water": 0,
+              "food": 0,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 361
+          }
+        }
+      ]
     },
     {
-      "withLearning": {
-        "seed": 103,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 8,
-          "collections": 8,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 2,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 41.14999999999895,
-          "skills": 1,
-          "skillUses": 5,
-          "explorationArrivals": 24,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 24
-        },
-        "transfer": {
-          "independentDrinks": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 10,
-          "repeatedInvalid": 3,
-          "timeToFirstWater": 3.933333333329756,
-          "skillUses": 8,
-          "explorationArrivals": 8,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 8
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 12,
-            "failures": 5
-          }
-        ]
-      },
-      "withoutLearning": {
-        "seed": 103,
-        "learning": false,
-        "initial": {
+      "id": "cold-windy-night",
+      "seconds": 240,
+      "hour": 4,
+      "weather": "windy",
+      "nearRefuge": true,
+      "description": "Matched evaluation start near a locally visible refuge and apple patch; cold windy night.",
+      "summary": {
+        "withLearning": {
           "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 7,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 63,
-          "revisitedExplorationTargets": 30,
-          "distinctExplorationTargets": 30
-        },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 4,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 24,
-          "revisitedExplorationTargets": 9,
-          "distinctExplorationTargets": 13
-        },
-        "finalSkills": []
-      }
-    },
-    {
-      "withLearning": {
-        "seed": 211,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 8,
-          "collections": 8,
+          "independentMeals": 2,
+          "warningSeconds": 84.25833333332983,
+          "criticalSeconds": 0,
+          "injuries": 0,
           "collapses": 0,
           "rescues": 0,
           "invalidActions": 8,
-          "repeatedInvalid": 1,
-          "timeToFirstWater": 37.78333333333247,
-          "skills": 1,
-          "skillUses": 8,
-          "explorationArrivals": 21,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 21
+          "repeatedInvalid": 4,
+          "skillUses": 40.5,
+          "riskCost": 63.73338579005767,
+          "travel": 9750.5,
+          "shelteredSeconds": 158.17500000001803
         },
-        "transfer": {
-          "independentDrinks": 4,
+        "withoutLearning": {
+          "independentDrinks": 0,
+          "independentMeals": 0,
+          "warningSeconds": 156.00000000001629,
+          "criticalSeconds": 103.49999999999541,
+          "injuries": 73.80000000000246,
           "collapses": 0,
           "rescues": 0,
-          "invalidActions": 1,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": 3.3333333333303017,
-          "skillUses": 3,
-          "explorationArrivals": 0,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 0
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 12,
-            "failures": 3
-          }
-        ]
+          "invalidActions": 89,
+          "repeatedInvalid": 83.5,
+          "skillUses": 0,
+          "riskCost": 579.4895010752759,
+          "travel": 10353,
+          "shelteredSeconds": 238.2000000000817
+        }
       },
-      "withoutLearning": {
-        "seed": 211,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 4,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 65,
-          "revisitedExplorationTargets": 25,
-          "distinctExplorationTargets": 28
+      "trials": [
+        {
+          "withLearning": {
+            "seed": 74193,
+            "learning": true,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 2,
+              "gatherings": 2,
+              "collections": 0,
+              "warningSeconds": 84.96666666666313,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 10,
+              "repeatedInvalid": 6,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 40,
+              "firstWaterAt": null,
+              "firstFoodAt": 96.96666666666245,
+              "lastRescuer": null
+            },
+            "riskCost": 63.6437814622707,
+            "travel": 9994,
+            "shelteredSeconds": 158.91666666668527,
+            "minimumHydration": 27.85714285715585,
+            "minimumNourishment": 38.83333333334383,
+            "maximumStrain": 39.28352000000148,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 2800,
+                "y": 1575
+              },
+              "hydration": 27.85714285715585,
+              "nourishment": 60.7142857143117,
+              "health": 100
+            },
+            "discovered": {
+              "water": 0,
+              "food": 1,
+              "shelters": 1
+            },
+            "skills": [
+              {
+                "id": "shelter-approach-enter-rest",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 4,
+                "failures": 0
+              },
+              {
+                "id": "food-approach-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 400
+          },
+          "withoutLearning": {
+            "seed": 74193,
+            "learning": false,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 0,
+              "warningSeconds": 156.00000000001629,
+              "criticalSeconds": 103.49999999999541,
+              "injuries": 73.80000000000246,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 89,
+              "repeatedInvalid": 83,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": null,
+              "firstFoodAt": null,
+              "lastRescuer": null
+            },
+            "riskCost": 579.4895010752759,
+            "travel": 10314,
+            "shelteredSeconds": 238.2000000000817,
+            "minimumHydration": 27.85714285715585,
+            "minimumNourishment": 0,
+            "maximumStrain": 2.389280000000001,
+            "final": {
+              "scene": "refuge",
+              "position": {
+                "x": 1090.096985941478,
+                "y": 959.9558407036753
+              },
+              "hydration": 27.85714285715585,
+              "nourishment": 0,
+              "health": 26.200000000002284
+            },
+            "discovered": {
+              "water": 0,
+              "food": 0,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 358
+          }
         },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 2,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 25,
-          "revisitedExplorationTargets": 11,
-          "distinctExplorationTargets": 14
-        },
-        "finalSkills": []
-      }
+        {
+          "withLearning": {
+            "seed": 3,
+            "learning": true,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 2,
+              "gatherings": 2,
+              "collections": 0,
+              "warningSeconds": 83.54999999999654,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 6,
+              "repeatedInvalid": 2,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 41,
+              "firstWaterAt": null,
+              "firstFoodAt": 95.54999999999586,
+              "lastRescuer": null
+            },
+            "riskCost": 63.82299011784463,
+            "travel": 9507,
+            "shelteredSeconds": 157.43333333335076,
+            "minimumHydration": 27.85714285715585,
+            "minimumNourishment": 39.46031746033805,
+            "maximumStrain": 40.512480000001574,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 2800,
+                "y": 1575
+              },
+              "hydration": 27.85714285715585,
+              "nourishment": 60.7142857143117,
+              "health": 100
+            },
+            "discovered": {
+              "water": 0,
+              "food": 1,
+              "shelters": 1
+            },
+            "skills": [
+              {
+                "id": "shelter-approach-enter-rest",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 4,
+                "failures": 0
+              },
+              {
+                "id": "food-approach-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 400
+          },
+          "withoutLearning": {
+            "seed": 3,
+            "learning": false,
+            "start": {
+              "x": 2800,
+              "y": 1695
+            },
+            "seconds": 240,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 0,
+              "warningSeconds": 156.00000000001629,
+              "criticalSeconds": 103.49999999999541,
+              "injuries": 73.80000000000246,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 89,
+              "repeatedInvalid": 84,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": null,
+              "firstFoodAt": null,
+              "lastRescuer": null
+            },
+            "riskCost": 579.4895010752759,
+            "travel": 10392,
+            "shelteredSeconds": 238.2000000000817,
+            "minimumHydration": 27.85714285715585,
+            "minimumNourishment": 0,
+            "maximumStrain": 2.389280000000001,
+            "final": {
+              "scene": "refuge",
+              "position": {
+                "x": 1519.725255981702,
+                "y": 869.9243045830949
+              },
+              "hydration": 27.85714285715585,
+              "nourishment": 0,
+              "health": 26.200000000002284
+            },
+            "discovered": {
+              "water": 0,
+              "food": 0,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 355
+          }
+        }
+      ]
     },
     {
-      "withLearning": {
-        "seed": 509,
-        "learning": true,
-        "initial": {
-          "independentDrinks": 6,
-          "collections": 6,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 20,
-          "repeatedInvalid": 6,
-          "timeToFirstWater": 34.616666666665985,
-          "skills": 1,
-          "skillUses": 10,
-          "explorationArrivals": 56,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 56
+      "id": "depleted-food",
+      "seconds": 300,
+      "depletedFood": true,
+      "description": "All finite apple patches unavailable for the evaluation window. A deliberate impossible-food boundary, not a survival-success scenario.",
+      "summary": {
+        "withLearning": {
+          "independentDrinks": 0.5,
+          "independentMeals": 0,
+          "warningSeconds": 177.85000000003367,
+          "criticalSeconds": 125.34999999999417,
+          "injuries": 100.01999999999724,
+          "collapses": 1,
+          "rescues": 1,
+          "invalidActions": 13.5,
+          "repeatedInvalid": 4.5,
+          "skillUses": 0,
+          "riskCost": 735.904124401817,
+          "travel": 30932.5,
+          "shelteredSeconds": 0
         },
-        "transfer": {
-          "independentDrinks": 4,
-          "collapses": 0,
-          "rescues": 0,
-          "invalidActions": 1,
+        "withoutLearning": {
+          "independentDrinks": 1,
+          "independentMeals": 0,
+          "warningSeconds": 177.85000000003367,
+          "criticalSeconds": 125.34999999999417,
+          "injuries": 100.01999999999724,
+          "collapses": 1,
+          "rescues": 1,
+          "invalidActions": 1.5,
           "repeatedInvalid": 0,
-          "timeToFirstWater": 5.583333333328255,
-          "skillUses": 1,
-          "explorationArrivals": 0,
-          "revisitedExplorationTargets": 0,
-          "distinctExplorationTargets": 0
-        },
-        "finalSkills": [
-          {
-            "id": "water-approach-fill-drink",
-            "status": "validated",
-            "successes": 10,
-            "failures": 7
-          }
-        ]
+          "skillUses": 0,
+          "riskCost": 694.2385087656528,
+          "travel": 33089,
+          "shelteredSeconds": 0
+        }
       },
-      "withoutLearning": {
-        "seed": 509,
-        "learning": false,
-        "initial": {
-          "independentDrinks": 0,
-          "collections": 0,
-          "collapses": 5,
-          "rescues": 5,
-          "invalidActions": 8,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skills": 0,
-          "skillUses": 0,
-          "explorationArrivals": 64,
-          "revisitedExplorationTargets": 17,
-          "distinctExplorationTargets": 37
+      "trials": [
+        {
+          "withLearning": {
+            "seed": 74193,
+            "learning": true,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 0,
+              "warningSeconds": 177.85000000003367,
+              "criticalSeconds": 125.34999999999417,
+              "injuries": 100.01999999999724,
+              "collapses": 1,
+              "rescues": 1,
+              "invalidActions": 26,
+              "repeatedInvalid": 9,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": null,
+              "firstFoodAt": null,
+              "lastRescuer": "divine"
+            },
+            "riskCost": 725.1253202867111,
+            "travel": 29665,
+            "shelteredSeconds": 0,
+            "minimumHydration": 22.65476190477608,
+            "minimumNourishment": 0,
+            "maximumStrain": 2.3141128160556925,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 1322.5416180361167,
+                "y": 3200.0000000000005
+              },
+              "hydration": 69.97222222222337,
+              "nourishment": 59.94444444444673,
+              "health": 65.63350000000302
+            },
+            "discovered": {
+              "water": 25,
+              "food": 4,
+              "shelters": 1
+            },
+            "skills": [],
+            "remainingEvidence": 368
+          },
+          "withoutLearning": {
+            "seed": 74193,
+            "learning": false,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 1,
+              "warningSeconds": 177.85000000003367,
+              "criticalSeconds": 125.34999999999417,
+              "injuries": 100.01999999999724,
+              "collapses": 1,
+              "rescues": 1,
+              "invalidActions": 2,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": 52.5499999999983,
+              "firstFoodAt": null,
+              "lastRescuer": "divine"
+            },
+            "riskCost": 655.509165919259,
+            "travel": 33083,
+            "shelteredSeconds": 0,
+            "minimumHydration": 50.166666666678,
+            "minimumNourishment": 0,
+            "maximumStrain": 0.702673074618808,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 319.99737155006136,
+                "y": 1037.3829284536778
+              },
+              "hydration": 94.97222222222337,
+              "nourishment": 59.94444444444673,
+              "health": 65.63350000000302
+            },
+            "discovered": {
+              "water": 5,
+              "food": 1,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
+          }
         },
-        "transfer": {
-          "independentDrinks": 0,
-          "collapses": 2,
-          "rescues": 2,
-          "invalidActions": 1,
-          "repeatedInvalid": 0,
-          "timeToFirstWater": null,
-          "skillUses": 0,
-          "explorationArrivals": 25,
-          "revisitedExplorationTargets": 12,
-          "distinctExplorationTargets": 13
+        {
+          "withLearning": {
+            "seed": 3,
+            "learning": true,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 1,
+              "warningSeconds": 177.85000000003367,
+              "criticalSeconds": 125.34999999999417,
+              "injuries": 100.01999999999724,
+              "collapses": 1,
+              "rescues": 1,
+              "invalidActions": 1,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": 46.999999999998614,
+              "firstFoodAt": null,
+              "lastRescuer": "divine"
+            },
+            "riskCost": 746.6829285169229,
+            "travel": 32200,
+            "shelteredSeconds": 0,
+            "minimumHydration": 48.84523809524973,
+            "minimumNourishment": 0,
+            "maximumStrain": 71.46019329305834,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 3077.5214329934456,
+                "y": -11281.192015223924
+              },
+              "hydration": 94.97222222222337,
+              "nourishment": 59.94444444444673,
+              "health": 65.63350000000302
+            },
+            "discovered": {
+              "water": 19,
+              "food": 2,
+              "shelters": 0
+            },
+            "skills": [
+              {
+                "id": "water-approach-fill-drink",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 1,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 379
+          },
+          "withoutLearning": {
+            "seed": 3,
+            "learning": false,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 0,
+              "gatherings": 0,
+              "collections": 1,
+              "warningSeconds": 177.85000000003367,
+              "criticalSeconds": 125.34999999999417,
+              "injuries": 100.01999999999724,
+              "collapses": 1,
+              "rescues": 1,
+              "invalidActions": 1,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": 69.91666666666399,
+              "firstFoodAt": null,
+              "lastRescuer": "divine"
+            },
+            "riskCost": 732.9678516120465,
+            "travel": 33095,
+            "shelteredSeconds": 0,
+            "minimumHydration": 54.30158730159769,
+            "minimumNourishment": 0,
+            "maximumStrain": 67.08419329305829,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 227.53895791719054,
+                "y": 480.0681615866624
+              },
+              "hydration": 94.97222222222337,
+              "nourishment": 59.94444444444673,
+              "health": 65.63350000000302
+            },
+            "discovered": {
+              "water": 5,
+              "food": 0,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
+          }
+        }
+      ]
+    },
+    {
+      "id": "unavailable-starting-water",
+      "seconds": 300,
+      "unavailableWater": true,
+      "description": "Starting pond unavailable; existing river/lake sources remain physical alternatives; finite food and weather remain active.",
+      "summary": {
+        "withLearning": {
+          "independentDrinks": 1.5,
+          "independentMeals": 3,
+          "warningSeconds": 87.15833333334876,
+          "criticalSeconds": 45.50833333333139,
+          "injuries": 30.35054122009308,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 14.5,
+          "repeatedInvalid": 3,
+          "skillUses": 2,
+          "riskCost": 242.52267410056072,
+          "travel": 31227,
+          "shelteredSeconds": 0
         },
-        "finalSkills": []
-      }
+        "withoutLearning": {
+          "independentDrinks": 0,
+          "independentMeals": 2,
+          "warningSeconds": 163.64166666668905,
+          "criticalSeconds": 26.999999999999748,
+          "injuries": 0,
+          "collapses": 0,
+          "rescues": 0,
+          "invalidActions": 0.5,
+          "repeatedInvalid": 0,
+          "skillUses": 0,
+          "riskCost": 199.1829112027288,
+          "travel": 35060.5,
+          "shelteredSeconds": 0
+        }
+      },
+      "trials": [
+        {
+          "withLearning": {
+            "seed": 74193,
+            "learning": true,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 2,
+              "independentMeals": 3,
+              "gatherings": 3,
+              "collections": 2,
+              "warningSeconds": 0,
+              "criticalSeconds": 0,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 15,
+              "repeatedInvalid": 3,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 3,
+              "firstWaterAt": 107.03333333332854,
+              "firstFoodAt": 67.29999999999747,
+              "lastRescuer": null
+            },
+            "riskCost": 3.179520720923216,
+            "travel": 31322,
+            "shelteredSeconds": 0,
+            "minimumHydration": 59.51984126984706,
+            "minimumNourishment": 51.428571428599525,
+            "maximumStrain": 1.3061368871579397,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 244.88322112933824,
+                "y": 1119.9999999264753
+              },
+              "hydration": 98.0634920634925,
+              "nourishment": 77.14285714288962,
+              "health": 100
+            },
+            "discovered": {
+              "water": 31,
+              "food": 3,
+              "shelters": 0
+            },
+            "skills": [
+              {
+                "id": "food-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 0
+              },
+              {
+                "id": "water-approach-fill-drink",
+                "status": "validated",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 2
+              },
+              {
+                "id": "food-approach-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 1,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 243
+          },
+          "withoutLearning": {
+            "seed": 74193,
+            "learning": false,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 2,
+              "gatherings": 2,
+              "collections": 0,
+              "warningSeconds": 131.9999999999972,
+              "criticalSeconds": 26.999999999999748,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 1,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": null,
+              "firstFoodAt": 80.51666666666338,
+              "lastRescuer": null
+            },
+            "riskCost": 153.1682078553613,
+            "travel": 34943,
+            "shelteredSeconds": 0,
+            "minimumHydration": 13.571428571443725,
+            "minimumNourishment": 32.142857142889625,
+            "maximumStrain": 0.4627139131871254,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": -239.99751816915668,
+                "y": 562.5391318381461
+              },
+              "hydration": 13.571428571443725,
+              "nourishment": 32.142857142889625,
+              "health": 100
+            },
+            "discovered": {
+              "water": 0,
+              "food": 0,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
+          }
+        },
+        {
+          "withLearning": {
+            "seed": 3,
+            "learning": true,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 1,
+              "independentMeals": 3,
+              "gatherings": 3,
+              "collections": 1,
+              "warningSeconds": 174.31666666669753,
+              "criticalSeconds": 91.01666666666279,
+              "injuries": 60.70108244018616,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 14,
+              "repeatedInvalid": 3,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 1,
+              "firstWaterAt": 237.50000000008114,
+              "firstFoodAt": 63.816666666664325,
+              "lastRescuer": null
+            },
+            "riskCost": 481.8658274801982,
+            "travel": 31132,
+            "shelteredSeconds": 0,
+            "minimumHydration": 28.456349206362063,
+            "minimumNourishment": 29.111111111132757,
+            "maximumStrain": 100,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": -160.00247895545533,
+                "y": 2.539046367450293
+              },
+              "hydration": 78.57142857144481,
+              "nourishment": 77.14285714288833,
+              "health": 41.17391755982309
+            },
+            "discovered": {
+              "water": 41,
+              "food": 3,
+              "shelters": 0
+            },
+            "skills": [
+              {
+                "id": "food-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 2,
+                "failures": 0
+              },
+              {
+                "id": "water-approach-fill-drink",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 1,
+                "failures": 1
+              },
+              {
+                "id": "food-approach-gather-eat",
+                "status": "candidate",
+                "recognition": "provided bounded recognition template",
+                "successes": 1,
+                "failures": 0
+              }
+            ],
+            "remainingEvidence": 400
+          },
+          "withoutLearning": {
+            "seed": 3,
+            "learning": false,
+            "start": {
+              "x": 276,
+              "y": 760
+            },
+            "seconds": 300,
+            "stats": {
+              "independentDrinks": 0,
+              "independentMeals": 2,
+              "gatherings": 2,
+              "collections": 0,
+              "warningSeconds": 195.28333333338088,
+              "criticalSeconds": 26.999999999999748,
+              "injuries": 0,
+              "collapses": 0,
+              "rescues": 0,
+              "invalidActions": 0,
+              "repeatedInvalid": 0,
+              "modelCalls": 0,
+              "modelFailures": 0,
+              "staleResponses": 0,
+              "skillUses": 0,
+              "firstWaterAt": null,
+              "firstFoodAt": 81.58333333332999,
+              "lastRescuer": null
+            },
+            "riskCost": 245.19761455009632,
+            "travel": 35178,
+            "shelteredSeconds": 0,
+            "minimumHydration": 13.571428571443725,
+            "minimumNourishment": 32.142857142889625,
+            "maximumStrain": 66.16419329305818,
+            "final": {
+              "scene": "valley",
+              "position": {
+                "x": 240.0015765327699,
+                "y": 1012.5365558606835
+              },
+              "hydration": 13.571428571443725,
+              "nourishment": 32.142857142889625,
+              "health": 100
+            },
+            "discovered": {
+              "water": 3,
+              "food": 1,
+              "shelters": 0
+            },
+            "skills": [],
+            "remainingEvidence": 400
+          }
+        }
+      ]
     }
   ],
-  "normal": {
-    "preset": "normal",
-    "rules": {
-      "initialHydration": 85,
-      "depletionPerSecond": 0.6,
-      "rescueDelay": 14,
-      "recoverySeconds": 3,
-      "rescueHydration": 75
-    },
-    "summary": {
-      "withLearning": {
-        "initialIndependentDrinks": 3,
-        "initialCollections": 3,
-        "initialCollapses": 0,
-        "initialRescues": 0,
-        "initialRepeatedInvalid": 1.125,
-        "initialSkillUses": 1.25,
-        "initialRevisitedExplorationTargets": 0,
-        "initialDistinctExplorationTargets": 39.25,
-        "transferIndependentDrinks": 2,
-        "transferCollapses": 0,
-        "transferSkillUses": 2.5
-      },
-      "withoutLearning": {
-        "initialIndependentDrinks": 0,
-        "initialCollections": 0,
-        "initialCollapses": 2,
-        "initialRescues": 2,
-        "initialRepeatedInvalid": 0.25,
-        "initialSkillUses": 0,
-        "initialRevisitedExplorationTargets": 28.25,
-        "initialDistinctExplorationTargets": 32.625,
-        "transferIndependentDrinks": 0,
-        "transferCollapses": 1,
-        "transferSkillUses": 0
-      }
-    },
-    "trials": [
-      {
-        "withLearning": {
-          "seed": 74193,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 9,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": 30.09999999999957,
-            "skills": 1,
-            "skillUses": 2,
-            "explorationArrivals": 62,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 62
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 1,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 3.3333333333303017,
-            "skillUses": 2,
-            "explorationArrivals": 0,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 0
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 5,
-              "failures": 1
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 74193,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 6,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 66,
-            "revisitedExplorationTargets": 29,
-            "distinctExplorationTargets": 32
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 4,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 24,
-            "revisitedExplorationTargets": 7,
-            "distinctExplorationTargets": 17
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 3,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 16,
-            "repeatedInvalid": 4,
-            "timeToFirstWater": 38.01666666666579,
-            "skills": 1,
-            "skillUses": 4,
-            "explorationArrivals": 53,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 53
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 1,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": 6.983333333326982,
-            "skillUses": 1,
-            "explorationArrivals": 0,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 0
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 5,
-              "failures": 4
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 3,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 4,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 65,
-            "revisitedExplorationTargets": 26,
-            "distinctExplorationTargets": 36
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 1,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 26,
-            "revisitedExplorationTargets": 6,
-            "distinctExplorationTargets": 18
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 11,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 4,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": 57.816666666664666,
-            "skills": 2,
-            "skillUses": 0,
-            "explorationArrivals": 10,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 10
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 7,
-            "repeatedInvalid": 2,
-            "timeToFirstWater": 3.5166666666634683,
-            "skillUses": 3,
-            "explorationArrivals": 22,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 22
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 4,
-              "failures": 1
-            },
-            {
-              "id": "water-fill-drink",
-              "status": "candidate",
-              "successes": 1,
-              "failures": 0
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 11,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 3,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 68,
-            "revisitedExplorationTargets": 27,
-            "distinctExplorationTargets": 32
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 1,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 26,
-            "revisitedExplorationTargets": 9,
-            "distinctExplorationTargets": 15
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 29,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 10,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": 59.5499999999979,
-            "skills": 2,
-            "skillUses": 1,
-            "explorationArrivals": 40,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 40
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 1,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 3.566666666663423,
-            "skillUses": 2,
-            "explorationArrivals": 0,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 0
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 4,
-              "failures": 1
-            },
-            {
-              "id": "water-fill-drink",
-              "status": "candidate",
-              "successes": 1,
-              "failures": 0
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 29,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 6,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 66,
-            "revisitedExplorationTargets": 32,
-            "distinctExplorationTargets": 29
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 3,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 25,
-            "revisitedExplorationTargets": 7,
-            "distinctExplorationTargets": 18
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 47,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 5,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 87.04999999999634,
-            "skills": 2,
-            "skillUses": 0,
-            "explorationArrivals": 18,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 18
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 3,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 3.6499999999966803,
-            "skillUses": 2,
-            "explorationArrivals": 5,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 5
-          },
-          "finalSkills": [
-            {
-              "id": "water-fill-drink",
-              "status": "validated",
-              "successes": 2,
-              "failures": 0
-            },
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 3,
-              "failures": 1
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 47,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 5,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 65,
-            "revisitedExplorationTargets": 25,
-            "distinctExplorationTargets": 34
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 5,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 23,
-            "revisitedExplorationTargets": 7,
-            "distinctExplorationTargets": 16
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 103,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 13,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": 85.66666666666309,
-            "skills": 1,
-            "skillUses": 2,
-            "explorationArrivals": 55,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 55
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 1,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 3.3333333333303017,
-            "skillUses": 2,
-            "explorationArrivals": 0,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 0
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 5,
-              "failures": 1
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 103,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 7,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 67,
-            "revisitedExplorationTargets": 32,
-            "distinctExplorationTargets": 32
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 5,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 24,
-            "revisitedExplorationTargets": 6,
-            "distinctExplorationTargets": 18
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 211,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 4,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 68.13333333333075,
-            "skills": 2,
-            "skillUses": 0,
-            "explorationArrivals": 13,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 13
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 12,
-            "repeatedInvalid": 3,
-            "timeToFirstWater": 3.86666666666315,
-            "skillUses": 6,
-            "explorationArrivals": 19,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 19
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 4,
-              "failures": 4
-            },
-            {
-              "id": "water-fill-drink",
-              "status": "candidate",
-              "successes": 1,
-              "failures": 0
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 211,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 3,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 67,
-            "revisitedExplorationTargets": 27,
-            "distinctExplorationTargets": 31
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 4,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 24,
-            "revisitedExplorationTargets": 9,
-            "distinctExplorationTargets": 15
-          },
-          "finalSkills": []
-        }
-      },
-      {
-        "withLearning": {
-          "seed": 509,
-          "learning": true,
-          "initial": {
-            "independentDrinks": 3,
-            "collections": 3,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 7,
-            "repeatedInvalid": 1,
-            "timeToFirstWater": 47.76666666666524,
-            "skills": 2,
-            "skillUses": 1,
-            "explorationArrivals": 63,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 63
-          },
-          "transfer": {
-            "independentDrinks": 2,
-            "collapses": 0,
-            "rescues": 0,
-            "invalidActions": 1,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": 3.3333333333303017,
-            "skillUses": 2,
-            "explorationArrivals": 0,
-            "revisitedExplorationTargets": 0,
-            "distinctExplorationTargets": 0
-          },
-          "finalSkills": [
-            {
-              "id": "water-approach-fill-drink",
-              "status": "validated",
-              "successes": 4,
-              "failures": 1
-            },
-            {
-              "id": "water-fill-drink",
-              "status": "candidate",
-              "successes": 1,
-              "failures": 0
-            }
-          ]
-        },
-        "withoutLearning": {
-          "seed": 509,
-          "learning": false,
-          "initial": {
-            "independentDrinks": 0,
-            "collections": 0,
-            "collapses": 2,
-            "rescues": 2,
-            "invalidActions": 5,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skills": 0,
-            "skillUses": 0,
-            "explorationArrivals": 69,
-            "revisitedExplorationTargets": 28,
-            "distinctExplorationTargets": 35
-          },
-          "transfer": {
-            "independentDrinks": 0,
-            "collapses": 1,
-            "rescues": 1,
-            "invalidActions": 3,
-            "repeatedInvalid": 0,
-            "timeToFirstWater": null,
-            "skillUses": 0,
-            "explorationArrivals": 24,
-            "revisitedExplorationTargets": 8,
-            "distinctExplorationTargets": 14
-          },
-          "finalSkills": []
-        }
-      }
-    ]
-  },
   "limitations": [
-    "Fixed matched world geometry; the controller RNG seeds vary.",
-    "These are controlled offline trials; they do not establish performance for a live language model.",
-    "The initial expedition origin and action affordances are infrastructure supplied to both conditions. Persistent values, procedural skills, past terrain, failed routes and visit histories are disabled in the control.",
-    "The transfer is an explicit evaluation setup at the same safe position for both conditions, never a rescue teleport.",
-    "A revisit may be justified by obstacles or returning to another frontier; it is not by itself proof of aimless circling.",
-    "No guarantee that each successive attempt improves."
-  ]
+    "Only two matched seeds per scenario; these are functional probes, not statistical evidence of general reliability.",
+    "Matched fixed world geometry; controller RNG and weather seeds vary.",
+    "The hot/night trials deliberately start near a locally visible refuge and food; they do not establish that an untrained agent can discover a distant cave in time.",
+    "Food-depleted trials deliberately have no food during the evaluation window; eventual harm is an expected boundary.",
+    "Offline results do not establish live Ollama behavior or language-model weight training.",
+    "Procedures use supplied water/food/shelter recognition templates; arbitrary skill invention is not implemented.",
+    "No convergence guarantee or claim that each successive attempt improves."
+  ],
+  "bodyRules": {
+    "tileSize": 80,
+    "visionRadius": 400,
+    "collectionRange": 80,
+    "flaskCapacity": 1,
+    "drinkHydration": 65,
+    "maxActionSeconds": 12,
+    "foodCapacity": 3,
+    "appleNourishment": 45,
+    "meaningfulNourishmentGain": 15,
+    "maxSkillSeconds": 35,
+    "maxExperience": 400,
+    "maxCells": 4096,
+    "maxSources": 128,
+    "maxSkills": 12,
+    "maxModelCallsPerHour": 60,
+    "thirstWarning": 45,
+    "criticalHydration": 20,
+    "meaningfulHydrationGain": 15,
+    "hungerWarning": 45,
+    "criticalNourishment": 20,
+    "comfortMinimum": 14,
+    "comfortMaximum": 26,
+    "hotComfortMax": 26,
+    "coldComfortMin": 14,
+    "thermalWarning": 40,
+    "criticalThermal": 80,
+    "hotStrainPerDegreeSecond": 0.33,
+    "coldStrainPerDegreeSecond": 0.12,
+    "thermalRecoveryPerSecond": 2,
+    "wettingPerSecond": 0.55,
+    "dryingPerSecond": 0.35,
+    "starvationDamagePerSecond": 1.2,
+    "dehydrationDamagePerSecond": 2,
+    "thermalDamagePerSecond": 1,
+    "healthRecoveryPerSecond": 0.03,
+    "rescueHealth": 65,
+    "rescueNourishment": 70
+  },
+  "environmentRules": {
+    "minimumTemperature": 8,
+    "maximumTemperature": 30,
+    "minimumHour": 4,
+    "peakHour": 14,
+    "caveTemperature": 18,
+    "weatherSeconds": 180,
+    "weatherTransitionSeconds": 20,
+    "windCooling": 1.1,
+    "rainCooling": 3,
+    "shadeCooling": 4,
+    "foodRenewalSeconds": 600,
+    "maxElapsed": 360000000
+  }
 }
