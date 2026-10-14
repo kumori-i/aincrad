@@ -1,6 +1,6 @@
 import { CONFIG, CAVES, SPAWN, CAVE_EXIT, LANDMARKS, APPLE_PATCHES } from './config.js';
 import { lerp, hash, ridgeValue, objectsInRect, riverWidth, BRIDGES, waterDistance, caveDistance, CAVE_OBJECTS, HABITAT_TRAILS } from './world.js';
-import { ART_PIXEL, canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject, drawNpc, drawApplePatch, drawFauna, drawShelterLamp } from './art.js';
+import { ART_PIXEL, canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject, drawNpc, drawApplePatch, drawFauna, drawShelterLamp, drawFieldNote } from './art.js';
 
 import { environmentConditions, ambientEcology } from './environment.js';
 import { foodSource } from './resources.js';
@@ -13,13 +13,16 @@ export class Renderer {
     this.pixels=canvas(1,1);this.pixelCtx=this.pixels.getContext('2d',{alpha:false});
     this.camera={x:state.player.x-220,y:state.player.y-70};this.zoom=1.5;this.targetZoom=1.5;
     this.chunks=new Map();this.caveCanvas=null;this.mapCanvas=null;this.scene=state.scene;
-    this.followNpc=false;this.inspectorOpen=false;this.viewportOffsetX=0;this.frame=0;this.lastMini=0;this.resize();
+    this.followNpc=false;this.followId='aster';this.inspectorOpen=false;this.viewportOffsetX=0;this.frame=0;this.lastMini=0;this.resize();
   }
   resize(){this.width=window.innerWidth;this.height=window.innerHeight;this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);this.ctx.imageSmoothingEnabled=false;}
   snap(p){this.camera={...p};}
-  viewScene(state){return this.followNpc&&state.npc?(state.npc.scene||'valley'):state.scene;}
-  viewSubject(state){return this.followNpc&&state.npc?state.npc.position:state.player;}
-  conditions(state,scene=this.viewScene(state)){return environmentConditions(state.environment,{position:this.viewSubject(state),scene,wetness:this.followNpc?(state.npc?.thermal?.wetness||0):0});}
+  agents(state){return Array.isArray(state.agents)&&state.agents.length?state.agents:state.npc?[state.npc]:[];}
+  selectedAgent(state){return this.agents(state).find(agent=>agent.id===this.followId)||state.npc||this.agents(state)[0]||null;}
+  viewScene(state){const agent=this.selectedAgent(state);return this.followNpc&&agent?(agent.scene||'valley'):state.scene;}
+  viewSubject(state){const agent=this.selectedAgent(state);return this.followNpc&&agent?agent.position:state.player;}
+  conditions(state,scene=this.viewScene(state)){return environmentConditions(state.environment,{position:this.viewSubject(state),scene,wetness:this.followNpc?(this.selectedAgent(state)?.thermal?.wetness||0):0});}
+  notes(state,scene){return (state.community?.notes||[]).filter(note=>(note.scene||'valley')===scene&&Number.isFinite(note.position?.x)&&Number.isFinite(note.position?.y));}
   chunk(cx,cy){
     const key=`${cx},${cy}`;if(this.chunks.has(key)){const c=this.chunks.get(key);this.chunks.delete(key);this.chunks.set(key,c);return c;}
     const c=makeGroundChunk(cx,cy,CONFIG.chunkSize);this.chunks.set(key,c);if(this.chunks.size>CONFIG.maxCachedChunks)this.chunks.delete(this.chunks.keys().next().value);return c;
@@ -66,11 +69,14 @@ export class Renderer {
       objects.push({kind:'mountain',x,y,scale:.95+hash(cx,cy,893)*.15,variant:Math.floor(hash(cx,cy,753)*3)});
     }
     objects.push({kind:'camp',x:SPAWN.x,y:SPAWN.y-10});for(const cave of CAVES)objects.push({kind:'cave',x:cave.x,y:cave.y,definition:cave});
-    if(state.scene==='valley')objects.push({kind:'player',x:state.player.x,y:state.player.y});if(state.npc&&(state.npc.scene||'valley')==='valley')objects.push({kind:'npc',x:state.npc.position.x,y:state.npc.position.y});objects.sort((a,b)=>a.y-b.y);
+    for(const note of this.notes(state,'valley'))objects.push({kind:'note',x:note.position.x,y:note.position.y,note});
+    if(state.scene==='valley')objects.push({kind:'player',x:state.player.x,y:state.player.y});
+    for(const agent of this.agents(state))if((agent.scene||'valley')==='valley')objects.push({kind:'npc',x:agent.position.x,y:agent.position.y,agent});objects.sort((a,b)=>a.y-b.y);
     for(const object of objects){
       if(object.x<v.x-420||object.x>v.x+v.w+420||object.y<v.y-100||object.y>v.y+v.h+400)continue;
       if(object.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,state.scene);
-      else if(object.kind==='npc')drawNpc(g,state.npc,time);
+      else if(object.kind==='npc')drawNpc(g,object.agent,time);
+      else if(object.kind==='note')drawFieldNote(g,object.note);
       else if(object.kind==='apple')drawApplePatch(g,object,object.stock,object.capacity);
       else if(object.kind==='fauna')drawFauna(g,object.definition,time);
       else if(object.kind==='camp')drawCamp(g,SPAWN.x,SPAWN.y-10,time);
@@ -99,8 +105,10 @@ export class Renderer {
     // Shelter has warm lamps and moss, while its authoritative room geometry stays unchanged.
     drawShelterLamp(g,CAVE_EXIT.x+78,CAVE_EXIT.y-38);drawShelterLamp(g,1160,1150);
     for(let i=0;i<16;i++){const x=1170+hash(i,0,608)*300,y=1380+hash(i,1,821)*95;if(caveDistance(x,y)>-25)continue;ellipse(g,x,y,9+(i%4)*2,4,'#6f806744');line(g,[[x-5,y],[x-2,y-4],[x+2,y]],'#93a46e',ART_PIXEL);}
-    const objects=[...CAVE_OBJECTS];if(state.scene===scene)objects.push({...state.player,kind:'player'});if(state.npc&&(state.npc.scene||'valley')===scene)objects.push({...state.npc.position,kind:'npc'});objects.sort((a,b)=>a.y-b.y);
-    for(const object of objects){if(object.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,scene);else if(object.kind==='npc')drawNpc(g,state.npc,time);else drawCaveObject(g,object,tint);}
+    const objects=[...CAVE_OBJECTS];if(state.scene===scene)objects.push({...state.player,kind:'player'});
+    for(const agent of this.agents(state))if((agent.scene||'valley')===scene)objects.push({...agent.position,kind:'npc',agent});
+    for(const note of this.notes(state,scene))objects.push({...note.position,kind:'note',note});objects.sort((a,b)=>a.y-b.y);
+    for(const object of objects){if(object.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,scene);else if(object.kind==='npc')drawNpc(g,object.agent,time);else if(object.kind==='note')drawFieldNote(g,object.note);else drawCaveObject(g,object,tint);}
     for(const object of CAVE_OBJECTS.filter(o=>o.kind==='crystal')){
       const frame=(Math.floor(time*3)+Math.floor(object.seed*9))%12;if(frame>2)continue;const x=object.x-14+frame*10,y=object.y-48-frame*10;line(g,[[x-2,y],[x+2,y]],'#d8e8ce',ART_PIXEL);line(g,[[x,y-2],[x,y+2]],'#d8e8ce',ART_PIXEL);
     }
@@ -131,8 +139,8 @@ export class Renderer {
     const gradient=g.createRadialGradient(p.x,p.y,40,p.x,p.y,200);gradient.addColorStop(0,'#29251b00');gradient.addColorStop(.6,'#24292518');gradient.addColorStop(1,'#17262d80');g.fillStyle=gradient;g.fillRect(0,0,this.pixels.width,this.pixels.height);
   }
   drawMini(target,state,now) {
-    const follow=this.followNpc&&!!state.npc,subject=this.viewSubject(state),scene=this.viewScene(state);
-    if(this.lastMiniScene===scene&&this.lastMiniFollow===follow&&now-this.lastMini<.7)return;this.lastMini=now;this.lastMiniScene=scene;this.lastMiniFollow=follow;
+    const follow=this.followNpc&&!!this.selectedAgent(state),subject=this.viewSubject(state),scene=this.viewScene(state);
+    if(this.lastMiniScene===scene&&this.lastMiniFollow===follow&&this.lastMiniFollowId===this.followId&&now-this.lastMini<.7)return;this.lastMini=now;this.lastMiniScene=scene;this.lastMiniFollow=follow;this.lastMiniFollowId=this.followId;
     const g=target.getContext('2d'),w=target.width,h=target.height,scale=scene==='valley'?16:4;g.imageSmoothingEnabled=false;
     const sw=70,small=canvas(sw,sw),sg=small.getContext('2d'),img=sg.createImageData(sw,sw);
     for(let y=0;y<sw;y++)for(let x=0;x<sw;x++){
@@ -143,7 +151,13 @@ export class Renderer {
     g.fillStyle='#17382d33';g.fillRect(0,0,w,h);
     for(const l of LANDMARKS){if(scene!=='valley')break;const x=(l.x-subject.x)/scale+w/2,y=(l.y-subject.y)/scale+h/2;if(x<9||x>w-9||y<9||y>h-9)continue;g.font='13px Georgia';g.textAlign='center';g.fillStyle='#f1dfb0';g.fillText(l.kind==='cave'?'△':l.kind==='camp'?'⌂':'·',x,y);}
     if(scene!=='valley'){g.fillStyle='#f0d098';g.fillRect((CAVE_EXIT.x-subject.x)/scale+w/2-3,(CAVE_EXIT.y-subject.y)/scale+h/2-3,6,6);}
-    ellipse(g,w/2,h/2,8,8,'#142d27bb');poly(g,[[w/2,h/2-6],[w/2-4,h/2+5],[w/2,h/2+2],[w/2+4,h/2+5]],'#fff1c8');
+    for(const note of this.notes(state,scene)){const x=(note.position.x-subject.x)/scale+w/2,y=(note.position.y-subject.y)/scale+h/2;if(x<3||x>w-3||y<3||y>h-3)continue;g.fillStyle='#ecd7a0';g.fillRect(Math.round(x)-1,Math.round(y)-2,3,4);}
+    if(state.scene===scene){const x=(state.player.x-subject.x)/scale+w/2,y=(state.player.y-subject.y)/scale+h/2;poly(g,[[x,y-4],[x-3,y+3],[x+3,y+3]],'#f3d399');}
+    for(const agent of this.agents(state)){
+      if((agent.scene||'valley')!==scene)continue;const x=(agent.position.x-subject.x)/scale+w/2,y=(agent.position.y-subject.y)/scale+h/2;if(x<4||x>w-4||y<4||y>h-4)continue;
+      const color=agent.id==='mira'?'#ceb0d7':'#b7d584';poly(g,[[x,y-4],[x+3,y],[x,y+4],[x-3,y]],color);if(follow&&agent===this.selectedAgent(state)){g.strokeStyle='#fff1c8';g.lineWidth=1;g.strokeRect(Math.round(x)-5,Math.round(y)-5,10,10);}
+    }
+    if(!follow){ellipse(g,w/2,h/2,8,8,'#142d27bb');poly(g,[[w/2,h/2-6],[w/2-4,h/2+5],[w/2,h/2+2],[w/2+4,h/2+5]],'#fff1c8');}
   }
   drawAtlas(target,state) {
     const g=target.getContext('2d'),w=target.width,h=target.height;g.imageSmoothingEnabled=false;
@@ -168,7 +182,10 @@ export class Renderer {
       for(const l of LANDMARKS){const p=toMap(l.x,l.y),discovered=state.discoveries.includes(l.id);g.textAlign='center';g.font='16px Georgia';g.fillStyle=discovered?'#fff0c1':'#e5dfb8';g.shadowColor='#173b32';g.shadowBlur=5;g.fillText(l.kind==='cave'?'△':l.kind==='camp'?'⌂':'·',p.x,p.y);g.font='11px Georgia';g.fillText(l.name,p.x,p.y+15);g.shadowBlur=0;}
       g.font='italic 19px Georgia';g.fillStyle='#e0dec06e';g.textAlign='center';g.fillText('C R O W N   R I D G E',w/2,48);
     }else{const exit=toMap(CAVE_EXIT.x,CAVE_EXIT.y);g.fillStyle='#f1d499';g.font='11px Georgia';g.textAlign='center';g.fillText('↑ Valley exit',exit.x,exit.y+18);}
-    const p=toMap(subject.x,subject.y);ellipse(g,p.x,p.y,11,11,'#16342fcc');ellipse(g,p.x,p.y,5,5,'#fff0bb');g.strokeStyle='#fff1bb77';g.lineWidth=1;g.beginPath();g.arc(p.x,p.y,12,0,Math.PI*2);g.stroke();
+    for(const note of this.notes(state,scene)){const np=toMap(note.position.x,note.position.y);g.fillStyle='#e7d5a6';g.fillRect(Math.round(np.x)-2,Math.round(np.y)-3,4,6);}
+    if(state.scene===scene){const player=toMap(state.player.x,state.player.y);poly(g,[[player.x,player.y-5],[player.x-4,player.y+4],[player.x+4,player.y+4]],'#f3d399');}
+    for(const agent of this.agents(state)){if((agent.scene||'valley')!==scene)continue;const ap=toMap(agent.position.x,agent.position.y),color=agent.id==='mira'?'#ceb0d7':'#b7d584';poly(g,[[ap.x,ap.y-5],[ap.x+4,ap.y],[ap.x,ap.y+5],[ap.x-4,ap.y]],color);g.font='11px Georgia';g.textAlign='left';g.fillStyle=color;g.fillText(agent.name||'Aster',ap.x+7,ap.y+(agent.id==='mira'?14:-4));}
+    const p=toMap(subject.x,subject.y);g.strokeStyle='#fff1bb';g.lineWidth=1;g.beginPath();g.arc(p.x,p.y,11,0,Math.PI*2);g.stroke();
     if(state.waypoint&&isValley){const wp=toMap(state.waypoint.x,state.waypoint.y);g.save();g.setLineDash([3,4]);line(g,[[p.x,p.y],[wp.x,wp.y]],'#f1d08e88',1);g.restore();poly(g,[[wp.x,wp.y-7],[wp.x+5,wp.y],[wp.x,wp.y+7],[wp.x-5,wp.y]],'#f0cd82');}
     this.atlasTransform={mx,my,scale,ox,oy,worldW,worldH};
   }

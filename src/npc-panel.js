@@ -3,125 +3,74 @@ import { changeNpcPreset, demonstrateCollapse } from './npc.js';
 import { DesktopModelProvider, LocalLearnerProvider } from './controller.js';
 import { recordEvent } from './npc-memory.js';
 import { rememberedCells } from './perception.js';
-import { environmentConditions, WEATHER_KINDS } from './environment.js';
+import { WEATHER_KINDS } from './environment.js';
+import { bodySignals, sensedEnvironment } from './interoception.js';
 
 const $=id=>document.getElementById(id);
+const title=value=>String(value||'').replace(/_/g,' ').replace(/^./,c=>c.toUpperCase());
+const serial=id=>Number(String(id||'').split(':').pop())||0;
 function add(parent,tag,text,className=''){const node=document.createElement(tag);node.textContent=text;if(className)node.className=className;parent.append(node);return node;}
-export function createNpcPanel({getNpc,getController,renderer,getEnvironment,save,notify}){
+export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCommunity,selectAgent,renderer,getEnvironment,save,notify}){
   const panel=$('npc-panel'),bridge=window.aincradAgent;
-  let visible=false,lastRefresh=-1,lastEvidence=-1;
+  let visible=false,lastRefresh=-1,tab='character',seenMessageId=0,replyTo=null,lastMessageSignature='';
   function close(){visible=false;renderer.inspectorOpen=false;$('app').dataset.inspecting='false';panel.classList.add('hidden');$('world').focus();}
   function toggle(){visible=!visible;renderer.inspectorOpen=visible;$('app').dataset.inspecting=String(visible);panel.classList.toggle('hidden',!visible);if(visible){lastRefresh=-1;update(performance.now()/1000);$('close-npc').focus();}else $('world').focus();}
   $('open-npc').addEventListener('click',toggle);$('npc-short').addEventListener('click',toggle);$('close-npc').addEventListener('click',close);
-  function follow(enabled){renderer.followNpc=enabled;$('follow-npc').textContent=enabled?'Follow your avatar':'Follow Aster';if(enabled)renderer.snap(getNpc().position);$('world').focus();}
+  function changeTab(next){tab=next;panel.dataset.journalTab=next;for(const name of ['character','conversation','notes']){$('journal-'+name).classList.toggle('hidden',name!==tab);$('npc-tab-'+name).setAttribute('aria-pressed',String(name===tab));}lastRefresh=-1;update(performance.now()/1000);}
+  for(const name of ['character','conversation','notes'])$('npc-tab-'+name).addEventListener('click',()=>changeTab(name));
+  $('npc-select').addEventListener('change',()=>{selectAgent($('npc-select').value);lastRefresh=-1;update(performance.now()/1000);});
+  function follow(enabled){renderer.followNpc=enabled;renderer.followId=getNpc().id;$('follow-npc').textContent=enabled?'Follow your avatar':'Follow '+getNpc().name;if(enabled)renderer.snap(getNpc().position);$('world').focus();}
   $('follow-npc').addEventListener('click',()=>follow(!renderer.followNpc));
+  $('npc-numeric-debug').addEventListener('change',()=>{$('npc-condition').classList.toggle('hidden',!$('npc-numeric-debug').checked);lastRefresh=-1;});
   $('npc-preset').addEventListener('change',()=>{changeNpcPreset(getNpc(),$('npc-preset').value);save();});
   $('npc-rescue-presentation').addEventListener('change',()=>{const n=getNpc();n.rescuePresentation=$('npc-rescue-presentation').value==='quiet'?'quiet':'divine';recordEvent(n,'debug',{setting:'rescue presentation',value:n.rescuePresentation,provenance:'debug'});save();});
   $('npc-learning').addEventListener('change',()=>{const n=getNpc();n.learning=$('npc-learning').checked;n.skillRun=null;getController().cancel();recordEvent(n,'debug',{setting:'persistent learning',value:n.learning,provenance:'debug'});save();});
-  $('npc-demonstrate').addEventListener('click',()=>{if(demonstrateCollapse(getNpc())){save();notify('Developer demonstration: collapse was applied. Rescue will retain Aster’s identity and experience.');}else notify('Aster is already unconscious or recovering.');});
-  function configureWorld(){
-    const env=getEnvironment(),hour=$('world-hour').value,weather=$('world-weather-control').value;
-    env.settings.hourOverride=hour==='auto'?null:Number(hour);
-    env.settings.weatherOverride=WEATHER_KINDS.includes(weather)?weather:null;
-    getController().cancel();
-    recordEvent(getNpc(),'debug',{setting:'world conditions',value:{...env.settings},provenance:'debug'});save();
-    notify('Test conditions changed. Body effects still advance only while the world is running.');
-  }
+  $('npc-demonstrate').addEventListener('click',()=>{const n=getNpc();if(demonstrateCollapse(n)){save();notify(`Developer demonstration: ${n.name} has collapsed. Her identity and experience will be retained.`);}else notify(n.name+' is already unconscious or recovering.');});
+  function configureWorld(){const env=getEnvironment(),hour=$('world-hour').value,weather=$('world-weather-control').value;env.settings.hourOverride=hour==='auto'?null:Number(hour);env.settings.weatherOverride=WEATHER_KINDS.includes(weather)?weather:null;getRuntime().cancel();for(const n of getAgents())recordEvent(n,'debug',{setting:'world conditions',value:{...env.settings},provenance:'debug'});save();notify('Test conditions changed. Body effects advance only while the world is running.');}
   $('world-hour').addEventListener('change',configureWorld);$('world-weather-control').addEventListener('change',configureWorld);
-  async function configure(enabled){
-    try{
-      if(!bridge)throw new Error('Local model planning is available in the desktop application.');
-      getController().cancel();
-      const config=await bridge.configure({enabled,endpoint:enabled?$('npc-endpoint').value:'http://127.0.0.1:11434/v1',model:enabled?$('npc-model').value:''});
-      getController().setProvider(enabled?new DesktopModelProvider(bridge,config.model):new LocalLearnerProvider());
-      $('model-status').textContent=enabled?'Configured. The next decision will contact your local model.':'Offline experiential learner active.';save();
-    }catch(error){$('model-status').textContent=error.message;}
-  }
+  function useProvider(config){getRuntime().setProviderFactory(n=>config.enabled?new DesktopModelProvider(bridge,config.model,n.id):new LocalLearnerProvider());}
+  async function configure(enabled){try{if(!bridge)throw new Error('Local model planning is available in the desktop application.');getRuntime().cancel();const config=await bridge.configure({enabled,endpoint:enabled?$('npc-endpoint').value:'http://127.0.0.1:11434/v1',model:enabled?$('npc-model').value:''});useProvider(config);$('model-status').textContent=enabled?'Both characters use the local model, with a shared call budget.':'Both characters use the offline experiential learner.';save();}catch(error){$('model-status').textContent=error.message;}}
   $('connect-model').addEventListener('click',()=>configure(true));$('offline-controller').addEventListener('click',()=>configure(false));
-  if(bridge){bridge.status().then(status=>{
-    $('npc-endpoint').value=status.endpoint;$('npc-model').value=status.model;
-    if(status.enabled)getController().setProvider(new DesktopModelProvider(bridge,status.model));
-  }).catch(error=>{$('model-status').textContent=error.message;});}
-  else{$('connect-model').disabled=true;$('offline-controller').disabled=true;$('model-status').textContent='Offline experiential learner. Local model settings are available in the desktop app.';}
+  if(bridge)bridge.status().then(status=>{$('npc-endpoint').value=status.endpoint;$('npc-model').value=status.model;if(status.enabled)useProvider(status);}).catch(error=>{$('model-status').textContent=error.message;});
+  else{$('connect-model').disabled=true;$('offline-controller').disabled=true;}
+  $('journal-form').addEventListener('submit',event=>{event.preventDefault();const text=$('journal-message').value.trim();if(!text)return;const result=getRuntime().social.postUserMessage(text,{to:$('journal-recipient').value,replyTo});if(!result.ok){$('journal-send-status').textContent='Message was not sent: '+title(result.code);return;}$('journal-message').value='';replyTo=null;$('journal-send-status').textContent='Message sent. They can respond when their needs allow.';save();lastMessageSignature='';lastRefresh=-1;update(performance.now()/1000);});
+  $('journal-message').addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();$('journal-form').requestSubmit();}});
+  $('journal-recipient').addEventListener('change',()=>{if(replyTo){replyTo=null;$('journal-send-status').textContent='Writing a new message.';}});
   function drawMap(n){
-    const canvas=$('npc-map'),g=canvas.getContext('2d'),size=canvas.width,half=720,scale=size/(half*2);
-    g.fillStyle='#24372d';g.fillRect(0,0,size,size);
-    for(const c of Object.values(rememberedCells(n))){
-      const x=(c.x-n.position.x+half)*scale,y=(c.y-n.position.y+half)*scale;
-      if(x<-20||y<-20||x>size||y>size)continue;
-      g.fillStyle=c.walkable?'#7c9b4a':c.terrain==='water'||c.terrain==='shallows'?'#4799aa':'#805932';
-      g.globalAlpha=n.elapsed-c.observedAt>60?.45:.9;g.fillRect(x-8,y-8,NPC_RULES.tileSize*scale-1,NPC_RULES.tileSize*scale-1);
-    }
-    g.globalAlpha=1;
+    const canvas=$('npc-map'),g=canvas.getContext('2d'),size=canvas.width,half=720,scale=size/(half*2);g.fillStyle='#24372d';g.fillRect(0,0,size,size);
+    for(const c of Object.values(rememberedCells(n))){const x=(c.x-n.position.x+half)*scale,y=(c.y-n.position.y+half)*scale;if(x<-20||y<-20||x>size||y>size)continue;g.fillStyle=c.walkable?'#7c9b4a':c.terrain==='water'||c.terrain==='shallows'?'#4799aa':'#805932';g.globalAlpha=n.elapsed-c.observedAt>60?.45:.9;g.fillRect(x-8,y-8,NPC_RULES.tileSize*scale-1,NPC_RULES.tileSize*scale-1);}g.globalAlpha=1;
     const points=n.scene==='valley'?[...Object.values(n.memory.sources).map(s=>({...s,color:s.available?'#83d1e9':'#d3846e'})),...Object.values(n.memory.foods).map(s=>({...s,color:s.available?'#df7750':'#886d4c'})),...Object.values(n.memory.shelters).map(s=>({...s,color:'#e6bc58'}))]:[];
-    for(const s of points){
-      const x=(s.x-n.position.x+half)*scale,y=(s.y-n.position.y+half)*scale;
-      if(x<0||y<0||x>size||y>size)continue;g.fillStyle=s.color;g.fillRect(Math.round(x)-2,Math.round(y)-2,5,5);
+    for(const s of points){const x=(s.x-n.position.x+half)*scale,y=(s.y-n.position.y+half)*scale;if(x<0||y<0||x>size||y>size)continue;g.fillStyle=s.color;g.fillRect(Math.round(x)-2,Math.round(y)-2,5,5);}g.fillStyle='#fff0c1';g.fillRect(size/2-2,size/2-2,5,5);
+  }
+  function updateConversation(){
+    const community=getCommunity(),messages=community.messages||[],last=messages.at(-1),pending=Object.values(community.questions||{}).filter(q=>q.status==='pending');
+    const unseen=messages.filter(m=>serial(m.id)>seenMessageId&&m.senderId!=='human').length;if(visible&&tab==='conversation')seenMessageId=serial(last?.id);$('journal-unread').textContent=visible&&tab==='conversation'?'':unseen?'('+unseen+')':'';
+    $('journal-pending').textContent=pending.length?pending.map(q=>q.text).join(' · ')+' · Replies are optional.':'No reply is required. This conversation stays open.';
+    const signature=messages.length+':'+(last?.id||0)+':'+(last?.text||'');if(lastMessageSignature!==signature){lastMessageSignature=signature;const list=$('journal-messages'),nearBottom=list.scrollHeight-list.scrollTop-list.clientHeight<35;list.replaceChildren();if(!messages.length)add(list,'p','No messages yet. Leave a note, or let them meet and explore.','small');
+      for(const message of messages.slice(-80)){const entry=add(list,'div','', 'journal-entry');entry.dataset.sender=message.senderId;const sender=message.senderId==='human'?'You':getAgents().find(n=>n.id===message.senderId)?.name||'Journal';const recipient=message.recipientId==='human'?'you':message.recipientId==='all'?'everyone':getAgents().find(n=>n.id===message.recipientId)?.name||'';add(entry,'div',`${sender}${recipient?' → '+recipient:''} · ${message.channel==='peer'?'nearby':message.channel==='note'?'field note':'journal'}${message.offline?' · offline learner':''}`,'message-meta');add(entry,'p',message.text);
+        if(message.senderId!=='human'&&message.kind==='question'){const button=add(entry,'button','Reply');button.type='button';button.addEventListener('click',()=>{replyTo=message.id;$('journal-recipient').value=message.senderId;$('journal-send-status').textContent='Replying to '+sender+'’s question.';$('journal-message').focus();});}}
+      if(nearBottom)list.scrollTop=list.scrollHeight;
     }
-    g.fillStyle='#fff0c1';g.beginPath();g.arc(size/2,size/2,4,0,Math.PI*2);g.fill();
+    const notes=$('npc-field-notes');notes.replaceChildren();if(!community.notes?.length)add(notes,'p','No field notes have been left yet.','small');
+    for(const note of (community.notes||[]).slice(-20).reverse()){const node=add(notes,'article','', 'field-note');add(node,'h3',note.title);add(node,'div',`${getAgents().find(n=>n.id===note.authorId)?.name||note.authorId} · ${note.scene==='valley'?'in the valley':note.scene}`,'small');add(node,'p',note.text);}
   }
   function update(now){
-    if(now-lastRefresh<.5)return;lastRefresh=now;
-    const n=getNpc(),pace=NPC_PRESETS[n.preset]||NPC_PRESETS.normal,env=getEnvironment();
-    const strain=Math.max(n.thermal.hot,n.thermal.cold);
-    const condition=n.lifecycle==='COLLAPSED'?'collapsed':n.lifecycle==='RECOVERING'?'recovering':n.hydration<=NPC_RULES.criticalHydration||n.nourishment<=NPC_RULES.criticalNourishment||strain>=NPC_RULES.criticalThermal||n.health<=25?'critical':n.hydration<=NPC_RULES.thirstWarning||n.nourishment<=NPC_RULES.hungerWarning||strain>=NPC_RULES.thermalWarning?'thirsty':'healthy';
-    const duration=seconds=>`${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
-    const foodSeconds=n.nourishment/pace.nourishmentDepletionPerSecond,waterSeconds=n.hydration/pace.depletionPerSecond;
-    const remaining=n.lifecycle==='COLLAPSED'?Math.max(0,Math.ceil(pace.rescueDelay-(n.elapsed-n.lifecycleAt))):Math.max(0,Math.ceil(pace.recoverySeconds-(n.elapsed-n.lifecycleAt)));
-    const survival=n.lifecycle==='AWAKE'?`Base reserves: food ${duration(foodSeconds)} · water ${duration(waterSeconds)}`:n.lifecycle==='COLLAPSED'?`Rescue in ${remaining}s · memory retained`:`Recovering · ${remaining}s · memory retained`;
-    $('npc-short').dataset.condition=condition;$('npc-condition').dataset.condition=condition;
-    const stateLabel=n.lifecycle==='AWAKE'?(condition==='critical'?'distressed':condition==='thirsty'?'uncomfortable':'awake'):n.lifecycle.toLowerCase();
-    $('npc-short').textContent=`Aster · ${stateLabel}\nFood ${Math.round(n.nourishment)}% · water ${Math.round(n.hydration)}% · health ${Math.round(n.health)}%`;
-    $('npc-survival').textContent=survival+' · unpaused time; heat increases water use';
-    if(!visible)return;
-    $('npc-lifecycle').textContent=n.lifecycle;$('npc-hydration').value=n.hydration;$('npc-hydration-value').textContent=`${n.hydration.toFixed(0)} / 100`;
-    $('npc-nourishment').value=n.nourishment;$('npc-nourishment-value').textContent=`${n.nourishment.toFixed(0)} / 100`;
-    $('npc-health').value=n.health;$('npc-health-value').textContent=`${n.health.toFixed(0)} / 100`;
-    $('npc-heat').textContent=`${Math.round(n.thermal.hot)} / 100`;$('npc-cold').textContent=`${Math.round(n.thermal.cold)} / 100`;
-    $('npc-flask').textContent=`${Math.round(n.flask.water*100)}% · ${n.flask.provenance||'empty'}`;
-    $('npc-apples').textContent=`${n.inventory.apples.length} / ${n.inventory.capacity}`;
-    const f=n.feelings,pct=value=>Math.round(Math.max(0,Math.min(1,value||0))*100);
-    const descriptions=[['hungry',f.hunger],['thirsty',f.thirst],['hot',f.heat],['cold',f.cold]].filter(([,v])=>v>=.25).sort((a,b)=>b[1]-a[1]);
-    const feeling=f.distress>=.4?'Distressed':f.relief>=.2?'Relieved':descriptions.length?'Uncomfortable':'Comfortable';
-    $('npc-feelings').textContent=`${feeling}${descriptions.length?' · '+descriptions.map(([name,v])=>`${name} ${pct(v)}%`).join(' · '):''}. Distress ${pct(f.distress)}% · relief ${pct(f.relief)}%.`;
-    const sensed=environmentConditions(env,n);
-    $('npc-environment').textContent=`${n.scene==='valley'?'Outside':n.scene} · ${sensed.sheltered?'sheltered':sensed.weather} · feels ${sensed.feltTemperature.toFixed(1)}°C · wet ${Math.round(n.thermal.wetness)}%${sensed.shade?' · shaded':''}`;
-    $('npc-current').textContent=n.skillRun?`Procedure: ${n.skillRun.id} (${n.skillRun.cursor+1})`:n.active?`Action: ${n.active.request.type}`:getController().pending?'Waiting for local inference':'Choosing an experiment';
-    $('npc-controller').textContent=getController().provider.label;
-    $('npc-decision').textContent=n.decision;
-    $('npc-counts').textContent=`${n.stats.independentMeals} meals · ${n.stats.independentDrinks} independent drinks · ${n.stats.collapses} collapses · ${n.stats.rescues} rescues. Critical time: ${Math.round(n.stats.criticalSeconds)}s.`;
-    $('npc-rescuer').textContent=`Last rescuer: ${n.stats.lastRescuer||'none'}. Rescue is not independent success.`;
-    $('world-hour').value=env.settings.hourOverride===null?'auto':String(env.settings.hourOverride);$('world-weather-control').value=env.settings.weatherOverride||'auto';
-    $('npc-preset').value=n.preset;$('npc-rescue-presentation').value=n.rescuePresentation;$('npc-learning').checked=n.learning;
-    const sources=$('npc-sources');sources.replaceChildren();
-    const known=Object.values(n.memory.sources).sort((a,b)=>b.observedAt-a.observedAt).slice(0,8);
-    if(!known.length)add(sources,'li','No water sources observed yet.');
-    for(const source of known)add(sources,'li',`${source.id} · ${source.available?'observed available':'unavailable'} · ${Math.floor(n.elapsed-source.observedAt)}s old`);
-    const foods=$('npc-foods');foods.replaceChildren();const knownFoods=Object.values(n.memory.foods).sort((a,b)=>b.observedAt-a.observedAt).slice(0,8);
-    if(!knownFoods.length)add(foods,'li','No food patches discovered yet.');
-    for(const food of knownFoods)add(foods,'li',`${food.name||food.id} · last seen ${food.stock??'?'} apples · ${Math.floor(n.elapsed-food.observedAt)}s old`);
-    const shelters=$('npc-shelters');shelters.replaceChildren();const knownShelters=Object.values(n.memory.shelters).slice(0,6);
-    if(!knownShelters.length)add(shelters,'li','No shelter entrances discovered yet.');
-    for(const shelter of knownShelters)add(shelters,'li',`${shelter.name||shelter.id} · ${shelter.experiencedTemperature!==undefined?`experienced ${Number(shelter.experiencedTemperature).toFixed(0)}°C`:'interior not experienced'}`);
-    drawMap(n);
-    if(lastEvidence===n.memory.nextId)return;lastEvidence=n.memory.nextId;
-    const skills=$('npc-skills');skills.replaceChildren();
-    if(!n.memory.skills.length)add(skills,'p','No acquired procedures. Aster begins with an empty library.','small');
-    for(const skill of n.memory.skills){
-      const details=document.createElement('details');skills.append(details);
-      add(details,'summary',`${skill.name} · ${skill.status} (${skill.successes} successes / ${skill.failures} failures)`);
-      add(details,'p',skill.steps.map(step=>`${step.type}${step.sourceId?'(sourceId)':step.foodId?'(foodId)':step.shelterId?'(shelterId)':''}`).join(' → '),'small');
-      add(details,'p','Evidence: '+skill.supportingExperience.join(', '),'small');
-      for(const id of skill.supportingExperience.slice(-3)){const event=n.memory.experience.find(e=>e.id===id);if(event)add(details,'pre',JSON.stringify(event,null,2));}
-      add(details,'p',skill.status==='validated'?'Repeated success under changed starting conditions; reliability is limited to tested conditions.':'One successful sequence creates a candidate, not a universally reliable routine.','small');
-    }
-    const history=$('npc-history');history.replaceChildren();
-    for(const event of n.memory.experience.slice(-14).reverse()){
-      const details=document.createElement('details');history.append(details);
-      const d=event.details;add(details,'summary',`#${event.id} · ${Math.floor(event.at)}s · ${event.type} · ${d.result?.code||d.code||d.provenance||d.skillId||''}`);
-      add(details,'pre',JSON.stringify(d,null,2));
-    }
-    const lesson=n.memory.lessons.at(-1);$('npc-lesson').textContent=lesson?`${lesson.verified} ${lesson.hypothesis}`:'Learning uses actual body costs and action outcomes before collapse. Facts and hypotheses stay separate.';
+    if(now-lastRefresh<.5)return;lastRefresh=now;const n=getNpc(),env=getEnvironment(),b=bodySignals(n),s=sensedEnvironment(n),c=n.cognition||{};
+    $('npc-short').textContent=getAgents().map(a=>{const signals=bodySignals(a);return `${a.name} · ${signals.activity==='awake'?signals.overall:signals.activity} · ${signals.hunger}`;}).join('\n');$('npc-short').dataset.condition=b.overall==='urgent'?'critical':n.lifecycle==='COLLAPSED'?'collapsed':n.lifecycle==='RECOVERING'?'recovering':b.overall==='uncomfortable'?'thirsty':'healthy';updateConversation();if(!visible)return;
+    $('npc-name').textContent=n.name;$('npc-lifecycle').textContent=title(n.lifecycle.toLowerCase());$('npc-select').value=n.id;$('follow-npc').textContent=renderer.followNpc?'Follow your avatar':'Follow '+n.name;
+    $('npc-feelings').textContent=`${title(b.overall)}${b.relief!=='none'?' · '+b.relief:''}. ${b.activity==='sleeping'?'She is sleeping.':b.activity==='resting'?'She is taking a rest.':''}`;
+    const body=$('npc-body-list');body.replaceChildren();for(const [label,key] of [['Hunger','hunger'],['Thirst','thirst'],['Temperature','thermal'],['Energy','energy'],['Breathing','stamina'],['Fatigue','fatigue'],['Sleep','sleepiness'],['Pain','pain']]){const cell=add(body,'div','');add(cell,'span',label);add(cell,'b',title(b[key]));}
+    $('npc-environment').textContent=`${title(s.timeOfDay)} · ${s.weather} · ${s.warmth} · ${s.shelter} · ${b.wetness}`;$('npc-flask').textContent=n.flask.water<=.00001?'empty':n.flask.water>.75?'full':'some water';$('npc-apples').textContent=`${n.inventory.apples.length} / ${n.inventory.capacity}`;
+    const drives=$('npc-drives');drives.replaceChildren();for(const [name,drive] of Object.entries(c.drives||{})){const item=add(drives,'span',title(name)+' · '+drive.tension);item.title=drive.reason||'';}
+    const plan=c.plan;const planState=plan?.status==='active'?'Her intention':plan?.status==='completed'&&plan.goalVerified!==true?'Steps finished; goal unverified':title(plan?.status);$('npc-goal').textContent=plan?`${planState}: ${plan.goal}`:'She is attending to her body and learning her surroundings.';const steps=$('npc-plan');steps.replaceChildren();if(plan)for(let i=0;i<plan.steps.length;i++){const step=plan.steps[i];add(steps,'li',`${i===plan.cursor&&plan.status==='active'?'Now: ':''}${title(step.type)}${step.foodId?' at remembered apples':step.sourceId?' at remembered water':step.shelterId?' at remembered shelter':''}`,i<plan.cursor?'done':'');}
+    $('npc-current').textContent=n.active?'Current activity: '+title(n.active.request.type):getController().pending?'Considering a local model response; bodily care continues.':'Choosing her next activity.';$('npc-controller').textContent=getController().provider.label;$('npc-decision').textContent=/balancing food [\d.]+/.test(n.decision)?'Her next activity follows bodily sensations and remembered outcomes.':n.decision;
+    $('npc-counts').textContent=`${n.stats.independentMeals} meals · ${n.stats.independentDrinks} independent drinks · ${n.stats.collapses} collapses · ${n.stats.rescues} rescues`;$('npc-rescuer').textContent=`Last rescuer: ${n.stats.lastRescuer||'none'}. Received care is distinct from independent survival.`;
+    const beliefs=$('npc-beliefs');beliefs.replaceChildren();if(!c.beliefs?.length)add(beliefs,'li','No retained beliefs yet.');for(const belief of (c.beliefs||[]).slice(-12).reverse())add(beliefs,'li',`${belief.source} · ${belief.status}: ${belief.text}`);
+    for(const [id,table,label] of [['npc-sources','sources','No water discovered yet.'],['npc-foods','foods','No food patches discovered yet.'],['npc-shelters','shelters','No shelter discovered yet.']]){const list=$(id);list.replaceChildren();const known=Object.values(n.memory[table]).slice(-8);if(!known.length)add(list,'li',label);for(const item of known)add(list,'li',`${item.name||item.id} · ${table==='foods'?'last seen '+(item.stock??'?')+' apples':table==='shelters'?'remembered entrance':item.available?'last observed accessible':'last observed unavailable'}`);}drawMap(n);
+    const skills=$('npc-skills');skills.replaceChildren();if(!n.memory.skills.length)add(skills,'p','No acquired procedures yet.','small');for(const skill of n.memory.skills){const details=add(skills,'details','');add(details,'summary',`${skill.name} · ${skill.status}`);add(details,'p',skill.steps.map(step=>title(step.type)).join(' → '),'small');add(details,'p',`${skill.successes} useful successes · ${skill.failures} failures. Supported by actual action outcomes.`,'small');}
+    const history=$('npc-history');history.replaceChildren();for(const event of n.memory.experience.slice(-12).reverse()){const d=event.details;add(history,'p',`${title(event.type)} · ${title(d.result?.code||d.code||d.skillId||d.setting||'remembered outcome')}`,'small');}const lesson=n.memory.lessons.at(-1);$('npc-lesson').textContent=lesson?`${lesson.verified} ${lesson.hypothesis}`:'Consequences and observations support learning; untested ideas stay uncertain.';
+    $('world-hour').value=env.settings.hourOverride===null?'auto':String(env.settings.hourOverride);$('world-weather-control').value=env.settings.weatherOverride||'auto';$('npc-preset').value=n.preset;$('npc-rescue-presentation').value=n.rescuePresentation;$('npc-learning').checked=n.learning;
+    $('npc-condition').classList.toggle('hidden',!$('npc-numeric-debug').checked);if($('npc-numeric-debug').checked){for(const [id,key] of [['hydration','hydration'],['nourishment','nourishment'],['health','health']]){$('npc-'+id).value=n[key];$('npc-'+id+'-value').textContent=n[key].toFixed(1)+' / 100';}$('npc-heat').textContent=n.thermal.hot.toFixed(1);$('npc-cold').textContent=n.thermal.cold.toFixed(1);$('npc-energy-debug').textContent=n.energy.toFixed(1);$('npc-stamina-debug').textContent=n.stamina.toFixed(1);$('npc-fatigue-debug').textContent=n.fatigue.toFixed(1);$('npc-sleep-debug').textContent=n.sleepPressure.toFixed(1);const pace=NPC_PRESETS[n.preset];$('npc-survival').textContent=`Engine reserve estimate: food ${(n.nourishment/pace.nourishmentDepletionPerSecond).toFixed(0)}s · water ${(n.hydration/pace.depletionPerSecond).toFixed(0)}s before modifiers.`;}
   }
-  return {toggle,close,update,follow};
+  return {toggle,close,update,follow,changeTab};
 }

@@ -1,6 +1,6 @@
 /** World distances are in logical pixels. Change rules here, never in the renderer. */
 export const CONFIG = Object.freeze({
-  title: 'Aincrad', version: '0.4.0', seed: 74193,
+  title: 'Aincrad', version: '0.5.0', seed: 74193,
   halfSize: 24000, valleyRadius: 22500, walkSpeed: 150, sprintMultiplier: 1.65,
   playerRadius: 10, fixedStep: 1 / 60, chunkSize: 640, treeCell: 145,
   dayRealSeconds: 3600, // One in-game day = one hour of unpaused play.
@@ -9,6 +9,7 @@ export const CONFIG = Object.freeze({
 export const SPAWN = Object.freeze({ x: -680, y: 380 });
 /** A dry bank, exposed through ordinary local observation rather than a preloaded map. */
 export const STARTER_NPC_SPAWN = Object.freeze({ x: 276, y: 760 });
+export const SECOND_NPC_SPAWN = Object.freeze({ x: 300, y: 920 });
 export const PONDS = Object.freeze([
   { id: 'spring', name: 'Trailhead Pond', x: 480, y: 760, rx: 170, ry: 125 },
   { id: 'meadow', name: 'Sunfall Pool', x: 5100, y: 4800, rx: 145, ry: 115 },
@@ -72,4 +73,24 @@ export const NPC_PRESETS = Object.freeze({
   // Food is the more frequent gameplay need. Full water lasts 7m; food 3m30s.
   normal: { initialHydration: 85, depletionPerSecond: 100 / 420, initialNourishment: 85, nourishmentDepletionPerSecond: 100 / 210, rescueDelay: 14, recoverySeconds: 3, rescueHydration: 75, rescueNourishment: 75 },
   accelerated: { initialHydration: 75, depletionPerSecond: 300 / 420, initialNourishment: 75, nourishmentDepletionPerSecond: 300 / 210, rescueDelay: 7, recoverySeconds: 2, rescueHydration: 75, rescueNourishment: 75 },
+});
+/** Distinct body stores: food sustains energy, exertion spends stamina, sleep relieves sleep pressure. */
+export const BODY_RULES = Object.freeze({
+  initialEnergy: 85, initialStamina: 100, initialFatigue: 5, initialSleepPressure: 10,
+  awakeEnergyPerSecond: .008, walkingEnergyPerSecond: .035,
+  idleEnergyRecoveryPerSecond: .018, restEnergyRecoveryPerSecond: .05, sleepEnergyRecoveryPerSecond: .11,
+  mealEnergyPerNourishment: .5, nourishmentForEnergyRecovery: 20,
+  walkingStaminaPerSecond: .65, idleStaminaRecoveryPerSecond: .6,
+  restStaminaRecoveryPerSecond: 2.5, sleepStaminaRecoveryPerSecond: 2,
+  awakeFatiguePerSecond: .015, walkingFatiguePerSecond: .045,
+  restFatigueRecoveryPerSecond: .12, sleepFatigueRecoveryPerSecond: .65,
+  awakeSleepPressurePerSecond: .025, sleepPressureRecoveryPerSecond: .9,
+  lowStamina: 15, highFatigue: 75, lowEnergy: 15, exhaustedWalkMultiplier: .65,
+  restInterruptReserve: 25, restInterruptThermal: 40, restInterruptHealth: 25,
+  rescueEnergy: 55, rescueStamina: 60, rescueFatigueMaximum: 60, rescueSleepPressureMaximum: 70,
+});
+export const SOCIAL_RULES = Object.freeze({
+  peerRange: 400, noteRange: 180, speechCooldown: 35, questionCooldown: 180, topicCooldown: 900,
+  maxMessages: 160, maxNotes: 24, maxText: 600, maxTitle: 80,
+  maxRelationships: 8, maxHeard: 32, maxTopics: 24,
 });

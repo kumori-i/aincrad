@@ -2,6 +2,7 @@ import { CONFIG, NPC_RULES, CAVES, CAVE_EXIT } from './config.js';
 import { canStand, terrain, objectAtCell, caveDistance, CAVE_OBJECTS, distance } from './world.js';
 import { nearbyWaterSources, nearbyFoodSources, nearbyShelters } from './resources.js';
 import { environmentConditions } from './environment.js';
+import { bodySignals, sensedEnvironment } from './interoception.js';
 
 export const tileKey=(p)=>`${Math.round(p.x/NPC_RULES.tileSize)},${Math.round(p.y/NPC_RULES.tileSize)}`;
 export function tilePoint(key){const [x,y]=key.split(',').map(Number);return{x:x*NPC_RULES.tileSize,y:y*NPC_RULES.tileSize};}
@@ -46,5 +47,6 @@ export function perceive(npc,environment={}){
   const foods=scene==='valley'?nearbyFoodSources(p,r,environment).filter(visible).map(({renewAt,...visibleFood})=>visibleFood):[];
   const shelters=scene==='valley'?nearbyShelters(p,r).filter(visible).map(({shelteredTemperature,...entrance})=>entrance):[];
   const exit=scene!=='valley'&&distance(p,CAVE_EXIT)<=r&&lineOfSight(p,CAVE_EXIT,scene)?{...CAVE_EXIT,observedAt:npc.elapsed}:null;
-  return {at:npc.elapsed,scene,exit,position:{...p},lifecycle:npc.lifecycle,hydration:npc.hydration,nourishment:npc.nourishment,health:npc.health,thermal:{...npc.thermal},feelings:{...npc.feelings},sensation:environmentConditions(environment,{position:p,scene,wetness:npc.thermal.wetness}),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells,sources,foods,shelters};
+  const sensed={...npc,sensation:environmentConditions(environment,{position:p,scene,wetness:npc.thermal.wetness})};
+  return {at:npc.elapsed,scene,exit,position:{...p},lifecycle:npc.lifecycle,body:bodySignals(sensed),environment:sensedEnvironment(sensed),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells,sources,foods,shelters};
 }

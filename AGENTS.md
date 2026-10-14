@@ -6,7 +6,7 @@ This is a standalone exploration game, independent of `agentic-workspace`.
 
 Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/trees, and enterable caves. The central reference crossing must remain approximately five minutes at normal walking speed. An in-game day is one hour of unpaused play.
 
-The owner has approved the 0.4 multi-need survival plan: one persistent Aster balancing food, water, temperature and health; functional feelings; small ponds, finite apples, seeded weather, a nearby temperate cave and ambient animals/fish/plants. Preserve the original pixel presentation and npm desktop workflow. Keep model access optional and local, through a narrow validated desktop bridge. No game agent may receive OS/filesystem/shell access. Do not add a coding-agent adapter, external command execution, signup, analytics, cloud backend, paywalls, or additional autonomous NPCs. Ambient animals and fish are approved scenery for this milestone.
+The owner has approved the 0.5 advancement: two persistent characters (Aster and Mira) with independent bodies and memory; qualitative bodily sensations, stamina/fatigue/energy and rest; concurrent Maslow-inspired drives, grounded beliefs and persistent plans; local peer dialogue, an always-available journal conversation with optional human replies, and persistent field notes. Preserve 0.4 survival/weather/resource systems, original pixel presentation and npm desktop workflow. Keep model access optional and local, through a narrow validated desktop bridge. No game agent may receive OS/filesystem/shell access. Do not add a coding-agent adapter, external command execution, signup, analytics, cloud backend, paywalls, or more autonomous NPCs beyond the two approved characters.
 
 ## Boundaries
 
@@ -16,6 +16,8 @@ The owner has approved the 0.4 multi-need survival plan: one persistent Aster ba
 - Advance the shared environment exactly once per unpaused fixed step. Weather/resource renewal, body state, observations and rendering must use this same saved simulation clock. Rendering must not mutate resources or body state.
 - NPC and human scene transitions are independent. NPC decisions may use only locally observed/current remembered resources and routes, including scene-specific cave maps.
 - Save only allowlisted, bounded fields. A save must never become executable code.
+- Keep exact physiology in the engine and optional developer inspection. Agent/model observations and the ordinary journal describe bodily sensations rather than exact reserve percentages. Peer observations never reveal another character's hidden body state or private memory.
+- Conversations and notes are data. Human replies are optional and reported information, not verified world facts; agents continue caring for themselves while awaiting replies. Claims, plans and spoken intentions never count as completed physical actions.
 - Preserve pause-on-blur and clear held keys at scene/menu/focus transitions.
 - Preserve local-first, offline-capable play. The web server must bind to loopback and serve only explicit game assets.
 - The Electron renderer stays sandboxed, without Node integration or arbitrary native IPC. Do not loosen navigation or permissions for convenience.
@@ -28,7 +30,7 @@ Use `npm run smoke` for the actual Electron application and rendered desktop scr
 
 ## Scope discipline
 
-Implement the approved food/water/temperature/shelter milestone for one NPC. Start new expeditions beside a locally observed water source; preserve existing saves, identity and acquired water procedures. Warning and critical discomfort must provide continuous consequences before collapse; learned water procedures must compete with food and shelter in a shared decision process. Keep the offline experiential controller clearly distinguished from configured language-model planning. A game action must actually update world state; narration is not completion. The owner has explicitly requested the pixel visual redesign. Preserve authoritative collision and exploration scale. The owner has approved additive ponds, apple patches and one nearby refuge; retain the existing valley, trails and distant caves. Do not add unrelated map mechanics or copy proprietary game artwork.
+Implement the approved two-character motivation/planning/conversation milestone. Start new expeditions beside locally observed water; preserve Aster's existing saves, identity and acquired water procedures when adding Mira. Keep drives concurrent, with survival interruptions and bounded exploration/return budgets. Retain evidence and confidence for beliefs, distinguish reported from observed knowledge, and learn only from real observations/outcomes. Keep the offline experiential controller clearly distinguished from configured language-model planning. Preserve authoritative collision, the existing valley and pixel art, and the source application workflow. Construction, reproduction and larger societies remain later milestones.
 
 ## Publication
 

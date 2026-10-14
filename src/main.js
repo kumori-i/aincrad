@@ -2,7 +2,8 @@ import { CONFIG, SPAWN, CAVES, CAVE_SPAWN, LANDMARKS } from './config.js';
 import { clamp, freshState, moveActor, nearestInteraction, clockTime, regionName, distance, canStand } from './world.js';
 import { loadSave, writeSave, validateSave } from './save.js';
 import { Renderer } from './renderer.js';
-import { NpcController } from './controller.js';
+import { PopulationRuntime } from './population.js';
+import { bodySignals, sensedEnvironment } from './interoception.js';
 import { createNpcPanel } from './npc-panel.js';
 import { observeNpc } from './npc.js';
 import { recordEvent } from './npc-memory.js';
@@ -15,8 +16,9 @@ try { storage = window.localStorage; } catch { storage = { getItem(){return null
 const loaded = loadSave(storage);
 let state = loaded.state;
 const renderer = new Renderer(ui.world,state);
-let npcController=new NpcController(state.npc,{environment:state.environment});
-const npcPanel=createNpcPanel({getNpc:()=>state.npc,getController:()=>npcController,renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
+let population=new PopulationRuntime(state);
+const selectedAgent=()=>population.getAgent(state.selectedAgentId)||state.npc;
+const npcPanel=createNpcPanel({getNpc:selectedAgent,getAgents:()=>state.agents,getController:()=>population.controller(selectedAgent().id),getRuntime:()=>population,getCommunity:()=>state.community,selectAgent:id=>{if(!population.getAgent(id))return;state.selectedAgentId=id;renderer.followId=id;if(renderer.followNpc)renderer.snap(selectedAgent().position);save();},renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
 let started=false, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
 let lastTime=performance.now()/1000, accumulator=0, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
@@ -64,8 +66,8 @@ function returnToCamp(){
   state.scene='valley';state.player={...SPAWN};renderer.snap(state.player);closePanels();save();notify('Returned to the Trailhead.');
 }
 function newExpedition(){
-  if(!window.confirm('Start a new expedition? This replaces your saved position, discoveries, world time, and Aster’s memory.'))return;
-  const provider=npcController.provider;npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{provider,environment:state.environment});saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
+  if(!window.confirm('Start a new expedition? This replaces your saved world, both characters’ memories, and conversations.'))return;
+  const providerFactory=population.providerFactory;population.dispose();state=freshState();population=new PopulationRuntime(state,{providerFactory});renderer.followId=state.selectedAgentId;saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
 $('watch-aster').addEventListener('click',()=>{begin();npcPanel.follow(true);npcPanel.toggle();});
@@ -119,18 +121,21 @@ function fixedUpdate(dt){
   const travelled=moveActor(state.player,dx,dy,dt,keys.has('ShiftLeft')||keys.has('ShiftRight'),state.scene);
   anim.moving=travelled>.01;
   if(dx||dy){const n=Math.hypot(dx,dy);anim.facing={x:dx/n,y:dy/n};}
-  state.elapsed+=dt;state.distance+=travelled;tickEnvironment(state.environment,dt);
-  const previousEpoch=state.npc.epoch;npcController.tick(dt);if(state.npc.epoch!==previousEpoch){save();if(state.npc.lifecycle==='RECOVERING')notify(state.npc.rescuePresentation==='quiet'?'Aster has received care and is recovering.':'A warm light gathers around Aster. A benevolent presence is helping her recover.',7);else if(state.npc.lifecycle==='COLLAPSED')notify('Aster has collapsed from '+(state.npc.collapseCause||'severe deprivation')+'. Her experience will be retained.',6);}
+  state.elapsed+=dt;state.distance+=travelled;
+  const epochs=new Map(state.agents.map(n=>[n.id,n.epoch]));population.tick(dt);
+  let changed=false;for(const n of state.agents)if(n.epoch!==epochs.get(n.id)){changed=true;if(n.lifecycle==='RECOVERING')notify(n.rescuePresentation==='quiet'?`${n.name} has received care and is recovering.`:`A warm light gathers around ${n.name}. A benevolent presence is helping her recover.`,7);else if(n.lifecycle==='COLLAPSED')notify(`${n.name} has collapsed from ${n.collapseCause||'severe deprivation'}. Her experience will be retained.`,6);}
+  if(changed)save();
 }
 function updateHud(now){
   if(now-lastHud<.15)return;lastHud=now;
   const c=clockTime(state.elapsed),hour=environmentHour(state.environment),minute=Math.floor(hour*60);c.hour=Math.floor(minute/60);c.minute=minute%60;ui.clock.textContent=`${String(c.hour).padStart(2,'0')}:${String(c.minute).padStart(2,'0')}`;ui.day.textContent='DAY '+String(c.day).padStart(2,'0');
-  const following=renderer.followNpc,subject=renderer.viewSubject(state),viewedScene=renderer.viewScene(state);
+  const following=renderer.followNpc,subject=renderer.viewSubject(state),viewedScene=renderer.viewScene(state),viewedAgent=population.getAgent(renderer.followId)||selectedAgent();
   ui.region.textContent=regionName(subject.x,subject.y,viewedScene);
-  const conditions=environmentConditions(state.environment,{position:subject,scene:viewedScene,thermal:following?state.npc.thermal:undefined});
-  $('world-weather').textContent=`${conditions.sheltered?'Sheltered':conditions.weather} · ${conditions.airTemperature.toFixed(0)}°C · feels ${conditions.feltTemperature.toFixed(0)}°C${state.environment.settings.hourOverride!==null||state.environment.settings.weatherOverride!==null?' · TEST':''}`;
-  $('location-kicker').textContent=following?'ASTER’S JOURNEY':'YOUR FOOTSTEPS, YOUR STORY';
-  ui['location-detail'].textContent=`${following?'Following Aster':viewedScene==='valley'?'Crown Ridge Valley':'Beneath Crown Ridge'} · ${state.visitedCaves.length} / ${CAVES.length} caverns explored`;
+  const conditions=environmentConditions(state.environment,{position:subject,scene:viewedScene,thermal:following?viewedAgent.thermal:undefined});
+  const sensed=sensedEnvironment({sensation:conditions});
+  $('world-weather').textContent=`${sensed.shelter==='sheltered'?'Sheltered':sensed.weather} · ${sensed.warmth} · ${sensed.wind}${state.environment.settings.hourOverride!==null||state.environment.settings.weatherOverride!==null?' · TEST':''}`;
+  $('location-kicker').textContent=following?`${viewedAgent.name.toUpperCase()}’S JOURNEY`:'YOUR FOOTSTEPS, YOUR STORY';
+  ui['location-detail'].textContent=`${following?'Following '+viewedAgent.name:viewedScene==='valley'?'Crown Ridge Valley':'Beneath Crown Ridge'} · ${state.visitedCaves.length} / ${CAVES.length} caverns explored`;
   ui['nav-label'].textContent=viewedScene==='valley'?'THE VALLEY':'UNDER THE RIDGE';
   const action=nearestInteraction(state.player,state.scene);
   ui.interaction.classList.toggle('hidden',!action||Boolean(panel)||following);
@@ -164,13 +169,17 @@ if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ =
     snapshot:()=>structuredClone(state),
     metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,interaction:nearestInteraction(state.player,state.scene)}),
     teleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene))return false;if(!canStand(x,y,scene))return false;state.scene=scene;state.player={x,y};renderer.snap(state.player);return true;},
-    step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;tickEnvironment(state.environment,dt);npcController.tick(dt);}},
-    start:begin,interact,save:()=>save(true),reset:()=>{npcController.dispose();state=freshState();npcController=new NpcController(state.npc,{environment:state.environment});renderer.snap(state.player);},
-    npc:()=>structuredClone(state.npc),
-    npcStep:(seconds)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.elapsed+=dt;tickEnvironment(state.environment,dt);npcController.tick(dt);}},
-    npcTeleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene)||!canStand(x,y,scene))return false;state.npc.position={x,y};state.npc.scene=scene;state.npc.epoch++;state.npc.active=null;state.npc.skillRun=null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'position',value:{x,y},provenance:'debug'});observeNpc(state.npc,state.environment);return true;},
+    step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;population.tick(dt);}},
+    start:begin,interact,save:()=>save(true),reset:()=>{population.dispose();state=freshState();population=new PopulationRuntime(state);renderer.followId=state.selectedAgentId;renderer.snap(state.player);},
+    npc:(id=state.selectedAgentId)=>structuredClone(population.getAgent(id)),
+    agents:()=>structuredClone(state.agents),conversation:()=>structuredClone(state.community),
+    postMessage:(text,to='all',replyTo=null)=>population.social.postUserMessage(text,{to,replyTo}),
+    npcAction:(id,action)=>population.controller(id)?.perform(action),
+    testPlan:(id,plan)=>{const n=population.getAgent(id);if(!n)return false;population.cancel(id);n.active=null;n.skillRun=null;recordEvent(n,'debug',{setting:'test plan',provenance:'native QA fixture'});population.controller(id).applyDecision({plan,provider:'native QA fixture',reason:'A bounded persistence fixture.'});return n.cognition.plan?.status==='active';},
+    npcStep:(seconds)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.elapsed+=dt;population.tick(dt);}},
+    npcTeleport:(x,y,scene='valley',id=state.selectedAgentId)=>{const n=population.getAgent(id);if(!n||scene!=='valley'&&!CAVES.some(c=>c.id===scene)||!canStand(x,y,scene))return false;n.position={x,y};n.scene=scene;n.epoch++;n.active=null;n.skillRun=null;population.cancel(id);recordEvent(n,'debug',{setting:'position',value:{x,y},provenance:'debug'});observeNpc(n,state.environment);return true;},
     light:(elapsed)=>{state.elapsed=clamp(elapsed,0,3600*1000);state.environment.elapsed=state.elapsed;tickEnvironment(state.environment,1e-9);},
     environment:()=>structuredClone(state.environment),
-    worldSettings:(settings)=>{state.environment.settings.hourOverride=Number.isFinite(settings.hourOverride)&&settings.hourOverride>=0&&settings.hourOverride<24?settings.hourOverride:null;state.environment.settings.weatherOverride=['clear','cloudy','rainy','windy'].includes(settings.weatherOverride)?settings.weatherOverride:null;npcController.cancel();recordEvent(state.npc,'debug',{setting:'world conditions',value:state.environment.settings,provenance:'debug'});},
+    worldSettings:(settings)=>{state.environment.settings.hourOverride=Number.isFinite(settings.hourOverride)&&settings.hourOverride>=0&&settings.hourOverride<24?settings.hourOverride:null;state.environment.settings.weatherOverride=['clear','cloudy','rainy','windy'].includes(settings.weatherOverride)?settings.weatherOverride:null;population.cancel();for(const n of state.agents)recordEvent(n,'debug',{setting:'world conditions',value:state.environment.settings,provenance:'debug'});},
   };
 }

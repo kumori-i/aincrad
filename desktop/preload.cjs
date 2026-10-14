@@ -4,5 +4,5 @@ contextBridge.exposeInMainWorld('aincradAgent',Object.freeze({
   status:()=>ipcRenderer.invoke('aincrad:model-status'),
   configure:config=>ipcRenderer.invoke('aincrad:model-configure',config),
   decide:observation=>ipcRenderer.invoke('aincrad:model-decide',observation),
-  cancel:()=>ipcRenderer.invoke('aincrad:model-cancel'),
+  cancel:agentId=>ipcRenderer.invoke('aincrad:model-cancel',agentId),
 }));

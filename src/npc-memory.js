@@ -3,10 +3,12 @@ import { createNpc } from './npc-state.js';
 import { clamp, canStand, distance } from './world.js';
 import { waterSource, foodSource, shelterSource, withinWorld } from './resources.js';
 import { tileKey, tilePoint } from './perception.js';
+import { validateCognition } from './cognition.js';
+import { validateSocialMemory } from './social.js';
 
-const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition']);
-const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter']);
-const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter']);
+const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
+const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note']);
+const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note']);
 const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwise;
 const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
 const cellsFor=(npc,scene=npc.scene)=>scene==='valley'?npc.memory.cells:(npc.memory.caveCells[scene]||={});
@@ -123,10 +125,11 @@ function candidateFromRelief(npc,event,id){
 }
 export function learnOutcome(npc,action,result,context,startPosition){
   const previous=npc.memory.experience.filter(e=>e.type==='action').at(-1);
-  if(!result.ok&&result.code!=='PRIORITY_CHANGED'){npc.stats.invalidActions++;if(previous?.details.result?.code===result.code&&previous?.details.action?.type===action.type)npc.stats.repeatedInvalid++;}
+  const timedProgress=result.code==='ACTION_TIMEOUT'&&(result.distance||0)>40;
+  if(!result.ok&&result.code!=='PRIORITY_CHANGED'&&!timedProgress){npc.stats.invalidActions++;if(previous?.details.result?.code===result.code&&previous?.details.action?.type===action.type)npc.stats.repeatedInvalid++;}
   const event=recordEvent(npc,'action',{action,result,context,startPosition,scene:npc.scene,position:npc.position,hydration:npc.hydration,nourishment:npc.nourishment,thermal:npc.thermal,flask:npc.flask.water});
   npc.lastResult={eventId:event.id,at:npc.elapsed,...result,action:action.type};npc.memory.trace=[...npc.memory.trace,event.id].slice(-12);
-  let reward=result.ok?0:-2;
+  let reward=result.ok?0:timedProgress?-.15:-2;
   if(action.type==='move'&&!action.sourceId&&!action.foodId&&!action.shelterId){
     if(result.code==='ROUTE_BLOCKED')reward=-.65;
     const travel=distance(startPosition,npc.position);if(travel>NPC_RULES.tileSize/2){const key=`${npc.scene}:${tileKey(npc.position)}`,exploration=npc.memory.exploration;exploration.recentTargets=[...exploration.recentTargets,key].slice(-12);exploration.heading={x:(npc.position.x-startPosition.x)/travel,y:(npc.position.y-startPosition.y)/travel};}
@@ -136,6 +139,8 @@ export function learnOutcome(npc,action,result,context,startPosition){
   const meaningful=waterGain>=NPC_RULES.meaningfulHydrationGain||foodGain>=(NPC_RULES.meaningfulNourishmentGain||15);
   if(meaningful)reward=Math.min(8,Math.max(waterGain/NPC_RULES.drinkHydration,foodGain/(NPC_RULES.appleNourishment||45))*8);
   if(result.code==='COLLAPSED')reward=-10;
+  if(['RESTED','SLEPT'].includes(result.code)&&result.ok)reward=Math.min(4,Math.max(result.energyRecovered||0,result.staminaRecovered||0,result.fatigueRelieved||0,result.sleepPressureRelieved||0)/12);
+  if(['say','ask_human','journal_reply','write_note','read_note'].includes(action.type)&&result.ok)reward=0;
   // Novel observations only help when the whole body is safe. Motion itself earns no reward.
   if(result.novelCells&&npc.memory.explorationCredit<4){const f=bodyFeatures(npc),safe=Math.max(0,1-Math.max(f.thirst,f.hunger,f.thermal)*1.5),novelty=Math.min(.3,result.novelCells*.015,4-npc.memory.explorationCredit)*safe;reward+=novelty;npc.memory.explorationCredit+=novelty;}
   if(result.code==='PRIORITY_CHANGED')reward=0;
@@ -148,7 +153,7 @@ export function learnOutcome(npc,action,result,context,startPosition){
     if(waterGain>=NPC_RULES.meaningfulHydrationGain&&result.independent)candidateFromDrink(npc,event);
     if(foodGain>=(NPC_RULES.meaningfulNourishmentGain||15)&&result.independent)candidateFromEat(npc,event);
   }
-  for(const [field,table] of [['sourceId','sources'],['foodId','foods'],['shelterId','shelters']])if(!result.ok&&action[field]&&npc.memory[table]?.[action[field]]){const resource=npc.memory[table][action[field]];if(['SOURCE_UNAVAILABLE','FOOD_DEPLETED','RESOURCE_UNAVAILABLE'].includes(result.code))resource.available=false;resource.retryAfter=npc.elapsed+(['ROUTE_BLOCKED','NO_KNOWN_ROUTE'].includes(result.code)?30:result.code==='OUT_OF_REACH'?3:8);}
+  for(const [field,table] of [['sourceId','sources'],['foodId','foods'],['shelterId','shelters']])if(!result.ok&&action[field]&&npc.memory[table]?.[action[field]]){const resource=npc.memory[table][action[field]];if(['SOURCE_UNAVAILABLE','FOOD_DEPLETED','RESOURCE_UNAVAILABLE'].includes(result.code))resource.available=false;resource.retryAfter=npc.elapsed+(timedProgress?0:['ROUTE_BLOCKED','NO_KNOWN_ROUTE'].includes(result.code)?30:result.code==='OUT_OF_REACH'?3:8);}
   return event;
 }
 export function recoveryLesson(npc){
@@ -161,11 +166,12 @@ export function recoveryLesson(npc){
 
 /** Saved data are bounded and allowlisted; recognition templates cannot execute arbitrary code. */
 export function validateNpc(raw,{restoring=true}={}){
-  const n=createNpc({preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
-  if(!raw||![1,2].includes(raw.version)||raw.id!=='aster')return n;
+  const n=createNpc({id:raw?.id==='mira'?'mira':'aster',preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
+  if(!raw||![1,2,3].includes(raw.version)||!['aster','mira'].includes(raw.id))return n;
   const scenes=new Set(['valley',...CAVES.map(c=>c.id)]);n.scene=scenes.has(raw.scene)?raw.scene:'valley';
   if(Number.isFinite(raw.position?.x)&&Number.isFinite(raw.position?.y)&&canStand(raw.position.x,raw.position.y,n.scene))n.position={x:raw.position.x,y:raw.position.y};else n.scene='valley';
   n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,n.hydration,100);n.nourishment=finite(raw.nourishment,n.nourishment,100);n.health=finite(raw.health,n.health,100);n.riskCost=finite(raw.riskCost);
+  for(const field of ['energy','stamina','fatigue','sleepPressure'])n[field]=finite(raw[field],n[field],100);n.bodyMode=['awake','resting','sleeping'].includes(raw.bodyMode)?raw.bodyMode:'awake';
   n.thermal={hot:finite(raw.thermal?.hot,0,100),cold:finite(raw.thermal?.cold,0,100),wetness:finite(raw.thermal?.wetness,0,100)};
   for(const name of Object.keys(n.feelings||{}))n.feelings[name]=finite(raw.feelings?.[name],0,1);
   if(raw.sensation&&typeof raw.sensation==='object')for(const key of Object.keys(n.sensation||{})){if(typeof n.sensation[key]==='boolean')n.sensation[key]=raw.sensation[key]===true;else if(typeof n.sensation[key]==='number')n.sensation[key]=Number.isFinite(raw.sensation[key])?clamp(raw.sensation[key],-100,100):n.sensation[key];else n.sensation[key]=str(raw.sensation[key],50);}
@@ -214,5 +220,6 @@ export function validateNpc(raw,{restoring=true}={}){
   if(typeof raw.navigationAnchor==='string'&&cellsFor(n)[raw.navigationAnchor]?.walkable&&distance(tilePoint(raw.navigationAnchor),n.position)<160)n.navigationAnchor=raw.navigationAnchor;
   n.modelBudget={since:Math.min(n.elapsed,finite(raw.modelBudget?.since)),calls:finite(raw.modelBudget?.calls,0,60)};n.bodyFeedback={since:Math.min(n.elapsed,finite(raw.bodyFeedback?.since)),cost:finite(raw.bodyFeedback?.cost)};n.lastResult=raw.lastResult?compact(raw.lastResult):null;
   for(const k of Object.keys(n.presentation))n.presentation[k]=Math.min(n.elapsed+12,finite(raw.presentation?.[k]));
+  n.cognition=validateCognition(raw.cognition,n);n.social=validateSocialMemory(raw.social,n);n.bodyMode='awake';
   return n;
 }

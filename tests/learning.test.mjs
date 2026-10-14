@@ -54,7 +54,7 @@ test('changed need context invalidates delayed model decisions',async()=>{
  oldResolve({action:{type:'wait',seconds:5},reason:'Old comfortable observation'});await new Promise(r=>setImmediate(r));assert.equal(controller.readyDecision,null);assert.equal(n.active,null);assert.ok(n.stats.staleResponses>=1);controller.dispose();
 });
 test('model observations expose body, current-scene remembered tiles and only discovered resource locations',()=>{
- const n=createNpc();observeNpc(n);const observation=decisionObservation(n);assert.equal(observation.condition.nourishment,n.nourishment);assert.ok(observation.condition.feelings);assert.ok(observation.knownFoods.length<Object.keys(createEnvironment().foodStocks||{}).length||observation.knownFoods.length<10);assert.equal('fullMap' in observation,false);
+ const n=createNpc();observeNpc(n);const observation=decisionObservation(n);assert.equal(observation.condition.nourishment,undefined);assert.equal(typeof observation.condition.body.hunger,'string');assert.ok(observation.condition.senses);assert.ok(observation.knownFoods.length<Object.keys(createEnvironment().foodStocks||{}).length||observation.knownFoods.length<10);assert.equal('fullMap' in observation,false);
  const s=shelterSource('refuge');near(n,s);requestNpcAction(n,{type:'enter_shelter',shelterId:s.id});const cave=decisionObservation(n);assert.equal(cave.condition.scene,'refuge');assert.ok(cave.knownTiles.every(c=>c.terrain.startsWith('cave')));assert.ok(cave.knownSources.every(source=>source.distance===null));
 });
 test('save validation rejects forged inventory evidence and preserves bounded genuine apples',()=>{

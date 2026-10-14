@@ -4,5 +4,5 @@
   "model": "llama3.2:3b",
   "timeoutMs": 8000,
   "maxCallsPerHour": 60,
-  "maxTokens": 450
+  "maxTokens": 700
 }

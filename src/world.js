@@ -2,6 +2,7 @@ import { CONFIG, CAVES, SPAWN, CAVE_SPAWN, CAVE_EXIT, PONDS, APPLE_PATCHES, STAR
 
 import { createNpc } from './npc-state.js';
 import { createEnvironment } from './environment.js';
+import { createCommunity } from './social.js';
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -197,7 +198,8 @@ export function regionName(x, y, scene) {
   return y > 0 ? 'Sunfall Meadows' : 'The High Meadows';
 }
 export function freshState() {
-  return { version: 3, environment: createEnvironment(), npc: createNpc(), scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+  const agents = [createNpc({id:'aster'}), createNpc({id:'mira'})];
+  return { version: 4, environment: createEnvironment(), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 export function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);

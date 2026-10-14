@@ -3,19 +3,18 @@ import { distance, clamp } from './world.js';
 import { tilePoint, rememberedCells, rememberedEdges } from './perception.js';
 import { knownRoute } from './navigation.js';
 import { observeNpc, requestNpcAction, tickNpc, cancelNpcAction } from './npc.js';
-import { policyContext, actionCategory, recordEvent, learnedValue } from './npc-memory.js';
+import { policyContext, actionCategory, recordEvent, learnedValue, learnOutcome } from './npc-memory.js';
+
+import { bodySignals, sensedEnvironment } from './interoception.js';
+import { signalUrgencies, cognitiveObservation, updateCognition, localPlan, adoptPlan, progressPlan, cancelPlan, cognitiveAction, explorationFrontier, searchReturn, estimatedWalkingSpeed } from './cognition.js';
 
 function random(npc){npc.rng=(Math.imul(npc.rng,1664525)+1013904223)>>>0;return npc.rng/4294967296;}
 const thermalLevel=n=>Math.max(n.thermal?.hot||0,n.thermal?.cold||0);
-function decisionCondition(npc){const thermal=thermalLevel(npc),exposure=thermal>=(NPC_RULES.criticalThermal??80)?'critical':thermal>=(NPC_RULES.thermalWarning??40)?'warning':'comfortable',health=(npc.health??100)<20?'critical':(npc.health??100)<80?'injured':'healthy',felt=npc.sensation?.feltTemperature??18,climate=felt>(NPC_RULES.hotComfortMax??26)?'hot':felt<(NPC_RULES.coldComfortMin??14)?'cold':'comfortable';return `${policyContext(npc)}|${exposure}|${health}|${climate}`;}
-/** Supplied physiology defines costs. Observed locations and effective procedures are learned. */
-export function needPriorities(npc){
-  const reserve=(v,warning,critical)=>{const shortage=(100-v)/100;return shortage*shortage*5+(v<warning?(warning-v)/warning*9:0)+(v<critical?(critical-v)/Math.max(1,critical)*10:0);};
-  const hot=thermalLevel(npc),felt=npc.sensation?.feltTemperature??18,exposure=npc.scene==='valley'?Math.max(0,felt-(NPC_RULES.hotComfortMax??26),(NPC_RULES.coldComfortMin??14)-felt):0;
-  return {water:reserve(npc.hydration,NPC_RULES.thirstWarning,NPC_RULES.criticalHydration),food:reserve(npc.nourishment??100,NPC_RULES.hungerWarning||45,NPC_RULES.criticalNourishment||20)*1.25,thermal:hot*hot/1000+(hot>(NPC_RULES.thermalWarning??40)?(hot-(NPC_RULES.thermalWarning??40))/Math.max(1,(NPC_RULES.criticalThermal??80)-(NPC_RULES.thermalWarning??40))*6.667:0)+(hot>(NPC_RULES.criticalThermal??80)?(hot-(NPC_RULES.criticalThermal??80))/Math.max(1,100-(NPC_RULES.criticalThermal??80))*10:0)+Math.min(3,exposure/5)};
-}
-const goalFor=action=>action?.sourceId||['drink','fill_flask'].includes(action?.type)?'water':action?.foodId||['eat','gather_food'].includes(action?.type)?'food':action?.shelterId||action?.type==='enter_shelter'?'thermal':'explore';
-function knownItems(npc,table){return npc.scene==='valley'?Object.values(npc.memory[table]||{}).filter(s=>s.available!==false&&(s.retryAfter||0)<=npc.elapsed):[];}
+function decisionCondition(npc){return JSON.stringify({scene:npc.scene,lifecycle:npc.lifecycle,body:bodySignals(npc)});}
+/** The controller reacts to felt bands; exact stores remain the physical engine’s concern. */
+export function needPriorities(npc){return signalUrgencies(npc);}
+const goalFor=action=>action?.sourceId||['drink','fill_flask'].includes(action?.type)?'water':action?.foodId||['eat','gather_food'].includes(action?.type)?'food':action?.shelterId||action?.type==='enter_shelter'?'thermal':['rest','sleep'].includes(action?.type)?'rest':'explore';
+function knownItems(npc,table){return npc.scene==='valley'?Object.values(npc.memory[table]||{}).filter(s=>(s.available!==false||table==='foods'&&npc.elapsed-s.observedAt>90)&&(table==='shelters'||(s.retryAfter||0)<=npc.elapsed)):[];}
 function routeEstimate(npc,item){
   const d=distance(npc.position,item);if(d<=NPC_RULES.collectionRange)return 0;
   const cells=rememberedCells(npc),edges=rememberedEdges(npc),anchor=npc.navigationAnchor&&cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null;
@@ -23,13 +22,13 @@ function routeEstimate(npc,item){
   for(const point of approaches){
     const edge=[point.key,`${Math.round(item.x/NPC_RULES.tileSize)},${Math.round(item.y/NPC_RULES.tileSize)}`].sort().join('>');if((edges[edge]?.retryAfter||0)>npc.elapsed)continue;
     const route=knownRoute(cells,npc.position,point,30,edges,npc.elapsed,anchor);if(!route)continue;
-    let previous=npc.position,length=0;for(const node of route){length+=distance(previous,node);previous=node;}length+=distance(previous,item);if(length<=NPC_RULES.maxActionSeconds*CONFIG.walkSpeed)return length/CONFIG.walkSpeed;
+    let previous=npc.position,length=0;for(const node of route){length+=distance(previous,node);previous=node;}length+=distance(previous,item);const speed=estimatedWalkingSpeed(npc);if(length<=(NPC_RULES.maxActionSeconds-.75)*speed)return length/speed;
   }return null;
 }
 function stagedApproach(npc,item){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc),before=distance(npc.position,item);
   const candidates=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>80&&distance(c,npc.position)<370&&distance(c,item)<before-40).sort((a,b)=>distance(a,item)-distance(b,item));
-  for(const point of candidates){const route=knownRoute(cells,npc.position,point,30,edges,npc.elapsed,npc.navigationAnchor);if(route)return {point,seconds:before/CONFIG.walkSpeed};}return null;
+  for(const point of candidates){const route=knownRoute(cells,npc.position,point,30,edges,npc.elapsed,npc.navigationAnchor);if(route)return {point,seconds:before/estimatedWalkingSpeed(npc)};}return null;
 }
 export function skillCandidates(npc){
   if(!npc.learning)return [];
@@ -48,45 +47,62 @@ export function skillCandidates(npc){
   }
   return candidates;
 }
-export function decisionObservation(npc){
-  const priorities=needPriorities(npc),cells=Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<=NPC_RULES.visionRadius+80).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,48);
-  const expose=table=>Object.values(npc.memory[table]||{}).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,12).map(s=>({...s,distance:npc.scene==='valley'?Math.round(distance(s,npc.position)):null,knownRouteSeconds:npc.scene==='valley'?routeEstimate(npc,s):null}));
+function experienceSummary(event){
+  const details=event.details||{},result=details.result||{},action=details.action;
+  return {id:event.id,at:event.at,type:event.type,...(action?{action:Object.fromEntries(['type','sourceId','foodId','shelterId','target','seconds','targetId','topic','noteId'].filter(k=>action[k]!==undefined).map(k=>[k,action[k]]))}:{}),...(result.code?{result:Object.fromEntries(['ok','code','independent','foodId','shelterId','resourceId','novelCells','distance','durationSeconds'].filter(k=>result[k]!==undefined).map(k=>[k,result[k]]))}:{}),...(details.verified?{verified:String(details.verified).slice(0,240)}:{}),...(details.verifiedCause?{verifiedCause:details.verifiedCause}:{})};
+}
+export function decisionObservation(npc,social=null){
+  const cells=Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<=NPC_RULES.visionRadius+80).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,48);
+  const expose=table=>Object.values(npc.memory[table]||{}).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,12).map(s=>({id:s.id,name:s.name,x:s.x,y:s.y,scene:s.scene,available:s.available!==false,observedAt:s.observedAt,...(table==='foods'?{stock:s.stock,capacity:s.capacity}:{}),...(table==='shelters'&&Number.isFinite(s.experiencedTemperature)?{shelterExperience:s.experiencedTemperature>NPC_RULES.hotComfortMax?'hot':s.experiencedTemperature<NPC_RULES.coldComfortMin?'cold':'temperate',experiencedAt:s.experiencedAt}:{}),distance:npc.scene==='valley'?Math.round(distance(s,npc.position)):null,knownRouteSeconds:npc.scene==='valley'?routeEstimate(npc,s):null}));
+  const flask=npc.flask.water<=.00001?'empty':npc.flask.water>=.999?'full':'some';
   return {
-    identity:{id:npc.id,name:npc.name},objective:'Maintain health and consciousness by balancing nourishment, hydration and exposure. Learn useful local routines from actual consequences.',
+    identity:{id:npc.id,name:npc.name},objective:'Care for your body, prepare for uncertain trips, investigate locally observed mysteries and build relationships. Human journal replies are optional; continue living while a question is unanswered.',
     knownExit:npc.scene==='valley'?null:(npc.memory.caveExits?.[npc.scene]||null),
-    condition:{scene:npc.scene,hydration:npc.hydration,nourishment:npc.nourishment,health:npc.health,thermal:{...npc.thermal},feelings:{...npc.feelings},sensation:{...npc.sensation},flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory?.apples.length||0,capacity:npc.inventory?.capacity||3},lifecycle:npc.lifecycle,position:{...npc.position}},
-    physiologicalPriorities:priorities,observedAt:npc.elapsed,knownSources:expose('sources'),knownFoods:expose('foods'),knownShelters:expose('shelters'),
+    condition:{scene:npc.scene,lifecycle:npc.lifecycle,position:{...npc.position},body:bodySignals(npc),senses:sensedEnvironment(npc),inventory:{apples:npc.inventory?.apples.length||0,capacity:npc.inventory?.capacity||3,flask}},
+    observedAt:npc.elapsed,knownSources:expose('sources'),knownFoods:expose('foods'),knownShelters:expose('shelters'),
     knownTiles:cells.map(c=>({x:c.x,y:c.y,walkable:c.walkable,terrain:c.terrain,observedAt:c.observedAt})),
-    recentExperience:npc.learning?npc.memory.experience.slice(-6):[],lessons:npc.learning?npc.memory.lessons.slice(-3):[],
-    skills:npc.learning?npc.memory.skills.filter(s=>s.status!=='retired').map(s=>({id:s.id,need:s.need,status:s.status,recognition:s.recognition,preconditions:s.preconditions,steps:s.steps,successes:s.successes,failures:s.failures,supportingExperience:s.supportingExperience.slice(-9)})):[],
+    recentExperience:npc.learning?npc.memory.experience.slice(-6).map(experienceSummary):[],lessons:npc.learning?npc.memory.lessons.slice(-3).map(l=>({at:l.at,verified:String(l.verified||'').replace(/-?\d+(?:\.\d+)?\s*%?/g,'a bodily change'),hypothesis:String(l.hypothesis||'').replace(/-?\d+(?:\.\d+)?\s*%?/g,'an amount')})):[],
+    skills:npc.learning?npc.memory.skills.filter(s=>s.status!=='retired').map(s=>({id:s.id,need:s.need,status:s.status,recognition:s.recognition,preconditions:{resourceKnown:true,inRange:s.preconditions?.inRange===true},steps:s.steps,successes:s.successes,failures:s.failures,supportingExperience:s.supportingExperience.slice(-9)})):[],
     procedureCandidates:skillCandidates(npc).slice(0,12).map(c=>({...c.decision,need:c.need,travelSeconds:c.travelSeconds})),
     actionStatus:npc.active?{type:npc.active.request.type,goal:goalFor(npc.active.request),remaining:Math.max(0,npc.active.expiresAt-npc.elapsed)}:null,
-    actions:{observe:{},move:{target:'Observed traversable tile {x,y}, or sourceId / foodId / shelterId from known resources; bounded to 12 seconds.'},inspect:{sourceId:'known water, foodId: known food, shelterId: known shelter'},fill_flask:{sourceId:'known source; collection range 80'},drink:{},gather_food:{foodId:'known finite-stock apple patch; collection range 80'},eat:{},enter_shelter:{shelterId:'known nearby cave entrance'},exit_shelter:{},wait:{seconds:'0.25 to 5'}},
-    procedureUse:'A returned skillId plus its sourceId, foodId or shelterId selects one of the listed evidence-backed candidates. It is optional and competes with current bodily needs.',
+    innerLife:cognitiveObservation(npc),social:social?.observe?.(npc)||{peers:[],journal:[],notes:[],pendingQuestion:null},
+    actions:{observe:{},move:{target:'Observed traversable tile {x,y}, or sourceId / foodId / shelterId from known resources; bounded to 12 seconds.'},inspect:{sourceId:'known water, foodId: known food, shelterId: known shelter'},fill_flask:{sourceId:'known source; collection range 80'},drink:{},gather_food:{foodId:'known finite-stock apple patch; collection range 80'},eat:{},enter_shelter:{shelterId:'known nearby cave entrance'},exit_shelter:{},wait:{seconds:'0.25 to 5'},rest:{seconds:'0.25 to 12'},sleep:{seconds:'0.25 to 12'},say:{targetId:'locally observed peer',text:'grounded speech'},ask_human:{text:'a grounded question; an answer is optional',topic:'world uncertainty'},journal_reply:{text:'reply to a human journal message',replyTo:'optional message id'},write_note:{title:'field note title',text:'grounded observations or labeled hypotheses',beliefIds:'own evidence IDs'},read_note:{noteId:'locally observed note'}},
+    procedureUse:'A skillId with a matching known resource selects an optional evidence-backed routine. Or return a plan with goal, need, three to six bounded action steps, completion and interrupt descriptions. Intentions are not completed outcomes.',
   };
 }
 /** A bounded factored value learner with supplied physiology and action affordances, not a language model. */
 export class LocalLearnerProvider {
   constructor(){this.kind='local-learner';this.label='Offline experiential learner';}
   decide(npc){
-    const priorities=needPriorities(npc),maximum=Math.max(...Object.values(priorities)),choices=[];
+    const priorities=needPriorities(npc),choices=[],body=bodySignals(npc),cognition=updateCognition(npc);
+    if(npc.scene==='valley'&&cognition.shelterState?.departureUntil>npc.elapsed&&!body.thermal.startsWith('dangerously')&&!['overheated','shivering'].includes(body.thermal))priorities.thermal=Math.min(priorities.thermal,1.2);
+    if(npc.inventory?.apples.length&&['ravenous','faint with hunger'].includes(body.hunger))return {action:{type:'eat'},need:'food',reason:'My hunger is urgent and I already carry food; I can take relief before travelling.',provider:this.kind};
+    if(npc.flask.water>0&&['parched','desperate thirst'].includes(body.thirst))return {action:{type:'drink'},need:'water',reason:'My thirst is urgent and I already carry water; I can drink before travelling.',provider:this.kind};
+    const returning=searchReturn(npc);if(returning)return {action:returning,need:'safety',reason:'This search has reached its return budget. I am returning toward remembered supplies before investigating another direction.',provider:this.kind};
+    if(priorities.food>=2.4||priorities.water>=2.4||priorities.thermal>=4||body.pain==='severe')priorities.rest=0;
+    const maximum=Math.max(...Object.values(priorities));
+    if(priorities.rest>=2&&Math.max(priorities.food,priorities.water,priorities.thermal)<4)return {action:{type:['sleepy','struggling to stay awake'].includes(body.sleepiness)?'sleep':'rest',seconds:10},need:'rest',reason:'My breathing, tiredness or sleepiness asks for a safe pause.',provider:this.kind};
     const add=(action,need,base=0,seconds=0)=>{const value=learnedValue(npc,action),urgency=need?priorities[need]:0;choices.push({action,need,score:base+urgency*1.8-Math.min(4,seconds*.08)+clamp(value.value,-3,5)*.45+random(npc)*.18,value});};
     const failures=npc.learning?npc.memory.experience.filter(e=>e.type==='action'&&!e.details.result?.ok):[];
-    if(npc.flask.water>.00001&&100-npc.hydration>=NPC_RULES.meaningfulHydrationGain)add({type:'drink'},'water',1.3);
+    if(npc.flask.water>.00001&&body.thirst!=='quenched')add({type:'drink'},'water',1.3);
     else if(npc.flask.water<=.00001&&!failures.some(e=>e.details.result?.code==='EMPTY_FLASK')&&maximum<2)add({type:'drink'},null,.1);
-    if(npc.inventory?.apples.length&&(100-(npc.nourishment??100)>=(NPC_RULES.appleNourishment||45)||(npc.nourishment??100)<(NPC_RULES.hungerWarning||45)))add({type:'eat'},'food',1.5);
+    if(npc.inventory?.apples.length&&['hungry','ravenous','faint with hunger'].includes(body.hunger))add({type:'eat'},'food',1.5);
     if(!npc.inventory?.apples.length&&!failures.some(e=>e.details.result?.code==='NO_FOOD')&&maximum<2)add({type:'eat'},null,.1);
     if(npc.scene==='valley'){
-      for(const [table,parameter,need,interaction,allowed] of [['sources','sourceId','water','fill_flask',npc.flask.water<=.00001&&npc.hydration<85],['foods','foodId','food','gather_food',(npc.inventory?.apples.length||0)<(npc.inventory?.capacity||3)&&(npc.nourishment??100)<85],['shelters','shelterId','thermal','enter_shelter',thermalLevel(npc)>15||(npc.sensation?.feltTemperature??18)>(NPC_RULES.hotComfortMax??26)||(npc.sensation?.feltTemperature??18)<(NPC_RULES.coldComfortMin??14)]]){
+      for(const [table,parameter,need,interaction,allowed] of [['sources','sourceId','water','fill_flask',npc.flask.water<=.00001&&body.thirst!=='quenched'],['foods','foodId','food','gather_food',(npc.inventory?.apples.length||0)<(npc.inventory?.capacity||3)&&body.hunger!=='content'],['shelters','shelterId','thermal','enter_shelter',thermalLevel(npc)>15||(npc.sensation?.feltTemperature??18)>(NPC_RULES.hotComfortMax??26)||(npc.sensation?.feltTemperature??18)<(NPC_RULES.coldComfortMin??14)]]){
         if(!allowed)continue;
         const sorted=knownItems(npc,table).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
-        for(const item of sorted.slice(0,5)){const seconds=routeEstimate(npc,item),stage=seconds===null?stagedApproach(npc,item):null;if(seconds===null&&!stage)continue;const inRange=distance(item,npc.position)<=NPC_RULES.collectionRange;const action=stage?{type:'move',target:{x:stage.point.x,y:stage.point.y}}:{type:inRange?interaction:'move',[parameter]:item.id};
+        for(const item of sorted.slice(0,5)){const seconds=routeEstimate(npc,item),stage=seconds===null?stagedApproach(npc,item):null;if(seconds===null&&!stage)continue;const inRange=distance(item,npc.position)<=NPC_RULES.collectionRange;const action=stage?{type:'move',target:{x:stage.point.x,y:stage.point.y}}:{type:inRange?(need==='food'&&item.available===false?'inspect':interaction):'move',[parameter]:item.id};
           add(action,need,inRange?(need==='food'?2:.6):.3,seconds??stage.seconds);if(need==='food'&&npc.inventory?.apples.length)choices.at(-1).score-=priorities.food*1.3+.5*npc.inventory.apples.length;}
       }
     }else{
-      const thermal=thermalLevel(npc),need=Math.max(priorities.food,priorities.water);
-      if(thermal>10&&need<priorities.thermal+2)add({type:'wait',seconds:5},'thermal',1.5);
-      if(thermal<25||need>priorities.thermal+2){const exit=npc.memory.caveExits?.[npc.scene],goal=priorities.food>priorities.water?'food':'water';if(exit){if(distance(npc.position,exit)<100)add({type:'exit_shelter'},goal,.8);else{const route=knownRoute(rememberedCells(npc),npc.position,exit,30,rememberedEdges(npc),npc.elapsed,npc.navigationAnchor);if(route)add({type:'move',target:{x:exit.x,y:exit.y}},goal,.8,distance(npc.position,exit)/CONFIG.walkSpeed);}}}
+      const exposure=cognition.shelterState||{},outside=exposure.lastOutside,senses=sensedEnvironment(npc),recentExposure=outside&&['hot','cold'].includes(outside.warmth)&&outside.timeOfDay===senses.timeOfDay&&outside.weather===senses.weather;
+      const supplyTrip=(!npc.inventory?.apples.length&&priorities.food>=2.4)||(npc.flask.water<=.00001&&priorities.water>=2.4),minimumStay=npc.elapsed-(exposure.enteredAt??npc.elapsed)<15;
+      const recovering=body.thermal.startsWith('dangerously')||['overheated','shivering'].includes(body.thermal);
+      const stay=recovering||!supplyTrip&&(minimumStay||recentExposure||priorities.thermal>1.5);
+      const imminentSupply=(!npc.inventory?.apples.length&&body.hunger==='faint with hunger')||(npc.flask.water<=.00001&&body.thirst==='desperate thirst');
+      if(stay)add({type:'wait',seconds:5},'thermal',2);
+      if(!stay||imminentSupply){const exit=npc.memory.caveExits?.[npc.scene],goal=priorities.food>priorities.water?'food':'water';if(exit){if(distance(npc.position,exit)<100)add({type:'exit_shelter'},goal,imminentSupply?2.8:.8);else{const route=knownRoute(rememberedCells(npc),npc.position,exit,30,rememberedEdges(npc),npc.elapsed,npc.navigationAnchor);if(route)add({type:'move',target:{x:exit.x,y:exit.y}},goal,imminentSupply?2.8:.8,distance(npc.position,exit)/CONFIG.walkSpeed);}}}
     }
     // Procedures compete on the same priority scale, rather than pre-empting a model or food.
     for(const candidate of skillCandidates(npc)){
@@ -95,31 +111,24 @@ export class LocalLearnerProvider {
       choices.push({...candidate.decision,need:candidate.need,score:confidence+priorities[candidate.need]*1.8-Math.min(4,candidate.travelSeconds*.08)+clamp(value.value,-3,5)*.45+random(npc)*.12,value,skill:candidate.skill});
     }
     const dominant=Object.entries(priorities).sort((a,b)=>b[1]-a[1])[0],unmet=dominant[1]>1.5&&!choices.some(c=>c.need===dominant[0]);
-    const cells=rememberedCells(npc),edges=rememberedEdges(npc),anchor=npc.navigationAnchor&&cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null,exploration=npc.memory.exploration;
-    const frontiers=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>120&&distance(c,npc.position)<370).map(cell=>{
-      let unknown=0;const step=NPC_RULES.tileSize;for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++)if(dx*dx+dy*dy<=16&&!cells[`${Math.round(cell.x/step)+dx},${Math.round(cell.y/step)+dy}`])unknown++;
-      const d=distance(cell,npc.position),heading=exploration.heading,forward=heading?((cell.x-npc.position.x)*heading.x+(cell.y-npc.position.y)*heading.y)/d:0,repeat=exploration.recentTargets.includes(`${npc.scene}:${cell.key}`)||exploration.recentTargets.includes(cell.key);
-      const expedition=npc.scene==='valley'&&exploration.origin?distance(cell,exploration.origin):0;
-      return {cell,unknown,score:unknown*.055+forward*.18-expedition*(unmet?.0005:.0025)+(cell.terrain==='trail'?(unmet?1.3:.4):0)-(cell.visits||0)*.8-(repeat?2.5:0)+random(npc)*.2};
-    }).sort((a,b)=>b.score-a.score);
-    const frontier=frontiers.filter(c=>c.unknown>0).find(c=>knownRoute(cells,npc.position,c.cell,30,edges,npc.elapsed,anchor));
-    if(frontier){const safe=Math.max(0,1-maximum/5);add({type:'move',target:{x:frontier.cell.x,y:frontier.cell.y}},null,.6+Math.min(1.1,frontier.unknown*.035)*safe);
+    const frontier=npc.scene==='valley'||Math.max(priorities.food,priorities.water,priorities.thermal)<1.5?explorationFrontier(npc):null;
+    if(frontier){const safe=Math.max(0,1-maximum/5);add({type:'move',target:{x:frontier.target.x,y:frontier.target.y}},null,.6+Math.min(1.1,frontier.unknown*.035)*safe);
       // If no useful resource is known, exploration is a necessary search even under distress.
       if(unmet){choices.at(-1).score+=maximum*.9;choices.at(-1).need=dominant[0];}else if(!choices.some(c=>c.need))choices.at(-1).score+=maximum*.3;
     }
     add({type:'observe'},null,-.4-maximum*.1);add({type:'wait',seconds:1},null,npc.scene!=='valley'?-.2:-.8-maximum*.1);
     const ranked=choices.sort((a,b)=>b.score-a.score),selected=maximum<1.5&&random(npc)<.035?ranked[Math.floor(random(npc)*ranked.length)]:ranked[0];
     const label=selected.skill?`Evidence-backed ${selected.need} procedure “${selected.skill.name}”`:`${actionCategory(selected.action)} bounded experiment`;
-    return {action:selected.action,need:selected.need,...(selected.skillId?{skillId:selected.skillId,...Object.fromEntries(['sourceId','foodId','shelterId'].filter(k=>selected[k]).map(k=>[k,selected[k]]))}:{}),reason:`${label}; balancing food ${priorities.food.toFixed(1)}, water ${priorities.water.toFixed(1)}, exposure ${priorities.thermal.toFixed(1)} using remembered outcomes.`,provider:this.kind};
+    return {action:selected.action,need:selected.need,...(selected.skillId?{skillId:selected.skillId,...Object.fromEntries(['sourceId','foodId','shelterId'].filter(k=>selected[k]).map(k=>[k,selected[k]]))}:{}),reason:`${label}; my body feels ${bodySignals(npc).hunger}, ${bodySignals(npc).thirst}, and ${bodySignals(npc).thermal}. Remembered outcomes guide this choice.`,provider:this.kind};
   }
 }
 export class DesktopModelProvider {
-  constructor(bridge,label='Configured local model'){this.bridge=bridge;this.kind='local-model';this.label=label;}
-  decide(npc){return this.bridge.decide(decisionObservation(npc));}
-  cancel(){Promise.resolve(this.bridge.cancel()).catch(()=>{});}
+  constructor(bridge,label='Configured local model',npcId='aster'){this.npcId=npcId;this.bridge=bridge;this.kind='local-model';this.label=label;}
+  decide(npc,context={}){this.npcId=npc.id;return this.bridge.decide(decisionObservation(npc,context.social));}
+  cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={}}={}){this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;observeNpc(npc,environment);}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null}={}){this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;observeNpc(npc,environment);updateCognition(npc);}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;this.readyDecision=null;this.provider.cancel?.();}
   dispose(){this.disposed=true;this.cancel();}
@@ -138,19 +147,35 @@ export class NpcController {
     const step=skill.steps[run.cursor],request={type:step.type,...(step[run.parameter]?{[run.parameter]:run.resourceId}:{}),...(step.seconds?{seconds:step.seconds}:{})};run.lastEventId=n.lastResult?.eventId||0;run.awaiting=true;requestNpcAction(n,request,this.environment);
   }
   applyDecision(decision){
-    const n=this.npc;if(!decision||typeof decision!=='object')throw new Error('Model returned no structured decision.');
-    n.decision=String(decision.reason||'A bounded action was selected.').slice(0,600);recordEvent(n,'decision',{provider:this.provider.kind,summary:n.decision});
+    const n=this.npc;if(!decision||typeof decision!=='object'){recordEvent(n,'provider',{code:'INVALID_MODEL_DECISION',gameplayFailure:false});this.perform({type:'observe'});return;}
+    n.decision=String(decision.reason||'A bounded action was selected.').slice(0,600);recordEvent(n,'decision',{provider:decision.provider||this.provider.kind,summary:n.decision});
     if(decision.skillId){const skill=n.memory.skills.find(s=>s.id===decision.skillId),resourceId=decision.sourceId||decision.foodId||decision.shelterId;if(this.startSkill(skill,resourceId))return;}
-    requestNpcAction(n,decision.action,this.environment);if(n.active&&['food','water','thermal'].includes(decision.need))n.active.goal=decision.need;
+    if(decision.plan){if(!adoptPlan(n,decision.plan)){recordEvent(n,'provider',{code:'INVALID_MODEL_PLAN',gameplayFailure:false});this.perform({type:'observe'});return;}const action=progressPlan(n);if(action)this.perform(action);return;}
+    this.perform(decision.action);if(n.active&&['food','water','thermal','rest'].includes(decision.need))n.active.goal=decision.need;
+  }
+  perform(raw){
+    const n=this.npc,action=cognitiveAction(n,raw);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
+    if(['say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:this.provider.kind==='local-learner'||raw.offline===true})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
+    return requestNpcAction(n,action,this.environment);
+  }
+  decideOffline({survivalOnly=false}={}){
+    const n=this.npc,priorities=needPriorities(n),safe=Math.max(...Object.values(priorities))<3.5;
+    if(safe&&!survivalOnly){
+      const dialogue=this.social?.maybeDialogue?.(n);
+      if(dialogue){this.applyDecision({action:{...dialogue,offline:true},provider:'local-learner',reason:'Offline evidence-based dialogue: a grounded question, discovery or nearby relationship deserves attention.'});return;}
+      const planned=localPlan(n);
+      if(planned&&adoptPlan(n,planned,{supplied:true})){n.decision=planned.goal;recordEvent(n,'decision',{provider:'local-learner',kind:'persistent plan',summary:n.decision});const action=progressPlan(n);if(action)this.perform(action);return;}
+    }
+    const provider=this.provider.kind==='local-learner'?this.provider:this.fallback;this.applyDecision({...provider.decide(n),provider:'local-learner'});
   }
   decide(){
     const n=this.npc;
     // Both local and model providers choose among the same needs; no unconditional water-skill override.
-    if(this.provider.kind==='local-learner'){this.applyDecision(this.provider.decide(n));return;}
+    if(this.provider.kind==='local-learner'){this.decideOffline();return;}
     if(!n.modelBudget)n.modelBudget={since:n.elapsed,calls:0};if(n.elapsed-n.modelBudget.since>=3600)n.modelBudget={since:n.elapsed,calls:0};
-    if(n.modelBudget.calls>=NPC_RULES.maxModelCallsPerHour||n.elapsed<this.cooldownUntil){n.decision='Local model budget/backoff active; the offline experiential learner is continuing.';this.applyDecision(this.fallback.decide(n));return;}
+    if(n.modelBudget.calls>=NPC_RULES.maxModelCallsPerHour||n.elapsed<this.cooldownUntil){n.decision='Local model budget/backoff active; the offline experiential learner is continuing.';this.decideOffline();return;}
     const generation=this.generation,epoch=n.epoch,condition=decisionCondition(n);n.modelBudget.calls++;n.stats.modelCalls++;this.pending={at:n.elapsed,condition};let call;
-    try{call=this.provider.decide(n);}catch(error){call=Promise.reject(error);}
+    try{call=this.provider.decide(n,{social:this.social});}catch(error){call=Promise.reject(error);}
     Promise.resolve(call).then(decision=>{if(this.disposed)return;if(generation!==this.generation||epoch!==n.epoch||n.lifecycle!=='AWAKE'||n.active||decisionCondition(n)!==condition){n.stats.staleResponses++;recordEvent(n,'provider',{code:'STALE_RESPONSE',gameplayFailure:false});return;}this.pending=null;this.failures=0;this.readyDecision={decision,generation,epoch,condition};}).catch(error=>{if(this.disposed||generation!==this.generation)return;this.pending=null;n.stats.modelFailures++;this.failures++;this.cooldownUntil=n.elapsed+(this.failures>=2?30:5);recordEvent(n,'provider',{code:'MODEL_SERVICE_FAILURE',message:String(error.message||error).slice(0,400),gameplayFailure:false});n.decision='Model service unavailable. The offline experiential learner will continue after backoff.';}).finally(()=>{if(generation===this.generation)this.pending=null;});
   }
   reassess(){
@@ -160,14 +185,15 @@ export class NpcController {
     if((n.active||n.skillRun)&&dominant[1]>4&&dominant[0]!==goal&&dominant[1]>(priorities[goal]||0)+3){
       const alternative=this.fallback.decide(n),alternativeGoal=alternative.need||(alternative.skillId?n.memory.skills.find(s=>s.id===alternative.skillId)?.need:goalFor(alternative.action));
       if(alternativeGoal!==dominant[0])return;
-      cancelNpcAction(n,'PRIORITY_CHANGED');if(n.skillRun){recordEvent(n,'skill',{skillId:n.skillRun.id,outcome:'PRIORITY_CHANGED',urgentNeed:dominant[0]});n.skillRun=null;}this.cancel();n.nextDecisionAt=n.elapsed;n.decision=`Interrupted ${goal} activity because ${dominant[0]} became more urgent.`;
+      cancelNpcAction(n,'PRIORITY_CHANGED');cancelPlan(n,`My ${dominant[0]} sensations became more urgent.`);if(n.skillRun){recordEvent(n,'skill',{skillId:n.skillRun.id,outcome:'PRIORITY_CHANGED',urgentNeed:dominant[0]});n.skillRun=null;}this.cancel();n.nextDecisionAt=n.elapsed;n.decision=`Interrupted ${goal} activity because ${dominant[0]} became more urgent.`;
     }
   }
   tick(dt){
     if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;}
-    if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);this.senseAt=n.elapsed;}
-    if(n.lifecycle!=='AWAKE')return;this.reassess();if(n.active||this.pending)return;
+    if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.senseAt=n.elapsed;}
+    if(n.lifecycle!=='AWAKE'){cancelPlan(n,'Consciousness or recovery interrupted the intention.');return;}this.reassess();if(n.active)return;
+    if(this.pending){if(n.elapsed>=n.nextDecisionAt&&(Math.max(...Object.values(needPriorities(n)))>=4||n.elapsed-this.pending.at>3&&Math.max(...Object.values(needPriorities(n)))>=1.5)){this.cancel();this.decideOffline({survivalOnly:true});}return;}
     if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;if(ready.generation===this.generation&&ready.epoch===n.epoch&&ready.condition===decisionCondition(n))this.applyDecision(ready.decision);else{n.stats.staleResponses++;recordEvent(n,'provider',{code:'STALE_RESPONSE',gameplayFailure:false});}return;}
-    if(n.skillRun){this.progressSkill();return;}if(n.elapsed>=n.nextDecisionAt)this.decide();
+    if(n.skillRun){this.progressSkill();return;}if(n.elapsed>=n.nextDecisionAt){if(n.cognition?.plan?.status==='active'&&Math.max(...Object.values(needPriorities(n)))>=4)cancelPlan(n,'My bodily sensations call for immediate care.');const previousPlan=n.cognition?.plan?.status,planned=progressPlan(n);if(planned){this.perform(planned);return;}if(previousPlan==='active'&&n.cognition?.plan?.status!=='active'){n.nextDecisionAt=n.elapsed+2;return;}this.decide();}
   }
 }

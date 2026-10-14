@@ -1,6 +1,6 @@
 # Aincrad
 
-An original pixel-art desktop world with one persistent NPC learning to balance food, water and shelter. Built with Electron and a fixed-step local simulation.
+An original pixel-art desktop world with two persistent characters, **Aster and Mira**, learning to care for their bodies, prepare for exploration and share what they discover. Built with Electron and a fixed-step local simulation.
 
 ## Clone, build, and run
 
@@ -14,83 +14,97 @@ npm run build
 npm start
 ```
 
-`npm start` also builds automatically. It opens the desktop application directly. For ongoing development:
+`npm start` also builds automatically and opens the desktop application. For ongoing development:
 
 ```sh
 npm run dev
 ```
 
-Development mode watches source changes, rebuilds, and reloads the desktop window. Desktop code changes restart the application. `npm ci` can replace `npm install` when installing exactly from the lockfile.
+Development mode watches source changes, rebuilds and reloads the desktop window. Desktop code changes restart the application. Use `npm ci` instead of `npm install` to install exactly from the lockfile.
 
-The workflow follows [agentic-workspace](https://github.com/kumori-i/agentic-workspace): source → build → Electron. Generated application files belong in ignored `dist/`. There is no committed `play.html` or webpage to open. The HTML inside the renderer is an internal Electron asset.
+The workflow follows [agentic-workspace](https://github.com/kumori-i/agentic-workspace): source → build → Electron. Generated files belong in ignored `dist/`. The renderer's HTML is an internal application asset; there is no webpage to open or deploy.
 
-The first installation downloads the Electron runtime. Once installed, the default game runs offline. No application account, API key, or model service is required. Progress saves in the application’s local profile.
+The first installation downloads Electron. Once installed, the default game runs offline without an account, API key or model service. Progress saves in the application's local profile.
 
 ## A pixel valley
 
-Original pixel terrain, shoreline edges, textured grass, layered trees, cliffs, bridges, caves, and characters are rendered through a low-resolution buffer with nearest-neighbor scaling. Standing characters and trees stay still; walking uses discrete frames. The interface uses solid wood frames and parchment surfaces.
+Original pixel terrain, shoreline edges, layered trees, cliffs, bridges, caves and characters use a low-resolution buffer with nearest-neighbor scaling. Idle characters and trees stay still; walking uses discrete frames. The interface uses wood frames and parchment surfaces.
 
-![Aster beside Trailhead Pond with her food, water, health and feelings journal](docs/pixel-journal-v04.png)
+![Aster and Mira beside Trailhead Pond, with qualitative bodily sensations](docs/pixel-journal-v05.png)
 
-The mountain-ringed valley keeps its lake, river, trails, human avatar and original three caves. Version 0.4 adds six smaller ponds, nine finite apple patches and nearby **Willow Refuge**, a fourth cave. The reference east–west trail still takes about five minutes on foot. A day remains one hour of unpaused play.
+The mountain-ringed valley preserves its lake, river, human avatar, five-minute reference crossing and one-hour day. Six smaller ponds, nine finite apple patches and four enterable caves include nearby **Willow Refuge**, roughly a 23-second walk along the habitat trail.
 
-The shared world clock drives daylight, seeded clear/cloudy/rainy/windy weather and food renewal. The base daily temperature reaches about 30°C at 14:00 and 8°C at 04:00; weather, shade, wind and wetness change felt temperature. Caves stay at 18°C and exclude wind and rain. Willow Refuge is roughly a 23-second walk along the nearby habitat trail. Animals, fish and flowers are ambient scenery; apples are the usable food in this milestone. Hunting and fishing are not implemented.
+The shared saved clock drives daylight, seeded clear/cloudy/rainy/windy weather and food renewal. The daily base temperature peaks around 14:00 and is coolest around 04:00; wind, rain, shade and wetness affect felt temperature. Caves provide temperate shelter. Animals, fish and flowers are ambient scenery. Apples are usable food; hunting and fishing are later work. Drawing never advances these rules.
 
-![Rain at night beside Trailhead Pond](docs/pixel-rainy-night-v04.png)
+## Two bodies, two perspectives
 
-Drawing only presents world state. It does not advance weather, replenish food or apply body effects.
+Press **N** to open the journal. Select Aster or Mira to see her day, motives, current intention and remembered places, or follow her through the valley and caves. Each character has her own body, inventory, learned values, procedures, beliefs and plans. They share physical resources and world time, so an apple gathered by one is no longer available to the other.
 
-## Watch Aster learn
+New expeditions place both characters beside locally observable water. They begin with empty flasks, no carried apples and no acquired procedures. Existing saves preserve Aster's identity, memory and water procedures and add Mira as an independent character. Neither receives a complete map or the other's private memories.
 
-Choose **Watch Aster learn** on the title screen, or press **N** to open Aster’s journal and **Follow Aster**. The condition card shows food, water and health. Her journal also shows heat/cold strain, carried apples, feelings, sensed weather, remembered resources, action results and acquired procedures. Following Aster shows her cave scene independently of the human avatar.
+The ordinary journal and model observations describe **sensations**, rather than percentages: peckish or ravenous, a dry mouth or parched, fresh or weary, easy breathing or winded, alert or sleepy. Weather is experienced as warm, cold, calm or gusty. Accumulating heat or cold produces distinct warning sensations—overheated or shivering—even after reaching shelter. A separate development checkbox exposes exact engine physiology for tuning.
 
-New expeditions place Aster on a dry bank beside Trailhead Pond. She starts with an empty flask, no food and no acquired procedures. Ordinary local perception reveals the nearby water; no full map or preloaded resource route is supplied. Existing expeditions retain Aster’s identity, acquired water procedures and remembered terrain.
+The engine retains distinct, tunable stores:
 
-**Gathering and consumption are separate.** Collecting water fills the flask; drinking restores up to 65 hydration. Gathering removes one apple from a physical patch; eating consumes that carried apple and restores up to 45 nourishment. Aster can carry three apples. Patches hold three or four apples and replenish on the shared 600-second simulation schedule. Remembered stock can become stale; her observations do not reveal the hidden renewal timer.
+| Body system | What changes it |
+| --- | --- |
+| Nourishment and hydration | Time and exposure consume reserves; gathered apples and water replenish them. Food is the more frequent gameplay need. |
+| Energy | Activity spends it; adequate food, meals and recovery sustain it. |
+| Stamina | Walking spends it; pausing and rest restore it. Exhaustion slows movement. |
+| Fatigue | Wakefulness and activity accumulate it; rest and especially sleep relieve it. |
+| Sleep pressure | Time awake raises it; sleep reduces it. |
+| Thermal strain, wetness and health | Exposure has physical consequences; comfortable shelter permits recovery. Severe deprivation or strain damages health. |
 
-Food is deliberately the more frequent gameplay need. Under normal, comfortable conditions:
+Rest and sleep are actual timed actions. Food, water and exposure continue changing during them; unsafe conditions interrupt recovery. These are game-body systems, not a medical simulation or a human neural network.
 
-| Body value | Normal rule | Warning / critical |
-| --- | --- | --- |
-| Nourishment | Full reserve lasts 210 active seconds; initial 85 lasts about 179 seconds | 45 / 20 |
-| Hydration | Full reserve lasts 420 active seconds; initial 85 lasts about 357 seconds | 45 / 20 |
-| Heat/cold strain | Accumulates outside the 14–26°C comfort range; recovers in comfortable conditions | 40 / 80 |
-| Health | Gradual damage from empty food/water reserves or severe thermal strain | Collapse at zero health |
+Gathering and consumption remain separate. A character can carry three apples and a separate flask. Patches have finite stock, and remembered availability becomes stale. Characters can observe that apples returned and form a tentative expectation; they do not receive the hidden renewal timer.
 
-Heat also increases water depletion. These are tunable game rules, not a physiological model of a real human. The faster development setting triples food/water depletion and shortens recovery delays; it preserves the world clock and human movement. The journal includes recorded time/weather overrides and an explicit forced-collapse demonstration.
+Warning and critical discomfort create continuous learning costs before collapse, including during travel, waiting and model inference. Useful relief credits real prerequisite actions. Collapse and partial divine rescue remain a fallback, retaining identity and knowledge without granting carried supplies or independent-survival credit.
 
-Discomfort produces continuous learning costs that become steeper through warning and critical states, including during travel, waiting and model inference. Hunger, thirst, heat, cold, distress, comfort and relief are functional signals derived from her body. They appear in the journal and model observations; the controller balances the same underlying needs. They do not imply human consciousness or independently learned emotions.
+## Motives, beliefs and plans
 
-The offline controller learns bounded contextual and shared feature values from actual results. Useful food/water relief also credits recent prerequisite actions, so reaching a patch can acquire value before collapse. Water, food and shelter procedures compete in one decision process. Successful traces are recognized with **provided, restricted procedure templates**; additional success at a changed resource or starting position supplies validation evidence. This is experience-dependent learning with supplied physiology, action affordances and navigation, rather than learning from a blank slate or inventing arbitrary code.
+Version 0.5 adds concurrent **Maslow-inspired drives**: survival, safety, belonging, competence, understanding, creativity, purpose and contribution. Their tensions change with bodily sensations, supplies, contact, failures, discoveries and active intentions. Survival can interrupt a trip or conversation. Curiosity does not require a rigid sequence of completed social levels.
 
-A meaningful independent meal or drink restores at least 15 useful reserve points from ordinary collected supplies. Credit is at most once per apple or flask fill. Shelter credit requires actual reduction of exposure after entering. Tiny top-ups, debug interventions and rescue cannot farm independent-survival counters. A sustainable home area is a valid outcome; walking is not rewarded simply for moving.
+Characters retain bounded beliefs with evidence and confidence. Direct observations, hypotheses and reports have different status. A peer's advice or your message is testimony to check, not instant world truth. A claim cannot create a discovered resource, replenish apples or certify a route.
 
-Aster can learn without dying. If health does reach zero, her active action is cancelled and she collapses. Partial divine rescue is a fallback that retains identity, location, memory and procedures. It adds no carried supplies or independent-survival credit. Player-assisted rescue is not included yet. Longer unattended trials and adverse scenarios are needed to assess reliability; there is no guarantee of an optimal route or indefinite survival.
+Plans connect three to six validated actions to a goal. The offline controller supplies preparation and exploration templates: carry food and water, investigate a reachable edge of remembered terrain, observe, and return. A known return route and travel budget constrain these trips. Actual travel outcomes refine travel estimates. Failed steps, worsening sensations and expired budgets interrupt plans; saying what one intends to do never completes it.
+
+The offline experiential learner updates bounded contextual and feature values from actual engine outcomes. Useful traces are recognized by supplied water, food and shelter procedure templates. Physiology, sensations, drives, navigation, dialogue and planning templates are **provided structure**; discovered resources, successful outcomes, learned action values and validated procedures depend on experience. This is not learning from a blank slate, arbitrary code invention or proof of emergent civilization.
+
+## Conversation and field notes
+
+Open **N → Conversation** to join the always-available journal room. Send a message to Aster, Mira or both. You may answer immediately, later, or leave a question unanswered. The characters continue their own activities and care for themselves. Pending-question and topic limits prevent repeated requests from becoming a waiting loop.
+
+Aster and Mira can speak to one another when they are nearby, in the same scene and within line of sight. These exchanges appear in the journal and build familiarity. Seeing a peer reveals visible appearance, not hidden reserves or private memory. Reports remain unverified until checked against the recipient's observations.
+
+The offline controller uses explicitly supplied, evidence-based dialogue templates. It can share a discovered resource and ask about a relevant uncertainty. A configured language model can compose language and propose plans through the same validated actions. The UI distinguishes offline dialogue from model-generated messages.
+
+Characters can write persistent field notes at their locations and read notes they encounter. Notes preserve authorship and optional belief references. Reading another author's note supplies reported knowledge; writing a claim changes no physical world rules. The journal lets you inspect the notes without granting every character remote access to their contents.
 
 ## Optional local model
 
-The offline learner is not a language model. Optional model-assisted planning works through a bounded local OpenAI-compatible service, such as [Ollama](https://docs.ollama.com/api/openai-compatibility).
+The offline learner is not a language model. Optional planning and conversation use a bounded local OpenAI-compatible service, such as [Ollama](https://docs.ollama.com/api/openai-compatibility).
 
 ```sh
 ollama pull llama3.2:3b
 ```
 
-Start `ollama serve` if its background service is not already running. Open **N → Local model planning**, set endpoint `http://127.0.0.1:11434/v1` and model `llama3.2:3b`, then choose **Use local model**. **Use offline learner** switches back.
+Start `ollama serve` if its background service is not already running. Open **N → Her day → Local model planning**, set endpoint `http://127.0.0.1:11434/v1` and model `llama3.2:3b`, then choose **Use local model**. This setting serves both characters; **Use offline learner** switches back. The model name is an example, not a validated performance recommendation.
 
-Only loopback endpoints are supported. The model receives local/remembered observations, body signals, physiological priorities, relevant experience and optional evidence-backed procedure candidates. It does not receive the complete map, hidden renewal schedule or player’s private state. It cannot run host code or invoke rescue. Timeouts, response-size limits, call limits, and stale-response rejection bound the optional service. Settings are in the application profile; [the configuration example](docs/local-model.example.json) documents the limits.
+Only loopback endpoints are supported. Requests contain each character's qualitative sensations, local/remembered places, relevant experience, motives, beliefs, plans and available conversations. They exclude exact body stores, another character's private state, the full map and hidden renewal schedule. A shared request queue and call budget bound model use; cancellation is scoped to the affected character. Timeouts, stale responses and service failures return control to the offline learner.
 
-An Ollama model already carries pretrained knowledge and biases from its training. Connecting it can add prior assumptions about food, water or shelter; it is not a blank-slate agent. Aincrad updates gameplay memory, values and procedures, **not the model’s weights**. The offline learner remains available without any model service.
+The model cannot run host code, execute a save, assign physical outcomes or invoke rescue. Settings live in the application profile; [the configuration example](docs/local-model.example.json) documents limits. Ollama models bring pretrained knowledge and biases. Aincrad updates gameplay memory and values, **not model weights**.
 
-Live language-model behavior has not been tested in this development session. Provider/HTTP integration uses explicitly labeled fixtures; offline learning is evaluated separately.
+Live model performance depends on the installed model and is distinct from deterministic provider fixtures and offline evaluation. See [TESTING.md](docs/TESTING.md) for the current verification record and its limits.
 
 ## Controls
 
 | Control | Action |
 | --- | --- |
 | WASD / arrow keys | Walk |
-| Hold Shift | Run |
+| Hold Shift | Run your avatar |
 | E | Enter/exit caves or read the trail sign |
-| N | Aster’s journal and follow control |
+| N | Character journal, follow controls and conversation |
 | M | Field map; click for a waypoint |
 | Right-click field map | Clear waypoint |
 | Mouse wheel / + / − | Pixel camera zoom |
@@ -99,15 +113,15 @@ Live language-model behavior has not been tested in this development session. Pr
 | Ctrl+S / Command+S | Save |
 | F11 | Fullscreen |
 
-Modal menus and focus loss pause the world. The journal stays live. Closing the app stops simulation; there is no background settlement simulation. Starting a new expedition explicitly replaces the saved world and Aster’s memory.
+Modal menus and focus loss pause the world. The journal stays live. Closing the app stops simulation; there is no wall-clock progression while closed. Starting a new expedition explicitly replaces the saved world and both characters' memories.
 
 ## Verify and package
 
 ```sh
 npm run check       # Syntax, engine, learning, save and provider tests
 npm run build       # Build the desktop app in dist/
-npm run smoke       # Isolated Electron lifecycle check, no live inference
-npm run evaluate    # Matched offline learning trials
+npm run smoke       # Isolated Electron lifecycle check
+npm run evaluate    # Offline evaluation; see its stated scenarios and duration
 ```
 
 Windows and Linux CI check the source build and launch the actual Electron application. Optional distribution commands remain available:
@@ -117,8 +131,8 @@ npm run package:win
 npm run package:linux
 ```
 
-Packaging is not required to develop or run the project. Windows distributions remain unsigned prototypes. See [verification](docs/TESTING.md), [architecture](docs/architecture.md), and the [NPC brief](docs/NPC-MILESTONE.md).
+Packaging is not required to run or develop the project. Windows distributions remain unsigned prototypes. Read [AGENTS.md](AGENTS.md) before editing, and see [architecture](docs/architecture.md), [roadmap](docs/ROADMAP.md) and [verification](docs/TESTING.md). Publication is a separately invoked task, never part of installation, launch or tests.
 
-Read [AGENTS.md](AGENTS.md) before editing. World rules are authoritative; original pixel artwork is in `src/art.js`, drawing in `src/renderer.js`, and the restricted local-model bridge in `desktop/`. Publication is a separately invoked task, never part of installation, build, launching, or tests.
+The motivational design draws on [AgentCiv's Maslow Machines](https://github.com/agentciv/agentciv/blob/main/paper/maslow_machines.md), persistent knowledge artifacts on [TerraLingua](https://github.com/cognizant-ai-lab/terralingua), and embodied motivation on [MicroPsi](https://github.com/joschabach/micropsi2). Aincrad's implementation is original; these are conceptual references, not included source code or evidence that their results transfer to this game.
 
-Not included yet: additional NPCs, society, professions, crafting, farming, combat, multiplayer, sound, or a signed installer. A project license has not been selected; dependencies retain their own licenses.
+Construction, reproduction, professions, larger societies, farming, combat, multiplayer and sound remain outside this milestone. Long-term self-sufficiency and open-ended social behavior need further evaluation. A project license has not been selected; dependencies retain their own licenses.

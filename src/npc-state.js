@@ -1,14 +1,20 @@
-import { CONFIG, STARTER_NPC_SPAWN, NPC_PRESETS, NPC_RULES } from './config.js';
+import { CONFIG, STARTER_NPC_SPAWN, SECOND_NPC_SPAWN, NPC_PRESETS, NPC_RULES, BODY_RULES } from './config.js';
+import { createCognition } from './cognition.js';
+import { createSocialMemory } from './social.js';
 
 /** Body, learned state and identity are data. Neither models nor artwork own them. */
-export function createNpc({preset='normal', learning=true, seed=CONFIG.seed}={}) {
+export function createNpc({id='aster',preset='normal', learning=true, seed=CONFIG.seed}={}) {
   const selected=NPC_PRESETS[preset] ? preset : 'normal';
+  const identity=id==='mira'?'mira':'aster';
   return {
-    version:2, id:'aster', name:'Aster', scene:'valley', position:{...STARTER_NPC_SPAWN},
+    version:3, id:identity, name:identity==='mira'?'Mira':'Aster', scene:'valley', position:{...(identity==='mira'?SECOND_NPC_SPAWN:STARTER_NPC_SPAWN)},
     elapsed:0, hydration:NPC_PRESETS[selected].initialHydration, nourishment:NPC_PRESETS[selected].initialNourishment, health:100,
+    energy:BODY_RULES.initialEnergy,stamina:BODY_RULES.initialStamina,fatigue:BODY_RULES.initialFatigue,sleepPressure:BODY_RULES.initialSleepPressure,bodyMode:'awake',
     thermal:{hot:0,cold:0,wetness:0}, sensation:{hour:8,weather:'clear',temperature:18,airTemperature:18,feltTemperature:18,wind:0,raining:false,sheltered:false,shade:false},
     feelings:{hunger:1-NPC_PRESETS[selected].initialNourishment/100,thirst:1-NPC_PRESETS[selected].initialHydration/100,heat:0,cold:0,discomfort:Math.max((1-NPC_PRESETS[selected].initialNourishment/100)*.85,(1-NPC_PRESETS[selected].initialHydration/100)*.8),distress:0,comfort:1-Math.max((1-NPC_PRESETS[selected].initialNourishment/100)*.85,(1-NPC_PRESETS[selected].initialHydration/100)*.8),relief:0},
     inventory:{apples:[],capacity:NPC_RULES.foodCapacity},riskCost:0,bodyFeedback:{since:0,cost:0},collapseCause:null,
+    cognition:createCognition(),
+    social:createSocialMemory(),
     flask:{capacity:1,water:0,provenance:null,fillEventId:null,creditedFillId:null},
     lifecycle:'AWAKE', lifecycleAt:0, epoch:0, collapseId:0, rescuedCollapseId:0,
     preset:selected, rescuePresentation:'divine', learning:Boolean(learning), seed:seed>>>0, rng:seed>>>0,

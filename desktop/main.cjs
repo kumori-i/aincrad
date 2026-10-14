@@ -50,7 +50,7 @@ app.whenReady().then(async()=>{
     await rename(configPath+'.tmp',configPath);return status;
   });
   handle('aincrad:model-decide',raw=>modelService.decide(raw));
-  handle('aincrad:model-cancel',()=>modelService.cancel());
+  handle('aincrad:model-cancel',agentId=>modelService.cancel(agentId));
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);
   protocol.handle('aincrad',async request=>{
@@ -90,15 +90,22 @@ async function runSmoke(){
       const status=await window.aincradAgent.status();assert(status.enabled===false,'Smoke inference must be disabled');
       document.getElementById('begin').click();document.getElementById('open-npc').click();
       const initial=window.__aincrad.npc();assert(initial.id==='aster','Persistent NPC is absent');
+      const pair=window.__aincrad.agents();assert(pair.length===2&&pair[1].id==='mira','The two independent characters are absent');
       assert(initial.memory.skills.length===0,'Initial skill library must be empty');
       assert(Object.keys(initial.memory.sources).length>0,'Starter water must be locally observed');
       assert(initial.nourishment>0&&initial.health===100&&initial.inventory.capacity===3,'Multi-need body did not initialize');
       for(const id of ['npc-nourishment','npc-health','npc-feelings','npc-environment'])assert(document.getElementById(id),'Missing body display: '+id);
+      assert(document.getElementById('npc-condition').classList.contains('hidden'),'Exact physiology must be hidden in the ordinary journal');
+      const {decisionObservation}=await import('./src/controller.js');const observation=decisionObservation(initial);
+      assert(typeof observation.condition.body.hunger==='string'&&!('hydration' in observation.condition),'Agent observations must use felt sensations');
+      const select=document.getElementById('npc-select');select.value='mira';select.dispatchEvent(new Event('change'));assert(window.__aincrad.npc().id==='mira','Journal character selection failed');select.value='aster';select.dispatchEvent(new Event('change'));
+      const message=window.__aincrad.postMessage('How are you feeling?','mira');assert(message.ok&&window.__aincrad.conversation().messages.some(m=>m.senderId==='human'),'Optional human journal did not store a real message');
       window.__aincrad.worldSettings({hourOverride:14,weatherOverride:'clear'});
       const clock=window.__aincrad.environment().elapsed;window.__aincrad.npcStep(2);
       const warm=window.__aincrad.npc();assert(warm.nourishment<initial.nourishment&&warm.hydration<initial.hydration,'Food and water must drain independently');
       assert(warm.sensation.hour===14&&warm.sensation.weather==='clear'&&Number.isFinite(warm.sensation.feltTemperature),'Weather did not reach the body');
       assert(Math.abs(window.__aincrad.environment().elapsed-clock-2)<0.001,'Shared environment clock advanced incorrectly');
+      assert(Math.abs(window.__aincrad.npc('mira').elapsed-warm.elapsed)<0.001,'One character stopped advancing');
       window.__aincrad.worldSettings({hourOverride:null,weatherOverride:null});
       const preset=document.getElementById('npc-preset');preset.value='accelerated';preset.dispatchEvent(new Event('change'));
       document.getElementById('npc-demonstrate').click();const collapsed=window.__aincrad.npc();
@@ -110,14 +117,15 @@ async function runSmoke(){
       assert(JSON.stringify(rescued.position)===JSON.stringify(collapsed.position),'Rescue fast-travelled the NPC');
       window.__aincrad.npcStep(2.2);const awake=window.__aincrad.npc();assert(awake.lifecycle==='AWAKE','Recovery did not complete');
       assert(awake.id===initial.id&&awake.stats.collapses===1,'Identity or lifecycle counts changed');
+      assert(window.__aincrad.npc('mira').stats.collapses===0,'Aster collapse affected Mira');
       window.__aincrad.save();assert(document.getElementById('fatal').classList.contains('hidden'),'A renderer error occurred');
-      return {identity:awake.id,lifecycle:awake.lifecycle,collapses:awake.stats.collapses,rescues:awake.stats.rescues,nourishment:awake.nourishment,hydration:awake.hydration,health:awake.health,weather:awake.sensation.weather,provider:'offline experiential learner; no live inference'};
+      return {identity:awake.id,characters:pair.map(n=>n.id),qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,lifecycle:awake.lifecycle,collapses:awake.stats.collapses,rescues:awake.stats.rescues,nourishment:awake.nourishment,hydration:awake.hydration,health:awake.health,weather:awake.sensation.weather,provider:'offline experiential learner; no live inference'};
     })()`);
     await new Promise(resolve=>setTimeout(resolve,650));
     const output=path.join(process.cwd(),'test-results');await mkdir(output,{recursive:true});
     await writeFile(path.join(output,'desktop-smoke.png'),(await win.webContents.capturePage()).toPNG());
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(result,null,2));
-    console.log('PASS: desktop launch, sandboxed renderer configuration, local bridge, multi-need body/UI, observed starter water, shared weather clock, collapse, rescue provenance, recovery, retained identity and no rescue teleport.');
+    console.log('PASS: desktop launch, sandboxed renderer, restricted bridge, two independent bodies, qualitative journal, character selection, optional messages, shared clock, isolated collapse/rescue and retained identity.');
     clearTimeout(deadline);app.exit(0);
   }catch(error){clearTimeout(deadline);console.error(error);app.exit(1);}
 }

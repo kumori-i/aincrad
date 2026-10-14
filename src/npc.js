@@ -1,12 +1,13 @@
-import { CONFIG, NPC_RULES, NPC_PRESETS, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
+import { CONFIG, NPC_RULES, NPC_PRESETS, BODY_RULES, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
 import { canStand, moveActor, distance, clamp } from './world.js';
 import { waterSource, foodSource, gatherFood, shelterSource } from './resources.js';
 import { environmentConditions } from './environment.js';
+import { bodySignals, sensedEnvironment, restUnsafe } from './interoception.js';
 import { perceive, tileKey, tilePoint, lineOfSight, rememberedCells, rememberedEdges, scenePointValid } from './perception.js';
 import { knownRoute } from './navigation.js';
 import { recordEvent, rememberObservation, policyContext, learnOutcome, recoveryLesson, learningCostTick } from './npc-memory.js';
 
-const allowedActions=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait']);
+const allowedActions=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
 const needSeverity=(reserve,warning,critical)=>{
   const mild=Math.pow((100-reserve)/100,2)*.08;
   if(reserve>warning)return mild;
@@ -23,20 +24,22 @@ export function bodyRisk(npc){
 export function updateFeelings(npc,relief=0){
   const f=npc.feelings,t=npc.thermal;
   f.hunger=clamp(1-npc.nourishment/100,0,1);f.thirst=clamp(1-npc.hydration/100,0,1);f.heat=t.hot/100;f.cold=t.cold/100;
-  f.discomfort=clamp(Math.max(f.hunger*.85,f.thirst*.8,f.heat,f.cold),0,1);
+  f.discomfort=clamp(Math.max(f.hunger*.85,f.thirst*.8,f.heat,f.cold,(npc.fatigue||0)/100*.7,(npc.sleepPressure||0)/100*.6,(100-(npc.stamina??100))/100*.55),0,1);
   f.distress=clamp(bodyRisk(npc)/6,0,1);f.comfort=1-f.discomfort;f.relief=clamp(Math.max(f.relief,relief),0,1);
 }
 export function observeNpc(npc,environment={}){
-  if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,hydration:npc.hydration,nourishment:npc.nourishment,health:npc.health,thermal:{...npc.thermal},feelings:{...npc.feelings},flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[]};
-  const observation=perceive(npc,environment);npc.sensation={...observation.sensation};rememberObservation(npc,observation);
-  if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:observation.sensation.feltTemperature,experiencedAt:npc.elapsed});
+  if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[]};
+  npc.sensation=environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
+  const observation=perceive(npc,environment);rememberObservation(npc,observation);
+  if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:npc.sensation.feltTemperature,experiencedAt:npc.elapsed});
   return observation;
 }
 function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene){
   const active=npc.active;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
+  if(active&&result.durationSeconds===undefined)result.durationSeconds=Math.max(0,npc.elapsed-active.startedAt);
   if(active?.startScene)startScene=active.startScene;
-  npc.active=null;const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
+  npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
   npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
 }
 export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){
@@ -54,7 +57,7 @@ function cleanRequest(raw,scene){
     else return null;
     if(raw.type==='fill_flask'&&!action.sourceId||raw.type==='gather_food'&&!action.foodId||raw.type==='enter_shelter'&&!action.shelterId)return null;
   }
-  if(raw.type==='wait'){if(raw.seconds!==undefined&&(!Number.isFinite(raw.seconds)||raw.seconds<.25||raw.seconds>5))return null;action.seconds=raw.seconds??1;}
+  if(['wait','rest','sleep'].includes(raw.type)){const maximum=raw.type==='wait'?5:NPC_RULES.maxActionSeconds;if(raw.seconds!==undefined&&(!Number.isFinite(raw.seconds)||raw.seconds<.25||raw.seconds>maximum))return null;action.seconds=raw.seconds??(raw.type==='wait'?1:8);}
   if(raw.duration!==undefined&&(!Number.isFinite(raw.duration)||raw.duration<=0||raw.duration>NPC_RULES.maxActionSeconds))return null;
   if(raw.duration!==undefined)action.duration=raw.duration;
   return action;
@@ -87,6 +90,7 @@ export function requestNpcAction(npc,raw,environment={}){
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   const request=cleanRequest(raw,npc.scene),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
   if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
+  if(['rest','sleep'].includes(request.type)&&restUnsafe(npc))return complete(npc,request,{ok:false,code:'UNSAFE_TO_REST',body:bodySignals(npc)},context,startPosition);
   const resource=knownResource(npc,request),known=resource?.known;
   if(resource&&!known)return complete(npc,request,{ok:false,code:resource.kind==='water'?'UNKNOWN_SOURCE':resource.kind==='food'?'UNKNOWN_FOOD':'UNKNOWN_SHELTER'},context,startPosition);
   if(resource&&npc.scene!=='valley')return complete(npc,request,{ok:false,code:'RESOURCE_IN_OTHER_SCENE'},context,startPosition);
@@ -150,6 +154,7 @@ export function requestNpcAction(npc,raw,environment={}){
     if(npc.nourishment>=99.999)return complete(npc,request,{ok:false,code:'ALREADY_NOURISHED'},context,startPosition);
     const apple=npc.inventory.apples.shift(),gain=Math.min(100-npc.nourishment,NPC_RULES.appleNourishment);
     npc.nourishment=clamp(npc.nourishment+gain,0,100);
+    npc.energy=clamp((npc.energy??BODY_RULES.initialEnergy)+gain*BODY_RULES.mealEnergyPerNourishment,0,100);
     const independent=apple.eventId!==null&&gain>=NPC_RULES.meaningfulNourishmentGain;
     if(independent){npc.stats.independentMeals++;if(npc.stats.firstFoodAt===null)npc.stats.firstFoodAt=npc.elapsed;}
     npc.presentation.eatUntil=npc.elapsed+2;updateFeelings(npc,gain/100);
@@ -165,7 +170,8 @@ export function requestNpcAction(npc,raw,environment={}){
     }
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
-  }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost};
+  }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,startEnergy:npc.energy,startStamina:npc.stamina,startFatigue:npc.fatigue,startSleepPressure:npc.sleepPressure};
+  npc.bodyMode=request.type==='sleep'?'sleeping':request.type==='rest'?'resting':'awake';
   return {ok:true,code:'STARTED'};
 }
 export function collapseNpc(npc,reason='dehydration'){
@@ -173,7 +179,7 @@ export function collapseNpc(npc,reason='dehydration'){
   const active=npc.active;
   if(active)complete(npc,active.request,{ok:false,code:'COLLAPSED',hydrationLost:Math.max(0,active.startHydration-npc.hydration)},active.context,active.startPosition,active.startScene);
   if(npc.skillRun){const skill=npc.memory.skills.find(s=>s.id===npc.skillRun.id);if(skill)skill.failures++;npc.skillRun=null;}
-  npc.lifecycle='COLLAPSED';npc.health=0;npc.collapseCause=reason;npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.collapseId++;npc.stats.collapses++;
+  npc.lifecycle='COLLAPSED';npc.bodyMode='awake';npc.health=0;npc.collapseCause=reason;npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.collapseId++;npc.stats.collapses++;
   recordEvent(npc,'collapse',{collapseId:npc.collapseId,position:npc.position,scene:npc.scene,verifiedCause:reason,hydration:npc.hydration,nourishment:npc.nourishment,thermal:npc.thermal,reason});
   npc.decision='I lost consciousness. My identity, observations and experience remain.';return true;
 }
@@ -189,12 +195,26 @@ export function rescueNpc(npc,collapseId=npc.collapseId){
   npc.position=safe;npc.health=NPC_RULES.rescueHealth??65;
   npc.hydration=Math.max(npc.hydration,NPC_PRESETS[npc.preset].rescueHydration);
   npc.nourishment=Math.max(npc.nourishment,NPC_RULES.rescueNourishment??70);
+  npc.energy=Math.max(npc.energy??0,BODY_RULES.rescueEnergy);npc.stamina=Math.max(npc.stamina??0,BODY_RULES.rescueStamina);npc.fatigue=Math.min(npc.fatigue??0,BODY_RULES.rescueFatigueMaximum);npc.sleepPressure=Math.min(npc.sleepPressure??0,BODY_RULES.rescueSleepPressureMaximum);npc.bodyMode='awake';
   npc.thermal.hot=Math.min(npc.thermal.hot,20);npc.thermal.cold=Math.min(npc.thermal.cold,20);npc.thermal.wetness=Math.min(npc.thermal.wetness,30);updateFeelings(npc);
   npc.rescuedCollapseId=collapseId;npc.lifecycle='RECOVERING';npc.lifecycleAt=npc.elapsed;npc.epoch++;
   npc.stats.rescues++;npc.stats.lastRescuer='divine';npc.presentation.rescueUntil=npc.elapsed+8;
   recordEvent(npc,'rescue',{collapseId,cause:npc.collapseCause,hydrationGain:npc.hydration-before.hydration,nourishmentGain:npc.nourishment-before.nourishment,healthGain:npc.health-before.health,thermalRelief:before.hot+before.cold-npc.thermal.hot-npc.thermal.cold,provenance:'divine',position:npc.position,scene:npc.scene,verified:'Partial bodily relief was received during recovery, without gathering supplies.',observedAttribution:npc.rescuePresentation==='quiet'?'The source of the intervention was not observed.':'A warmth and a benevolent presence; divine attribution is an interpretation, not a witnessed human action.'});
   recoveryLesson(npc);npc.decision=npc.rescuePresentation==='quiet'?'I recovered with partial relief. The source of the intervention was not observed.':'A benevolent presence gave partial bodily relief. This rescue did not count as independent survival.';
   return {ok:true,code:'RESCUED',provenance:'divine'};
+}
+function tickBodyStores(npc,dt){
+  const mode=npc.active?.request.type,sleeping=mode==='sleep',resting=mode==='rest',walking=mode==='move';
+  const recovery=npc.nourishment>BODY_RULES.nourishmentForEnergyRecovery?(sleeping?BODY_RULES.sleepEnergyRecoveryPerSecond:resting?BODY_RULES.restEnergyRecoveryPerSecond:walking?0:BODY_RULES.idleEnergyRecoveryPerSecond):0;
+  npc.energy=clamp((npc.energy??BODY_RULES.initialEnergy)+(recovery-(sleeping?0:BODY_RULES.awakeEnergyPerSecond))*dt,0,100);
+  npc.stamina=clamp((npc.stamina??BODY_RULES.initialStamina)+(sleeping?BODY_RULES.sleepStaminaRecoveryPerSecond:resting?BODY_RULES.restStaminaRecoveryPerSecond:walking?0:BODY_RULES.idleStaminaRecoveryPerSecond)*dt,0,100);
+  npc.fatigue=clamp((npc.fatigue??BODY_RULES.initialFatigue)+(sleeping?-BODY_RULES.sleepFatigueRecoveryPerSecond:resting?-BODY_RULES.restFatigueRecoveryPerSecond:BODY_RULES.awakeFatiguePerSecond)*dt,0,100);
+  npc.sleepPressure=clamp((npc.sleepPressure??BODY_RULES.initialSleepPressure)+(sleeping?-BODY_RULES.sleepPressureRecoveryPerSecond:BODY_RULES.awakeSleepPressurePerSecond)*dt,0,100);
+}
+function exertBody(npc,movingSeconds){
+  npc.energy=Math.max(0,npc.energy-BODY_RULES.walkingEnergyPerSecond*movingSeconds);
+  npc.stamina=Math.max(0,npc.stamina-BODY_RULES.walkingStaminaPerSecond*movingSeconds);
+  npc.fatigue=Math.min(100,npc.fatigue+BODY_RULES.walkingFatiguePerSecond*movingSeconds);
 }
 export function tickNpc(npc,dt,environment={}){
   if(!Number.isFinite(dt)||dt<=0)return;
@@ -205,7 +225,7 @@ export function tickNpc(npc,dt,environment={}){
     if(npc.elapsed-npc.lifecycleAt>=rules.recoverySeconds){npc.lifecycle='AWAKE';npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.nextDecisionAt=npc.elapsed;recordEvent(npc,'recovery',{collapseId:npc.collapseId,hydration:npc.hydration,nourishment:npc.nourishment,health:npc.health,identity:npc.id});}
     return;
   }
-  const previousRisk=bodyRisk(npc);
+  const previousRisk=bodyRisk(npc),previousSignals=bodySignals(npc);
   const previous={hydration:npc.hydration,nourishment:npc.nourishment,hot:npc.thermal.hot,cold:npc.thermal.cold,health:npc.health};
   npc.sensation=environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
   const sensation=npc.sensation,thermal=npc.thermal,felt=sensation.feltTemperature;
@@ -216,6 +236,11 @@ export function tickNpc(npc,dt,environment={}){
   thermal.cold=clamp(thermal.cold+(cold>0?cold*(NPC_RULES.coldStrainPerDegreeSecond??.12):-recovery)*dt,0,100);
   const hydrationRate=(rules.hydrationDepletionPerSecond??rules.depletionPerSecond)*(1+hot*.06+thermal.hot/100*.2);
   npc.hydration=Math.max(0,npc.hydration-hydrationRate*dt);npc.nourishment=Math.max(0,npc.nourishment-rules.nourishmentDepletionPerSecond*dt);
+  // Bodily safety wakes an agent; conversation or a long intention cannot disable this reflex.
+  if(['rest','sleep'].includes(npc.active?.request.type)&&restUnsafe(npc)){
+    const interrupted=npc.active;complete(npc,interrupted.request,{ok:false,code:'REST_INTERRUPTED',body:bodySignals(npc),riskCost:Math.max(0,npc.riskCost-interrupted.startRisk)},interrupted.context,interrupted.startPosition,interrupted.startScene);npc.nextDecisionAt=npc.elapsed;
+  }
+  tickBodyStores(npc,dt);
   const warning=NPC_RULES.thermalWarning??40,critical=NPC_RULES.criticalThermal??80;
   const conditions=[[previous.hydration,npc.hydration,NPC_RULES.thirstWarning,'THIRST_WARNING','down'],[previous.hydration,npc.hydration,NPC_RULES.criticalHydration,'CRITICAL_THIRST','down'],[previous.nourishment,npc.nourishment,NPC_RULES.hungerWarning,'HUNGER_WARNING','down'],[previous.nourishment,npc.nourishment,NPC_RULES.criticalNourishment,'CRITICAL_HUNGER','down'],[previous.hot,thermal.hot,warning,'HEAT_WARNING','up'],[previous.hot,thermal.hot,critical,'CRITICAL_HEAT','up'],[previous.cold,thermal.cold,warning,'COLD_WARNING','up'],[previous.cold,thermal.cold,critical,'CRITICAL_COLD','up']];
   for(const [before,after,threshold,code,direction]of conditions)if(direction==='down'?before>threshold&&after<=threshold:before<threshold&&after>=threshold){
@@ -239,14 +264,20 @@ export function tickNpc(npc,dt,environment={}){
   if(npc.health<=0){
     const cause=npc.hydration<=0&&npc.nourishment<=0?'combined starvation and dehydration':npc.nourishment<=0?'starvation':npc.hydration<=0?'dehydration':thermal.hot>=critical?'heat exposure':'cold exposure';collapseNpc(npc,cause);return;
   }
+  const signals=bodySignals(npc);if(Object.keys(signals).some(key=>signals[key]!==previousSignals[key]))recordEvent(npc,'condition',{code:'BODY_SIGNAL',body:signals});
   const active=npc.active;if(!active)return;
   const losses={hydrationLost:Math.max(0,active.startHydration-npc.hydration),nourishmentLost:Math.max(0,active.startNourishment-npc.nourishment),riskCost:Math.max(0,npc.riskCost-active.startRisk)};
   if(active.request.type==='wait'){if(npc.elapsed>=active.expiresAt)complete(npc,active.request,{ok:true,code:'WAITED',...losses},active.context,active.startPosition,active.startScene);return;}
+  if(['rest','sleep'].includes(active.request.type)){
+    if(npc.elapsed>=active.expiresAt)complete(npc,active.request,{ok:true,code:active.request.type==='sleep'?'SLEPT':'RESTED',...losses,energyRecovered:Math.max(0,npc.energy-active.startEnergy),staminaRecovered:Math.max(0,npc.stamina-active.startStamina),fatigueRelieved:Math.max(0,active.startFatigue-npc.fatigue),sleepPressureRelieved:Math.max(0,active.startSleepPressure-npc.sleepPressure),body:bodySignals(npc)},active.context,active.startPosition,active.startScene);
+    return;
+  }
   const target=active.route[active.index];
   if(!target){complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled,novelCells:active.novelCells||0,...losses},active.context,active.startPosition,active.startScene);return;}
   const dx=target.x-npc.position.x,dy=target.y-npc.position.y,d=Math.hypot(dx,dy);
   if(d<3){if(rememberedCells(npc)[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;return;}
-  const moved=moveActor(npc.position,dx,dy,Math.min(dt,d/CONFIG.walkSpeed),false,npc.scene);active.travelled+=moved;
+  const pace=npc.stamina<=BODY_RULES.lowStamina||npc.fatigue>=BODY_RULES.highFatigue||npc.energy<=BODY_RULES.lowEnergy?BODY_RULES.exhaustedWalkMultiplier:1;
+  const moved=moveActor(npc.position,dx,dy,Math.min(dt*pace,d/CONFIG.walkSpeed),false,npc.scene);active.travelled+=moved;exertBody(npc,moved/CONFIG.walkSpeed);updateFeelings(npc);
   active.blockedFor=moved<.05?active.blockedFor+dt:0;
   if(active.blockedFor>1||npc.elapsed>active.expiresAt){
     const code=active.blockedFor>1?'ROUTE_BLOCKED':'ACTION_TIMEOUT';

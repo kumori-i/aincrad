@@ -1,6 +1,6 @@
 /** Original palette-limited pixel artwork. Two world units are one art pixel. */
 import { hash, noise, terrain, waterDistance, ridgeValue, clamp } from './world.js';
-import { NPC_RULES } from './config.js';
+import { bodySignals } from './interoception.js';
 
 export const ART_PIXEL = 2;
 export function canvas(w, h) { const c=document.createElement('canvas');c.width=Math.ceil(w);c.height=Math.ceil(h);return c; }
@@ -148,21 +148,24 @@ export function drawObject(g,o,player=null){
   const fade=player&&o.kind!=='rock'&&o.kind!=='mountain'&&Math.abs(player.x-o.x)<w*.43+16&&player.y<o.y+4&&player.y>o.y-s.oy*ART_PIXEL*scale-40;
   g.save();g.imageSmoothingEnabled=false;if(fade)g.globalAlpha=.45;g.drawImage(s.image,snap(o.x-s.ox*ART_PIXEL*scale),snap(o.y-s.oy*ART_PIXEL*scale),snap(w),snap(h));g.restore();
 }
-function drawPerson(g,facing,frame,npc=false,flask=0,collapsed=false,scene='valley'){
+function drawPerson(g,facing,frame,npc=false,flask=0,collapsed=false,scene='valley',identity='aster',posture='awake'){
   const back=facing.y<-.2,side=Math.abs(facing.x)>.6,left=facing.x<0,step=frame===1?-1:frame===3?1:0;
-  const outline='#2e3a35',pants=npc?'#354e57':'#3c5360',cloth=npc?'#62864d':'#b86949',light=npc?'#98b46a':'#dc9a60',skin='#e3bd8c',hair=npc?'#73513c':'#75533b';
+  const mira=npc&&identity==='mira',resting=posture==='resting'||posture==='sleeping';
+  const outline='#2e3a35',pants=npc?(mira?'#655452':'#354e57'):'#3c5360',cloth=npc?(mira?'#806b93':'#62864d'):'#b86949',light=npc?(mira?'#b29cc4':'#98b46a'):'#dc9a60',skin=mira?'#dcb593':'#e3bd8c',hair=npc?(mira?'#9a593f':'#73513c'):'#75533b';
   if(collapsed){g.translate(8,0);g.rotate(-Math.PI/2);}
-  rect(g,-5,-7+step,4,7,outline);rect(g,2,-7-step,4,7,outline);rect(g,-4,-7+step,2,5,pants);rect(g,3,-7-step,2,5,pants);
-  rect(g,-5,-1+step,4,2,'#503e32');rect(g,2,-1-step,4,2,'#503e32');
+  if(resting&&!collapsed)g.translate(0,6);
+  if(resting){rect(g,-9,-6,8,4,outline);rect(g,1,-6,8,4,outline);rect(g,-8,-6,6,2,pants);rect(g,2,-6,6,2,pants);rect(g,-10,-3,5,2,'#503e32');rect(g,6,-3,5,2,'#503e32');}
+  else{rect(g,-5,-7+step,4,7,outline);rect(g,2,-7-step,4,7,outline);rect(g,-4,-7+step,2,5,pants);rect(g,3,-7-step,2,5,pants);rect(g,-5,-1+step,4,2,'#503e32');rect(g,2,-1-step,4,2,'#503e32');}
   pixelPoly(g,[[-5,-17],[-7,-12],[-6,-5],[-3,-4],[5,-5],[7,-12],[5,-17]],outline);
   rect(g,-5,-17,10,11,cloth);rect(g,-4,-16,3,9,light);rect(g,-4,-6,9,1,'#5b4732');rect(g,0,-6,2,1,'#d4b56c');
   const arm=step?(step>0?1:-1):0;rect(g,-7,-15+arm,2,7,cloth);rect(g,6,-15-arm,2,7,cloth);rect(g,-7,-9+arm,2,3,skin);rect(g,6,-9-arm,2,3,skin);
-  if(back){rect(g,-4,-16,8,9,npc?'#3f5860':'#9c8053');rect(g,-3,-15,6,2,npc?'#698b94':'#d8bd7c');rect(g,-3,-11,6,1,'#2d3e3a');rect(g,-4,-14,1,7,'#d3b582');}
-  else{rect(g,-1,-15,3,7,npc?'#c8d3a1':'#f0d5a1');rect(g,-1,-9,3,1,'#6b794c');}
+  if(back){rect(g,-4,-16,8,9,npc?(mira?'#76664d':'#3f5860'):'#9c8053');rect(g,-3,-15,6,2,npc?(mira?'#b6a17a':'#698b94'):'#d8bd7c');rect(g,-3,-11,6,1,'#2d3e3a');rect(g,-4,-14,1,7,'#d3b582');}
+  else{rect(g,-1,-15,3,7,npc?(mira?'#dfc8a5':'#c8d3a1'):'#f0d5a1');rect(g,-1,-9,3,1,mira?'#8a7375':'#6b794c');}
   const fx=side?(left?-1:1):0;rect(g,-5+fx,-25,10,10,outline);rect(g,-4+fx,-24,8,8,skin);rect(g,-4+fx,-17,8,1,'#c79364');
-  rect(g,-5+fx,-25,10,4,hair);rect(g,-5+fx,-21,2,5,hair);if(back){rect(g,-4+fx,-22,8,6,hair);rect(g,-3+fx,-24,6,1,'#9a6b49');}
-  else{if(!side){rect(g,-2,-20,1,2,outline);rect(g,2,-20,1,2,outline);}else rect(g,left?-4:4,-20,1,2,outline);rect(g,fx,-17,2,1,'#a57851');}
-  if(npc){rect(g,-4+fx,-25,6,1,'#a47850');rect(g,5,-11,3,5,flask>.01?'#6aadc3':'#725d43');rect(g,6,-12,1,2,'#d0ac63');rect(g,6,-9,1,2,flask>.01?'#bce2d7':'#a28b65');}
+  rect(g,-5+fx,-25,10,4,hair);rect(g,-5+fx,-21,2,5,hair);if(back){rect(g,-4+fx,-22,8,6,hair);rect(g,-3+fx,-24,6,1,mira?'#cb8960':'#9a6b49');}
+  else{if(!side){rect(g,-2,-20,posture==='sleeping'?2:1,posture==='sleeping'?1:2,outline);rect(g,2,-20,posture==='sleeping'?2:1,posture==='sleeping'?1:2,outline);}else rect(g,left?-4:4,-20,posture==='sleeping'?2:1,posture==='sleeping'?1:2,outline);rect(g,fx,-17,2,1,'#a57851');}
+  if(mira){rect(g,4+fx,-22,2,9,hair);rect(g,5+fx,-14,2,2,'#c59067');rect(g,5+fx,-20,1,5,'#c77850');}
+  if(npc){rect(g,-4+fx,-25,6,1,mira?'#d59567':'#a47850');rect(g,5,-11,3,5,flask>.01?'#6aadc3':'#725d43');rect(g,6,-12,1,2,'#d0ac63');rect(g,6,-9,1,2,flask>.01?'#bce2d7':'#a28b65');}
   else{rect(g,-8+fx,-24,16,2,'#5f5939');rect(g,-5+fx,-29,10,5,'#ad9553');rect(g,-4+fx,-29,7,1,'#d7bb6b');rect(g,-5+fx,-25,10,1,'#6c5534');}
   if(scene!=='valley'){rect(g,7,-14,1,9,'#8b6440');pixelPoly(g,[[6,-14],[5,-17],[7,-22],[10,-17],[9,-14]],'#eaa24c');rect(g,7,-19,1,3,'#ffe59b');}
 }
@@ -283,20 +286,50 @@ export function drawShelterLamp(g,x,y){
   rect(g,-3,-16,6,12,'#594c38');rect(g,-4,-17,8,2,'#b39560');rect(g,-2,-14,4,8,'#ecba65');rect(g,-1,-13,2,6,'#f7df9c');rect(g,-4,-5,8,2,'#917341');rect(g,-1,-3,2,4,'#665439');
   g.restore();
 }
+const LETTERS={A:'010101111101101',S:'111100111001111',T:'111010010010010',E:'111100110100111',R:'110101110101101',M:'101111111101101',I:'111010010010111',Z:'111001010100111'};
+function pixelLabel(g,label,x,y,color){
+  for(let letter=0;letter<label.length;letter++){const glyph=LETTERS[label[letter]];if(!glyph)continue;for(let pixel=0;pixel<15;pixel++)if(glyph[pixel]==='1')rect(g,x+letter*4+pixel%3,y+Math.floor(pixel/3),1,1,color);}
+}
+/** A note is a physical marker. Its claims remain journal data, never world rules. */
+export function drawFieldNote(g,note){
+  const p=note.position||note;g.save();g.translate(snap(p.x),snap(p.y));g.scale(ART_PIXEL,ART_PIXEL);
+  pixelOval(g,0,3,9,3,'#243d3155');rect(g,-1,-3,3,9,'#74553a');rect(g,0,-3,1,8,'#b98c59');
+  rect(g,-6,-17,13,16,'#514d37');rect(g,-5,-16,11,14,'#ead4a0');rect(g,-5,-16,11,1,'#fff0bf');rect(g,4,-15,2,4,'#bba474');
+  const ink=note.authorId==='mira'?'#80658d':'#52714b';rect(g,-3,-12,6,1,ink);rect(g,-3,-9,5,1,'#927d56');rect(g,-3,-6,7,1,'#927d56');
+  g.restore();
+}
 export function drawNpc(g,npc,time){
   const p=npc.position,collapsed=npc.lifecycle==='COLLAPSED',moving=npc.active?.request.type==='move'&&npc.active.blockedFor<.1;
   const target=npc.active?.route?.[npc.active.index],dx=target?target.x-p.x:0,dy=target?target.y-p.y:1,len=Math.hypot(dx,dy)||1,facing={x:dx/len,y:dy/len};
+  const presentation=npc.presentation||{},signals=bodySignals(npc),posture=signals.activity==='resting'||signals.activity==='sleeping'?signals.activity:npc.bodyMode||'awake',identity=npc.id==='mira'||npc.name==='Mira'?'mira':'aster';
   g.save();g.translate(snap(p.x),snap(p.y));g.scale(ART_PIXEL,ART_PIXEL);
-  if(npc.presentation.rescueUntil>npc.elapsed){pixelOval(g,0,-12,23,28,'#e9ca6e22');pixelOval(g,0,-12,17,22,'#e9ca6e22');for(let i=0;i<4;i++){const phase=(Math.floor(time*5)+i*7)%25,x=[-13,12,-7,7][i];rect(g,x,-10-phase,1,2,'#f9df99');rect(g,x-1,-9-phase,3,1,'#f9df99');}}
-  pixelOval(g,0,2,collapsed?13:7,3,'#203b2e66');g.save();drawPerson(g,facing,moving?Math.floor(time*7)%4:0,true,npc.flask.water,collapsed,npc.scene||'valley');g.restore();
-  if(npc.presentation.drinkUntil>npc.elapsed){rect(g,8,-26,1,3,'#b3e7dc');rect(g,11,-22,1,2,'#78bfcc');}
-  if(npc.presentation.eatUntil>npc.elapsed){pixelOval(g,11,-25,3,3,'#ce7350');rect(g,10,-29,1,2,'#8e7641');rect(g,11,-28,2,1,'#b6c774');rect(g,9,-26,1,1,'#f1c483');}
-  // A compact status plate is pixel-aligned; the inspector carries the full evidence and history.
-  rect(g,-11,-37,22,8,'#24382cf0');rect(g,-10,-36,20,1,'#d6c58b');
-  const glyphs=['010101111101101','111100111001111','111010010010010','111100110100111','110101110101101'];
-  for(let letter=0;letter<glyphs.length;letter++)for(let pixel=0;pixel<15;pixel++)if(glyphs[letter][pixel]==='1')rect(g,-9+letter*4+pixel%3,-35+Math.floor(pixel/3),1,1,'#f3e2b6');
-  rect(g,-10,-40,20,2,'#2e4633');rect(g,-10,-40,Math.max(0,Math.round(20*npc.hydration/100)),2,collapsed||npc.hydration<=NPC_RULES.criticalHydration?'#cf7756':npc.hydration<=NPC_RULES.thirstWarning?'#dba554':'#7ac2c2');
-  if(Number.isFinite(npc.nourishment)){rect(g,-10,-43,20,2,'#3d392c');rect(g,-10,-43,Math.max(0,Math.round(20*npc.nourishment/100)),2,npc.nourishment<=NPC_RULES.criticalNourishment?'#cf7756':npc.nourishment<=NPC_RULES.hungerWarning?'#dba554':'#d1b46b');}
-  const hot=npc.feelings?.heat||0,cold=npc.feelings?.cold||0;if(hot>.25||cold>.25){const color=hot>cold?'#ea9a61':'#a8d3e5';rect(g,13,-35,3,7,color);rect(g,12,-31,5,3,color);rect(g,14,-34,1,4,'#faf0c3');}
+  if(presentation.rescueUntil>npc.elapsed){pixelOval(g,0,-12,23,28,'#e9ca6e22');pixelOval(g,0,-12,17,22,'#e9ca6e22');for(let i=0;i<4;i++){const phase=(Math.floor(time*5)+i*7)%25,x=[-13,12,-7,7][i];rect(g,x,-10-phase,1,2,'#f9df99');rect(g,x-1,-9-phase,3,1,'#f9df99');}}
+  pixelOval(g,0,2,collapsed?13:7,3,'#203b2e66');
+  if(posture==='resting'||posture==='sleeping'){pixelOval(g,0,4,13,5,'#4c6558');pixelOval(g,0,3,12,4,identity==='mira'?'#95819f':'#7c9270');line(g,[[-10,3],[10,3]],'#c2b590');}
+  g.save();drawPerson(g,facing,moving?Math.floor(time*7)%4:0,true,npc.flask?.water||0,collapsed,npc.scene||'valley',identity,posture);g.restore();
+  if(presentation.drinkUntil>npc.elapsed){rect(g,8,-26,1,3,'#b3e7dc');rect(g,11,-22,1,2,'#78bfcc');}
+  if(presentation.eatUntil>npc.elapsed){pixelOval(g,11,-25,3,3,'#ce7350');rect(g,10,-29,1,2,'#8e7641');rect(g,11,-28,2,1,'#b6c774');rect(g,9,-26,1,1,'#f1c483');}
+  // Names and sensation icons reveal felt condition without exposing hidden body stores.
+  const label=identity==='mira'?'MIRA':'ASTER',labelWidth=label.length*4+2;
+  rect(g,-labelWidth/2,-37,labelWidth,8,'#24382cf0');rect(g,-labelWidth/2+1,-36,labelWidth-2,1,identity==='mira'?'#c5a3ce':'#d6c58b');pixelLabel(g,label,-labelWidth/2+2,-35,'#f3e2b6');
+  const icons=[];
+  if(!['content','peckish'].includes(signals.hunger))icons.push('food');
+  if(!['quenched','dry mouth'].includes(signals.thirst))icons.push('water');
+  if(['hot','cold','overheated','shivering','dangerously hot','dangerously cold'].includes(signals.thermal))icons.push(['hot','overheated','dangerously hot'].includes(signals.thermal)?'hot':'cold');
+  if(posture==='sleeping')icons.push('sleep');else if(['weary','exhausted'].includes(signals.fatigue)||['sleepy','struggling to stay awake'].includes(signals.sleepiness))icons.push('tired');
+  if(collapsed||signals.pain==='severe')icons.splice(0,icons.length,'urgent');
+  for(let i=0;i<Math.min(3,icons.length);i++){
+    const x=-Math.min(3,icons.length)*4+i*8+2,y=-45,type=icons[i];rect(g,x-3,y-1,7,7,'#24382cdd');
+    if(type==='food'){pixelOval(g,x,y+2,2,2,'#e38c62');rect(g,x,y-1,1,2,'#a9bc75');}
+    else if(type==='water'){pixelPoly(g,[[x,y],[x-2,y+3],[x-1,y+5],[x+1,y+5],[x+2,y+3]],'#9fd7d5');rect(g,x,y+3,1,1,'#e0ecd4');}
+    else if(type==='hot'||type==='cold'){const color=type==='hot'?'#eda26c':'#b7d9e6';rect(g,x,y,1,4,color);rect(g,x-1,y+3,3,2,color);}
+    else if(type==='sleep'){pixelLabel(g,'Z',x-1,y,'#ddd2af');}
+    else if(type==='tired'){rect(g,x-1,y+1,3,1,'#ddd2af');rect(g,x-1,y+3,3,1,'#ddd2af');}
+    else{rect(g,x,y,1,3,'#e3a073');rect(g,x,y+4,1,1,'#e3a073');}
+  }
+  if(presentation.speakUntil>npc.elapsed){
+    rect(g,4,-59,18,12,'#494634');rect(g,5,-58,16,10,'#f1dfb8');rect(g,6,-57,14,1,'#fff0ce');pixelPoly(g,[[8,-48],[12,-48],[8,-45]],'#f1dfb8');
+    for(let i=0;i<3;i++)rect(g,8+i*4,-53,2,2,identity==='mira'?'#80658d':'#52714b');
+  }
   g.restore();
 }
