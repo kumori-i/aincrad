@@ -1,6 +1,11 @@
 import { NpcController } from './controller.js';
 import { tickEnvironment } from './environment.js';
 import { SocialCoordinator } from './social.js';
+import { tickEcology, senseEcology } from './ecology.js';
+import { harmPhysiology, wakePhysiology, isSleeping } from './biology.js';
+import { recordEvent } from './npc-memory.js';
+import { bodySignals } from './interoception.js';
+import { lineOfSight } from './perception.js';
 
 /** Owns the two characters and the single shared simulation clock. */
 export class PopulationRuntime {
@@ -35,6 +40,24 @@ export class PopulationRuntime {
     const step=Math.min(dt,.25);
     tickEnvironment(this.state.environment,step);
     const agents=this.state.agents;
+    if(this.state.simulationMode==='discovery'&&this.state.environment.ecology){
+      tickEcology(this.state.environment.ecology,step,this.state.environment,agents,{
+        harm:(npc,injury)=>{
+          if(!agents.includes(npc)||npc.mode!=='discovery')return;
+          const result=harmPhysiology(npc,injury?.damage,{reason:injury?.reason,sourceId:injury?.sourceId,stimulus:injury?.stimulus});
+          if(result.ok){
+            if(npc.stats)npc.stats.injuries=(npc.stats.injuries||0)+result.damage;
+            const current=npc.lifecycle==='AWAKE'&&!isSleeping(npc)?senseEcology(this.state.environment.ecology,npc.position,npc.scene,80).find(object=>object.id===injury.sourceId&&lineOfSight(npc.position,object.position,npc.scene)):null;
+            const source=current||npc.discovery?.observations?.[injury.sourceId];
+            const direction=injury.direction&&Number.isFinite(injury.direction.x)&&Number.isFinite(injury.direction.y)?injury.direction:null;
+            recordEvent(npc,'condition',{code:'CONTACT_INJURY',scene:npc.scene,...(source?{objectId:source.id,sourceId:source.id,sourcePosition:{...source.position},scene:source.scene}:{}),...(direction?{direction:{x:Math.max(-1,Math.min(1,direction.x)),y:Math.max(-1,Math.min(1,direction.y))}}:{}),body:bodySignals(npc),provenance:'experienced contact'});
+          }
+        },
+        wake:(npc,stimulus)=>{
+          if(agents.includes(npc)&&npc.mode==='discovery')wakePhysiology(npc,stimulus);
+        },
+      });
+    }
     const start=this.turn++%agents.length;
     for(let offset=0;offset<agents.length;offset++){
       const npc=agents[(start+offset)%agents.length];

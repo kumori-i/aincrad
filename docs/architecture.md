@@ -1,90 +1,104 @@
-# Aincrad 0.5 architecture
+# Aincrad 0.6 architecture
 
-Aincrad is a local-first Electron desktop application with two embodied characters, Aster and Mira, and a human-controlled avatar. Its original pixel world preserves the five-minute reference crossing, one-hour day, weather, finite resources and independent cave transitions.
+Aincrad is a local-first Electron desktop application with two embodied characters, Aster and Mira, a human-controlled avatar and a finite first food web. It preserves the original valley, five-minute reference crossing, one-hour day, weather and independent cave transitions.
 
-`npm run dev`, `npm run build` and `npm start` form the source workflow. Builds create ignored files in `dist/`; a strict application protocol serves validated renderer assets. Source HTML is an internal Electron asset, not a browser deliverable.
+`npm run dev`, `npm run build` and `npm start` form the source workflow. Builds create ignored files in `dist/`; a strict application protocol serves allowlisted renderer assets. HTML is an internal Electron asset, not a browser deliverable.
 
 ```mermaid
 flowchart TD
-    W["Shared world and clock"] --> B["Independent bodies"]
-    B --> O["Qualitative sensations and local perception"]
-    O --> C["Beliefs, motives and persistent plans"]
-    C --> A["Validated physical and social actions"]
+    W["Shared clock and finite ecosystem"] --> B["Independent bodies and local senses"]
+    B --> C["Experiential discovery controller"]
+    C --> A["Validated primitive actions"]
     A --> W
-    A --> M["Outcome evidence and learned procedures"]
-    M --> C
-    A --> J["Local speech, journal and field notes"]
-    J --> C
+    A --> E["Executed outcomes and delayed effects"]
+    E --> C
+    H["Explicit human advice"] --> R["Unverified technique reports"]
+    R --> C
+    L["Optional pretrained model"] --> J["Human-journal language only"]
 ```
 
-## Authority and population
+## Authority and shared time
 
-`world.js` owns terrain, collision and shared movement. `environment.js` owns seeded weather, daily temperature and finite apple stocks. `npc.js` owns each character's reserves, health, thermal strain, wetness, recovery, inventory, action duration and lifecycle. `config.js` supplies tunable rules. `renderer.js` and `art.js` only present state.
+`world.js` owns terrain, collision and movement. `environment.js` owns the saved clock, weather and environmental conditions. Discovery ecology lives once in `environment.ecology`; `ecology.js` owns plants, animals, detached material, carcasses and decomposition. Legacy worlds retain preceding finite apple patches and renewal rules. `npc.js` owns validated human actions and lifecycle; `biology.js` owns discovery physiology. Config modules hold tunable rules. `renderer.js` and `art.js` draw without advancing them.
 
-`population.js` owns two independent `NpcController` instances and their shared social coordinator. It advances the environment exactly once per unpaused fixed step, then advances each body/controller. Alternating character order avoids always granting Aster first access to a contested resource. Each gathered apple immediately leaves the shared patch; inventories, memory and decisions remain separate.
+`population.js` coordinates two independent controllers and the shared social channel. Every unpaused fixed step advances the environment once, ecology once and each character once. Controller order alternates to avoid permanent first access to shared resources. Plant production, animal movement and consumption, digestion, exposure, sleep and human actions use the same simulation-time increment. Speed controls scale that increment consistently.
 
-NPC and human scenes are independent. Following either character switches the rendered scene and field map to hers. A peer in another cave is not locally visible or reachable. Neither the renderer nor a model response can declare an action completed or assign authoritative body state.
+Focus loss, hidden state and minimizing do not pause the open application. Held movement keys are cleared on blur. Escape controls the explicit pause state independently of map/help/journal visibility. Closing the application stops progression; reopening does not backfill wall-clock time. The renderer stays passive even when drawing is suppressed in the background.
 
-## World knowledge and navigation
+NPC and human scenes are independent. Following one character changes the rendered scene and field map to hers; it does not move the other actors. Every route and interaction still passes through authoritative collision, position, reach, ownership and available-resource checks.
 
-Local, unoccluded perception reveals nearby terrain and affordances. The 80-pixel navigation grid covers the character's local view, while remembered cells and blocked edges are stored by scene. `navigation.js` searches observed traversable cells only; interaction points supplement grid centers. Long approaches use bounded moves through known waypoints, and every movement still passes through the authoritative collision rules.
+## Discovery-mode knowledge boundary
 
-New expeditions begin beside locally observed water, without preloaded procedures or full-map routes. Remembered stock remains stale until observed again. The hidden renewal timer and an unvisited cave's interior conditions are not revealed. Animals, fish and flowers remain ambient scenery rather than additional autonomous minds.
+Fresh worlds have `simulationMode:'discovery'`; their NPCs have `mode:'discovery'`. Basic movement, navigation, water handling, body instincts and object manipulation are supplied abilities. Food labels, dietary lists, apple routines, foraging and hunting recipes are not supplied.
 
-`cognition.js` records bounded beliefs and predictions with source, confidence, status and evidence. Direct observations can verify current resource conditions. Human messages, peer speech and field notes produce reported claims; they do not create discovered resources or traversable routes. Where a report makes a checkable availability claim, later local observation can corroborate or contradict it. Repeat visits can support tentative renewal expectations without exposing the engine's schedule.
+`senseEcology` supplies bounded opaque objects with position, visible appearance, motion, sound, quantities and observed changes. It does not reveal species, diet, nutrition, edibility, hidden renewal dates or complete ecosystem state. Scene, local range and occlusion restrict perception. Familiar colors and shapes do not become authoritative object names or food facts.
 
-## Body and interoception
+`discovery-actions.js` executes low-level interactions such as inspection, grasping, releasing, pulling, sampling and striking. Interactions occupy time, expend effort and return physical results. They use `kind:'interaction'` rather than entering the movement-route processor. Discovery humans cannot invoke legacy `gather_food` or `eat` macros. Their carried objects live in `inventory.items`; the sensory observation presents opaque inventory objects rather than an apple counter.
 
-Exact physiology remains in the engine. Normal full nourishment lasts 210 active seconds and hydration 420 seconds before exposure modifiers; the initial reserves are 85. Food is deliberately the more frequent gameplay need. Apples restore up to 45 nourishment, and a drink up to 65 hydration. Each character carries at most three apples and a separate one-fill flask.
+`discovery-state.js` stores bounded observations, actual experiments, experienced effects, practiced techniques and reports. Material-effect confidence is separate from proficiency. A manipulation result establishes only what happened to the object; a later digestion event supplies the evidence for bodily benefit or discomfort. Neither a description nor an intended sequence substitutes for an executed event.
 
-The body also retains independent energy, stamina, fatigue and sleep pressure. Food and meals sustain energy; exertion spends it. Walking consumes stamina and increases fatigue. Idle pauses and timed rest restore stamina, while sleep more strongly relieves fatigue and sleep pressure. Exhaustion slows walking. Rest and sleep never freeze deprivation or exposure; unsafe reserves, strain or health interrupt them. This is a configurable game-body model, not a physiological or neural simulation of a human.
+`discovery.js` selects physical experiments from this experience, generic primitives and actual human reports. It does not ask a pretrained model to choose cold-start food actions. A remembered technique requires real practice and evidence; proficiency reduces avoidable time/effort while preserving minimum costs, reach, ownership and finite stock. Empty-resource attempts, repeated words and invalid actions yield no free food, skill or energy.
 
-The daily base temperature peaks at 30°C around 14:00 and reaches 8°C around 04:00. Weather, shade, wind and wetness affect felt temperature. Entered caves are insulated at 18°C without rain or wind. Heat/cold strain builds outside the configured comfort range and recovers under comfortable conditions. Empty reserves and severe thermal strain gradually damage health. Zero health triggers collapse.
+Reports carry provenance. Explicit human advice can propose a technique as an unverified hypothesis. The initial parser recognizes named generic operations and locally observed opaque IDs or visible feature descriptions; ordinary food names do not resolve through an edible-item dictionary. Material detached by an action has its own ID, and a following held-object operation can retarget to that actual material result. Peer speech and notes are testimony until checked. Model-generated NPC journal text is not an explicit human instruction, own empirical effect or validated technique. Verified outcomes must come from the authoritative engine and experienced consequences.
 
-`interoception.js` maps hidden values to qualitative sensations: hunger, thirst, warmth, energy, breathing effort, fatigue, sleepiness, pain, wetness and relief. `sensedEnvironment` supplies qualitative time of day and weather. Accumulated strain produces overheated or shivering warning cues, distinct from ambient hot/cold and critical danger; a temperate cave does not immediately erase those sensations. Ordinary journal views, decision explanations and model observations use these descriptions. Exact numeric stores are available only through explicit developer inspection. Peer perception exposes visible activity, wetness and expression, never another character's private body or memory.
+## Human physiology and sleep
 
-Continuous bodily risk costs still accrue every fixed step, including while moving, waiting or awaiting model inference. Warning and critical states therefore supply feedback before collapse. The physical engine computes these costs precisely; the agent reasons from felt signals rather than a reserve-percentage dashboard.
+Discovery actors retain projected `hydration`, `nourishment`, `energy`, `stamina`, `fatigue`, `sleepPressure`, `thermal` and `health` fields for existing presentation and explicit developer inspection. Their private `physiology` state owns digestion, immediate/stored energy, water balance, body condition, wakefulness, sleep depth, waking inertia and delayed feedback. Save validation bounds this state; it is never a model or peer observation.
 
-## Motivation, learning and planning
+`biology-config.js` scales approximate physiological rates by game hours and days using the configured day length. Seven foodless days and three waterless days are not hardcoded universal collapse deadlines. Activity, exposure, reserves and species profiles alter deterioration. Digestion and longer-term deficits prevent a single meal from instantly repairing accumulated harm. Animals can reuse generic body helpers with different species profiles.
 
-The eight concurrent drive records are survival, safety, belonging, competence, understanding, creativity, purpose and contribution. Tensions arise from sensations, carried supplies, elapsed contact, unsuccessful outcomes, new knowledge, notes and an active intention. They are supplied motivational structure. They are not a simulation of human consciousness or a demonstration that civilization has emerged.
+`interoception.js` maps private values to sensations. Discovery adds qualitative digestion (`empty`, `settled`, `full`, `overfull`) and sleep (`awake`, `dozing`, `light sleep`, `deep sleep`, `groggy`) to hunger, thirst, temperature, breathing effort, energy, fatigue, pain and relief. Exact stores, doses and hidden material contents remain private. World time, position and visible discrete quantities may remain numeric because they are not internal body measurements.
 
-The offline controller retains bounded contextual and feature values learned from physical outcomes. Useful relief credits recent successful prerequisites, so navigation and gathering can acquire value before death. Water, food and shelter procedures are recognized through provided, restricted templates with actual evidence. A candidate becomes more reliable through tested successes; repeatedly failing routines can be retired. The controller never invents executable programs.
+Sleep is a timed physical state with onset, depth and a circadian/wakefulness contribution. Sleeping actors lose full visual perception. Limited disturbance, bodily discomfort and contact can cause awakening; waking grants no energy. Waking inertia, missed restorative sleep and actual effort worsen functioning. Naps can provide partial recovery but keep the same vulnerability and continued metabolic/exposure costs. Extremely impaired creatures need not always wake or escape successfully.
 
-Persistent plans contain a goal, drive, three to six restricted steps, a cursor, completion and interruption descriptions, travel/return budgets and an outcome history. Steps must match locally known resources or observed traversable targets. Return routes use remembered terrain, and travel estimates can improve from actual completed movement. The offline planner supplies preparation and bounded exploration/return templates; the optional model can propose its own restricted sequence.
+The model is configurable gameplay biology, not clinically validated human physiology or a neural simulation. Legacy actors retain the preceding reserve, rest and sleep rules rather than silently changing historical expeditions.
 
-A plan advances after real action results. Failure, lifecycle changes, urgent bodily sensations and budget expiry interrupt it. The agent can then address survival or revise its intention. Supplied exploration ranking favors reachable unknown edges and accounts for recent visits and route failures. All fallback searches also remain near remembered supplies and return after a bounded excursion. Felt exertion and observed trips produce conservative travel estimates; longer resource approaches use shorter movements. Warning strain interrupts supply departures, while imminent deprivation can justify leaving shelter. A failed approach does not erase the known refuge, and a bounded movement that made physical progress can continue without marking the resource unavailable. Motion alone receives no reward, and repeating a familiar loop is not new knowledge.
+## Finite ecology and survival animals
 
-Meaningful independent consumption requires at least 15 useful reserve points from ordinary collected supplies and is counted at most once per apple or flask fill. Shelter evidence requires actual relief after entering. Spoken intentions, questions, notes, debug interventions and rescue do not count as physical survival successes.
+`ecology-config.js` supplies species and resource rules. Canonical ecology state retains stable opaque IDs, scene/position, plant biomass and seasonal crops, animal bodies, detached material, carcasses, decomposition, birth/death counters and resource budgets. Public sensory objects exclude private species and material metadata.
 
-## Social channels and knowledge artifacts
+The first ecosystem contains grass, brambles and existing mature apple trees, with rabbits, bobcats and foxes. Fruit passes through seasonal growth, availability, detachment and spoilage rather than instant stock refill. Grazing consumes vegetation. Detached plant/animal material decays, and decomposition returns resources to the aggregate nutrient cycle. Reproduction and growth cost resources and obey population bounds.
 
-`social.js` separates local peer speech from an asynchronous journal room. Peer speech requires both characters to be available in the same scene, within range and line of sight. It records delivered messages, familiarity and reported claims. Cooldowns and duplicate/topic checks limit repeated exchanges. Familiarity does not establish factual truth.
+Animals use deterministic, inexpensive local controllers without an LLM. They seek food/water, flee, pursue, rest and sleep according to species bodies and immediate conditions. Innate animal diet recognition does not enter human observations. Pursuit expends effort and must reach physical contact; failure, injury and flight are possible. Predator threat/contact can wound or wake a human through authoritative callbacks, but cannot silently fill inventories or fabricate human action results.
 
-The human can address Aster, Mira or both through the journal regardless of character location. Every observation states that human replies are optional. An unanswered question does not suspend the simulation or impose a wait action. Each character has a bounded pending question and topic history; explicit or targeted replies can answer it. Messages received during sleep or recovery can be read when the character is available again.
+Divine recovery is external assistance. It must not produce both a recovered character and a reusable corpse on every collapse. Outside rescue energy is counted separately and excluded from ecological self-sufficiency and independent-survival credit. Fish ecology, large predators, climbing, tools, cooking and cultivation are later contracts.
 
-The offline controller uses supplied evidence-derived language templates; model-generated language uses the same action authority. Message provenance distinguishes these paths. Dialogue can share something discovered or ask about an uncertainty. The implementation does not treat unrestricted conversation as learned human language or access to another character's whole memory.
+## Motives, memory and plans
 
-Field notes are bounded persistent artifacts with author, location, title, text and optional belief references. A character must encounter a note locally to read it. A received note is testimony, not verified knowledge; rereading does not create repeated discovery credit. The human journal can inspect notes without making their full text globally available to the characters. Notes are data and cannot change resources, physics or executable rules.
+The eight concurrent Maslow-inspired drives remain survival, safety, belonging, competence, understanding, creativity, purpose and contribution. They are supplied motivation, not proof of human consciousness or emergent civilization. Bodily urgency can interrupt an experiment, trip or conversation.
 
-## Lifecycle and persistence
+Local unoccluded terrain perception builds scene-specific navigation memory. `navigation.js` searches observed traversable cells; it does not query a full map for hidden food. `cognition.js` retains bounded beliefs, uncertainty, provenance, predictions and intentions. A report does not create a resource, route, stock or successful experiment.
 
-`AWAKE → COLLAPSED → RECOVERING → AWAKE` uses simulation time. Collapse cancels active commands but retains identity, map knowledge, experience and procedures. Partial divine rescue is idempotent per collapse, supplies bodily relief without inventory refill, and preserves the scene and safe location. It provides no independent-survival reward.
+Legacy experiential values, supplied procedure templates and three-to-six-step planning remain available in old worlds. Discovery technique records and the strict physical controller are separate: old apple routines are not rebranded as cold-start discovery. Physical plans advance only from actual action results, with failure/urgency/budget interruption; spoken intention never completes a step.
 
-Game saves migrate versions 1–3 to version 4 using the existing save namespace. Migration preserves Aster and adds an independent Mira. The historical `state.npc` alias refers to Aster in memory; the saved population contains each character once. The selected character, community messages/questions/notes, environment and both bounded bodies, beliefs and plans persist in one allowlisted snapshot.
+## Social channels and artifacts
 
-An unfinished physical action is cancelled on restart; it is not recorded as completed. A retained plan must obtain fresh results for its next step. No wall-clock progression occurs while the application is closed. Unknown fields, invalid identities/coordinates, unbounded histories and executable operations are rejected or recovered. Corrupt/incompatible saves are reported rather than silently overwritten.
+`social.js` separates local peer speech from the asynchronous human journal. Nearby speech requires the same scene, range and line of sight, and provides visible appearance plus delivered testimony. It cannot expose private bodily stores or memory. Sleeping/recovering recipients do not receive a full awake visual scene; human messages may be queued until they are available.
+
+The human can address either character or both through the journal. Replies are optional. Pending questions, topic history and cooldowns are bounded; no unanswered message freezes the simulation. Discovery offline dialogue describes recorded experiments, effects and uncertainty instead of supplying apple-is-food templates.
+
+Field notes are persistent authored artifacts with position, scene and optional belief references. A character must encounter a note to read it. A report is not verified by repetition, and rereading produces no repeated discovery credit. The human can inspect notes without granting remote knowledge to the characters. Text remains inert data and never changes physics or executable rules.
+
+## Persistence and compatibility
+
+World snapshots use version 5; discovery NPCs use version 4. Historical v1–v4 worlds restore as legacy mode, preserving Aster's identity, memory, procedures and prior body/resource rules. Mira remains independently initialized where missing. Only a new expedition starts discovery rules; incompatible saves are not silently deleted or reclassified.
+
+The historical in-memory `state.npc` alias refers to Aster. Canonical disk state stores each agent once, with the selected character, community, environment and its single ecology state. All validators allowlist and bound fields, inventories, object identities, coordinates, physiological histories and experimental records. Saves are data, never programs.
+
+Restart cancels unfinished physical actions without counting them as successes. Persisted memories and plans still require fresh authoritative outcomes. Unknown future versions and read errors are surfaced without overwriting the source save. Bodies, ecosystem state, messages, claims, notes and simulation time restart together.
 
 ## Optional local model bridge
 
-The sandboxed renderer exposes narrow model status, configuration, decision and cancellation methods. Requests are accepted only from the main application frame. The desktop provider validates qualitative body/environment contracts, bounded memories and restricted action/plan JSON before using a loopback OpenAI-compatible service.
+The sandboxed preload exposes narrow model status, configuration, decision and cancellation methods. Main-process IPC accepts them only from the trusted application frame. Endpoints are loopback OpenAI-compatible services. Request/response size, timeout, shared hourly call budget, one active request and bounded per-character waiting slots limit inference. Cancellation can target one character without cancelling the other.
 
-The two characters share one queued request service and hourly call budget. Requests carry identity; cancellation can affect one character without cancelling the other's queued work. Timeouts and response limits bound inference. Responses are applied on simulation ticks and rejected when lifecycle or relevant context changes. Urgent sensations can interrupt waiting, with fallback to the offline controller. Service failures remain distinct from gameplay failures.
+The bridge branches on explicit observation mode. Legacy observations retain their previous qualitative body/discrete apple schema and validated action/plan contract. Discovery observations contain opaque inventory objects, qualitative body/digestion/sleep, local sensory observations, executed experiments, effects and reported hypotheses. Exact physiology and hidden ecological metadata are rejected even when nested.
 
-The Electron renderer retains `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true` and a CSP without renderer network access. The model receives no shell, filesystem, arbitrary IPC or rescue tool. It cannot submit authoritative outcomes or a plan marked already complete. Saves and conversation text remain inert data.
+**Discovery model output permits only `ask_human` and `journal_reply`.** Physical primitives, movement, food macros, procedures, plans, peer speech and notes are rejected. The prompt asks for grounded language and forbids invented food methods. The physical experiential controller continues independently while a journal response is pending; optional silence, service failure and model budget exhaustion cannot supply an emergency food recipe.
 
-Ollama models bring pretrained knowledge and biases. Aincrad updates gameplay memory, values and procedures, not model weights. Offline behavior, deterministic HTTP/provider fixtures and live-model performance must be evaluated separately. See [TESTING.md](TESTING.md) for actual checks and limits; finite trials do not establish optimality or indefinite survival.
+Generated language can still contain pretrained associations or mistakes. Structural action isolation does not prove every sentence knowledge-free or true. Model-origin text stays distinct from actual human advice and measured effects. Aincrad learns gameplay memory and values, not model weights; live-model behavior, scripted HTTP fixtures and offline discovery runs need separate evaluation.
+
+The renderer keeps `nodeIntegration:false`, `contextIsolation:true`, `sandbox:true` and a CSP without renderer network access. Models cannot run shell/code, access files, invoke arbitrary IPC, change permissions, assign body/outcome state or trigger rescue. Text and saves remain inert data. See [TESTING.md](TESTING.md) for completed checks and limits.
 
 ## Conceptual references
 
-The concurrent motives draw inspiration from [AgentCiv's Maslow Machines](https://github.com/agentciv/agentciv/blob/main/paper/maslow_machines.md), persistent shared artifacts from [TerraLingua](https://github.com/cognizant-ai-lab/terralingua), and embodied motivation from [MicroPsi](https://github.com/joschabach/micropsi2). These links attribute ideas; no external implementation source is incorporated. Physical construction, reproduction and larger societies remain later work.
+Motives draw inspiration from [AgentCiv's Maslow Machines](https://github.com/agentciv/agentciv/blob/main/paper/maslow_machines.md), persistent knowledge artifacts from [TerraLingua](https://github.com/cognizant-ai-lab/terralingua), and embodied motivation from [MicroPsi](https://github.com/joschabach/micropsi2). These are conceptual attributions; no external implementation is included and their results are not assumed to transfer.

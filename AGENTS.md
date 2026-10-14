@@ -6,7 +6,7 @@ This is a standalone exploration game, independent of `agentic-workspace`.
 
 Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/trees, and enterable caves. The central reference crossing must remain approximately five minutes at normal walking speed. An in-game day is one hour of unpaused play.
 
-The owner has approved the 0.5 advancement: two persistent characters (Aster and Mira) with independent bodies and memory; qualitative bodily sensations, stamina/fatigue/energy and rest; concurrent Maslow-inspired drives, grounded beliefs and persistent plans; local peer dialogue, an always-available journal conversation with optional human replies, and persistent field notes. Preserve 0.4 survival/weather/resource systems, original pixel presentation and npm desktop workflow. Keep model access optional and local, through a narrow validated desktop bridge. No game agent may receive OS/filesystem/shell access. Do not add a coding-agent adapter, external command execution, signup, analytics, cloud backend, paywalls, or more autonomous NPCs beyond the two approved characters.
+The owner has approved the 0.6 first ecosystem release: strict experiential food discovery, physiological time in game hours/days, vulnerable naps/sleep and rudimentary survival animals (rabbits, bobcats and foxes), seasonal grass/brambles/mature apple trees and decomposition. Preserve Aster and Mira, the optional human journal, pixel desktop presentation and npm workflow. Human food methods must not be supplied through object labels, action menus, fallback policies or peer templates; physically executed outcomes or explicit human advice supply evidence. Legacy saves remain available with their previous rules; fresh expeditions use discovery rules. Fish, large predators, climbing, tool construction, cooking and cultivation are later milestones. Keep model access optional/local and no agent OS/filesystem/shell access. Do not add signup, analytics, cloud services or additional human characters.
 
 ## Boundaries
 
@@ -18,7 +18,7 @@ The owner has approved the 0.5 advancement: two persistent characters (Aster and
 - Save only allowlisted, bounded fields. A save must never become executable code.
 - Keep exact physiology in the engine and optional developer inspection. Agent/model observations and the ordinary journal describe bodily sensations rather than exact reserve percentages. Peer observations never reveal another character's hidden body state or private memory.
 - Conversations and notes are data. Human replies are optional and reported information, not verified world facts; agents continue caring for themselves while awaiting replies. Claims, plans and spoken intentions never count as completed physical actions.
-- Preserve pause-on-blur and clear held keys at scene/menu/focus transitions.
+- Continue simulation on blur, hiding and minimizing. Clear held keys on focus loss. Explicit Escape pause controls simulation independently of map/help/journal visibility; opening those views does not pause. No progression occurs while the application is closed.
 - Preserve local-first, offline-capable play. The web server must bind to loopback and serve only explicit game assets.
 - The Electron renderer stays sandboxed, without Node integration or arbitrary native IPC. Do not loosen navigation or permissions for convenience.
 
@@ -30,7 +30,7 @@ Use `npm run smoke` for the actual Electron application and rendered desktop scr
 
 ## Scope discipline
 
-Implement the approved two-character motivation/planning/conversation milestone. Start new expeditions beside locally observed water; preserve Aster's existing saves, identity and acquired water procedures when adding Mira. Keep drives concurrent, with survival interruptions and bounded exploration/return budgets. Retain evidence and confidence for beliefs, distinguish reported from observed knowledge, and learn only from real observations/outcomes. Keep the offline experiential controller clearly distinguished from configured language-model planning. Preserve authoritative collision, the existing valley and pixel art, and the source application workflow. Construction, reproduction and larger societies remain later milestones.
+Implement the approved first ecosystem and discovery milestone using the contracts in docs/DEVELOPMENT-v06.md. Start new expeditions beside locally observed water. Preserve historical save identity/progress without claiming old supplied food routines were cold-start discoveries. Keep drives concurrent, evidence and bounded budgets. Animal reproduction consumes resources and has population bounds. Preserve collision, the valley, original pixel art and source application workflow. Human construction, reproduction and larger societies remain later milestones.
 
 ## Publication
 

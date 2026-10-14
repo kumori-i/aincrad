@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, CAVES, SPAWN, CAVE_SPAWN, CAVE_EXIT } from '../src/config.js';
-import { hash, noise, terrain, canStand, canStandOutside, canStandCave, moveActor, riverX, BRIDGES, CAVE_ROOMS, nearestInteraction, freshState, clockTime, objectsInRect, caveDistance } from '../src/world.js';
+import { hash, noise, terrain, canStand, canStandOutside, canStandCave, moveActor, riverX, BRIDGES, CAVE_ROOMS, nearestInteraction, freshState, clockTime, objectsInRect, objectAtCell, caveDistance } from '../src/world.js';
 
 test('world width and walking speed define a five-minute reference crossing',()=>{assert.equal(CONFIG.valleyRadius*2/CONFIG.walkSpeed,300);});
 test('one day is one real hour of active simulation',()=>{assert.equal(CONFIG.dayRealSeconds,3600);assert.deepEqual(clockTime(0),{day:1,hour:8,minute:0,fraction:1/3});assert.equal(clockTime(3600).day,2);assert.equal(clockTime(3600).hour,8);});
 test('seeded generation is deterministic and bounded',()=>{for(let x=-100;x<100;x++){assert.equal(hash(x,9),hash(x,9));assert.ok(hash(x,9)>=0&&hash(x,9)<1);assert.ok(noise(x*8,89)>=0&&noise(x*8,89)<=1);}});
+test('static geometry memoization is immutable and regenerates identical collision objects after eviction',()=>{
+  const object=objectsInRect(-5000,-5000,10000,10000)[0];assert.ok(object);
+  const cx=Math.floor(object.x/CONFIG.treeCell),cy=Math.floor(object.y/CONFIG.treeCell);
+  assert.equal(objectAtCell(cx,cy),object);assert(Object.isFrozen(object));
+  assert.throws(()=>{object.radius=0;},TypeError);
+  for(let x=1000;x<10000;x++)objectAtCell(x,1000);
+  const regenerated=objectAtCell(cx,cy);assert.notEqual(regenerated,object);assert.deepEqual(regenerated,object);
+});
 test('spawn is valid and dry',()=>{assert.ok(canStandOutside(SPAWN.x,SPAWN.y));});
 test('all four edges and corners of the mountain boundary block the player',()=>{for(const[x,y]of[[23000,0],[-23000,0],[0,23000],[0,-23000],[22000,22000],[-22000,-22000]])assert.equal(canStandOutside(x,y),false);});
 test('deep lake and river water are not walkable',()=>{assert.equal(canStandOutside(-3550,-6500),false);for(const y of [2500,6800,16000])assert.equal(canStandOutside(riverX(y),y),false);});

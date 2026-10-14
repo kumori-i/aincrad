@@ -90,7 +90,18 @@ export function forestAmount(x, y) {
   const grove = Math.exp(-((x + 10600) ** 2 + (y - 6100) ** 2) / 12000000) * .27;
   return noise(x, y, 1800, 833) * .75 + noise(x, y, 6300, 2901) * .25 + grove;
 }
-export function objectAtCell(cx, cy) {
+// Static terrain descriptors are shared by collision, sight and drawing. This
+// bounded cache stores geometry only; agents still have to observe each cell.
+const staticObjects=new Map(),staticObjectLimit=8192;
+export function objectAtCell(cx,cy){
+  const key=`${cx},${cy}`;
+  if(staticObjects.has(key))return staticObjects.get(key);
+  const object=generateObjectAtCell(cx,cy),value=object?Object.freeze(object):null;
+  staticObjects.set(key,value);
+  if(staticObjects.size>staticObjectLimit)staticObjects.delete(staticObjects.keys().next().value);
+  return value;
+}
+function generateObjectAtCell(cx, cy) {
   const h = hash(cx, cy, 12863);
   const x = (cx + .16 + hash(cx, cy, 6921) * .68) * CONFIG.treeCell;
   const y = (cy + .16 + hash(cx, cy, 1839) * .68) * CONFIG.treeCell;
@@ -197,9 +208,10 @@ export function regionName(x, y, scene) {
   if (forestAmount(x, y) > .54) return 'The Oldwood';
   return y > 0 ? 'Sunfall Meadows' : 'The High Meadows';
 }
-export function freshState() {
-  const agents = [createNpc({id:'aster'}), createNpc({id:'mira'})];
-  return { version: 4, environment: createEnvironment(), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+export function freshState({mode='discovery'}={}) {
+  const simulationMode=mode==='legacy'?'legacy':'discovery';
+  const agents = [createNpc({id:'aster',mode:simulationMode}), createNpc({id:'mira',mode:simulationMode})];
+  return { version: 5, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 export function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);

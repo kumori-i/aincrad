@@ -8,6 +8,7 @@ import { createNpcPanel } from './npc-panel.js';
 import { observeNpc } from './npc.js';
 import { recordEvent } from './npc-memory.js';
 import { tickEnvironment, environmentConditions, environmentHour } from './environment.js';
+import { SimulationClock } from './simulation-clock.js';
 
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries(['world','welcome','hud','begin','clock','day','region','location-detail','minimap','nav-label','interaction','toast','save-status','map-panel','atlas-map','map-title','map-hint','pause-panel','help-panel','waypoint-hud'].map(id=>[id,$(id)]));
@@ -19,9 +20,11 @@ const renderer = new Renderer(ui.world,state);
 let population=new PopulationRuntime(state);
 const selectedAgent=()=>population.getAgent(state.selectedAgentId)||state.npc;
 const npcPanel=createNpcPanel({getNpc:selectedAgent,getAgents:()=>state.agents,getController:()=>population.controller(selectedAgent().id),getRuntime:()=>population,getCommunity:()=>state.community,selectAgent:id=>{if(!population.getAgent(id))return;state.selectedAgentId=id;renderer.followId=id;if(renderer.followNpc)renderer.snap(selectedAgent().position);save();},renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
-let started=false, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
+let started=false, paused=false, simulationSpeed=1, windowFocused=true, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
-let lastTime=performance.now()/1000, accumulator=0, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
+let lastTime=performance.now()/1000, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
+const simulationClock=new SimulationClock({step:CONFIG.fixedStep,onStep:fixedUpdate});
+simulationClock.reset(lastTime);
 if(loaded.exists)ui.begin.innerHTML='Continue your expedition <span>↗</span>';
 if(loaded.error)pendingToast=loaded.error;
 
@@ -33,7 +36,7 @@ function save(explicit=false){
   else {ui['save-status'].textContent='Save unavailable';if(explicit)notify('Local saving is unavailable. Your current session is still running.',7);}
   return ok;
 }
-function closePanels(){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');panel=null;keys.clear();accumulator=0;ui.world.focus({preventScroll:true});}
+function closePanels(){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');panel=null;keys.clear();ui.world.focus({preventScroll:true});}
 function openPanel(name){
   if(!started)return;
   closePanels();panel=name;ui[name+'-panel'].classList.remove('hidden');keys.clear();anim.moving=false;
@@ -46,8 +49,9 @@ function openPanel(name){
   const dialog=ui[name+'-panel'];dialog.querySelector('button')?.focus();save();
 }
 function togglePanel(name){if(panel===name)closePanels();else openPanel(name);}
+function togglePause(){paused=!paused;simulationClock.reset(performance.now()/1000);keys.clear();anim.moving=false;if(paused)openPanel('pause');else closePanels();}
 function begin(){
-  started=true;ui.welcome.classList.add('hidden');ui.hud.classList.remove('hidden');keys.clear();ui.world.focus();lastTime=performance.now()/1000;accumulator=0;
+  started=true;ui.welcome.classList.add('hidden');ui.hud.classList.remove('hidden');keys.clear();ui.world.focus();lastTime=performance.now()/1000;simulationClock.reset(lastTime);
   if(pendingToast){notify(pendingToast,9);pendingToast=null;}
   else if(!loaded.exists)notify('Welcome to the Trailhead. Press M for your field map, or H for controls.',6);
 }
@@ -67,7 +71,7 @@ function returnToCamp(){
 }
 function newExpedition(){
   if(!window.confirm('Start a new expedition? This replaces your saved world, both characters’ memories, and conversations.'))return;
-  const providerFactory=population.providerFactory;population.dispose();state=freshState();population=new PopulationRuntime(state,{providerFactory});renderer.followId=state.selectedAgentId;saveBlocked=false;renderer.snap(state.player);closePanels();save();notify('A fresh beginning. The valley awaits.');
+  const providerFactory=population.providerFactory;population.dispose();state=freshState();population=new PopulationRuntime(state,{providerFactory});renderer.followId=state.selectedAgentId;saveBlocked=false;paused=false;simulationClock.reset(performance.now()/1000);renderer.snap(state.player);closePanels();save();notify('A fresh discovery expedition. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
 $('watch-aster').addEventListener('click',()=>{begin();npcPanel.follow(true);npcPanel.toggle();});
@@ -75,8 +79,8 @@ $('open-map').addEventListener('click',()=>togglePanel('map'));
 $('close-map').addEventListener('click',closePanels);
 $('help-button').addEventListener('click',()=>togglePanel('help'));
 $('close-help').addEventListener('click',closePanels);
-$('pause-button').addEventListener('click',()=>togglePanel('pause'));
-$('resume').addEventListener('click',closePanels);
+$('resume').addEventListener('click',()=>{paused=false;simulationClock.reset(performance.now()/1000);closePanels();});
+const speedControl=$('simulation-speed');if(speedControl)speedControl.addEventListener('change',()=>{const speed=Number(speedControl.value);if([1,4,16,60].includes(speed)){simulationSpeed=speed;simulationClock.reset(performance.now()/1000);keys.clear();}});
 $('save-button').addEventListener('click',()=>save(true));
 $('return-camp').addEventListener('click',returnToCamp);
 $('new-expedition').addEventListener('click',newExpedition);
@@ -89,13 +93,13 @@ window.addEventListener('keydown',e=>{
     if(buttons.length){const index=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(index+(e.shiftKey?-1:1)+buttons.length)%buttons.length].focus();}return;
   }
   if(!started)return;
+  if(e.code==='Escape'){e.preventDefault();if(!e.repeat)togglePause();return;}
   if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
   if(e.code==='KeyN'){e.preventDefault();keys.clear();npcPanel.toggle();return;}
   if(movementCodes.has(e.code)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();if(!panel&&!e.ctrlKey&&!e.metaKey&&!e.altKey)keys.add(e.code);return;}
   if(e.repeat)return;
   if(e.code==='KeyM'){e.preventDefault();togglePanel('map');}
   else if(e.code==='KeyH'){e.preventDefault();togglePanel('help');}
-  else if(e.code==='Escape'){e.preventDefault();if(panel)closePanels();else openPanel('pause');}
   else if(e.code==='KeyE'&&!panel){e.preventDefault();interact();}
   else if(!panel&&(e.code==='Equal'||e.code==='NumpadAdd'))renderer.targetZoom=clamp(renderer.targetZoom*1.12,.8,2.6);
   else if(!panel&&(e.code==='Minus'||e.code==='NumpadSubtract'))renderer.targetZoom=clamp(renderer.targetZoom/1.12,.8,2.6);
@@ -103,9 +107,11 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>keys.delete(e.code));
 ui.world.addEventListener('wheel',e=>{if(!started||panel)return;e.preventDefault();renderer.targetZoom=clamp(renderer.targetZoom*Math.exp(-e.deltaY*.001),.8,2.6);},{passive:false});
 window.addEventListener('resize',()=>renderer.resize());
-function pauseForFocusLoss(){keys.clear();if(started&&!panel)openPanel('pause');if(started)save();}
-window.addEventListener('blur',pauseForFocusLoss);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseForFocusLoss();});
+function clearFocusInput(){keys.clear();anim.moving=false;if(started)save();}
+window.addEventListener('blur',()=>{windowFocused=false;clearFocusInput();});
+window.addEventListener('focus',()=>{windowFocused=true;keys.clear();});
+window.aincradAgent?.onWindowActive?.(active=>{windowFocused=active;if(!active)clearFocusInput();else keys.clear();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearFocusInput();});
 window.addEventListener('pagehide',()=>{if(started)save();});
 window.addEventListener('beforeunload',()=>{if(started)save();});
 ui['atlas-map'].addEventListener('click',e=>{
@@ -116,8 +122,8 @@ ui['atlas-map'].addEventListener('click',e=>{
 });
 ui['atlas-map'].addEventListener('contextmenu',e=>{e.preventDefault();state.waypoint=null;renderer.drawAtlas(ui['atlas-map'],state);save();});
 function fixedUpdate(dt){
-  let dx=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-  let dy=(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
+  let dx=panel||!windowFocused?0:(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
+  let dy=panel||!windowFocused?0:(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
   const travelled=moveActor(state.player,dx,dy,dt,keys.has('ShiftLeft')||keys.has('ShiftRight'),state.scene);
   anim.moving=travelled>.01;
   if(dx||dy){const n=Math.hypot(dx,dy);anim.facing={x:dx/n,y:dy/n};}
@@ -128,6 +134,7 @@ function fixedUpdate(dt){
 }
 function updateHud(now){
   if(now-lastHud<.15)return;lastHud=now;
+  $('expedition-mode').textContent=state.simulationMode==='discovery'?'DISCOVERY':'LEGACY';
   const c=clockTime(state.elapsed),hour=environmentHour(state.environment),minute=Math.floor(hour*60);c.hour=Math.floor(minute/60);c.minute=minute%60;ui.clock.textContent=`${String(c.hour).padStart(2,'0')}:${String(c.minute).padStart(2,'0')}`;ui.day.textContent='DAY '+String(c.day).padStart(2,'0');
   const following=renderer.followNpc,subject=renderer.viewSubject(state),viewedScene=renderer.viewScene(state),viewedAgent=population.getAgent(renderer.followId)||selectedAgent();
   ui.region.textContent=regionName(subject.x,subject.y,viewedScene);
@@ -154,8 +161,8 @@ function updateHud(now){
 }
 function loop(ms){
   const now=ms/1000,dt=clamp(now-lastTime,0,.25);lastTime=now;fps=fps*.95+(dt>0?1/dt:60)*.05;
-  if(started&&!panel&&!document.hidden){accumulator+=dt;while(accumulator>=CONFIG.fixedStep){fixedUpdate(CONFIG.fixedStep);accumulator-=CONFIG.fixedStep;}anim.time+=dt;}
-  else{anim.moving=false;accumulator=0;if(!started)anim.time+=dt;}
+  if(started&&!paused)anim.time+=dt;
+  else{anim.moving=false;if(!started)anim.time+=dt;}
   renderer.render(state,anim,dt,started);
   if(started){npcPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(now-lastAutosave>10){lastAutosave=now;save();}}
   requestAnimationFrame(loop);
@@ -163,11 +170,12 @@ function loop(ms){
 window.addEventListener('error',e=>{ $('fatal-message').textContent=e.message||'An unexpected runtime error occurred.';$('fatal').classList.remove('hidden'); });
 window.addEventListener('unhandledrejection',e=>{ $('fatal-message').textContent=String(e.reason?.message||e.reason||'An unexpected error occurred.');$('fatal').classList.remove('hidden'); });
 requestAnimationFrame(loop);
+setInterval(()=>{simulationClock.advance(performance.now()/1000,{running:started&&!paused,speed:simulationSpeed});if(started&&performance.now()/1000-lastAutosave>10){lastAutosave=performance.now()/1000;save();}},1000/60);
 // Local test hooks are absent in normal play. They expose game state only, never OS access.
 if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ === true){
   window.__aincrad={
     snapshot:()=>structuredClone(state),
-    metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,interaction:nearestInteraction(state.player,state.scene)}),
+    metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,paused,simulationSpeed,windowFocused,interaction:nearestInteraction(state.player,state.scene)}),
     teleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene))return false;if(!canStand(x,y,scene))return false;state.scene=scene;state.player={x,y};renderer.snap(state.player);return true;},
     step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;population.tick(dt);}},
     start:begin,interact,save:()=>save(true),reset:()=>{population.dispose();state=freshState();population=new PopulationRuntime(state);renderer.followId=state.selectedAgentId;renderer.snap(state.player);},

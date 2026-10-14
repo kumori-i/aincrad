@@ -1,12 +1,15 @@
 import { CONFIG, STARTER_NPC_SPAWN, SECOND_NPC_SPAWN, NPC_PRESETS, NPC_RULES, BODY_RULES } from './config.js';
 import { createCognition } from './cognition.js';
 import { createSocialMemory } from './social.js';
+import { createPhysiology, projectPhysiology } from './biology.js';
+import { createDiscoveryMemory } from './discovery-state.js';
+import { DISCOVERY_RULES } from './discovery-config.js';
 
 /** Body, learned state and identity are data. Neither models nor artwork own them. */
-export function createNpc({id='aster',preset='normal', learning=true, seed=CONFIG.seed}={}) {
+export function createNpc({id='aster',preset='normal', learning=true, seed=CONFIG.seed, mode='legacy'}={}) {
   const selected=NPC_PRESETS[preset] ? preset : 'normal';
   const identity=id==='mira'?'mira':'aster';
-  return {
+  const npc={
     version:3, id:identity, name:identity==='mira'?'Mira':'Aster', scene:'valley', position:{...(identity==='mira'?SECOND_NPC_SPAWN:STARTER_NPC_SPAWN)},
     elapsed:0, hydration:NPC_PRESETS[selected].initialHydration, nourishment:NPC_PRESETS[selected].initialNourishment, health:100,
     energy:BODY_RULES.initialEnergy,stamina:BODY_RULES.initialStamina,fatigue:BODY_RULES.initialFatigue,sleepPressure:BODY_RULES.initialSleepPressure,bodyMode:'awake',
@@ -23,4 +26,10 @@ export function createNpc({id='aster',preset='normal', learning=true, seed=CONFI
     stats:{independentDrinks:0,independentMeals:0,gatherings:0,collections:0,warningSeconds:0,criticalSeconds:0,injuries:0,collapses:0,rescues:0,invalidActions:0,repeatedInvalid:0,modelCalls:0,modelFailures:0,staleResponses:0,skillUses:0,firstWaterAt:null,firstFoodAt:null,lastRescuer:null},
     presentation:{rescueUntil:0,drinkUntil:0,eatUntil:0}, decision:'A new expedition: no remembered water sources or learned procedures.',
   };
+  if(mode==='discovery'){
+    npc.version=4;npc.mode='discovery';npc.physiology=createPhysiology('human');npc.discovery=createDiscoveryMemory();
+    npc.inventory={items:[],apples:[],capacity:DISCOVERY_RULES.capacity};npc.decision='I can sense my body and explore what is around me. I have no known food techniques.';
+    projectPhysiology(npc);
+  }
+  return npc;
 }

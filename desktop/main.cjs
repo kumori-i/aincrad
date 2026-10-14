@@ -22,8 +22,13 @@ protocol.registerSchemesAsPrivileged([{scheme:'aincrad',privileges:{standard:tru
 app.setName('Aincrad');
 let win;
 async function createWindow(){
-  win=new BrowserWindow({width:1440,height:900,minWidth:800,minHeight:600,backgroundColor:'#17352c',title:'Aincrad',show:false,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,spellcheck:false}});
+  win=new BrowserWindow({width:1440,height:900,minWidth:800,minHeight:600,backgroundColor:'#17352c',title:'Aincrad',show:false,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,spellcheck:false,backgroundThrottling:false}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  // Native visibility can change without a DOM blur when throttling is disabled.
+  // Clear held avatar input, while the independent simulation timer keeps running.
+  const windowActive=active=>{if(!win.webContents.isDestroyed())win.webContents.send('aincrad:window-active',active);};
+  for(const event of ['blur','hide','minimize'])win.on(event,()=>windowActive(false));
+  win.on('focus',()=>windowActive(true));
   win.webContents.on('will-navigate',e=>e.preventDefault());
   win.webContents.on('will-attach-webview',e=>e.preventDefault());
   win.webContents.on('before-input-event',(_e,input)=>{if(input.type==='keyDown'&&input.key==='F11')win.setFullScreen(!win.isFullScreen());});
@@ -80,7 +85,7 @@ app.on('window-all-closed',()=>{modelService?.cancel();session.defaultSession.fl
 app.on('will-quit',()=>{if(app.isReady())session.defaultSession.flushStorageData();});
 
 async function runSmoke(){
-  const deadline=setTimeout(()=>{console.error('Desktop smoke test timed out.');app.exit(1);},20000);
+  const deadline=setTimeout(()=>{console.error('Desktop smoke test timed out.');app.exit(1);},30000);
   try{
     for(let i=0;i<80;i++){if(await win.webContents.executeJavaScript('Boolean(window.__aincrad)'))break;await new Promise(resolve=>setTimeout(resolve,100));}
     const result=await win.webContents.executeJavaScript(`(async()=>{
@@ -88,44 +93,45 @@ async function runSmoke(){
       assert(Boolean(window.__aincrad),'Game did not initialize');
       assert(typeof window.require==='undefined','Node leaked into the renderer');
       const status=await window.aincradAgent.status();assert(status.enabled===false,'Smoke inference must be disabled');
-      document.getElementById('begin').click();document.getElementById('open-npc').click();
-      const initial=window.__aincrad.npc();assert(initial.id==='aster','Persistent NPC is absent');
-      const pair=window.__aincrad.agents();assert(pair.length===2&&pair[1].id==='mira','The two independent characters are absent');
-      assert(initial.memory.skills.length===0,'Initial skill library must be empty');
-      assert(Object.keys(initial.memory.sources).length>0,'Starter water must be locally observed');
-      assert(initial.nourishment>0&&initial.health===100&&initial.inventory.capacity===3,'Multi-need body did not initialize');
-      for(const id of ['npc-nourishment','npc-health','npc-feelings','npc-environment'])assert(document.getElementById(id),'Missing body display: '+id);
-      assert(document.getElementById('npc-condition').classList.contains('hidden'),'Exact physiology must be hidden in the ordinary journal');
-      const {decisionObservation}=await import('./src/controller.js');const observation=decisionObservation(initial);
-      assert(typeof observation.condition.body.hunger==='string'&&!('hydration' in observation.condition),'Agent observations must use felt sensations');
-      const select=document.getElementById('npc-select');select.value='mira';select.dispatchEvent(new Event('change'));assert(window.__aincrad.npc().id==='mira','Journal character selection failed');select.value='aster';select.dispatchEvent(new Event('change'));
-      const message=window.__aincrad.postMessage('How are you feeling?','mira');assert(message.ok&&window.__aincrad.conversation().messages.some(m=>m.senderId==='human'),'Optional human journal did not store a real message');
-      window.__aincrad.worldSettings({hourOverride:14,weatherOverride:'clear'});
+      document.getElementById('watch-aster').click();
+      const initial=window.__aincrad.snapshot(),pair=initial.agents;
+      assert(initial.version===5&&initial.simulationMode==='discovery','Fresh expedition must use discovery rules');
+      assert(pair.length===2&&pair[0].id==='aster'&&pair[1].id==='mira','The two independent characters are absent');
+      for(const n of pair){
+        assert(n.mode==='discovery'&&n.physiology&&n.health===100,'Game-hour body did not initialize');
+        assert(n.discovery.techniques.length===0&&n.memory.skills.length===0,'Fresh agents were given techniques');
+        assert(Object.keys(n.memory.foods).length===0,'Fresh agents were told which objects are food');
+        assert(Object.keys(n.memory.sources).length>0,'Starter water must be locally observed');
+      }
+      assert(initial.environment.ecology.animals.length>0&&initial.environment.ecology.plants.length>0,'Living ecology is absent');
+      assert(!('ecology' in initial),'Ecology has duplicate ownership');
+      assert(document.getElementById('npc-condition').classList.contains('hidden'),'Exact physiology must be hidden');
+      const {decisionObservation}=await import('./src/controller.js');const observation=decisionObservation(pair[0]);
+      assert(typeof observation.condition.body.hunger==='string'&&!('physiology' in observation)&&!('knownFoods' in observation),'Model observation leaked private state or food answers');
+      const select=document.getElementById('npc-select');select.value='mira';select.dispatchEvent(new Event('change'));assert(window.__aincrad.npc().id==='mira','Character selection failed');select.value='aster';select.dispatchEvent(new Event('change'));
+      const message=window.__aincrad.postMessage('How are you feeling?','mira');assert(message.ok&&window.__aincrad.conversation().messages.some(m=>m.senderId==='human'),'Human journal did not store a message');
       const clock=window.__aincrad.environment().elapsed;window.__aincrad.npcStep(2);
-      const warm=window.__aincrad.npc();assert(warm.nourishment<initial.nourishment&&warm.hydration<initial.hydration,'Food and water must drain independently');
-      assert(warm.sensation.hour===14&&warm.sensation.weather==='clear'&&Number.isFinite(warm.sensation.feltTemperature),'Weather did not reach the body');
-      assert(Math.abs(window.__aincrad.environment().elapsed-clock-2)<0.001,'Shared environment clock advanced incorrectly');
-      assert(Math.abs(window.__aincrad.npc('mira').elapsed-warm.elapsed)<0.001,'One character stopped advancing');
-      window.__aincrad.worldSettings({hourOverride:null,weatherOverride:null});
-      const preset=document.getElementById('npc-preset');preset.value='accelerated';preset.dispatchEvent(new Event('change'));
-      document.getElementById('npc-demonstrate').click();const collapsed=window.__aincrad.npc();
-      assert(collapsed.lifecycle==='COLLAPSED','Demonstration must actually collapse the body');
-      window.__aincrad.npcStep(7.2);const rescued=window.__aincrad.npc();
-      assert(rescued.lifecycle==='RECOVERING','World rescue did not occur');
-      assert(rescued.stats.rescues===1&&rescued.stats.independentDrinks===0&&rescued.stats.independentMeals===0,'Rescue received independent credit');
-      assert(rescued.nourishment>0&&rescued.health>0&&rescued.inventory.apples.length===0,'Partial body rescue or inventory provenance failed');
-      assert(JSON.stringify(rescued.position)===JSON.stringify(collapsed.position),'Rescue fast-travelled the NPC');
-      window.__aincrad.npcStep(2.2);const awake=window.__aincrad.npc();assert(awake.lifecycle==='AWAKE','Recovery did not complete');
-      assert(awake.id===initial.id&&awake.stats.collapses===1,'Identity or lifecycle counts changed');
-      assert(window.__aincrad.npc('mira').stats.collapses===0,'Aster collapse affected Mira');
+      const current=window.__aincrad.snapshot();assert(Math.abs(current.environment.elapsed-clock-2)<0.001,'Shared clock advanced incorrectly');
+      assert(current.agents.every(n=>Math.abs(n.elapsed-current.environment.elapsed)<0.001),'One character stopped advancing');
+      assert(current.agents[0].physiology.totals.metabolizedKcal>0,'Body did not metabolize energy');
+      assert(window.__aincrad.environment().ecology.elapsed>initial.environment.ecology.elapsed,'Ecology clock stopped');
+      // Escape is honored even while the journal input owns keyboard focus.
+      document.getElementById('journal-message').focus();window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'}));assert(window.__aincrad.metrics().paused,'Escape did not pause');
+      const frozen=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed===frozen,'Explicit pause did not freeze simulation');
+      window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'}));assert(!window.__aincrad.metrics().paused,'Escape did not resume');
+      document.getElementById('open-map').click();const beforeMap=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed>beforeMap,'Map paused simulation');document.getElementById('close-map').click();
       window.__aincrad.save();assert(document.getElementById('fatal').classList.contains('hidden'),'A renderer error occurred');
-      return {identity:awake.id,characters:pair.map(n=>n.id),qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,lifecycle:awake.lifecycle,collapses:awake.stats.collapses,rescues:awake.stats.rescues,nourishment:awake.nourishment,hydration:awake.hydration,health:awake.health,weather:awake.sensation.weather,provider:'offline experiential learner; no live inference'};
+      return {version:'0.6.0',mode:initial.simulationMode,characters:pair.map(n=>n.id),emptyInitialFoodKnowledge:true,qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,sharedClock:true,livingEcology:true,escapePause:true,mapContinues:true,provider:'offline experiential controller; no live inference'};
     })()`);
-    await new Promise(resolve=>setTimeout(resolve,650));
+    const before=await win.webContents.executeJavaScript('window.__aincrad.snapshot().elapsed');
+    win.hide();await new Promise(resolve=>setTimeout(resolve,450));
+    const hidden=await win.webContents.executeJavaScript('({elapsed:window.__aincrad.snapshot().elapsed,paused:window.__aincrad.metrics().paused})');
+    if(hidden.paused||hidden.elapsed-before<.2)throw new Error('Hidden desktop window paused the simulation');
+    result.hiddenWindowContinues=true;win.show();
     const output=path.join(process.cwd(),'test-results');await mkdir(output,{recursive:true});
     await writeFile(path.join(output,'desktop-smoke.png'),(await win.webContents.capturePage()).toPNG());
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(result,null,2));
-    console.log('PASS: desktop launch, sandboxed renderer, restricted bridge, two independent bodies, qualitative journal, character selection, optional messages, shared clock, isolated collapse/rescue and retained identity.');
+    console.log('PASS: native desktop, sandboxed renderer, two discovery characters, empty food knowledge, qualitative journal, shared ecology/body clock, Escape pause, and background progress.');
     clearTimeout(deadline);app.exit(0);
   }catch(error){clearTimeout(deadline);console.error(error);app.exit(1);}
 }

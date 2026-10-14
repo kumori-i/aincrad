@@ -15,8 +15,11 @@ const BODY_SIGNALS={
   pain:['none','aching','hurting','severe'],wetness:['dry','damp','wet','soaked'],overall:['unconscious','recovering','urgent','distressed','uncomfortable','settled'],
   activity:['awake','resting','sleeping','walking'],relief:['relieved','easing','none'],
 };
+const DISCOVERY_BODY_SIGNALS={...BODY_SIGNALS,sleepiness:[...BODY_SIGNALS.sleepiness,'groggy'],activity:[...BODY_SIGNALS.activity,'dozing'],digestion:['empty','settled','full','overfull'],sleep:['awake','dozing','light sleep','deep sleep','groggy']};
 const SENSES={timeOfDay:['night','dawn','morning','afternoon','evening'],weather:['clear','cloudy','rainy','windy'],warmth:['hot','warm','cold','cool','comfortable'],wind:['calm','breezy','gusty'],shelter:['sheltered','open air'],shade:['shaded','exposed'],precipitation:['rain','none']};
-const TELEMETRY=/(hydration|nourishment|health|fatigue|energy|stamina|thermal|feelings|sensation|temperature|sleepPressure|riskCost|bodyFeedback|physiologicalPriorities|wetness|bodyGain|hunger|thirst)/i;
+const TELEMETRY=/(hydration|nourishment|health|fatigue|energy|stamina|thermal|feelings|sensation|temperature|sleepPressure|riskCost|bodyFeedback|physiologicalPriorities|wetness|bodyGain|hunger|thirst|physiology|digestion|digestive|waterDeficit|awakeHours|sleepDepth|bodyCondition|massKg|sleepInertia|stomach|reserve|calories|nutrients)/i;
+const HIDDEN_ECOLOGY=/^(species|diet|edible|edibility|nutrition|nutritionalValue|calories|kcal|protein|fat|carbohydrate|materialKind|materialType|renewAt|ripenAt|predator|prey|intrinsicFood|metabolism)$/i;
+const DISCOVERY_JOURNAL_ACTIONS=new Set(['ask_human','journal_reply']);
 const isObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 function containsNumber(value){return typeof value==='number'||typeof value==='string'&&/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*%?$/.test(value)||value&&typeof value==='object'&&Object.values(value).some(containsNumber);}
 function validateData(value,depth=0){
@@ -37,6 +40,15 @@ function qualitative(value,contract,label){
   for(const [key,allowed] of Object.entries(contract))if(!allowed.includes(value[key]))throw new Error('Invalid qualitative '+label+' '+key+'.');
   return {...value};
 }
+function privateEcology(value){
+  if(!value||typeof value!=='object')return;
+  for(const [key,item] of Object.entries(value)){if(HIDDEN_ECOLOGY.test(key))throw new Error('Hidden ecological metadata is private to the simulation.');privateEcology(item);}
+}
+function boundedArrays(raw,contracts){
+  const result={};
+  for(const [name,limit] of contracts){const value=raw[name]??[];if(!Array.isArray(value)||value.length>limit)throw new Error('Invalid '+name+'.');result[name]=value;}
+  return result;
+}
 function validateObservation(raw){
   if(!isObject(raw))throw new Error('Observation is missing or exceeds its size limit.');
   let encoded;try{encoded=JSON.stringify(raw);}catch{throw new Error('Observation must be serializable data.');}
@@ -45,20 +57,24 @@ function validateObservation(raw){
   if(!isObject(raw.identity)||!AGENTS.has(raw.identity.id)||typeof raw.identity.name!=='string'||!raw.identity.name.length||raw.identity.name.length>80)throw new Error('Invalid NPC identity.');
   const c=raw.condition;
   if(!isObject(c)||Object.keys(c).some(key=>!['scene','lifecycle','position','body','senses','inventory'].includes(key))||c.lifecycle!=='AWAKE'||typeof c.scene!=='string'||!c.scene.length||c.scene.length>80||!isObject(c.position)||Object.keys(c.position).some(key=>!['x','y'].includes(key))||!Number.isFinite(c.position.x)||!Number.isFinite(c.position.y)||Math.abs(c.position.x)>24000||Math.abs(c.position.y)>24000)throw new Error('Invalid NPC condition.');
+  const discovery=raw.mode==='discovery';
+  if(raw.mode!==undefined&&!['legacy','discovery'].includes(raw.mode))throw new Error('Invalid simulation mode.');
   const inventory=c.inventory;
-  if(!isObject(inventory)||Object.keys(inventory).some(key=>!['apples','capacity','flask'].includes(key))||!Number.isInteger(inventory.apples)||inventory.apples<0||inventory.apples>3||inventory.capacity!==3||!['empty','some','full'].includes(inventory.flask))throw new Error('Invalid discrete inventory.');
-  const condition={scene:c.scene,lifecycle:c.lifecycle,position:{x:c.position.x,y:c.position.y},body:qualitative(c.body,BODY_SIGNALS,'body'),senses:qualitative(c.senses,SENSES,'senses'),inventory:{...inventory}};
-  const arrays={};
-  for(const [name,limit] of [['knownSources',12],['knownFoods',12],['knownShelters',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12],['procedureCandidates',12]]){
-    const value=raw[name]??[];
-    if(!Array.isArray(value)||value.length>limit)throw new Error('Invalid '+name+'.');arrays[name]=value;
-  }
+  if(discovery){
+    for(const key of ['knownFoods','skills','procedureCandidates','procedureUse'])if(raw[key]!==undefined)throw new Error('Supplied food/procedure fields are unavailable in discovery mode.');
+    if(!isObject(inventory)||Object.keys(inventory).some(key=>!['objects','capacity','flask'].includes(key))||!Array.isArray(inventory.objects)||inventory.objects.length>20||!Number.isInteger(inventory.capacity)||inventory.capacity<1||inventory.capacity>20||inventory.objects.length>inventory.capacity||!['empty','some','full'].includes(inventory.flask))throw new Error('Invalid discovery inventory.');
+    privateEcology(raw);
+  }else if(!isObject(inventory)||Object.keys(inventory).some(key=>!['apples','capacity','flask'].includes(key))||!Number.isInteger(inventory.apples)||inventory.apples<0||inventory.apples>3||inventory.capacity!==3||!['empty','some','full'].includes(inventory.flask))throw new Error('Invalid discrete inventory.');
+  const condition={scene:c.scene,lifecycle:c.lifecycle,position:{x:c.position.x,y:c.position.y},body:qualitative(c.body,discovery?DISCOVERY_BODY_SIGNALS:BODY_SIGNALS,'body'),senses:qualitative(c.senses,SENSES,'senses'),inventory:{...inventory}};
+  const arrays=boundedArrays(raw,discovery?[['knownSources',12],['knownShelters',12],['knownTiles',140]]:[['knownSources',12],['knownFoods',12],['knownShelters',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12],['procedureCandidates',12]]);
+  let discoveryData;
+  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports'].includes(key)))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16]]);}
   for(const [name,contract] of [['innerLife',{drives:8,beliefs:16,predictions:12,questions:8}],['social',{peers:2,journal:12,notes:12}]]){
     if(raw[name]!==undefined&&!isObject(raw[name]))throw new Error('Invalid '+name+'.');
     for(const [key,limit] of Object.entries(contract))if(raw[name]?.[key]!==undefined&&(!Array.isArray(raw[name][key])||raw[name][key].length>limit))throw new Error('Invalid '+name+' '+key+'.');
   }
   const result=Object.fromEntries(['objective','observedAt','knownExit','procedureUse','actionStatus','actions','innerLife','social','beliefs','goal','plan'].filter(key=>raw[key]!==undefined).map(key=>[key,raw[key]]));
-  return {identity:{id:raw.identity.id,name:raw.identity.name},condition,...result,...arrays};
+  return {identity:{id:raw.identity.id,name:raw.identity.name},...(raw.mode?{mode:raw.mode}:{}),condition,...result,...arrays,...(discovery?{discovery:discoveryData}: {})};
 }
 const ACTIONS=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','say','ask_human','journal_reply','write_note','read_note']);
 const NEEDS=new Set(['survival','safety','belonging','competence','understanding','creativity','purpose','contribution']);
@@ -94,10 +110,16 @@ function parseAction(a){
   if(a.type==='read_note')action.noteId=textField(a.noteId,80,'note reference');
   return action;
 }
-function parseDecision(content){
+function parseDecision(content,{mode='legacy'}={}){
   if(typeof content!=='string'||content.length>16000)throw new Error('The model response is empty or too large.');
   const value=JSON.parse(content.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
   if(!isObject(value))throw new Error('The model response must be a JSON object.');
+  if(mode==='discovery'){
+    if(Object.keys(value).some(key=>!['action','reason'].includes(key))||!isObject(value.action)||!DISCOVERY_JOURNAL_ACTIONS.has(value.action.type))throw new Error('Discovery models may compose optional human-journal messages only; physical choices and techniques require executed experience or explicit human advice.');
+    const action=parseAction(value.action);
+    return {action,reason:typeof value.reason==='string'?value.reason.slice(0,600):'Local model composed optional journal language from supplied experience.'};
+  }
+  if(mode!=='legacy')throw new Error('Invalid decision mode.');
   if(Object.keys(value).some(key=>!['action','skillId','sourceId','foodId','shelterId','plan','reason'].includes(key)))throw new Error('The model requested unsupported decision fields.');
   const reason=typeof value.reason==='string'?value.reason.slice(0,600):'Local model selected a bounded experiment.';
   const variants=['action','skillId','plan'].filter(key=>value[key]!==undefined);
@@ -118,6 +140,7 @@ async function boundedResponseText(response){
   return text+decoder.decode();
 }
 const PROMPT='You control the embodied character identified in this Aincrad observation. Exact physiology is private: reason from felt hunger, thirst, warmth, pain, effort, tiredness and sleepiness rather than invented percentages. Overheated or shivering describes accumulated bodily strain that warrants relief even after entering temperate shelter; dangerously hot or dangerously cold describes urgent exposure. Maslow-inspired drives are concurrent: survival, safety, belonging, competence, understanding, creativity, purpose and contribution. Prepare supplies and consider observed route costs before exploration; interrupt plans for urgent bodily sensations. Ask useful grounded questions, converse with a locally reachable known peer, or leave readable notes when worthwhile. The human journal is always available, but the human may never answer; continue caring for yourself while waiting and do not repeat pending questions. Direct observations, inferences and reported claims have different evidence. Never invent resource locations, current availability, future weather, another character\'s private state, or successful physical outcomes. Only supplied local observations, memories and acquired procedures are available. The engine validates and executes all actions, plans and conversations; intentions and rescue are not independent physical success. Return JSON only with exactly one choice: {"action":{"type":"observe|move|inspect|fill_flask|drink|gather_food|eat|enter_shelter|exit_shelter|wait|rest|sleep|say|ask_human|journal_reply|write_note|read_note",...},"reason":"compact evidence-based reasoning"}; {"skillId":"supplied id","sourceId":"known water id","reason":"..."} (use foodId or shelterId for the matching procedure, exactly one reference); or {"plan":{"goal":"...","need":"one listed drive","steps":[3 to 6 bounded actions],"completion":"...","interrupt":"..."},"reason":"..."}. Move accepts one known sourceId/foodId/shelterId or target:{x,y}; rest/sleep seconds are 0.25 to 12, wait seconds 0.25 to 5. Say accepts targetId and text (up to 600 characters). Ask_human accepts text (up to 600) and optional topic (up to 80). Journal_reply accepts text (up to 600) and optional replyTo identifying a received human journal message (up to 80); use it to answer a human without opening another question. Write_note accepts title (up to 80), text (up to 600) and optional beliefIds (up to 8 known IDs). Read_note accepts noteId. Plans cannot assign authoritative outcomes, budgets or statuses. You have no operating-system, filesystem, shell, code-execution or rescue tool.';
+const DISCOVERY_PROMPT='You compose optional human-journal language for the embodied Aincrad character in this discovery-mode observation. You do not select physical actions, experiments, techniques, routes or plans. The human may never answer; physical activity continues independently. Use only the supplied qualitative sensations, opaque sensory observations, executed experiments, experienced effects, remembered uncertainty and received human messages. Your pretrained associations are not observations or verified facts. Do not supply edible-item lists, food methods, recipes, hunting, climbing or gathering instructions; do not infer object identity, species, diet, edibility or hidden bodily measurements from familiar appearances. Distinguish experienced evidence from unverified human reports and do not invent discoveries or completed outcomes. A reported technique remains a hypothesis until physically tested. Return JSON only: {"action":{"type":"journal_reply","text":"up to 600 characters","replyTo":"optional received message ID"},"reason":"compact evidence-based explanation"} or {"action":{"type":"ask_human","text":"up to 600 characters","topic":"optional topic up to 80 characters"},"reason":"..."}. Do not send peer messages or write notes from pretrained knowledge. You have no physical-action, procedure, plan, operating-system, filesystem, shell, code-execution or rescue tool.';
 class ModelService {
   constructor({config=DEFAULTS,fetchImpl=fetch,now=()=>Date.now()}={}){this.config=validateConfig(config);this.fetch=fetchImpl;this.now=now;this.pending=null;this.queue=[];this.windowAt=this.now();this.calls=0;}
   configure(config){const next=validateConfig(config);this.cancel();this.config=next;return this.status();}
@@ -148,10 +171,10 @@ class ModelService {
     Promise.race([this.request(item.observation,controller.signal),cancelled]).then(result=>{finish();item.resolve(result);this.drain();},error=>{finish();item.reject(error);this.drain();});
   }
   async request(observation,signal){
-    const response=await this.fetch(this.config.endpoint+'/chat/completions',{method:'POST',redirect:'error',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({model:this.config.model,temperature:.25,max_tokens:this.config.maxTokens,response_format:{type:'json_object'},messages:[{role:'system',content:PROMPT},{role:'user',content:JSON.stringify(observation)}]})});
+    const response=await this.fetch(this.config.endpoint+'/chat/completions',{method:'POST',redirect:'error',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({model:this.config.model,temperature:.25,max_tokens:this.config.maxTokens,response_format:{type:'json_object'},messages:[{role:'system',content:observation.mode==='discovery'?DISCOVERY_PROMPT:PROMPT},{role:'user',content:JSON.stringify(observation)}]})});
     if(!response.ok)throw new Error(`Local model returned HTTP ${response.status}.`);
     if(Number(response.headers?.get?.('content-length')||0)>131072)throw new Error('Local model response exceeds the size limit.');
-    const text=await boundedResponseText(response),data=JSON.parse(text);return parseDecision(data.choices?.[0]?.message?.content);
+    const text=await boundedResponseText(response),data=JSON.parse(text);return parseDecision(data.choices?.[0]?.message?.content,{mode:observation.mode||'legacy'});
   }
 }
 module.exports={DEFAULTS,validateConfig,validateObservation,parseDecision,ModelService};

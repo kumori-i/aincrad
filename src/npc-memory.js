@@ -5,10 +5,14 @@ import { waterSource, foodSource, shelterSource, withinWorld } from './resources
 import { tileKey, tilePoint } from './perception.js';
 import { validateCognition } from './cognition.js';
 import { validateSocialMemory } from './social.js';
+import { rememberDiscoveryObservation,recordDiscoveryOutcome } from './discovery.js';
+import { validateDiscoveryMemory,objectId } from './discovery-state.js';
+import { validatePhysiology,projectPhysiology } from './biology.js';
+import { DISCOVERY_RULES } from './discovery-config.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
-const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note']);
-const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note']);
+const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
+const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
 const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwise;
 const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
 const cellsFor=(npc,scene=npc.scene)=>scene==='valley'?npc.memory.cells:(npc.memory.caveCells[scene]||={});
@@ -25,13 +29,14 @@ export function recordEvent(npc,type,details={}){
   const event={id:npc.memory.nextId++,at:npc.elapsed,type,details:compact(details)};
   npc.memory.experience.push(event);
   if(npc.memory.experience.length>NPC_RULES.maxExperience){
-    const protectedIds=new Set([...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
+    const protectedIds=new Set([...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),...(npc.discovery?.experiments||[]).map(e=>e.actionId),...(npc.discovery?.effects||[]).map(e=>e.proofEventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
     const removable=npc.memory.experience.findIndex(e=>!protectedIds.has(e.id));
     npc.memory.experience.splice(removable<0?0:removable,1);
   }
   return event;
 }
 export function rememberObservation(npc,observation){
+  if(npc.mode==='discovery')rememberDiscoveryObservation(npc,observation.objects||[]);
   const m=npc.memory;m.foods||={};m.shelters||={};m.caveCells||={};m.caveEdges||={};m.caveExits||={};m.features||={};m.effects||={};
   if(!npc.learning){
     const origin=m.exploration.origin;
@@ -128,6 +133,7 @@ export function learnOutcome(npc,action,result,context,startPosition){
   const timedProgress=result.code==='ACTION_TIMEOUT'&&(result.distance||0)>40;
   if(!result.ok&&result.code!=='PRIORITY_CHANGED'&&!timedProgress){npc.stats.invalidActions++;if(previous?.details.result?.code===result.code&&previous?.details.action?.type===action.type)npc.stats.repeatedInvalid++;}
   const event=recordEvent(npc,'action',{action,result,context,startPosition,scene:npc.scene,position:npc.position,hydration:npc.hydration,nourishment:npc.nourishment,thermal:npc.thermal,flask:npc.flask.water});
+  if(npc.mode==='discovery')recordDiscoveryOutcome(npc,action,result,event);
   npc.lastResult={eventId:event.id,at:npc.elapsed,...result,action:action.type};npc.memory.trace=[...npc.memory.trace,event.id].slice(-12);
   let reward=result.ok?0:timedProgress?-.15:-2;
   if(action.type==='move'&&!action.sourceId&&!action.foodId&&!action.shelterId){
@@ -166,11 +172,12 @@ export function recoveryLesson(npc){
 
 /** Saved data are bounded and allowlisted; recognition templates cannot execute arbitrary code. */
 export function validateNpc(raw,{restoring=true}={}){
-  const n=createNpc({id:raw?.id==='mira'?'mira':'aster',preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
-  if(!raw||![1,2,3].includes(raw.version)||!['aster','mira'].includes(raw.id))return n;
+  const n=createNpc({id:raw?.id==='mira'?'mira':'aster',mode:raw?.version===4&&raw.mode==='discovery'?'discovery':'legacy',preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
+  if(!raw||![1,2,3,4].includes(raw.version)||!['aster','mira'].includes(raw.id))return n;
   const scenes=new Set(['valley',...CAVES.map(c=>c.id)]);n.scene=scenes.has(raw.scene)?raw.scene:'valley';
   if(Number.isFinite(raw.position?.x)&&Number.isFinite(raw.position?.y)&&canStand(raw.position.x,raw.position.y,n.scene))n.position={x:raw.position.x,y:raw.position.y};else n.scene='valley';
   n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,n.hydration,100);n.nourishment=finite(raw.nourishment,n.nourishment,100);n.health=finite(raw.health,n.health,100);n.riskCost=finite(raw.riskCost);
+  if(n.mode==='discovery')n.physiology=validatePhysiology(raw.physiology,{profile:'human',elapsed:n.elapsed});
   for(const field of ['energy','stamina','fatigue','sleepPressure'])n[field]=finite(raw[field],n[field],100);n.bodyMode=['awake','resting','sleeping'].includes(raw.bodyMode)?raw.bodyMode:'awake';
   n.thermal={hot:finite(raw.thermal?.hot,0,100),cold:finite(raw.thermal?.cold,0,100),wetness:finite(raw.thermal?.wetness,0,100)};
   for(const name of Object.keys(n.feelings||{}))n.feelings[name]=finite(raw.feelings?.[name],0,1);
@@ -184,17 +191,19 @@ export function validateNpc(raw,{restoring=true}={}){
   n.memory.nextId=Math.max(1,Math.floor(finite(m.nextId,1)));
   n.memory.experience=(Array.isArray(m.experience)?m.experience:[]).filter(e=>Number.isInteger(e?.id)&&e.id>0&&EVENT_TYPES.has(e.type)).slice(-NPC_RULES.maxExperience).map(e=>({id:e.id,at:finite(e.at),type:e.type,details:compact(e.details)||{}}));
   const ids=new Set(n.memory.experience.map(e=>e.id));if(!n.memory.experience.some(e=>e.id===n.flask.fillEventId&&e.details.action?.type==='fill_flask'&&e.details.result?.ok)){n.flask.fillEventId=null;n.flask.provenance=null;}n.memory.nextId=Math.max(n.memory.nextId,1+Math.max(0,...ids));
+  if(n.mode==='discovery')n.discovery=validateDiscoveryMemory(raw.discovery,n);
   function restoreCells(input,scene){const out={};for(const [key,c] of Object.entries(input||{}).slice(-NPC_RULES.maxCells)){if(!/^-?\d{1,3},-?\d{1,3}$/.test(key)||typeof c.walkable!=='boolean'||!Number.isFinite(c.x)||!Number.isFinite(c.y))continue;const [x,y]=key.split(',').map(Number);if(c.x!==x*NPC_RULES.tileSize||c.y!==y*NPC_RULES.tileSize||!withinWorld(c))continue;out[key]={key,x:c.x,y:c.y,walkable:c.walkable,terrain:str(c.terrain,20),observedAt:finite(c.observedAt),visits:finite(c.visits)};}return out;}
   function restoreEdges(input){const out={};for(const [key,edge] of Object.entries(input||{}).slice(-512))if(/^-?\d{1,3},-?\d{1,3}>-?\d{1,3},-?\d{1,3}$/.test(key))out[key]={observedAt:finite(edge.observedAt),retryAfter:Math.min(n.elapsed+60,finite(edge.retryAfter))};return out;}
   n.memory.cells=restoreCells(m.cells,'valley');n.memory.blockedEdges=restoreEdges(m.blockedEdges);
   for(const scene of scenes)if(scene!=='valley'){if(m.caveCells?.[scene])n.memory.caveCells[scene]=restoreCells(m.caveCells[scene],scene);if(m.caveExits?.[scene]&&distance(m.caveExits[scene],CAVE_EXIT)<1)n.memory.caveExits[scene]={x:CAVE_EXIT.x,y:CAVE_EXIT.y,observedAt:finite(m.caveExits[scene].observedAt)};if(m.caveEdges?.[scene])n.memory.caveEdges[scene]=restoreEdges(m.caveEdges[scene]);}
-  for(const [name,resolve] of [['sources',waterSource],['foods',foodSource],['shelters',shelterSource]])for(const [id,s] of Object.entries(m[name]||{}).slice(-NPC_RULES.maxSources)){
+  for(const [name,resolve] of n.mode==='discovery'?[['sources',waterSource],['shelters',shelterSource]]:[['sources',waterSource],['foods',foodSource],['shelters',shelterSource]])for(const [id,s] of Object.entries(m[name]||{}).slice(-NPC_RULES.maxSources)){
     const physical=resolve(id);if(!physical||!withinWorld(s)||distance(physical,s)>1)continue;
     n.memory[name][id]={id,name:physical.name,x:s.x,y:s.y,scene:'valley',available:s.available!==false,observedAt:finite(s.observedAt),confidence:'observed',retryAfter:finite(s.retryAfter)};
     if(name==='foods')Object.assign(n.memory[name][id],{stock:finite(s.stock,0,physical.capacity||100),capacity:physical.capacity});
     if(name==='shelters'){Object.assign(n.memory[name][id],{targetScene:physical.targetScene,relief:finite(s.relief,0,1e6),reliefCredit:finite(s.reliefCredit,0,100),creditedEntryId:ids.has(s.creditedEntryId)?s.creditedEntryId:null});if(Number.isFinite(s.experiencedTemperature)&&n.memory.experience.some(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok))Object.assign(n.memory[name][id],{experiencedTemperature:clamp(s.experiencedTemperature,-100,100),experiencedAt:finite(s.experiencedAt)});}
   }
   n.inventory={capacity:NPC_RULES.foodCapacity||3,apples:(Array.isArray(raw.inventory?.apples)?raw.inventory.apples:[]).filter((a,index,all)=>all.findIndex(other=>other.eventId===a?.eventId)===index).filter(a=>foodSource(a?.foodId)&&Number.isFinite(a.collectedAt)&&Number.isInteger(a.eventId)&&n.memory.experience.some(e=>e.id===a.eventId&&e.details.action?.type==='gather_food'&&e.details.action.foodId===a.foodId&&e.details.result?.ok&&e.details.result.foodCollected===1)).slice(0,NPC_RULES.foodCapacity||3).map(a=>({foodId:a.foodId,collectedAt:finite(a.collectedAt),eventId:a.eventId}))};
+  if(n.mode==='discovery')n.inventory={capacity:DISCOVERY_RULES.capacity,apples:[],items:[...new Set(Array.isArray(raw.inventory?.items)?raw.inventory.items:[])].filter(objectId).filter(id=>n.discovery.observations[id]&&n.discovery.experiments.some(e=>e.ok&&(e.materialId===id||e.targetId===id&&e.primitive==='grasp'))).slice(0,DISCOVERY_RULES.capacity)};
   for(const [key,v] of Object.entries(m.values||{}).slice(-384)){
     const parts=key.split('::');if(parts.length!==2||!CATEGORIES.has(parts[1])||!/^[-a-z|]{1,150}$/.test(parts[0]))continue;
     n.memory.values[key]={attempts:finite(v.attempts),value:Number.isFinite(v.value)?clamp(v.value,-12,12):0};
@@ -209,6 +218,7 @@ export function validateNpc(raw,{restoring=true}={}){
   n.memory.explorationCredit=finite(m.explorationCredit,0,4);n.memory.trace=(Array.isArray(m.trace)?m.trace:[]).filter(id=>ids.has(id)).slice(-12);
   const templates={'water-fill-drink':['fill_flask','drink'],'water-approach-fill-drink':['move','fill_flask','drink'],'food-gather-eat':['gather_food','eat'],'food-approach-gather-eat':['move','gather_food','eat'],'shelter-enter-rest':['enter_shelter','wait'],'shelter-approach-enter-rest':['move','enter_shelter','wait']};
   for(const skill of (Array.isArray(m.skills)?m.skills:[]).slice(0,NPC_RULES.maxSkills)){
+    if(n.mode==='discovery'&&skill?.id?.startsWith('food-'))continue;
     const template=templates[skill?.id];if(!template||!Array.isArray(skill.steps)||skill.steps.length!==template.length||skill.steps.some((step,i)=>step?.type!==template[i]))continue;
     const need=skill.id.startsWith('water-')?'water':skill.id.startsWith('food-')?'food':'thermal',parameter=need==='water'?'sourceId':need==='food'?'foodId':'shelterId';
     if(skill.steps.some(step=>['move','fill_flask','gather_food','enter_shelter'].includes(step.type)&&step[parameter]!==`$${parameter}`))continue;
@@ -220,6 +230,6 @@ export function validateNpc(raw,{restoring=true}={}){
   if(typeof raw.navigationAnchor==='string'&&cellsFor(n)[raw.navigationAnchor]?.walkable&&distance(tilePoint(raw.navigationAnchor),n.position)<160)n.navigationAnchor=raw.navigationAnchor;
   n.modelBudget={since:Math.min(n.elapsed,finite(raw.modelBudget?.since)),calls:finite(raw.modelBudget?.calls,0,60)};n.bodyFeedback={since:Math.min(n.elapsed,finite(raw.bodyFeedback?.since)),cost:finite(raw.bodyFeedback?.cost)};n.lastResult=raw.lastResult?compact(raw.lastResult):null;
   for(const k of Object.keys(n.presentation))n.presentation[k]=Math.min(n.elapsed+12,finite(raw.presentation?.[k]));
-  n.cognition=validateCognition(raw.cognition,n);n.social=validateSocialMemory(raw.social,n);n.bodyMode='awake';
+  n.cognition=validateCognition(raw.cognition,n);n.social=validateSocialMemory(raw.social,n);if(n.mode==='discovery')projectPhysiology(n);else n.bodyMode='awake';
   return n;
 }

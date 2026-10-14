@@ -8,7 +8,7 @@ export const DRIVE_NAMES=['survival','safety','belonging','competence','understa
 const text=(value,max=240)=>typeof value==='string'?value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').slice(0,max):'';
 const number=(value,fallback=0,max=1e10)=>Number.isFinite(value)?Math.max(0,Math.min(max,value)):fallback;
 const point=value=>value&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Math.abs(value.x)<=24000&&Math.abs(value.y)<=24000?{x:value.x,y:value.y}:null;
-const PHYSICAL=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
+const PHYSICAL=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','inspect_object','grasp','release','pull','sample','strike']);
 const SOCIAL=new Set(['say','ask_human','journal_reply','write_note','read_note']);
 
 /** Motives, claims and intentions are persistent data, never executable instructions. */
@@ -55,7 +55,7 @@ export function updateCognition(npc){
   const c=cognition(npc);c.search||={startedAt:null,returning:false};c.shelterState||={enteredAt:null,departureUntil:0,lastOutside:null};if(npc.elapsed-c.lastUpdateAt<.9)return c;c.lastUpdateAt=npc.elapsed;
   if(npc.scene==='valley'){const senses=sensedEnvironment(npc);c.shelterState.lastOutside={warmth:senses.warmth,timeOfDay:senses.timeOfDay,weather:senses.weather,at:npc.elapsed};}
   if(!c.home&&Object.values(npc.memory.sources||{}).length)c.home={scene:'valley',position:{...npc.position},sourceId:Object.values(npc.memory.sources)[0].id};
-  for(const table of ['sources','foods','shelters'])for(const item of Object.values(npc.memory[table]||{}))observeBelief(npc,table,item);
+  for(const table of npc.mode==='discovery'?['sources','shelters']:['sources','foods','shelters'])for(const item of Object.values(npc.memory[table]||{}))observeBelief(npc,table,item);
   for(const event of npc.memory.experience.filter(e=>e.id>c.lastEventId)){
     const result=event.details?.result,action=event.details?.action;
     if(result?.ok&&action?.type==='enter_shelter')c.shelterState.enteredAt=event.at;
@@ -67,7 +67,7 @@ export function updateCognition(npc){
   const heard=npc.social?.heard||[];for(const message of heard.filter(m=>m.senderId===npc.id&&m.kind==='question')){let q=c.questions.find(q=>q.messageId===message.id);if(!q){q={messageId:message.id,topic:'world',text:message.text,at:message.at,status:'unanswered'};c.questions.push(q);}if(heard.some(reply=>reply.senderId==='human'&&reply.replyTo===message.id))q.status='answered';}c.questions=c.questions.slice(-8);
   const priorities=signalUrgencies(npc),maximum=Math.max(...Object.values(priorities)),social=npc.social||{},contact=number(social.lastContactAt,c.bornAt),failures=npc.memory.experience.slice(-12).filter(e=>e.details?.result?.ok===false).length;
   const safe=maximum<4;
-  c.drives={survival:{tension:tension(maximum),reason:'My bodily sensations ask for food, water, comfort and rest.'},safety:{tension:tension((npc.inventory?.apples.length<2?2:0)+(npc.flask.water<=.00001?2:0)),reason:'Having supplies and a remembered way home makes a trip safer.'},belonging:{tension:tension(safe?Math.min(5,(npc.elapsed-contact)/55):.4),reason:'Contact is welcome, but nobody is obliged to answer.'},competence:{tension:tension(failures*.8),reason:failures?'Recent unsuccessful actions leave something to improve.':'Useful routines can become more reliable.'},understanding:{tension:tension(safe?Math.min(5,(npc.elapsed-c.lastKnowledgeAt)/20):.3),reason:'Unexplained places and uncertain claims invite investigation.'},creativity:{tension:tension(safe&&c.knowledgeGained>0?Math.min(3,(npc.elapsed-c.lastNoteAt)/90):0),reason:'A field note can preserve a discovery.'},purpose:{tension:c.plan?.status==='active'?'present':'quiet',reason:c.plan?.goal||'A longer intention can connect individual actions.'},contribution:{tension:safe&&c.beliefs.some(b=>b.source==='observed')?'present':'quiet',reason:'Grounded discoveries can be shared without pretending certainty.'}};
+  c.drives={survival:{tension:tension(maximum),reason:'My bodily sensations ask for food, water, comfort and rest.'},safety:{tension:tension((npc.mode==='discovery'?(npc.discovery?.techniques?.length?0:2):npc.inventory?.apples.length<2?2:0)+(npc.flask.water<=.00001?2:0)),reason:'Remembered relief and a way home can make a trip safer.'},belonging:{tension:tension(safe?Math.min(5,(npc.elapsed-contact)/55):.4),reason:'Contact is welcome, but nobody is obliged to answer.'},competence:{tension:tension(failures*.8),reason:failures?'Recent unsuccessful actions leave something to improve.':'Useful routines can become more reliable.'},understanding:{tension:tension(safe?Math.min(5,(npc.elapsed-c.lastKnowledgeAt)/20):.3),reason:'Unexplained places and uncertain claims invite investigation.'},creativity:{tension:tension(safe&&c.knowledgeGained>0?Math.min(3,(npc.elapsed-c.lastNoteAt)/90):0),reason:'A field note can preserve a discovery.'},purpose:{tension:c.plan?.status==='active'?'present':'quiet',reason:c.plan?.goal||'A longer intention can connect individual actions.'},contribution:{tension:safe&&c.beliefs.some(b=>b.source==='observed')?'present':'quiet',reason:'Grounded discoveries can be shared without pretending certainty.'}};
   return c;
 }
 export function cognitiveObservation(npc){const c=updateCognition(npc);return {drives:DRIVE_NAMES.map(name=>({name,...c.drives[name]})),beliefs:c.beliefs.slice(-16).map(({id,subject,kind,text,status,confidence,evidence})=>({id,subject,kind,text,status,confidence,evidence})),predictions:c.predictions.slice(-6).map(({subject,expectation,confidence,sourceBeliefIds,checks,contradictions})=>({subject,expectation,confidence,sourceBeliefIds,checks,contradictions})),goal:c.plan?.status==='active'?c.plan.goal:null,plan:c.plan?{id:c.plan.id,goal:c.plan.goal,need:c.plan.need,status:c.plan.status,stepsFinished:c.plan.stepsFinished===true,goalVerified:c.plan.goalVerified===true,cursor:c.plan.cursor,steps:c.plan.steps,completion:c.plan.completion,interrupt:c.plan.interrupt,budget:c.plan.budget,returnRoute:c.plan.returnRoute}:null,questions:c.questions.slice(-4),knowledgeSummary:`I retain ${c.beliefs.filter(b=>b.source==='observed').length} grounded beliefs and ${c.beliefs.filter(b=>b.status==='unverified').length} unverified reports.`};}
@@ -75,11 +75,15 @@ export function cognitiveObservation(npc){const c=updateCognition(npc);return {d
 /** Validate against discovered data, never consult undiscovered world resources. */
 export function cognitiveAction(npc,raw,{restoring=false}={}){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||!PHYSICAL.has(raw.type)&&!SOCIAL.has(raw.type))return null;const out={type:raw.type};
+  if(npc.mode==='discovery'){
+    if(['gather_food','eat'].includes(raw.type)||raw.foodId!==undefined)return null;
+    if(['inspect_object','grasp','release','pull','sample','strike'].includes(raw.type))return typeof raw.targetId==='string'&&/^object:\d{1,9}$/.test(raw.targetId)&&(npc.discovery?.observations?.[raw.targetId]||npc.inventory?.items?.includes(raw.targetId))?{type:raw.type,targetId:raw.targetId}:null;
+  }else if(['inspect_object','grasp','release','pull','sample','strike'].includes(raw.type))return null;
   const refs=['sourceId','foodId','shelterId'].filter(key=>raw[key]!==undefined);if(refs.length>1)return null;
   for(const key of refs){const table=key==='sourceId'?'sources':key==='foodId'?'foods':'shelters';if(typeof raw[key]!=='string'||!npc.memory[table]?.[raw[key]])return null;out[key]=raw[key];}
   if(raw.type==='move'&&!refs.length){const p=point(raw.target),cells=rememberedCells(npc);if(!p||!cells[tileKey(p)]?.walkable)return null;out.target=p;}
   if(raw.type==='fill_flask'&&!out.sourceId||raw.type==='gather_food'&&!out.foodId||raw.type==='enter_shelter'&&!out.shelterId||raw.type==='inspect'&&!refs.length)return null;
-  if(['wait','rest','sleep'].includes(raw.type)){const seconds=raw.seconds??(raw.type==='wait'?1:8);if(!Number.isFinite(seconds)||seconds<.25||seconds>(raw.type==='wait'?5:12))return null;out.seconds=seconds;}
+  if(['wait','rest','sleep'].includes(raw.type)){const seconds=raw.seconds??(raw.type==='wait'?1:8),maximum=raw.type==='wait'?5:npc.mode==='discovery'?CONFIG.dayRealSeconds/2:12;if(!Number.isFinite(seconds)||seconds<.25||seconds>maximum)return null;out.seconds=seconds;}
   if(raw.type==='say'){if(!['aster','mira'].includes(raw.targetId)||raw.targetId===npc.id)return null;out.targetId=raw.targetId;out.text=text(raw.text,420);if(!out.text)return null;}
   if(raw.type==='journal_reply'){out.text=text(raw.text,600);if(!out.text)return null;if(raw.replyTo!==undefined){out.replyTo=text(raw.replyTo,80);if(!out.replyTo)return null;}}
   if(raw.type==='ask_human'){out.text=text(raw.text,420);out.topic=text(raw.topic,100)||'world';if(!out.text)return null;}
@@ -139,6 +143,7 @@ export function explorationFrontier(npc){
   for(const candidate of candidates.slice(0,24)){if(!candidate.unknown)continue;const out=knownRoute(cells,npc.position,candidate.cell,30,edges,npc.elapsed,npc.navigationAnchor),back=knownRoute(cells,candidate.cell,npc.position,30,edges,npc.elapsed);if(!out||!back)continue;const seconds=routeSeconds(npc,out)+routeSeconds({...npc,position:candidate.cell},back);if(seconds>18)continue;return {target:{x:candidate.cell.x,y:candidate.cell.y},unknown:candidate.unknown,travelSeconds:Math.ceil(seconds),returnRoute:back};}return null;
 }
 export function localPlan(npc){
+  if(npc.mode==='discovery')return null;
   const c=updateCognition(npc),u=signalUrgencies(npc);if(searchReturn(npc))return null;if(c.plan?.status==='active'||npc.scene!=='valley'||Math.max(...Object.values(u))>=3.5||npc.elapsed-c.lastPlanAt<10)return null;
   const frontier=explorationFrontier(npc);if(!frontier)return null;
   const supplies=npc.inventory?.apples.length||0,steps=[];

@@ -6,6 +6,10 @@ import { bodySignals, sensedEnvironment, restUnsafe } from './interoception.js';
 import { perceive, tileKey, tilePoint, lineOfSight, rememberedCells, rememberedEdges, scenePointValid } from './perception.js';
 import { knownRoute } from './navigation.js';
 import { recordEvent, rememberObservation, policyContext, learnOutcome, recoveryLesson, learningCostTick } from './npc-memory.js';
+import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
+import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, wakePhysiology, isSleeping, relievePhysiology } from './biology.js';
+import { DISCOVERY_RULES } from './discovery-config.js';
+import { requestDiscoveryAction, tickDiscoveryAction } from './discovery-actions.js';
 
 const allowedActions=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
 const needSeverity=(reserve,warning,critical)=>{
@@ -15,6 +19,7 @@ const needSeverity=(reserve,warning,critical)=>{
   return mild+1.2+(critical-reserve)/Math.max(1,critical)*3;
 };
 export function bodyRisk(npc){
+  if(npc.mode==='discovery'&&npc.physiology){const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile],water=f.waterDeficitMl/(p.massKg*1000),thermal=Math.max(npc.thermal.hot,npc.thermal.cold);return Math.max(0,water-.01)*30+Math.max(0,f.hoursSinceMeal-5)/48+Math.max(0,35-npc.energy)/35+Math.max(0,thermal-40)/40+(100-f.health)/100;}
   const hunger=needSeverity(npc.nourishment,NPC_RULES.hungerWarning,NPC_RULES.criticalNourishment)*1.25;
   const thirst=needSeverity(npc.hydration,NPC_RULES.thirstWarning,NPC_RULES.criticalHydration);
   const thermal=Math.max(npc.thermal.hot,npc.thermal.cold),warning=NPC_RULES.thermalWarning??40,critical=NPC_RULES.criticalThermal??80;
@@ -28,6 +33,7 @@ export function updateFeelings(npc,relief=0){
   f.distress=clamp(bodyRisk(npc)/6,0,1);f.comfort=1-f.discomfort;f.relief=clamp(Math.max(f.relief,relief),0,1);
 }
 export function observeNpc(npc,environment={}){
+  if(npc.mode==='discovery'&&isSleeping(npc))return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:{...sensedEnvironment(npc),visibility:'eyes closed'},flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{items:[...npc.inventory.items],capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[],objects:[],sleepSenses:{contact:'none',sound:'indistinct'}};
   if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[]};
   npc.sensation=environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
   const observation=perceive(npc,environment);rememberObservation(npc,observation);
@@ -44,9 +50,10 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
 }
 export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){
   const active=npc.active;if(!active)return false;
+  if(npc.mode==='discovery'&&active.request.type==='sleep')wakePhysiology(npc,'interrupted sleep');
   complete(npc,active.request,{ok:false,code,riskCost:Math.max(0,npc.riskCost-active.startRisk),distance:active.travelled||0},active.context,active.startPosition,active.startScene);return true;
 }
-function cleanRequest(raw,scene){
+function cleanRequest(raw,scene,mode='legacy'){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||!allowedActions.has(raw.type))return null;
   const action={type:raw.type};
   if(['move','inspect','fill_flask','gather_food','enter_shelter'].includes(raw.type)){
@@ -57,7 +64,7 @@ function cleanRequest(raw,scene){
     else return null;
     if(raw.type==='fill_flask'&&!action.sourceId||raw.type==='gather_food'&&!action.foodId||raw.type==='enter_shelter'&&!action.shelterId)return null;
   }
-  if(['wait','rest','sleep'].includes(raw.type)){const maximum=raw.type==='wait'?5:NPC_RULES.maxActionSeconds;if(raw.seconds!==undefined&&(!Number.isFinite(raw.seconds)||raw.seconds<.25||raw.seconds>maximum))return null;action.seconds=raw.seconds??(raw.type==='wait'?1:8);}
+  if(['wait','rest','sleep'].includes(raw.type)){const maximum=raw.type==='wait'?5:mode==='discovery'?simulationSeconds(raw.type==='sleep'?BIOLOGY_RULES.maximumSleepHours:BIOLOGY_RULES.maximumRestHours):NPC_RULES.maxActionSeconds;if(raw.seconds!==undefined&&(!Number.isFinite(raw.seconds)||raw.seconds<.25||raw.seconds>maximum))return null;action.seconds=raw.seconds??(raw.type==='wait'?1:mode==='discovery'?simulationSeconds(raw.type==='sleep'?BIOLOGY_RULES.nightSleepHours:.5):8);}
   if(raw.duration!==undefined&&(!Number.isFinite(raw.duration)||raw.duration<=0||raw.duration>NPC_RULES.maxActionSeconds))return null;
   if(raw.duration!==undefined)action.duration=raw.duration;
   return action;
@@ -88,8 +95,11 @@ function observedResourceRoute(npc,known){
 export function requestNpcAction(npc,raw,environment={}){
   if(npc.lifecycle!=='AWAKE')return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
-  const request=cleanRequest(raw,npc.scene),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
+  if(npc.mode==='discovery'&&isSleeping(npc))return{ok:false,code:'ASLEEP'};
+  if(npc.mode==='discovery'&&DISCOVERY_RULES.primitives.includes(raw?.type))return requestDiscoveryAction(npc,raw,environment,{complete});
+  const request=cleanRequest(raw,npc.scene,npc.mode),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
   if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
+  if(npc.mode==='discovery'&&(['gather_food','eat'].includes(request.type)||request.foodId))return complete(npc,request,{ok:false,code:'UNDISCOVERED_MACRO'},context,startPosition);
   if(['rest','sleep'].includes(request.type)&&restUnsafe(npc))return complete(npc,request,{ok:false,code:'UNSAFE_TO_REST',body:bodySignals(npc)},context,startPosition);
   const resource=knownResource(npc,request),known=resource?.known;
   if(resource&&!known)return complete(npc,request,{ok:false,code:resource.kind==='water'?'UNKNOWN_SOURCE':resource.kind==='food'?'UNKNOWN_FOOD':'UNKNOWN_SHELTER'},context,startPosition);
@@ -141,6 +151,15 @@ export function requestNpcAction(npc,raw,environment={}){
   }
   if(request.type==='drink'){
     if(npc.flask.water<=.00001)return complete(npc,request,{ok:false,code:'EMPTY_FLASK'},context,startPosition);
+    if(npc.mode==='discovery'){
+      const p=BIOLOGY_PROFILES[npc.physiology.profile],gut=npc.physiology.stomach.reduce((sum,v)=>sum+v.remainingMassGrams,0),room=Math.max(0,p.stomachCapacityGrams-gut),consumed=Math.min(npc.flask.water,.5,room/1000);
+      if(consumed<=.001)return complete(npc,request,{ok:false,code:'TOO_FULL'},context,startPosition);
+      const provenance=npc.flask.provenance,ingestion=ingestWater(npc,consumed*1000,{provenance,actionId:npc.memory.nextId,at:npc.elapsed});
+      if(!ingestion.ok)return complete(npc,request,ingestion,context,startPosition);
+      npc.flask.water=Math.max(0,npc.flask.water-consumed);const independent=provenance==='collected'&&npc.flask.fillEventId!==null&&npc.flask.fillEventId!==npc.flask.creditedFillId;
+      if(independent){npc.stats.independentDrinks++;npc.flask.creditedFillId=npc.flask.fillEventId;npc.stats.firstWaterAt??=npc.elapsed;}
+      npc.presentation.drinkUntil=npc.elapsed+2;return complete(npc,request,{ok:true,code:'DRANK',waterConsumed:consumed,hydrationGain:0,delayed:true,ingestionId:ingestion.ingestionId,provenance,independent},context,startPosition);
+    }
     if(npc.hydration>=99.999)return complete(npc,request,{ok:false,code:'ALREADY_HYDRATED'},context,startPosition);
     const consumed=Math.min(npc.flask.water,(100-npc.hydration)/NPC_RULES.drinkHydration),gain=consumed*NPC_RULES.drinkHydration,provenance=npc.flask.provenance;
     const independent=provenance==='collected'&&npc.flask.fillEventId!==null&&npc.flask.fillEventId!==npc.flask.creditedFillId&&gain>=NPC_RULES.meaningfulHydrationGain;
@@ -172,6 +191,7 @@ export function requestNpcAction(npc,raw,environment={}){
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
   }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,startEnergy:npc.energy,startStamina:npc.stamina,startFatigue:npc.fatigue,startSleepPressure:npc.sleepPressure};
   npc.bodyMode=request.type==='sleep'?'sleeping':request.type==='rest'?'resting':'awake';
+  if(npc.mode==='discovery'&&request.type==='sleep')beginSleep(npc,{hours:gameHours(request.seconds)});
   return {ok:true,code:'STARTED'};
 }
 export function collapseNpc(npc,reason='dehydration'){
@@ -180,6 +200,7 @@ export function collapseNpc(npc,reason='dehydration'){
   if(active)complete(npc,active.request,{ok:false,code:'COLLAPSED',hydrationLost:Math.max(0,active.startHydration-npc.hydration)},active.context,active.startPosition,active.startScene);
   if(npc.skillRun){const skill=npc.memory.skills.find(s=>s.id===npc.skillRun.id);if(skill)skill.failures++;npc.skillRun=null;}
   npc.lifecycle='COLLAPSED';npc.bodyMode='awake';npc.health=0;npc.collapseCause=reason;npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.collapseId++;npc.stats.collapses++;
+  if(npc.mode==='discovery'&&npc.physiology){npc.physiology.health=0;npc.physiology.sleep.state='awake';npc.physiology.sleep.depth=0;npc.physiology.sleep.remainingHours=0;}
   recordEvent(npc,'collapse',{collapseId:npc.collapseId,position:npc.position,scene:npc.scene,verifiedCause:reason,hydration:npc.hydration,nourishment:npc.nourishment,thermal:npc.thermal,reason});
   npc.decision='I lost consciousness. My identity, observations and experience remain.';return true;
 }
@@ -196,6 +217,7 @@ export function rescueNpc(npc,collapseId=npc.collapseId){
   npc.hydration=Math.max(npc.hydration,NPC_PRESETS[npc.preset].rescueHydration);
   npc.nourishment=Math.max(npc.nourishment,NPC_RULES.rescueNourishment??70);
   npc.energy=Math.max(npc.energy??0,BODY_RULES.rescueEnergy);npc.stamina=Math.max(npc.stamina??0,BODY_RULES.rescueStamina);npc.fatigue=Math.min(npc.fatigue??0,BODY_RULES.rescueFatigueMaximum);npc.sleepPressure=Math.min(npc.sleepPressure??0,BODY_RULES.rescueSleepPressureMaximum);npc.bodyMode='awake';
+  if(npc.mode==='discovery')relievePhysiology(npc);
   npc.thermal.hot=Math.min(npc.thermal.hot,20);npc.thermal.cold=Math.min(npc.thermal.cold,20);npc.thermal.wetness=Math.min(npc.thermal.wetness,30);updateFeelings(npc);
   npc.rescuedCollapseId=collapseId;npc.lifecycle='RECOVERING';npc.lifecycleAt=npc.elapsed;npc.epoch++;
   npc.stats.rescues++;npc.stats.lastRescuer='divine';npc.presentation.rescueUntil=npc.elapsed+8;
@@ -218,6 +240,7 @@ function exertBody(npc,movingSeconds){
 }
 export function tickNpc(npc,dt,environment={}){
   if(!Number.isFinite(dt)||dt<=0)return;
+  if(npc.mode==='discovery')return tickDiscoveryNpc(npc,dt,environment);
   dt=Math.min(dt,.25);npc.elapsed+=dt;
   const rules=NPC_PRESETS[npc.preset];
   if(npc.lifecycle==='COLLAPSED'){if(npc.elapsed-npc.lifecycleAt>=rules.rescueDelay)rescueNpc(npc);return;}
@@ -287,3 +310,50 @@ export function tickNpc(npc,dt,environment={}){
 }
 export function changeNpcPreset(npc,preset){if(!NPC_PRESETS[preset])return false;npc.preset=preset;recordEvent(npc,'debug',{setting:'survival preset',value:preset,provenance:'debug',hydrationGain:0,nourishmentGain:0});return true;}
 export function demonstrateCollapse(npc){if(npc.lifecycle!=='AWAKE')return false;recordEvent(npc,'debug',{setting:'health',value:0,provenance:'debug'});npc.health=0;return collapseNpc(npc,'explicit developer demonstration');}
+
+/** Discovery uses the same movement/collision ledger and a slower biological clock. */
+function tickDiscoveryNpc(npc,dt,environment){
+  dt=Math.min(dt,.25);npc.elapsed+=dt;
+  if(npc.lifecycle==='COLLAPSED'){if(npc.elapsed-npc.lifecycleAt>=simulationSeconds(BIOLOGY_RULES.rescueDelayGameHours))rescueNpc(npc);return;}
+  if(npc.lifecycle==='RECOVERING'){
+    if(npc.elapsed-npc.lifecycleAt>=simulationSeconds(BIOLOGY_RULES.recoveryGameHours)){npc.lifecycle='AWAKE';npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.nextDecisionAt=npc.elapsed;recordEvent(npc,'recovery',{collapseId:npc.collapseId,identity:npc.id,body:bodySignals(npc)});}
+    return;
+  }
+  const previousSignals=bodySignals(npc),previousRisk=bodyRisk(npc);
+  npc.sensation=environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
+  const result=tickPhysiology(npc,dt,npc.sensation,{activity:npc.active?.request.type==='rest'?'resting':'awake'});
+  if(result.damage>0)npc.stats.injuries+=result.damage;
+  const risk=(previousRisk+bodyRisk(npc))*.5*dt;npc.riskCost+=risk;npc.bodyFeedback.cost+=risk;learningCostTick(npc,dt,risk,{thermalRelief:0});updateFeelings(npc);
+  const signals=bodySignals(npc);
+  if(signals.overall==='urgent')npc.stats.criticalSeconds+=dt;
+  if(signals.overall!=='settled')npc.stats.warningSeconds+=dt;
+  if(Object.keys(signals).some(key=>signals[key]!==previousSignals[key]))recordEvent(npc,'condition',{code:'BODY_SIGNAL',body:signals});
+  if(npc.elapsed-npc.bodyFeedback.since>=30){if(signals.overall!=='settled')recordEvent(npc,'condition',{code:'BODY_FEEDBACK',intervalSeconds:npc.elapsed-npc.bodyFeedback.since,riskCost:npc.bodyFeedback.cost,body:signals,scene:npc.scene});npc.bodyFeedback={since:npc.elapsed,cost:0};}
+  if(npc.health<=0){const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile];collapseNpc(npc,f.waterDeficitMl/(p.massKg*1000)>.05?'dehydration':f.availableEnergyKcal<=0?'prolonged deprivation':Math.max(npc.thermal.hot,npc.thermal.cold)>=80?'thermal exposure':'injury');return;}
+  const active=npc.active;if(!active)return;
+  const losses={riskCost:Math.max(0,npc.riskCost-(active.startRisk||0))};
+  if(active.kind==='interaction'){tickDiscoveryAction(npc,dt,environment,{complete,exert:exertPhysiology});return;}
+  if(active.request.type==='sleep'){
+    if(!isSleeping(npc)){
+      const finished=npc.physiology.sleep.wakeReason==='finished sleep';complete(npc,active.request,{ok:finished,code:finished?'SLEPT':'REST_INTERRUPTED',body:bodySignals(npc),wakeReason:npc.physiology.sleep.wakeReason,...losses},active.context,active.startPosition,active.startScene);npc.nextDecisionAt=npc.elapsed;
+    }
+    return;
+  }
+  if(active.request.type==='wait'||active.request.type==='rest'){
+    if(active.request.type==='rest'&&restUnsafe(npc)){complete(npc,active.request,{ok:false,code:'REST_INTERRUPTED',body:signals,...losses},active.context,active.startPosition,active.startScene);npc.nextDecisionAt=npc.elapsed;}
+    else if(npc.elapsed>=active.expiresAt)complete(npc,active.request,{ok:true,code:active.request.type==='rest'?'RESTED':'WAITED',body:signals,...losses},active.context,active.startPosition,active.startScene);
+    return;
+  }
+  const target=active.route?.[active.index];
+  if(!target){complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled||0,novelCells:active.novelCells||0,...losses},active.context,active.startPosition,active.startScene);return;}
+  const dx=target.x-npc.position.x,dy=target.y-npc.position.y,d=Math.hypot(dx,dy);
+  if(d<3){if(rememberedCells(npc)[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;return;}
+  const exhausted=npc.stamina<15||npc.fatigue>75||npc.energy<15||npc.physiology.sleep.inertiaHours>0,pace=exhausted?BIOLOGY_RULES.exhaustionWalkMultiplier:1;
+  const moved=moveActor(npc.position,dx,dy,Math.min(dt*pace,d/CONFIG.walkSpeed),false,npc.scene);active.travelled+=moved;exertPhysiology(npc,moved/CONFIG.walkSpeed,1);updateFeelings(npc);
+  active.blockedFor=moved<.05?active.blockedFor+dt:0;
+  if(active.blockedFor>1||npc.elapsed>active.expiresAt){
+    const code=active.blockedFor>1?'ROUTE_BLOCKED':'ACTION_TIMEOUT';
+    if(active.blockedFor>1){const from=active.index?active.route[active.index-1]:active.startPosition;npc.navigationAnchor=tileKey(from);const edge=[tileKey(from),tileKey(target)].sort().join('>'),edges=rememberedEdges(npc);edges[edge]={observedAt:npc.elapsed,retryAfter:npc.elapsed+60};const entries=Object.entries(edges);if(entries.length>512)delete edges[entries[0][0]];}
+    complete(npc,active.request,{ok:false,code,distance:active.travelled,novelCells:active.novelCells||0,...losses},active.context,active.startPosition,active.startScene);
+  }
+}

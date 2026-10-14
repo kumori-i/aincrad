@@ -1,9 +1,10 @@
 import { CONFIG, CAVES, SPAWN, CAVE_EXIT, LANDMARKS, APPLE_PATCHES } from './config.js';
 import { lerp, hash, ridgeValue, objectsInRect, riverWidth, BRIDGES, waterDistance, caveDistance, CAVE_OBJECTS, HABITAT_TRAILS } from './world.js';
-import { ART_PIXEL, canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject, drawNpc, drawApplePatch, drawFauna, drawShelterLamp, drawFieldNote } from './art.js';
+import { ART_PIXEL, canvas, makeGroundChunk, groundColor, ellipse, line, poly, drawObject, drawAvatar, drawBridge, drawCamp, drawCaveEntrance, drawCaveObject, drawNpc, drawApplePatch, drawFauna, drawEcologyObject, drawShelterLamp, drawFieldNote } from './art.js';
 
 import { environmentConditions, ambientEcology } from './environment.js';
 import { foodSource } from './resources.js';
+import { renderEcology } from './ecology.js';
 
 /** The world is painted into an art-pixel buffer, then enlarged by an integer factor. */
 export class Renderer {
@@ -23,6 +24,7 @@ export class Renderer {
   viewSubject(state){const agent=this.selectedAgent(state);return this.followNpc&&agent?agent.position:state.player;}
   conditions(state,scene=this.viewScene(state)){return environmentConditions(state.environment,{position:this.viewSubject(state),scene,wetness:this.followNpc?(this.selectedAgent(state)?.thermal?.wetness||0):0});}
   notes(state,scene){return (state.community?.notes||[]).filter(note=>(note.scene||'valley')===scene&&Number.isFinite(note.position?.x)&&Number.isFinite(note.position?.y));}
+  ecosystem(state,scene){return state.simulationMode==='discovery'?renderEcology(state.environment?.ecology,scene):[];}
   chunk(cx,cy){
     const key=`${cx},${cy}`;if(this.chunks.has(key)){const c=this.chunks.get(key);this.chunks.delete(key);this.chunks.set(key,c);return c;}
     const c=makeGroundChunk(cx,cy,CONFIG.chunkSize);this.chunks.set(key,c);if(this.chunks.size>CONFIG.maxCachedChunks)this.chunks.delete(this.chunks.keys().next().value);return c;
@@ -61,8 +63,11 @@ export class Renderer {
     }
     for(const bridge of BRIDGES)if(Math.abs(bridge.x-this.camera.x)<v.w&&Math.abs(bridge.y-this.camera.y)<v.h)drawBridge(g,bridge,riverWidth(bridge.y));
     const objects=objectsInRect(v.x,v.y,v.w,v.h);
-    for(const patch of APPLE_PATCHES){if(patch.x<v.x-100||patch.x>v.x+v.w+100||patch.y<v.y-100||patch.y>v.y+v.h+100)continue;const resource=foodSource('apple:'+patch.id,state.environment);objects.push({...patch,kind:'apple',stock:resource?.stock??0,capacity:resource?.capacity??patch.capacity});}
-    for(const animal of ambientEcology(this.drawCamera,Math.hypot(v.w,v.h)/2+140,state.environment))objects.push({...animal,kind:'fauna',definition:animal});
+    if(state.simulationMode==='discovery')for(const entity of this.ecosystem(state,'valley'))objects.push({kind:'ecosystem',x:entity.x,y:entity.y,entity});
+    else{
+      for(const patch of APPLE_PATCHES){if(patch.x<v.x-100||patch.x>v.x+v.w+100||patch.y<v.y-100||patch.y>v.y+v.h+100)continue;const resource=foodSource('apple:'+patch.id,state.environment);objects.push({...patch,kind:'apple',stock:resource?.stock??0,capacity:resource?.capacity??patch.capacity});}
+      for(const animal of ambientEcology(this.drawCamera,Math.hypot(v.w,v.h)/2+140,state.environment))objects.push({...animal,kind:'fauna',definition:animal});
+    }
     for(let cy=Math.floor(v.y/240);cy<=Math.floor((v.y+v.h+300)/240);cy++)for(let cx=Math.floor(v.x/340);cx<=Math.floor((v.x+v.w)/340);cx++){
       const x=cx*340+hash(cx,cy,992)*32,y=cy*240+hash(cx,cy,199)*48;
       if(ridgeValue(x,y)<1.008||CAVES.some(c=>Math.hypot(x-c.x,y-c.y)<330))continue;
@@ -77,6 +82,7 @@ export class Renderer {
       if(object.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,state.scene);
       else if(object.kind==='npc')drawNpc(g,object.agent,time);
       else if(object.kind==='note')drawFieldNote(g,object.note);
+      else if(object.kind==='ecosystem')drawEcologyObject(g,object.entity,time,this.viewSubject(state));
       else if(object.kind==='apple')drawApplePatch(g,object,object.stock,object.capacity);
       else if(object.kind==='fauna')drawFauna(g,object.definition,time);
       else if(object.kind==='camp')drawCamp(g,SPAWN.x,SPAWN.y-10,time);
@@ -107,8 +113,9 @@ export class Renderer {
     for(let i=0;i<16;i++){const x=1170+hash(i,0,608)*300,y=1380+hash(i,1,821)*95;if(caveDistance(x,y)>-25)continue;ellipse(g,x,y,9+(i%4)*2,4,'#6f806744');line(g,[[x-5,y],[x-2,y-4],[x+2,y]],'#93a46e',ART_PIXEL);}
     const objects=[...CAVE_OBJECTS];if(state.scene===scene)objects.push({...state.player,kind:'player'});
     for(const agent of this.agents(state))if((agent.scene||'valley')===scene)objects.push({...agent.position,kind:'npc',agent});
+    for(const entity of this.ecosystem(state,scene))objects.push({kind:'ecosystem',x:entity.x,y:entity.y,entity});
     for(const note of this.notes(state,scene))objects.push({...note.position,kind:'note',note});objects.sort((a,b)=>a.y-b.y);
-    for(const object of objects){if(object.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,scene);else if(object.kind==='npc')drawNpc(g,object.agent,time);else if(object.kind==='note')drawFieldNote(g,object.note);else drawCaveObject(g,object,tint);}
+    for(const object of objects){if(object.kind==='player')drawAvatar(g,state.player,anim.facing,anim.time,anim.moving,scene);else if(object.kind==='npc')drawNpc(g,object.agent,time);else if(object.kind==='note')drawFieldNote(g,object.note);else if(object.kind==='ecosystem')drawEcologyObject(g,object.entity,time,this.viewSubject(state));else drawCaveObject(g,object,tint);}
     for(const object of CAVE_OBJECTS.filter(o=>o.kind==='crystal')){
       const frame=(Math.floor(time*3)+Math.floor(object.seed*9))%12;if(frame>2)continue;const x=object.x-14+frame*10,y=object.y-48-frame*10;line(g,[[x-2,y],[x+2,y]],'#d8e8ce',ART_PIXEL);line(g,[[x,y-2],[x,y+2]],'#d8e8ce',ART_PIXEL);
     }
@@ -117,7 +124,7 @@ export class Renderer {
     const conditions=this.conditions(state,'valley'),time=state.environment?.elapsed??state.elapsed,w=this.pixels.width,h=this.pixels.height;
     if(conditions.weather==='cloudy'||conditions.raining){g.fillStyle=conditions.raining?'#34536530':'#3a51611d';g.fillRect(0,0,w,h);}
     if(conditions.raining){
-      // Rain moves only with the simulation clock, so menus and focus loss freeze it too.
+      // Rain follows the saved simulation clock; only an explicit pause freezes it.
       const phase=Math.floor(time*18),wind=Math.min(5,Math.round(conditions.wind||0));
       for(let row=-1;row<=Math.ceil(h/24);row++)for(let col=-1;col<=Math.ceil(w/23);col++){
         const seed=hash(col,row,1786),x=((col*23+Math.floor(seed*17)+Math.floor(phase/3)*wind)% (w+24)+w+24)%(w+24)-12,y=((row*24+Math.floor(hash(col,row,879)*18)+phase)%(h+24)+h+24)%(h+24)-12;

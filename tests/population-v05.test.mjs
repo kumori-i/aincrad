@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, CAVE_SPAWN } from '../src/config.js';
-import { freshState, canStand } from '../src/world.js';
+import { freshState as createWorldState, canStand } from '../src/world.js';
+const freshState=()=>createWorldState({mode:'legacy'});
 import { PopulationRuntime } from '../src/population.js';
 import { validateSave, writeSave, loadSave } from '../src/save.js';
 import { createNpc } from '../src/npc-state.js';
@@ -14,7 +15,7 @@ const waitingProvider=()=>({kind:'local-learner',decide:()=>({action:{type:'wait
 function step(runtime,seconds){const frames=Math.round(seconds*60);for(let frame=0;frame<frames;frame++){runtime.state.elapsed+=1/60;runtime.tick(1/60);}}
 
 test('a new world has two independent characters and one historical Aster alias',()=>{
-  const state=freshState();assert.equal(state.version,4);assert.deepEqual(state.agents.map(n=>n.id),['aster','mira']);assert.equal(state.npc,state.agents[0]);assert.equal(state.selectedAgentId,'aster');
+  const state=freshState();assert.equal(state.version,5);assert.deepEqual(state.agents.map(n=>n.id),['aster','mira']);assert.equal(state.npc,state.agents[0]);assert.equal(state.selectedAgentId,'aster');
   assert.notEqual(state.agents[0].position,state.agents[1].position);assert.notEqual(state.agents[0].memory,state.agents[1].memory);assert.notEqual(state.agents[0].inventory,state.agents[1].inventory);
   assert.notDeepEqual(state.agents[0].position,state.agents[1].position);
   for(const npc of state.agents)assert.ok(canStand(npc.position.x,npc.position.y,npc.scene));
@@ -26,7 +27,7 @@ test('legacy v1 through v3 saves retain Aster progress and add fresh Mira',()=>{
     const aster=createNpc(),environment=freshState().environment;observeNpc(aster,environment);const water=Object.values(aster.memory.sources).find(source=>Math.hypot(source.x-aster.position.x,source.y-aster.position.y)<=80);assert.ok(water);
     for(let cycle=0;cycle<2;cycle++){aster.hydration=25;assert.ok(requestNpcAction(aster,{type:'fill_flask',sourceId:water.id},environment).ok);assert.ok(requestNpcAction(aster,{type:'drink'},environment).ok);}
     assert.ok(aster.memory.skills.length);const acquired=aster.memory.skills.map(skill=>skill.id);aster.version=version;aster.scene='refuge';aster.position={...CAVE_SPAWN};aster.elapsed=321;aster.hydration=62;aster.stats.independentDrinks=7;aster.memory.lessons=[{at:320,verified:'The flask contains collected water.',hypothesis:'Another spring may exist.'}];
-    const migrated=validateSave({version,npc:aster,elapsed:321});assert.equal(migrated.version,4);assert.equal(migrated.npc,migrated.agents[0]);assert.equal(migrated.npc.scene,'refuge');assert.deepEqual(migrated.npc.position,CAVE_SPAWN);assert.equal(migrated.npc.hydration,62);assert.equal(migrated.npc.stats.independentDrinks,7);assert.equal(migrated.npc.memory.lessons[0].verified,aster.memory.lessons[0].verified);
+    const migrated=validateSave({version,npc:aster,elapsed:321});assert.equal(migrated.version,5);assert.equal(migrated.npc,migrated.agents[0]);assert.equal(migrated.npc.scene,'refuge');assert.deepEqual(migrated.npc.position,CAVE_SPAWN);assert.equal(migrated.npc.hydration,62);assert.equal(migrated.npc.stats.independentDrinks,7);assert.equal(migrated.npc.memory.lessons[0].verified,aster.memory.lessons[0].verified);
     assert.deepEqual(migrated.npc.memory.skills.map(skill=>skill.id),acquired);assert.equal(migrated.agents[1].id,'mira');assert.equal(migrated.agents[1].elapsed,321);assert.equal(migrated.agents[1].hydration,createNpc({id:'mira'}).hydration);assert.equal(migrated.agents[1].stats.independentDrinks,0);assert.equal(migrated.agents[1].memory.lessons.length,0);assert.equal(migrated.environment.elapsed,321);
   }
 });

@@ -7,6 +7,8 @@ import { policyContext, actionCategory, recordEvent, learnedValue, learnOutcome 
 
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { signalUrgencies, cognitiveObservation, updateCognition, localPlan, adoptPlan, progressPlan, cancelPlan, cognitiveAction, explorationFrontier, searchReturn, estimatedWalkingSpeed } from './cognition.js';
+import { discoveryDecision,discoveryObservation,processDiscoveryFeedback,contactEscape } from './discovery.js';
+import { isSleeping } from './biology.js';
 
 function random(npc){npc.rng=(Math.imul(npc.rng,1664525)+1013904223)>>>0;return npc.rng/4294967296;}
 const thermalLevel=n=>Math.max(n.thermal?.hot||0,n.thermal?.cold||0);
@@ -31,6 +33,7 @@ function stagedApproach(npc,item){
   for(const point of candidates){const route=knownRoute(cells,npc.position,point,30,edges,npc.elapsed,npc.navigationAnchor);if(route)return {point,seconds:before/estimatedWalkingSpeed(npc)};}return null;
 }
 export function skillCandidates(npc){
+  if(npc.mode==='discovery')return [];
   if(!npc.learning)return [];
   const candidates=[];
   for(const skill of npc.memory.skills.filter(s=>s.status!=='retired')){
@@ -52,6 +55,10 @@ function experienceSummary(event){
   return {id:event.id,at:event.at,type:event.type,...(action?{action:Object.fromEntries(['type','sourceId','foodId','shelterId','target','seconds','targetId','topic','noteId'].filter(k=>action[k]!==undefined).map(k=>[k,action[k]]))}:{}),...(result.code?{result:Object.fromEntries(['ok','code','independent','foodId','shelterId','resourceId','novelCells','distance','durationSeconds'].filter(k=>result[k]!==undefined).map(k=>[k,result[k]]))}:{}),...(details.verified?{verified:String(details.verified).slice(0,240)}:{}),...(details.verifiedCause?{verifiedCause:details.verifiedCause}:{})};
 }
 export function decisionObservation(npc,social=null){
+  if(npc.mode==='discovery'){
+    const d=discoveryObservation(npc),expose=table=>Object.values(npc.memory[table]||{}).slice(-12).map(s=>({id:s.id,name:s.name,x:s.x,y:s.y,scene:s.scene,available:s.available!==false,observedAt:s.observedAt}));
+    return {mode:'discovery',identity:{id:npc.id,name:npc.name},objective:'Describe experienced sensations and grounded uncertainties. Human replies are optional. Your words do not establish physical effects or teach your experimental controller.',condition:{scene:npc.scene,lifecycle:npc.lifecycle,position:{...npc.position},body:bodySignals(npc),senses:sensedEnvironment(npc),inventory:{objects:(npc.inventory.items||[]).map(id=>npc.discovery.observations[id]).filter(Boolean),capacity:npc.inventory.capacity,flask:npc.flask.water<=.00001?'empty':npc.flask.water>=.999?'full':'some'}},observedAt:npc.elapsed,knownSources:expose('sources'),knownShelters:expose('shelters'),knownExit:npc.scene==='valley'?null:(npc.memory.caveExits?.[npc.scene]||null),knownTiles:Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<NPC_RULES.visionRadius+80).slice(-48).map(c=>({x:c.x,y:c.y,walkable:c.walkable,terrain:c.terrain,observedAt:c.observedAt})),innerLife:cognitiveObservation(npc),discovery:d,social:social?.observe?.(npc)||{peers:[],journal:[],notes:[],pendingQuestion:null}};
+  }
   const cells=Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<=NPC_RULES.visionRadius+80).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,48);
   const expose=table=>Object.values(npc.memory[table]||{}).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,12).map(s=>({id:s.id,name:s.name,x:s.x,y:s.y,scene:s.scene,available:s.available!==false,observedAt:s.observedAt,...(table==='foods'?{stock:s.stock,capacity:s.capacity}:{}),...(table==='shelters'&&Number.isFinite(s.experiencedTemperature)?{shelterExperience:s.experiencedTemperature>NPC_RULES.hotComfortMax?'hot':s.experiencedTemperature<NPC_RULES.coldComfortMin?'cold':'temperate',experiencedAt:s.experiencedAt}:{}),distance:npc.scene==='valley'?Math.round(distance(s,npc.position)):null,knownRouteSeconds:npc.scene==='valley'?routeEstimate(npc,s):null}));
   const flask=npc.flask.water<=.00001?'empty':npc.flask.water>=.999?'full':'some';
@@ -74,6 +81,7 @@ export function decisionObservation(npc,social=null){
 export class LocalLearnerProvider {
   constructor(){this.kind='local-learner';this.label='Offline experiential learner';}
   decide(npc){
+    if(npc.mode==='discovery')return discoveryDecision(npc);
     const priorities=needPriorities(npc),choices=[],body=bodySignals(npc),cognition=updateCognition(npc);
     if(npc.scene==='valley'&&cognition.shelterState?.departureUntil>npc.elapsed&&!body.thermal.startsWith('dangerously')&&!['overheated','shivering'].includes(body.thermal))priorities.thermal=Math.min(priorities.thermal,1.2);
     if(npc.inventory?.apples.length&&['ravenous','faint with hunger'].includes(body.hunger))return {action:{type:'eat'},need:'food',reason:'My hunger is urgent and I already carry food; I can take relief before travelling.',provider:this.kind};
@@ -148,6 +156,7 @@ export class NpcController {
   }
   applyDecision(decision){
     const n=this.npc;if(!decision||typeof decision!=='object'){recordEvent(n,'provider',{code:'INVALID_MODEL_DECISION',gameplayFailure:false});this.perform({type:'observe'});return;}
+    if(n.mode==='discovery'&&(decision.skillId||decision.plan||decision.provider==='local-model'&&!['ask_human','journal_reply'].includes(decision.action?.type))){recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});return;}
     n.decision=String(decision.reason||'A bounded action was selected.').slice(0,600);recordEvent(n,'decision',{provider:decision.provider||this.provider.kind,summary:n.decision});
     if(decision.skillId){const skill=n.memory.skills.find(s=>s.id===decision.skillId),resourceId=decision.sourceId||decision.foodId||decision.shelterId;if(this.startSkill(skill,resourceId))return;}
     if(decision.plan){if(!adoptPlan(n,decision.plan)){recordEvent(n,'provider',{code:'INVALID_MODEL_PLAN',gameplayFailure:false});this.perform({type:'observe'});return;}const action=progressPlan(n);if(action)this.perform(action);return;}
@@ -155,7 +164,7 @@ export class NpcController {
   }
   perform(raw){
     const n=this.npc,action=cognitiveAction(n,raw);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
-    if(['say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:this.provider.kind==='local-learner'||raw.offline===true})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
+    if(['say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
     return requestNpcAction(n,action,this.environment);
   }
   decideOffline({survivalOnly=false}={}){
@@ -189,11 +198,33 @@ export class NpcController {
     }
   }
   tick(dt){
+    if(this.npc.mode==='discovery'){this.tickDiscovery(dt);return;}
     if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;}
     if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.senseAt=n.elapsed;}
     if(n.lifecycle!=='AWAKE'){cancelPlan(n,'Consciousness or recovery interrupted the intention.');return;}this.reassess();if(n.active)return;
     if(this.pending){if(n.elapsed>=n.nextDecisionAt&&(Math.max(...Object.values(needPriorities(n)))>=4||n.elapsed-this.pending.at>3&&Math.max(...Object.values(needPriorities(n)))>=1.5)){this.cancel();this.decideOffline({survivalOnly:true});}return;}
     if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;if(ready.generation===this.generation&&ready.epoch===n.epoch&&ready.condition===decisionCondition(n))this.applyDecision(ready.decision);else{n.stats.staleResponses++;recordEvent(n,'provider',{code:'STALE_RESPONSE',gameplayFailure:false});}return;}
     if(n.skillRun){this.progressSkill();return;}if(n.elapsed>=n.nextDecisionAt){if(n.cognition?.plan?.status==='active'&&Math.max(...Object.values(needPriorities(n)))>=4)cancelPlan(n,'My bodily sensations call for immediate care.');const previousPlan=n.cognition?.plan?.status,planned=progressPlan(n);if(planned){this.perform(planned);return;}if(previousPlan==='active'&&n.cognition?.plan?.status!=='active'){n.nextDecisionAt=n.elapsed+2;return;}this.decide();}
+  }
+  tickDiscovery(dt){
+    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;}
+    if(isSleeping(n)||n.lifecycle!=='AWAKE')return;
+    processDiscoveryFeedback(n,{recordEffect:effect=>recordEvent(n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});
+    if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.social?.observe?.(n);this.senseAt=n.elapsed;}
+    const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}
+    // Dialogue inference runs alongside bodily life; it cannot select an experiment.
+    if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;const action=ready.decision?.action;if(ready.generation===this.generation&&ready.epoch===n.epoch&&['ask_human','journal_reply'].includes(action?.type))this.perform({...action,model:true});else recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});}
+    if(n.active||n.elapsed<n.nextDecisionAt)return;
+    if(n.elapsed-n.discovery.lastDialogueAt>=12){
+      const dialogue=this.social?.maybeDialogue?.(n);
+      if(dialogue){
+        n.discovery.lastDialogueAt=n.elapsed;
+        if(this.provider.kind==='local-model'&&['journal_reply','ask_human'].includes(dialogue.type)&&!this.pending&&n.elapsed>=this.cooldownUntil){
+          const generation=this.generation,epoch=n.epoch;n.stats.modelCalls++;this.pending={at:n.elapsed};
+          Promise.resolve().then(()=>this.provider.decide(n,{social:this.social})).then(decision=>{if(!this.disposed&&generation===this.generation&&epoch===n.epoch)this.readyDecision={decision,generation,epoch};}).catch(error=>{if(generation===this.generation){n.stats.modelFailures++;this.cooldownUntil=n.elapsed+30;recordEvent(n,'provider',{code:'MODEL_SERVICE_FAILURE',message:String(error.message||error).slice(0,200)});}}).finally(()=>{if(generation===this.generation)this.pending=null;});
+        }else {this.perform({...dialogue,offline:true});return;}
+      }
+    }
+    const decision=discoveryDecision(n);n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.perform(decision.action);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }

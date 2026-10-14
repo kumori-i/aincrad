@@ -10,7 +10,8 @@ import { observeNpc, tickNpc, requestNpcAction, collapseNpc, rescueNpc } from '.
 import { validateNpc, recordEvent } from '../src/npc-memory.js';
 import { NpcController, LocalLearnerProvider, decisionObservation } from '../src/controller.js';
 import { validateSave, writeSave, loadSave } from '../src/save.js';
-import { freshState } from '../src/world.js';
+import { freshState as createWorldState } from '../src/world.js';
+const freshState=()=>createWorldState({mode:'legacy'});
 
 const source=()=>{for(let i=2;i<12;i++){const s=waterSource(`river:east:${i}`);if(s)return s;}throw new Error('No test source');};
 function nearSource(hydration=35){const n=createNpc({preset:'accelerated'}),s=source();n.position={x:s.x+8,y:s.y};n.hydration=hydration;observeNpc(n);return {n,s};}

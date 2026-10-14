@@ -3,6 +3,8 @@ import { canStand, terrain, objectAtCell, caveDistance, CAVE_OBJECTS, distance }
 import { nearbyWaterSources, nearbyFoodSources, nearbyShelters } from './resources.js';
 import { environmentConditions } from './environment.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
+import { senseEcology,describeEcologyObject } from './ecology.js';
+import { isSleeping } from './biology.js';
 
 export const tileKey=(p)=>`${Math.round(p.x/NPC_RULES.tileSize)},${Math.round(p.y/NPC_RULES.tileSize)}`;
 export function tilePoint(key){const [x,y]=key.split(',').map(Number);return{x:x*NPC_RULES.tileSize,y:y*NPC_RULES.tileSize};}
@@ -37,6 +39,7 @@ export function lineOfSight(from,to,scene='valley'){
 }
 /** Only local, unoccluded samples and physically visible interaction points are returned. */
 export function perceive(npc,environment={}){
+  if(npc.mode==='discovery'&&isSleeping(npc))return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{items:[],capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],objects:[],shelters:[]};
   const cells=[],p=npc.position,r=NPC_RULES.visionRadius,s=NPC_RULES.tileSize,scene=npc.scene;
   for(let y=Math.ceil((p.y-r)/s);y<=Math.floor((p.y+r)/s);y++)for(let x=Math.ceil((p.x-r)/s);x<=Math.floor((p.x+r)/s);x++){
     const point={x:x*s,y:y*s};if(!scenePointValid(point,scene)||distance(p,point)>r||!lineOfSight(p,point,scene))continue;
@@ -44,9 +47,10 @@ export function perceive(npc,environment={}){
   }
   const visible=resource=>lineOfSight(p,resource,scene);
   const sources=scene==='valley'?nearbyWaterSources(p,r,environment).filter(visible):[];
-  const foods=scene==='valley'?nearbyFoodSources(p,r,environment).filter(visible).map(({renewAt,...visibleFood})=>visibleFood):[];
+  const foods=npc.mode!=='discovery'&&scene==='valley'?nearbyFoodSources(p,r,environment).filter(visible).map(({renewAt,...visibleFood})=>visibleFood):[];
+  const objects=npc.mode==='discovery'?[...senseEcology(environment.ecology,p,scene,r).filter(o=>visible(o.position)),...(npc.inventory.items||[]).map(id=>describeEcologyObject(environment.ecology,id,{actorId:npc.id})).filter(Boolean)]:[];
   const shelters=scene==='valley'?nearbyShelters(p,r).filter(visible).map(({shelteredTemperature,...entrance})=>entrance):[];
   const exit=scene!=='valley'&&distance(p,CAVE_EXIT)<=r&&lineOfSight(p,CAVE_EXIT,scene)?{...CAVE_EXIT,observedAt:npc.elapsed}:null;
   const sensed={...npc,sensation:environmentConditions(environment,{position:p,scene,wetness:npc.thermal.wetness})};
-  return {at:npc.elapsed,scene,exit,position:{...p},lifecycle:npc.lifecycle,body:bodySignals(sensed),environment:sensedEnvironment(sensed),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells,sources,foods,shelters};
+  return {at:npc.elapsed,scene,exit,position:{...p},lifecycle:npc.lifecycle,body:bodySignals(sensed),environment:sensedEnvironment(sensed),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:npc.mode==='discovery'?{items:[...(npc.inventory.items||[])],capacity:npc.inventory.capacity}:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells,sources,foods,shelters,...(npc.mode==='discovery'?{objects}:{})};
 }

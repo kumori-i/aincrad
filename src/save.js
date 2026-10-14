@@ -4,10 +4,18 @@ import { validateNpc } from './npc-memory.js';
 import { validateEnvironment } from './environment.js';
 import { createNpc } from './npc-state.js';
 import { validateCommunity } from './social.js';
-const SAVE_VERSIONS = new Set([1,2,3,4]);
+import { ECOLOGY_RULES } from './ecology-config.js';
+import { BIOLOGY_RULES } from './biology-config.js';
+const SAVE_VERSIONS = new Set([1,2,3,4,5]);
 const AGENT_IDS = ['aster','mira'];
-function newCharacterAt(id,elapsed){
-  const npc=createNpc({id});
+function unsupportedRules(raw){
+  if(raw?.version===5&&!['legacy','discovery'].includes(raw.simulationMode))return true;
+  if(raw.environment?.ecology?.version>ECOLOGY_RULES.version)return true;
+  const maximumActorVersion=raw?.version===5&&raw.simulationMode==='discovery'?4:3;
+  return [...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(npc=>npc?.version>maximumActorVersion||npc?.physiology?.version>BIOLOGY_RULES.version||npc?.discovery?.version>1);
+}
+function newCharacterAt(id,elapsed,mode){
+  const npc=createNpc({id,mode});
   // A newly added body joins the existing clock without experiencing its past.
   npc.elapsed=elapsed;npc.lifecycleAt=elapsed;npc.nextDecisionAt=elapsed;
   npc.bodyFeedback.since=elapsed;npc.modelBudget.since=elapsed;
@@ -19,8 +27,10 @@ function newCharacterAt(id,elapsed){
   return npc;
 }
 export function validateSave(raw, {restoring=true}={}) {
-  const base = freshState();
-  if (!raw || typeof raw !== 'object' || !SAVE_VERSIONS.has(raw.version)) return base;
+  const supported=raw&&typeof raw==='object'&&SAVE_VERSIONS.has(raw.version)&&!unsupportedRules(raw);
+  const mode=supported&&(raw.version<5||raw.simulationMode!=='discovery')?'legacy':'discovery';
+  const base = freshState({mode});
+  if (!supported) return base;
   const ids = new Set(CAVES.map(c => c.id));
   base.scene = ids.has(raw.scene) ? raw.scene : 'valley';
   const p = raw.player;
@@ -32,30 +42,49 @@ export function validateSave(raw, {restoring=true}={}) {
   base.visitedCaves = [...new Set((Array.isArray(raw.visitedCaves) ? raw.visitedCaves : []).filter(v => ids.has(v)))];
   const wp = raw.waypoint;
   if (wp && Number.isFinite(wp.x) && Number.isFinite(wp.y) && Math.abs(wp.x) < CONFIG.halfSize && Math.abs(wp.y) < CONFIG.halfSize) base.waypoint = { x: wp.x, y: wp.y };
-  base.environment=validateEnvironment(raw.environment,{elapsed:base.elapsed});
-  // Keep the historical Aster alias authoritative for older saves and callers
-  // that replace raw.npc explicitly; the reconstructed alias shares one object.
-  const records = new Map();
+  base.environment=validateEnvironment(raw.environment,{elapsed:base.elapsed,mode});
+  // Canonical agents are serialized only once. Preserve the old Aster alias for
+  // historical saves and callers; discovery records cannot import old recipes.
+  const records = new Map(), validVersions=mode==='discovery'?[4]:[1,2,3];
   for (const candidate of (Array.isArray(raw.agents)?raw.agents:[]).slice(0,16)) {
-    if (AGENT_IDS.includes(candidate?.id) && [1,2,3].includes(candidate.version) && !records.has(candidate.id)) records.set(candidate.id,candidate);
+    if (AGENT_IDS.includes(candidate?.id) && validVersions.includes(candidate.version) && !records.has(candidate.id)) records.set(candidate.id,candidate);
   }
-  if (raw.npc?.id==='aster' && [1,2,3].includes(raw.npc.version)) records.set('aster',raw.npc);
-  base.agents=AGENT_IDS.map(id=>records.has(id)?validateNpc(records.get(id),{restoring}):newCharacterAt(id,base.elapsed));
+  if (raw.npc?.id==='aster' && validVersions.includes(raw.npc.version)) records.set('aster',raw.npc);
+  base.agents=AGENT_IDS.map(id=>records.has(id)?validateNpc({...records.get(id),mode},{restoring}):newCharacterAt(id,base.elapsed,mode));
+  if(mode==='discovery'){
+    // Two serialized hands never own two copies of the same physical material.
+    // Repair orphaned held objects by putting the existing material down, rather
+    // than inventing acquisition evidence or silently destroying the resource.
+    const materials=base.environment.ecology.materials;
+    for(const npc of base.agents)npc.inventory.items=npc.inventory.items.filter(id=>materials.some(item=>item.id===id&&item.heldBy===npc.id));
+    for(const item of materials){
+      const holder=base.agents.find(npc=>npc.id===item.heldBy);
+      if(holder&&!holder.inventory.items.includes(item.id)){item.heldBy=null;item.position={...holder.position};item.scene=holder.scene;}
+    }
+  }
   base.npc=base.agents[0];
   base.selectedAgentId=AGENT_IDS.includes(raw.selectedAgentId)?raw.selectedAgentId:'aster';
   base.community=validateCommunity(raw.community);
   return base;
 }
+function protectedFresh(error){
+  const state=freshState();
+  // A failed read must not become a fresh autosave over the user's existing disk
+  // data. Explicitly starting a new expedition creates an unprotected state.
+  Object.defineProperty(state,'saveBlocked',{value:true,enumerable:false});
+  return {state,exists:false,error,blocked:true};
+}
 export function loadSave(storage) {
   try {
     const data = storage.getItem(CONFIG.saveKey);
-    if (!data) return { state: freshState(), exists: false, error: null };
+    if (!data) return { state: freshState(), exists: false, error: null, blocked:false };
     const parsed = JSON.parse(data);
-    if (!SAVE_VERSIONS.has(parsed?.version)) return { state: freshState(), exists: false, error: 'The previous save is not compatible. A new expedition is ready.' };
-    return { state: validateSave(parsed), exists: true, error: null };
-  } catch { return { state: freshState(), exists: false, error: 'The local save could not be read. Your previous data has not been overwritten.' }; }
+    if (!SAVE_VERSIONS.has(parsed?.version)||unsupportedRules(parsed)) return protectedFresh('The previous save uses unsupported rules or a newer version. It has been preserved; start a new expedition explicitly to replace it.');
+    return { state: validateSave(parsed), exists: true, error: null, blocked:false };
+  } catch { return protectedFresh('The local save could not be read. Your previous data has not been overwritten.'); }
 }
 export function writeSave(storage, state) {
+  if(state?.saveBlocked || !SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))return false;
   try {
     const {npc:historicalAlias,...saved}=validateSave(state,{restoring:false});
     storage.setItem(CONFIG.saveKey, JSON.stringify(saved));

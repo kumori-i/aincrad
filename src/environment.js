@@ -1,5 +1,6 @@
 import { CONFIG, ENV_RULES, APPLE_PATCHES, CAVES, PONDS } from './config.js';
 import { clamp, lerp, hash, distance, objectsInRect, terrain, canStandOutside } from './world.js';
+import { createEcology, validateEcology } from './ecology.js';
 
 export const WEATHER_KINDS = Object.freeze(['clear', 'cloudy', 'rainy', 'windy']);
 const WEATHER_EFFECTS = Object.freeze({
@@ -23,12 +24,14 @@ function updateWeather(env) {
     temperatureOffset: lerp(WEATHER_EFFECTS[previous].offset, WEATHER_EFFECTS[kind].offset, phase),
   };
 }
-export function createEnvironment(seed = CONFIG.seed) {
+export function createEnvironment(seed = CONFIG.seed, {mode='legacy'}={}) {
+  const discovery=mode==='discovery';
   const env = {
-    schemaVersion: 1, seed: Number.isInteger(seed) ? seed >>> 0 : CONFIG.seed, elapsed: 0,
+    schemaVersion: discovery?2:1, ...(discovery?{mode:'discovery'}:{}), seed: Number.isInteger(seed) ? seed >>> 0 : CONFIG.seed, elapsed: 0,
     settings: { hourOverride: null, weatherOverride: null }, weather: null,
-    foodStocks: APPLE_PATCHES.map(p => ({ id: `apple:${p.id}`, stock: p.capacity, renewAt: ENV_RULES.foodRenewalSeconds })),
+    foodStocks: discovery?[]:APPLE_PATCHES.map(p => ({ id: `apple:${p.id}`, stock: p.capacity, renewAt: ENV_RULES.foodRenewalSeconds })),
   };
+  if(discovery)env.ecology=createEcology(env.seed,0);
   updateWeather(env); return env;
 }
 /** Called once by the authoritative unpaused world update, never by artwork. */
@@ -36,7 +39,7 @@ export function tickEnvironment(env, dt) {
   if (!env || !Number.isFinite(dt) || dt <= 0) return;
   env.elapsed = safeElapsed(env.elapsed + Math.min(dt, 86400));
   updateWeather(env);
-  for (const entry of env.foodStocks || []) {
+  for (const entry of env.mode==='discovery'?[]:env.foodStocks || []) {
     const patch = APPLE_PATCHES.find(p => `apple:${p.id}` === entry.id);
     if (patch && env.elapsed >= entry.renewAt) {
       entry.stock = patch.capacity;
@@ -45,8 +48,8 @@ export function tickEnvironment(env, dt) {
   }
 }
 /** Ignore arbitrary fields, forged weather and unknown resource IDs in disk saves. */
-export function validateEnvironment(raw, { elapsed } = {}) {
-  const base = createEnvironment(Number.isInteger(raw?.seed) ? raw.seed : CONFIG.seed);
+export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'?'discovery':'legacy' } = {}) {
+  const base = createEnvironment(Number.isInteger(raw?.seed) ? raw.seed : CONFIG.seed,{mode});
   base.elapsed = safeElapsed(Number.isFinite(elapsed) ? elapsed : raw?.elapsed);
   const hour = raw?.settings?.hourOverride;
   base.settings.hourOverride = Number.isFinite(hour) && hour >= 0 && hour < 24 ? hour : null;
@@ -62,6 +65,7 @@ export function validateEnvironment(raw, { elapsed } = {}) {
       entry.stock = patch.capacity; entry.renewAt = base.elapsed + ENV_RULES.foodRenewalSeconds;
     }
   }
+  if(mode==='discovery')base.ecology=validateEcology(raw?.ecology,{seed:base.seed,elapsed:base.elapsed});
   updateWeather(base); return base;
 }
 export function environmentHour(env) {
@@ -98,6 +102,7 @@ export function localConditions(env, position, scene = 'valley') {
 }
 /** Decorative ecology derives from the same clock. No harvesting or animal minds yet. */
 export function ambientEcology(position, radius = 800, env = {}) {
+  if(env.mode==='discovery')return [];
   const point = pointOf(position), r = clamp(finite(radius, 800), 0, 1800), elapsed = safeElapsed(env.elapsed), entities = [];
   if (position?.scene && position.scene !== 'valley') return entities;
   const seed = Number.isInteger(env.seed) ? env.seed : CONFIG.seed;

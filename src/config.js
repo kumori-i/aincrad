@@ -1,6 +1,6 @@
 /** World distances are in logical pixels. Change rules here, never in the renderer. */
 export const CONFIG = Object.freeze({
-  title: 'Aincrad', version: '0.5.0', seed: 74193,
+  title: 'Aincrad', version: '0.6.0', seed: 74193,
   halfSize: 24000, valleyRadius: 22500, walkSpeed: 150, sprintMultiplier: 1.65,
   playerRadius: 10, fixedStep: 1 / 60, chunkSize: 640, treeCell: 145,
   dayRealSeconds: 3600, // One in-game day = one hour of unpaused play.

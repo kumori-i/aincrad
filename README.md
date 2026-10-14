@@ -1,6 +1,6 @@
 # Aincrad
 
-An original pixel-art desktop world with two persistent characters, **Aster and Mira**, learning to care for their bodies, prepare for exploration and share what they discover. Built with Electron and a fixed-step local simulation.
+An original pixel-art desktop world with two persistent characters, **Aster and Mira**, discovering useful actions through experience. Version 0.6 adds a finite food web, slower bodies tied to game hours and days, vulnerable sleep and a strict food-discovery expedition mode.
 
 ## Clone, build, and run
 
@@ -9,95 +9,91 @@ Install Node.js **22.12.0 or newer**, then:
 ```sh
 git clone https://github.com/kumori-i/aincrad.git
 cd aincrad
-npm install
-npm run build
+npm ci
 npm start
 ```
 
-`npm start` also builds automatically and opens the desktop application. For ongoing development:
+`npm start` builds and opens the desktop application. For ongoing development use `npm run dev`; it watches source changes, rebuilds and reloads the application. `npm run build` builds independently. The workflow follows [agentic-workspace](https://github.com/kumori-i/agentic-workspace): source → build → Electron. Generated files belong in ignored `dist/`; renderer HTML is an internal application asset, not a webpage to open or deploy.
 
-```sh
-npm run dev
-```
+The first installation downloads Electron. Once installed, the game runs offline without an account, API key or model service. Progress saves in the application's local profile.
 
-Development mode watches source changes, rebuilds and reloads the desktop window. Desktop code changes restart the application. Use `npm ci` instead of `npm install` to install exactly from the lockfile.
+## A living pixel valley
 
-The workflow follows [agentic-workspace](https://github.com/kumori-i/agentic-workspace): source → build → Electron. Generated files belong in ignored `dist/`. The renderer's HTML is an internal application asset; there is no webpage to open or deploy.
+Original pixel terrain, shoreline edges, trees, cliffs, bridges, caves and characters use a low-resolution buffer with nearest-neighbor scaling. Idle characters and trees stay still; walking uses discrete frames. The interface uses wood frames and parchment surfaces.
 
-The first installation downloads Electron. Once installed, the default game runs offline without an account, API key or model service. Progress saves in the application's local profile.
+![The discovery journal, live ecosystem and qualitative sensations](docs/pixel-journal-v06.png)
 
-## A pixel valley
+The mountain-ringed valley preserves the human avatar, five-minute reference crossing, lake, river, smaller ponds and four enterable caves. Its saved clock drives daylight, seeded clear/cloudy/rainy/windy weather and seasonal resources. A day lasts one hour at normal simulation speed. Temperature peaks in the early afternoon; wind, rain, shade and wetness affect exposure. Caves provide temperate shelter.
 
-Original pixel terrain, shoreline edges, layered trees, cliffs, bridges, caves and characters use a low-resolution buffer with nearest-neighbor scaling. Idle characters and trees stay still; walking uses discrete frames. The interface uses wood frames and parchment surfaces.
+Fresh expeditions use **discovery mode**. Grass, brambles and existing mature apple trees have finite biomass and crops. Grazing, picking, detached material and decomposition change the actual saved ecosystem; fruit does not refill on the preceding ten-minute patch timer. Rabbits, bobcats and foxes have simple local survival controllers, species-specific bodies, limited resources and bounded reproduction. Their feeding and pursuit are physical events, not ambient animation. In discovery mode the old decorative animal layer is replaced by the actual ecosystem.
 
-![Aster and Mira beside Trailhead Pond, with qualitative bodily sensations](docs/pixel-journal-v05.png)
+Grass consumers compete for vegetation, predators expend energy pursuing prey, and omnivores have alternatives. Carcasses and spoiled material decompose into the resource cycle. Sleeping creatures are vulnerable to contact and threats. Animal instincts may recognize their species' diet; the human controller does not receive those diet tables.
 
-The mountain-ringed valley preserves its lake, river, human avatar, five-minute reference crossing and one-hour day. Six smaller ponds, nine finite apple patches and four enterable caves include nearby **Willow Refuge**, roughly a 23-second walk along the habitat trail.
+Fish ecology, deer and larger predators, climbing, tool construction, cooking and cultivation are later milestones. The existing decorative fish in legacy worlds are not a fishing system. This first food web is a configurable simulation, not a calibrated wildlife population model.
 
-The shared saved clock drives daylight, seeded clear/cloudy/rainy/windy weather and food renewal. The daily base temperature peaks around 14:00 and is coolest around 04:00; wind, rain, shade and wetness affect felt temperature. Caves provide temperate shelter. Animals, fish and flowers are ambient scenery. Apples are usable food; hunting and fishing are later work. Drawing never advances these rules.
+## Food discovery rather than supplied recipes
 
-## Two bodies, two perspectives
+New Aster and Mira begin beside locally observable water with no discovered food techniques. Objects arrive as opaque IDs with locally visible appearance, position, motion and changes. They are not labeled food, edible, prey or nutritious, and hidden species/material data stays in the engine.
 
-Press **N** to open the journal. Select Aster or Mira to see her day, motives, current intention and remembered places, or follow her through the valley and caves. Each character has her own body, inventory, learned values, procedures, beliefs and plans. They share physical resources and world time, so an apple gathered by one is no longer available to the other.
+The characters have basic bounded object actions such as inspection, grasping, releasing, pulling, sampling and striking. **Foraging and hunting are not starting commands.** The offline discovery controller explores those primitives and records actually executed outcomes. A grasp can establish that an object can be held; it cannot establish that it feeds the body. Sampling is followed by digestion and delayed qualitative feedback. Evidence for a useful material is kept separately from proficiency in manipulating it.
 
-New expeditions place both characters beside locally observable water. They begin with empty flasks, no carried apples and no acquired procedures. Existing saves preserve Aster's identity, memory and water procedures and add Mira as an independent character. Neither receives a complete map or the other's private memories.
+Useful sequences become bounded remembered techniques only after physical practice and measured effects. Proficiency can reduce avoidable time and effort, but does not bypass reach, ownership, available material or minimum physical costs. Repeating an intention, failing at empty resources or describing a successful hunt creates no food or skill credit.
 
-The ordinary journal and model observations describe **sensations**, rather than percentages: peckish or ravenous, a dry mouth or parched, fresh or weary, easy breathing or winded, alert or sleepy. Weather is experienced as warm, cold, calm or gusty. Accumulating heat or cold produces distinct warning sensations—overheated or shivering—even after reaching shelter. A separate development checkbox exposes exact engine physiology for tuning.
+Your journal advice can seed a **reported, unverified hypothesis** about a technique. The initial offline instruction parser recognizes basic manipulation words and an already observed opaque ID or matching visible features, for example `pull object:17 then sample it`. A pronoun can refer to material actually detached by that operation. Ordinary food names do not look up an edible-item table or grant a routine. The character still has to carry out actions and observe consequences. Peer reports and notes remain testimony rather than instant verified facts. A familiar appearance alone does not certify an object's identity or edibility.
 
-The engine retains distinct, tunable stores:
+Movement, local navigation, water handling, bodily drives, action exploration and qualitative sensation mapping are supplied structure. This is strict experiential **food** discovery, not a blank starting mind, an unconstrained human nervous system or proof of open-ended civilization. A clean discovery experiment uses a new expedition rather than reclassifying old apple routines as self-discovered skills.
 
-| Body system | What changes it |
+## Bodies, digestion and sleep
+
+Aster and Mira have independent inventories, sensations, memories and bodies. Normal journal views describe hunger, thirst, discomfort, effort, tiredness and sleepiness in words. Exact reserves and physiological state remain behind developer inspection.
+
+| Internal system | Consequences |
 | --- | --- |
-| Nourishment and hydration | Time and exposure consume reserves; gathered apples and water replenish them. Food is the more frequent gameplay need. |
-| Energy | Activity spends it; adequate food, meals and recovery sustain it. |
-| Stamina | Walking spends it; pausing and rest restore it. Exhaustion slows movement. |
-| Fatigue | Wakefulness and activity accumulate it; rest and especially sleep relieve it. |
-| Sleep pressure | Time awake raises it; sleep reduces it. |
-| Thermal strain, wetness and health | Exposure has physical consequences; comfortable shelter permits recovery. Severe deprivation or strain damages health. |
+| Digestion and stomach contents | Ingested material has delayed effects; handling an object does not feed the body. |
+| Available and stored energy | Activity uses immediate energy; longer deprivation consumes reserves and worsens condition. |
+| Water balance | Water needs vary with time, exertion and exposure; food may also contribute water. |
+| Stamina, fatigue and injury | Effort and harm affect movement and physical attempts. |
+| Sleep pressure and daily rhythm | Time awake and time of day influence sleep and alertness. |
+| Sleep depth and waking inertia | Restorative sleep limits perception; awakening can leave temporary grogginess. |
+| Thermal strain, wetness and health | Exposure accumulates harm; shelter and recovery act over time. |
 
-Rest and sleep are actual timed actions. Food, water and exposure continue changing during them; unsafe conditions interrupt recovery. These are game-body systems, not a medical simulation or a human neural network.
+Discovery physiology uses **game hours and days**, consistently scaled by the simulation clock. Seven days without food and three without water are not fixed death timers. Deprivation and recovery depend on configurable stores, activity, exposure and species profiles. The implementation is approximate game physiology, not medical guidance.
 
-Gathering and consumption remain separate. A character can carry three apples and a separate flask. Patches have finite stock, and remembered availability becomes stale. Characters can observe that apples returned and form a tentative expectation; they do not receive the hidden renewal timer.
+Naps and longer sleep advance the world and continue bodily costs. Sleeping characters do not keep an awake visual feed. Limited sensory disturbance, discomfort or attacks can wake them; waking provides no free energy and severe failure does not guarantee a successful escape. Lost sleep, waking inertia and actual effort affect fatigue. Speed controls let you observe longer biological intervals without making resources or bodies use different clocks.
 
-Warning and critical discomfort create continuous learning costs before collapse, including during travel, waiting and model inference. Useful relief credits real prerequisite actions. Collapse and partial divine rescue remain a fallback, retaining identity and knowledge without granting carried supplies or independent-survival credit.
+Collapse and partial divine recovery preserve character identity and memory. Outside assistance does not count as independent self-sufficiency, replenish inventories or manufacture repeated predator meals. No simulation progresses while the application is closed.
 
-## Motives, beliefs and plans
+## Motives, conversations and knowledge
 
-Version 0.5 adds concurrent **Maslow-inspired drives**: survival, safety, belonging, competence, understanding, creativity, purpose and contribution. Their tensions change with bodily sensations, supplies, contact, failures, discoveries and active intentions. Survival can interrupt a trip or conversation. Curiosity does not require a rigid sequence of completed social levels.
+The concurrent Maslow-inspired drives remain survival, safety, belonging, competence, understanding, creativity, purpose and contribution. Bodily urgency can interrupt exploration or conversation. Beliefs distinguish observation, inference and reported claims; plans and spoken intentions never assign physical success.
 
-Characters retain bounded beliefs with evidence and confidence. Direct observations, hypotheses and reports have different status. A peer's advice or your message is testimony to check, not instant world truth. A claim cannot create a discovered resource, replenish apples or certify a route.
+Press **N** to open the journal, choose Aster or Mira, inspect her sensations and discovered techniques, or follow her through the valley and caves. Open **Conversation** to send a message to either character or both. You may reply now, later or never; characters continue their own activities. Questions have cooldowns and bounded history rather than a requirement to wait for you.
 
-Plans connect three to six validated actions to a goal. The offline controller supplies preparation and exploration templates: carry food and water, investigate a reachable edge of remembered terrain, observe, and return. A known return route and travel budget constrain these trips. Actual travel outcomes refine travel estimates. Failed steps, worsening sensations and expired budgets interrupt plans; saying what one intends to do never completes it.
+Local peer speech requires proximity, the same scene and line of sight. It reveals visible activity and reported experience, not private bodies, inventories or memory. Field notes retain authorship and physical locations. Characters must encounter a note to read it; inspecting notes as the human does not remotely deliver them to every character.
 
-The offline experiential learner updates bounded contextual and feature values from actual engine outcomes. Useful traces are recognized by supplied water, food and shelter procedure templates. Physiology, sensations, drives, navigation, dialogue and planning templates are **provided structure**; discovered resources, successful outcomes, learned action values and validated procedures depend on experience. This is not learning from a blank slate, arbitrary code invention or proof of emergent civilization.
-
-## Conversation and field notes
-
-Open **N → Conversation** to join the always-available journal room. Send a message to Aster, Mira or both. You may answer immediately, later, or leave a question unanswered. The characters continue their own activities and care for themselves. Pending-question and topic limits prevent repeated requests from becoming a waiting loop.
-
-Aster and Mira can speak to one another when they are nearby, in the same scene and within line of sight. These exchanges appear in the journal and build familiarity. Seeing a peer reveals visible appearance, not hidden reserves or private memory. Reports remain unverified until checked against the recipient's observations.
-
-The offline controller uses explicitly supplied, evidence-based dialogue templates. It can share a discovered resource and ask about a relevant uncertainty. A configured language model can compose language and propose plans through the same validated actions. The UI distinguishes offline dialogue from model-generated messages.
-
-Characters can write persistent field notes at their locations and read notes they encounter. Notes preserve authorship and optional belief references. Reading another author's note supplies reported knowledge; writing a claim changes no physical world rules. The journal lets you inspect the notes without granting every character remote access to their contents.
+Offline dialogue uses supplied language templates grounded in observations and uncertainty. A model can optionally compose human-journal language; its output is labeled separately. These language systems do not demonstrate learned human language or learned model weights.
 
 ## Optional local model
 
-The offline learner is not a language model. Optional planning and conversation use a bounded local OpenAI-compatible service, such as [Ollama](https://docs.ollama.com/api/openai-compatibility).
+The offline discovery learner is not a language model. An optional bounded loopback OpenAI-compatible service, such as [Ollama](https://docs.ollama.com/api/openai-compatibility), can compose human-journal replies and questions in discovery mode.
 
 ```sh
 ollama pull llama3.2:3b
 ```
 
-Start `ollama serve` if its background service is not already running. Open **N → Her day → Local model planning**, set endpoint `http://127.0.0.1:11434/v1` and model `llama3.2:3b`, then choose **Use local model**. This setting serves both characters; **Use offline learner** switches back. The model name is an example, not a validated performance recommendation.
+Start `ollama serve` if its background service is not running. Configure endpoint `http://127.0.0.1:11434/v1` and model `llama3.2:3b` in the character journal's local-model controls. This serves both characters; switching to the offline learner disables inference. The model name is an example, not a validated performance recommendation.
 
-Only loopback endpoints are supported. Requests contain each character's qualitative sensations, local/remembered places, relevant experience, motives, beliefs, plans and available conversations. They exclude exact body stores, another character's private state, the full map and hidden renewal schedule. A shared request queue and call budget bound model use; cancellation is scoped to the affected character. Timeouts, stale responses and service failures return control to the offline learner.
+**In discovery mode the bridge rejects model-selected physical actions, procedures, plans, peer speech and notes.** Physical experiments come from the experiential controller and explicit human reports. Model-generated text is not treated as human instruction, empirical evidence or a verified technique. Requests include qualitative sensations, sensory objects, executed experience and received journal messages; they exclude hidden nutrition, species/diet tables, body stores and unobserved world state.
 
-The model cannot run host code, execute a save, assign physical outcomes or invoke rescue. Settings live in the application profile; [the configuration example](docs/local-model.example.json) documents limits. Ollama models bring pretrained knowledge and biases. Aincrad updates gameplay memory and values, **not model weights**.
+Free generated language can still reflect pretrained knowledge; no prompt can establish that a language model has forgotten familiar foods. The separation prevents it from acting as the cold-start physical food oracle. It does not certify all generated sentences as knowledge-free or true. Aincrad updates gameplay memory and values, **not model weights**.
 
-Live model performance depends on the installed model and is distinct from deterministic provider fixtures and offline evaluation. See [TESTING.md](docs/TESTING.md) for the current verification record and its limits.
+Legacy expeditions retain their preceding optional model action/planning contract. The shared request queue and hourly budget remain bounded, with character-specific cancellation. Failures, stale responses and timeouts leave the offline controller in charge. The model has no operating-system, filesystem, shell, code-execution or rescue access. See [the configuration example](docs/local-model.example.json).
 
-## Controls
+Live model behavior must be evaluated separately from deterministic provider fixtures and offline runs. [Verification](docs/TESTING.md) records 242 passing tests, native background/pause/restart checks and frozen-source discovery trials. All four ordinary characters discovered useful food without human advice over two game days, but intake remained below expenditure. A fourteen-day animal-only diagnostic lost both bobcats and much of its initial population. Long-term self-sufficiency and ecological stability remain experimental; the detailed measurements and limits are in that record.
+
+## Existing saves and controls
+
+Existing v1–v4 saves remain **legacy expeditions**, preserving identities, progress, memories and the preceding body/food rules. A newly missing second character is added independently. A new expedition uses discovery mode and explicitly replaces the old saved world. Unsupported or damaged saves are reported rather than silently overwritten.
 
 | Control | Action |
 | --- | --- |
@@ -109,30 +105,26 @@ Live model performance depends on the installed model and is distinct from deter
 | Right-click field map | Clear waypoint |
 | Mouse wheel / + / − | Pixel camera zoom |
 | H | Guide |
-| Esc | Pause/resume or close a modal |
+| Esc | Explicitly pause/resume the simulation |
 | Ctrl+S / Command+S | Save |
+| Time selector | Shared simulation speed: 1×, 4×, 16× or 60× |
 | F11 | Fullscreen |
 
-Modal menus and focus loss pause the world. The journal stays live. Closing the app stops simulation; there is no wall-clock progression while closed. Starting a new expedition explicitly replaces the saved world and both characters' memories.
+**The world continues when you click out, hide or minimize the window.** Focus loss clears held movement keys. Opening the map, help or journal does not pause. Escape is the explicit pause control; closing the app stops simulation. Speed changes affect the shared clock consistently, not separate animal, body or plant timers.
 
 ## Verify and package
 
 ```sh
-npm run check       # Syntax, engine, learning, save and provider tests
+npm run check       # Syntax, engine, discovery, ecology, save and provider tests
 npm run build       # Build the desktop app in dist/
 npm run smoke       # Isolated Electron lifecycle check
-npm run evaluate    # Offline evaluation; see its stated scenarios and duration
+npm run evaluate    # Offline scenarios; inspect their stated duration and limits
 ```
 
-Windows and Linux CI check the source build and launch the actual Electron application. Optional distribution commands remain available:
+Windows and Linux CI check the source build and launch the actual Electron application. Optional `npm run package:win` and `npm run package:linux` distributions remain available; packaging is not required to run or develop the project. Windows distributions remain unsigned prototypes.
 
-```sh
-npm run package:win
-npm run package:linux
-```
+Read [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), [roadmap](docs/ROADMAP.md) and [verification](docs/TESTING.md) before extending the simulation. Publication is separately invoked and never part of installation, launch or tests. A successful finite run does not establish optimal survival or indefinitely stable ecology.
 
-Packaging is not required to run or develop the project. Windows distributions remain unsigned prototypes. Read [AGENTS.md](AGENTS.md) before editing, and see [architecture](docs/architecture.md), [roadmap](docs/ROADMAP.md) and [verification](docs/TESTING.md). Publication is a separately invoked task, never part of installation, launch or tests.
+Motivation draws conceptual inspiration from [AgentCiv's Maslow Machines](https://github.com/agentciv/agentciv/blob/main/paper/maslow_machines.md), knowledge artifacts from [TerraLingua](https://github.com/cognizant-ai-lab/terralingua), and embodied motivation from [MicroPsi](https://github.com/joschabach/micropsi2). The implementation is original; their source and results are not included or assumed to transfer.
 
-The motivational design draws on [AgentCiv's Maslow Machines](https://github.com/agentciv/agentciv/blob/main/paper/maslow_machines.md), persistent knowledge artifacts on [TerraLingua](https://github.com/cognizant-ai-lab/terralingua), and embodied motivation on [MicroPsi](https://github.com/joschabach/micropsi2). Aincrad's implementation is original; these are conceptual references, not included source code or evidence that their results transfer to this game.
-
-Construction, reproduction, professions, larger societies, farming, combat, multiplayer and sound remain outside this milestone. Long-term self-sufficiency and open-ended social behavior need further evaluation. A project license has not been selected; dependencies retain their own licenses.
+Human construction, reproduction, professions, larger societies, multiplayer and sound remain later work. A project license has not been selected; dependencies retain their own licenses.

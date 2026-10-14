@@ -2,6 +2,8 @@ import { CAVES, CONFIG, SOCIAL_RULES } from './config.js';
 import { lineOfSight } from './perception.js';
 import { recordClaim } from './cognition.js';
 import { bodySignals } from './interoception.js';
+import { isSleeping } from './biology.js';
+import { recordTechniqueReport, recordDiscoveryClaim } from './discovery.js';
 
 const AGENT_IDS = new Set(['aster', 'mira']);
 const SENDERS = new Set([...AGENT_IDS, 'human']);
@@ -19,7 +21,8 @@ const fingerprint = value => textValue(value).toLowerCase().replace(/[^a-z0-9]+/
 const nowFor = (npc, environment) => finite(environment?.elapsed, finite(npc?.elapsed));
 const bounded = (values, count) => values.slice(-count);
 const activityType = npc => npc?.active?.request?.type ?? npc?.active?.type;
-const aliveAndAwake = npc => npc?.lifecycle === 'AWAKE' && !['sleep', 'rest'].includes(activityType(npc));
+const validEffectClaim=claim=>claim&&/^object:\d{1,9}$/.test(claim.objectId)&&['sustained','water relief','discomfort','no noticeable change'].includes(claim.effect)?{objectId:claim.objectId,effect:claim.effect,experienceId:token(claim.experienceId)}:null;
+const aliveAndAwake = npc => npc?.lifecycle === 'AWAKE' && !isSleeping(npc) && !['sleep', 'rest', 'nap'].includes(activityType(npc));
 const pointValid = (point, scene) => point && Number.isFinite(point.x) && Number.isFinite(point.y) &&
   (scene === 'valley' ? Math.abs(point.x) < CONFIG.halfSize && Math.abs(point.y) < CONFIG.halfSize : point.x > 0 && point.y > 0 && point.x < 2500 && point.y < 2000);
 
@@ -49,6 +52,7 @@ function validMessage(raw) {
     channel: raw.channel, text, kind: ['speech', 'question', 'answer', 'note'].includes(raw.kind) ? raw.kind : 'speech',
     ...(token(raw.replyTo) ? { replyTo: token(raw.replyTo) } : {}),
     ...(raw.offline === true ? { offline: true } : {}),
+    ...(raw.model === true && raw.senderId!=='human' ? { model: true } : {}),
     ...(['pending', 'answered', 'superseded'].includes(raw.questionState) ? {questionState: raw.questionState} : {}),
   };
 }
@@ -62,6 +66,7 @@ function validNote(raw) {
     position: { x: raw.position.x, y: raw.position.y }, title, text,
     beliefIds: Array.isArray(raw.beliefIds) ? [...new Set(raw.beliefIds.map(id => token(id)).filter(Boolean))].slice(0, 4) : [],
     readers: Array.isArray(raw.readers) ? [...new Set(raw.readers.filter(id => AGENT_IDS.has(id)))].slice(0, 2) : [],
+    ...(Array.isArray(raw.effectClaims)?{effectClaims:raw.effectClaims.slice(0,2).map(validEffectClaim).filter(Boolean)}:{}),
     claims: Array.isArray(raw.claims) ? raw.claims.slice(0, 2).filter(claim => claim && textValue(claim.text, 300) && token(claim.resourceId, 70)).map(claim => ({subject: textValue(claim.subject, 100), kind: 'resource', text: textValue(claim.text, 300), resourceId: token(claim.resourceId, 70), ...(typeof claim.available === 'boolean' ? {available: claim.available} : {}), ...(pointValid(claim.position, 'valley') ? {position: {x: claim.position.x, y: claim.position.y}} : {})})) : [],
   };
 }
@@ -132,7 +137,7 @@ export function validateSocialMemory(raw, npc = {}) {
 export const validateSocial = validateSocialMemory;
 
 function appearance(npc) {
-  const activity = npc.lifecycle === 'COLLAPSED' ? 'unconscious' : npc.lifecycle !== 'AWAKE' ? 'recovering' : activityType(npc) === 'sleep' ? 'sleeping' : activityType(npc) === 'rest' ? 'resting' : activityType(npc) === 'move' ? 'walking' : 'standing';
+  const activity = npc.lifecycle === 'COLLAPSED' ? 'unconscious' : npc.lifecycle !== 'AWAKE' ? 'recovering' : isSleeping(npc) || ['sleep','nap'].includes(activityType(npc)) ? 'sleeping' : activityType(npc) === 'rest' ? 'resting' : activityType(npc) === 'move' ? 'walking' : 'standing';
   return {
     activity,
     wetness: (npc.thermal?.wetness ?? 0) > 35 ? 'visibly wet' : 'dry',
@@ -143,7 +148,7 @@ function appearance(npc) {
 function observedResources(npc) {
   return [
     ...Object.values(npc.memory?.sources ?? {}).map(resource => ({...resource, kind: 'water'})),
-    ...Object.values(npc.memory?.foods ?? {}).map(resource => ({...resource, kind: 'food'})),
+    ...(npc.mode==='discovery'?[]:Object.values(npc.memory?.foods ?? {}).map(resource => ({...resource, kind: 'food'}))),
     ...Object.values(npc.memory?.shelters ?? {}).map(resource => ({...resource, kind: 'shelter'})),
   ].filter(resource => typeof resource.id === 'string' && Number.isFinite(resource.observedAt)).sort((a, b) => b.observedAt - a.observedAt).slice(0, 24);
 }
@@ -151,7 +156,8 @@ function observedResources(npc) {
 const resourceSignature = resource => `${resource.kind}:${resource.name || resource.id}:${resource.available === false ? 'unavailable' : 'available'}:${Number.isFinite(resource.experiencedTemperature) ? 'visited' : 'unvisited'}`;
 const knowledgeKey = npc => {
   let hash = 2166136261;
-  for (const letter of observedResources(npc).map(resource => `${resource.id}:${resourceSignature(resource)}`).sort().join('|')) hash = Math.imul(hash ^ letter.charCodeAt(0), 16777619);
+  const learned=npc.mode==='discovery'?(npc.discovery?.effects??[]).map(effect=>`${effect.objectId}:${effect.effect}:${effect.id}`):[];
+  for (const letter of [...observedResources(npc).map(resource => `${resource.id}:${resourceSignature(resource)}`),...learned].sort().join('|')) hash = Math.imul(hash ^ letter.charCodeAt(0), 16777619);
   return `knowledge:${hash >>> 0}`;
 };
 const novelSinceQuestion = (npc, question) => (npc.cognition?.lastKnowledgeAt ?? 0) > (question.knowledgeAt ?? question.askedAt) ||
@@ -213,9 +219,9 @@ export class SocialCoordinator {
     memory.lastContactAt = finite(npc.elapsed);
   }
 
-  append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false}, at) {
+  append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false,model=false}, at) {
     const community = this.community();
-    const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {})};
+    const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {}),...(model&&senderId!=='human'?{model:true}:{})};
     community.messages.push(message); community.messages = bounded(community.messages, SOCIAL_RULES.maxMessages);
     return message;
   }
@@ -234,14 +240,15 @@ export class SocialCoordinator {
   deliverHuman(npc, message) {
     if (!aliveAndAwake(npc) || !this.receive(npc, message)) return;
     this.contact(npc, 'human', message.at, true);
+    if(npc.mode==='discovery')recordTechniqueReport(npc,message.text,{sourceId:'human',messageId:message.id,at:message.at});
     const pending = this.community().questions[npc.id];
     const matches = matchingClaims(npc, message.text);
     for (const claim of matches.length ? matches : [{subject: pending?.topic || 'journal', kind: 'general', text: message.text}]) {
       const reported = {...claim};
       // The human's text is evidence of a report, not evidence of current availability.
       delete reported.available;
-      if (/\b(empty|depleted|no apples|no water|ran out)\b/i.test(message.text)) reported.available = false;
-      else if (/\b(has apples|has water|plenty of apples|plenty of water)\b/i.test(message.text)) reported.available = true;
+      if (npc.mode!=='discovery'&&/\b(empty|depleted|no apples|no water|ran out)\b/i.test(message.text)) reported.available = false;
+      else if (npc.mode!=='discovery'&&/\b(has apples|has water|plenty of apples|plenty of water)\b/i.test(message.text)) reported.available = true;
       recordClaim(npc, reported, {sourceId: 'human', at: message.at, channel: 'journal', messageId: message.id});
     }
     if (message.replyTo && npc.cognition) {
@@ -260,17 +267,19 @@ export class SocialCoordinator {
 
   observe(npc) {
     const community = this.community(), memory = this.ensure(npc);
-    const journal = community.messages.filter(message => message.channel === 'journal' && (message.recipientId === 'all' || message.recipientId === npc.id || message.senderId === npc.id)).slice(-12);
-    for (const message of journal) {
+    const awake=aliveAndAwake(npc);
+    const availableJournal = community.messages.filter(message => message.channel === 'journal' && (message.recipientId === 'all' || message.recipientId === npc.id || message.senderId === npc.id));
+    for (const message of availableJournal) {
       if (message.senderId === 'human') this.deliverHuman(npc, message);
       else if (aliveAndAwake(npc)) this.receive(npc, message);
     }
-    const notes = community.notes.filter(note => note.scene === npc.scene && distance(note.position, npc.position) <= SOCIAL_RULES.noteRange && lineOfSight(npc.position, note.position, npc.scene)).map(note => ({id: note.id, authorId: note.authorId, title: note.title, scene: note.scene, position: {...note.position}, read: note.readers.includes(npc.id)}));
+    const journal=awake?availableJournal.slice(-12):[];
+    const notes = awake?community.notes.filter(note => note.scene === npc.scene && distance(note.position, npc.position) <= SOCIAL_RULES.noteRange && lineOfSight(npc.position, note.position, npc.scene)).map(note => ({id: note.id, authorId: note.authorId, title: note.title, scene: note.scene, position: {...note.position}, read: note.readers.includes(npc.id)})):[];
     return {
-      peers: this.nearby(npc).map(peer => ({id: peer.id, name: peer.name, scene: peer.scene, position: {...peer.position}, appearance: appearance(peer), relationship: {familiarity: (memory.relationships[peer.id]?.familiarity ?? 0) > .5 ? 'familiar' : memory.relationships[peer.id] ? 'acquainted' : 'unfamiliar'}})),
+      peers: awake?this.nearby(npc).map(peer => ({id: peer.id, name: peer.name, scene: peer.scene, position: {...peer.position}, appearance: appearance(peer), relationship: {familiarity: (memory.relationships[peer.id]?.familiarity ?? 0) > .5 ? 'familiar' : memory.relationships[peer.id] ? 'acquainted' : 'unfamiliar'}})):[],
       journal, nearbyMessages: memory.heard.filter(message => message.channel === 'peer').slice(-6), notes,
       pendingHumanTurn: journal.filter(message => message.senderId === 'human' && !memory.repliedTo.includes(message.id)).slice(-1)[0] ?? null,
-      pendingQuestion: community.questions[npc.id]?.status === 'pending' ? {...community.questions[npc.id], instruction: 'A human reply is optional. Continue your own activities and care for your body.'} : null,
+      pendingQuestion: awake&&community.questions[npc.id]?.status === 'pending' ? {...community.questions[npc.id], instruction: 'A human reply is optional. Continue your own activities and care for your body.'} : null,
       journalAvailability: 'The human may read or reply later, or may not answer. Sending a question does not require waiting.',
     };
   }
@@ -307,6 +316,10 @@ export class SocialCoordinator {
       memory.sharedClaims = bounded([...memory.sharedClaims, {to: target.id, resourceId: claim.resourceId, observedAt: resource.observedAt, signature: resourceSignature(resource)}], 48);
     }
     if (!claims.length) recordClaim(target, {subject: npc.name, kind: 'general', text}, {sourceId: npc.id, at, channel: 'peer', messageId: message.id});
+    if(npc.mode==='discovery'&&target.mode==='discovery'&&action.offline===true){
+      const effect=npc.discovery?.effects.find(effect=>effect.id===action.effectId);
+      if(effect)recordDiscoveryClaim(target,{objectId:effect.objectId,effect:effect.effect},{sourceId:npc.id,channel:'peer',messageId:message.id,at});
+    }
     this.contact(npc, target.id, at, claims.length > 0); this.contact(target, npc.id, at, claims.length > 0);
     npc.presentation ??= {}; npc.presentation.speakUntil = npc.elapsed + 4; npc.presentation.speakText = text;
     return {ok: true, code: 'SAID', message, deliveredTo: target.id, reportedClaims: claims.length, reward: claims.length ? .5 : .15};
@@ -324,7 +337,7 @@ export class SocialCoordinator {
       pending.status = 'superseded';
       const old = community.messages.find(message => message.id === pending.messageId); if (old) old.questionState = 'superseded';
     }
-    const message = this.append({senderId: npc.id, recipientId: 'all', channel: 'journal', text, kind: 'question', offline: action.offline === true}, at);
+    const message = this.append({senderId: npc.id, recipientId: 'all', channel: 'journal', text, kind: 'question', offline: action.offline === true,model:action.model===true}, at);
     message.questionState = 'pending';
     community.questions[npc.id] = {messageId: message.id, topic, text, askedAt: at, status: 'pending', knowledgeAt: npc.cognition?.lastKnowledgeAt ?? 0, knowledgeCount: npc.cognition?.knowledgeGained ?? 0, knowledgeKey: knowledgeKey(npc)};
     memory.lastAskedAt = at; memory.askedTopics[topic] = at;
@@ -341,7 +354,7 @@ export class SocialCoordinator {
     if (!turn) return {ok: false, code: 'UNKNOWN_HUMAN_TURN'};
     if (memory.repliedTo.includes(turn.id)) return {ok: false, code: 'JOURNAL_TURN_ALREADY_REPLIED'};
     if (memory.lastJournalAt !== null && at - memory.lastJournalAt < SOCIAL_RULES.speechCooldown) return {ok: false, code: 'CONVERSATION_COOLDOWN'};
-    const message = this.append({senderId: npc.id, recipientId: 'all', channel: 'journal', text, kind: 'answer', replyTo: turn.id, offline: action.offline === true}, at);
+    const message = this.append({senderId: npc.id, recipientId: 'all', channel: 'journal', text, kind: 'answer', replyTo: turn.id, offline: action.offline === true,model:action.model===true}, at);
     memory.repliedTo = bounded([...memory.repliedTo, turn.id], 24); memory.lastJournalAt = at;
     this.receive(npc, message); this.contact(npc, 'human', at, false);
     return {ok: true, code: 'REPLIED_JOURNAL', message, waitingRequired: false, reward: .1};
@@ -387,6 +400,10 @@ export class SocialCoordinator {
     if (community.notes.some(note => note.authorId === npc.id && fingerprint(note.title) === fingerprint(title) && fingerprint(note.text) === fingerprint(text))) return {ok: false, code: 'DUPLICATE_NOTE'};
     const at = nowFor(npc, this.getEnvironment?.());
     const note = {id: `note:${community.nextId++}`, authorId: npc.id, at, scene: npc.scene, position: {...npc.position}, title, text, beliefIds, readers: [npc.id], claims: matchingClaims(npc, text).map(claim => ({...claim, text: textValue(claim.text, 300)}))};
+    if(npc.mode==='discovery'&&action.offline===true){
+      const effect=npc.discovery?.effects.find(effect=>effect.id===action.effectId);
+      if(effect)note.effectClaims=[{objectId:effect.objectId,effect:effect.effect,experienceId:effect.id}];
+    }
     community.notes.push(note); community.notes = bounded(community.notes, SOCIAL_RULES.maxNotes);
     if (npc.cognition) npc.cognition.lastNoteAt = npc.elapsed;
     const message = this.append({senderId: npc.id, recipientId: 'all', channel: 'note', text: textValue(`${title}: ${text}`), kind: 'note'}, at);
@@ -400,11 +417,57 @@ export class SocialCoordinator {
     if (note.readers.includes(npc.id)) return {ok: true, code: 'NOTE_ALREADY_READ', note, reward: 0};
     note.readers.push(npc.id);
     for (const claim of note.claims?.length ? note.claims : [{subject: note.title, kind: 'general', text: note.text}]) recordClaim(npc, claim, {sourceId: note.authorId, at: nowFor(npc, this.getEnvironment?.()), channel: 'note', messageId: note.id});
+    if(npc.mode==='discovery')for(const claim of note.effectClaims??[])recordDiscoveryClaim(npc,claim,{sourceId:note.authorId,channel:'note',messageId:note.id,at:nowFor(npc,this.getEnvironment?.())});
     return {ok: true, code: 'READ_NOTE', note, reward: .35};
+  }
+
+  /** Discovery speech describes sensed appearances and executed consequences.
+   * It cannot turn animal metadata, a model's prose, or a human report into an
+   * independently verified technique. */
+  discoveryDialogue(npc){
+    if(!aliveAndAwake(npc))return null;
+    const body=bodySignals(npc);
+    if(['urgent','unconscious','recovering'].includes(body.overall))return null;
+    const at=nowFor(npc,this.getEnvironment?.()),memory=this.ensure(npc),observation=this.observe(npc);
+    const discovery=npc.discovery;
+    const effects=Array.isArray(discovery?.effects)?discovery.effects:[];
+    const objects=Object.values(discovery?.observations??{});
+    const describeEffect=effect=>effect.effect==='sustained'?`After sampling ${effect.objectId}, I noticed relief in my body.`:effect.effect==='water relief'?`After sampling ${effect.objectId}, my thirst eased.`:effect.effect==='discomfort'?`After sampling ${effect.objectId}, I felt discomfort.`:`After sampling ${effect.objectId}, I did not notice a useful change.`;
+    if(observation.pendingHumanTurn&&(memory.lastJournalAt===null||at-memory.lastJournalAt>=SOCIAL_RULES.speechCooldown)){
+      const turn=observation.pendingHumanTurn,query=turn.text.toLowerCase();
+      let response;
+      if(/how.*(feel|doing)|are you (okay|ok|well)|hungry|thirsty|tired/.test(query))response=`I feel ${body.overall}. My body feels ${body.hunger}, ${body.thirst}, and ${body.fatigue}.`;
+      else if(/what.*(find|found|discover|learn)|food|apple|hunt|forag|eat/.test(query))response=effects.length?`${describeEffect(effects.at(-1))} I am comparing repeated experiences; unfamiliar materials remain uncertain.`:'I have not established which unfamiliar materials sustain me. I can try small, physical interactions and compare what happens. Your suggestions would be reports for me to test.';
+      else if(/where.*(going|go|headed)|what.*(plan|doing|next)|your goal/.test(query))response=npc.cognition?.plan?.status==='active'?`My intention is ${npc.cognition.plan.goal}. I will revise it if conditions or my body change.`:'I am investigating what I can reach and comparing the consequences. I have no confirmed food technique yet.';
+      else response='I have read your message. I will treat any suggested method as something to test, and continue living whether you reply again or not.';
+      return {type:'journal_reply',text:response,replyTo:turn.id,offline:true};
+    }
+    const note=observation.notes.find(note=>note.authorId!==npc.id&&!note.read);
+    if(note)return {type:'read_note',noteId:note.id,offline:true};
+    if(memory.lastSpokeAt===null||at-memory.lastSpokeAt>=SOCIAL_RULES.speechCooldown){
+      for(const peer of observation.peers.filter(peer=>!['sleeping','resting','unconscious','recovering'].includes(peer.appearance.activity))){
+        const effect=effects.at(-1);
+        const text=effect?`${describeEffect(effect)} That is my experience, rather than a promise about every similar object.`:`Hello, ${peer.name}. I am still learning what the things around us do. We can compare what actually happens.`;
+        const key=`${peer.id}:${fingerprint(text)}`;
+        if(!memory.conversationKeys.some(item=>item.key===key&&at-item.at<SOCIAL_RULES.topicCooldown))return {type:'say',targetId:peer.id,text,...(effect?{effectId:effect.id}:{}),offline:true};
+      }
+    }
+    if(at-(npc.cognition?.lastNoteAt??0)>=120&&effects.length){
+      const effect=effects.at(-1),title=`${effect.objectId}: experience`,text=`${describeEffect(effect)} This is a record of my own experience; other materials and future conditions remain untested.`;
+      if(!this.community().notes.some(note=>note.authorId===npc.id&&note.title===title&&note.text===text))return {type:'write_note',title,text,beliefIds:[],effectId:effect.id,offline:true};
+    }
+    if(at<90||memory.lastAskedAt!==null&&at-memory.lastAskedAt<SOCIAL_RULES.questionCooldown)return null;
+    const topic=effects.some(effect=>effect.effect==='sustained')?'discovery-patterns':'unfamiliar-materials';
+    const text=topic==='unfamiliar-materials'?'I do not know which things here can ease my hunger. Have you observed a method I could test? You may answer later; I will keep investigating.':`I have experienced a useful change after an interaction, but I am unsure how reliable it is. Have you noticed something I could compare with my own experience?`;
+    if(observation.pendingQuestion&&(observation.pendingQuestion.topic===topic||at-observation.pendingQuestion.askedAt<300||!novelSinceQuestion(npc,observation.pendingQuestion)))return null;
+    if(Number.isFinite(memory.askedTopics[topic])&&at-memory.askedTopics[topic]<SOCIAL_RULES.topicCooldown)return null;
+    if(!objects.length&&!effects.length&&at<180)return null;
+    return {type:'ask_human',topic,text,offline:true};
   }
 
   /** Evidence-derived offline language. The optional model can use the same validated actions. */
   maybeDialogue(npc) {
+    if(npc.mode==='discovery')return this.discoveryDialogue(npc);
     if (!aliveAndAwake(npc) || npc.hydration < 45 || npc.nourishment < 45 || npc.health < 70 || Math.max(npc.thermal?.hot ?? 0, npc.thermal?.cold ?? 0) > 40) return null;
     const at = nowFor(npc, this.getEnvironment?.()), memory = this.ensure(npc), observation = this.observe(npc);
     if (observation.pendingHumanTurn && (memory.lastJournalAt === null || at - memory.lastJournalAt >= SOCIAL_RULES.speechCooldown)) {
