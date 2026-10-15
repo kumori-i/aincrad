@@ -30,6 +30,9 @@ export function recordDiscoveryOutcome(npc,action,result,event){
   }
   return experiment;
 }
+function sampleAcquisition(d,sample){
+  return d.experiments.filter(e=>e.ok&&e.materialId===sample.targetId&&e.id<sample.id).at(-1)||d.experiments.filter(e=>e.ok&&e.primitive==='grasp'&&e.targetId===sample.targetId&&e.id<sample.id).at(-1);
+}
 export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=true}={}){
   const d=memory(npc);
   for(const event of npc.physiology?.feedback||[]){
@@ -39,16 +42,18 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
     const effect={id:String(key),at:event.at,objectId:event.objectId,actionId:sample.actionId,ingestionId:sample.ingestionId||'',effect:event.effect,hunger:event.hunger,thirst:event.thirst,energy:event.energy,pain:event.pain,source:'experienced'};d.effects.push(effect);d.effects=d.effects.slice(-DISCOVERY_RULES.maxEffects);if(d.samplesPending[event.objectId]!==undefined&&d.samplesPending[event.objectId]<=sample.at)delete d.samplesPending[event.objectId];
     const proof=recordEffect?.(effect);if(proof?.id)effect.proofEventId=proof.id;
     if(event.effect==='discomfort'){
-      for(const t of d.techniques.filter(t=>t.evidence.includes(sample.id)))t.confidence='revised';
+      const acquired=sampleAcquisition(d,sample);
+      for(const t of d.techniques.filter(t=>t.evidence.includes(sample.id)||acquired&&t.sourceId===acquired.targetId&&t.steps[0].type===acquired.primitive)){
+        t.confidence='revised';t.evidence=[...new Set([...t.evidence,...(acquired?[acquired.id]:[]),sample.id])].slice(-16);
+      }
       for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='contradicted';continue;
     }
     if(event.effect!=='sustained'||!foodLearning)continue;
-    const detach=d.experiments.filter(e=>e.ok&&e.materialId===sample.targetId&&e.id<sample.id).at(-1);
-    const grasp=detach||d.experiments.filter(e=>e.ok&&e.primitive==='grasp'&&e.targetId===sample.targetId&&e.id<sample.id).at(-1);if(!grasp)continue;
+    const grasp=sampleAcquisition(d,sample);if(!grasp)continue;
     const sourceId=grasp.targetId,evidence=[grasp.id,sample.id],steps=[{type:grasp.primitive,targetId:'$source'},{type:'sample',targetId:'$material'}];
     let technique=d.techniques.find(t=>t.sourceId===sourceId&&t.steps[0].type===grasp.primitive);
     if(!technique){technique={id:`technique:${npc.id}:${d.nextId++}`,sourceId,steps,evidence,at:npc.elapsed,effect:'sustained',confidence:'tentative',successes:0,failures:0};d.techniques.push(technique);d.foodDiscoveries++;if(npc.cognition){npc.cognition.knowledgeGained++;npc.cognition.lastKnowledgeAt=npc.elapsed;}}
-    technique.successes++;technique.evidence=[...new Set([...technique.evidence,...evidence])].slice(-16);technique.confidence=technique.successes>=2?'supported':'tentative';d.techniques=d.techniques.slice(-DISCOVERY_RULES.maxTechniques);
+    technique.successes++;technique.evidence=[...new Set([...technique.evidence,...evidence])].slice(-16);if(technique.confidence!=='revised')technique.confidence=technique.successes>=2?'supported':'tentative';d.techniques=d.techniques.slice(-DISCOVERY_RULES.maxTechniques);
     npc.stats.independentMeals++;npc.stats.firstFoodAt??=npc.elapsed;
     for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='supported';
   }
@@ -109,10 +114,19 @@ function samplingBlocked(npc,body=bodySignals(npc)){
   const d=memory(npc);
   return ['full','overfull'].includes(body.digestion)||Object.entries(d.trials||{}).some(([key,t])=>key.endsWith('|sample')&&t.lastOk===false&&t.lastCode==='TOO_FULL'&&npc.elapsed-t.lastAt<60)||d.experiments.some(e=>e.primitive==='sample'&&!e.ok&&e.code==='TOO_FULL'&&npc.elapsed-e.at<60);
 }
-function sampleEligible(npc,id,body=bodySignals(npc)){
+function supportedHeldMaterial(npc,id){
+  const d=memory(npc);if(!npc.inventory.items.includes(id))return false;
+  // Reuse is earned for this physical item, not inferred from its source or
+  // appearance. Two feedback messages from one portion are only one trial.
+  const portions=new Set(d.effects.filter(effect=>effect.objectId===id&&effect.effect==='sustained'&&effect.ingestionId&&d.experiments.some(sample=>sample.primitive==='sample'&&sample.ok&&sample.targetId===id&&sample.ingestionId===effect.ingestionId&&sample.actionId===effect.actionId&&effect.at>=sample.at)).map(effect=>effect.ingestionId));
+  return portions.size>=2;
+}
+function sampleEligible(npc,id,body=bodySignals(npc),foodLearning=true){
   const d=memory(npc);
   if(samplingBlocked(npc,body)||d.effects.some(e=>e.objectId===id&&e.effect==='discomfort'))return false;
-  if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds)return false;
+  // Keep every pending identity for delayed feedback/protection, even when
+  // repeated positive experience supports another physical bite before it arrives.
+  if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds&&!(foodLearning&&supportedHeldMaterial(npc,id)))return false;
   return !recentlyFailed(npc,'sample',id);
 }
 function learnedStep(npc){
@@ -153,7 +167,7 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   }
   if(npc.scene!=='valley'&&(!dangerous||body.thirst==='desperate thirst'||body.hunger==='faint with hunger')&&(thirsty||['hungry','ravenous','faint with hunger'].includes(body.hunger))){const exit=npc.memory.caveExits?.[npc.scene];if(exit){if(distance(npc.position,exit)<100)return wrap({type:'exit_shelter'},'My body needs something outside this refuge.','survival');const move=routeTarget(npc,exit);if(move)return wrap(move,'I remember this route toward the opening.','survival');}}
   if(foodLearning&&['ravenous','faint with hunger'].includes(body.hunger)&&!samplingBlocked(npc,body)){
-    const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body));
+    const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
     if(carried)return wrap({type:'sample',targetId:carried},'My hunger is urgent, and a previous portion of this held material brought relief; I can test another before resting.','food');
     const reachable=npc.inventory.items.length<DISCOVERY_RULES.capacity&&d.techniques.find(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach);
     if(reachable&&!d.run)d.run={techniqueId:reachable.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
@@ -163,10 +177,10 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   if(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue))return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
   if(d.run){const action=learnedStep(npc);if(action)return wrap(action,'I am repeating an operation sequence supported by my own bodily feedback.','food');}
   const hungry=foodLearning&&body.hunger!=='content'&&!samplingBlocked(npc,body);
-  const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body));
+  const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&npc.inventory.items.length<DISCOVERY_RULES.capacity){const technique=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position))[0];if(technique){d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};const action=learnedStep(npc);if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');}}
-  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if((object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
+  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if((object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||lineOfSight(npc.position,o.position,npc.scene))&&(npc.scene!=='valley'||npc.inventory.items.includes(o.id)||distance(o.position,d.search.home||npc.position)<=DISCOVERY_RULES.searchRadius));
   const choices=[];
   for(const object of objects){
@@ -177,7 +191,7 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       if(['grasp','pull'].includes(type)&&(held||npc.inventory.items.length>=DISCOVERY_RULES.capacity))continue;
       const trial=d.trials?.[`${object.id}|${type}`]||{attempts:0,failures:0,lastAt:0,lastCode:''},failures=trial.failures;
       if(recentlyFailed(npc,type,object.id))continue;
-      if(type==='sample'&&!sampleEligible(npc,object.id,body))continue;
+      if(type==='sample'&&!sampleEligible(npc,object.id,body,foodLearning))continue;
       const novelty=8/(1+trial.attempts);
       choices.push({action:{type,targetId:object.id},score:novelty-failures*3+(type==='inspect_object'&&!trial.attempts?1:0)+random(npc)*(trial.attempts?.2:2)});
     }
