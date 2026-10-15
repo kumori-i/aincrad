@@ -1,6 +1,6 @@
 /** Engine-only ecology metadata. Never spread these values into observations. */
 export const ECOLOGY_RULES = Object.freeze({
-  version: 1, distributionVersion: 2, stepSeconds: .5, maxPlants: 768, maxAnimals: 256, maxMaterials: 256,
+  version: 1, distributionVersion: 3, stepSeconds: .5, maxPlants: 768, maxAnimals: 256, maxMaterials: 256,
   habitatGridSize: 7, habitatExtent: 20000, spatialCell: 640,
   maxDetritus: 500000, reach: 85, yearDays: 120, startSeasonDay: 74,
   grassKcalPerGram: .35, grassWaterPerGram: .7, grassGrowthGramsPerDay: 4800,

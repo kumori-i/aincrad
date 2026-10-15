@@ -2,6 +2,8 @@
 
 An original pixel-art desktop world with two persistent characters, **Aster and Mira**, discovering useful actions through experience. Version 0.7 adds **Cardinal**, a persistent world supervisor that observes private simulation measurements, tests environmental changes in copied worlds and adapts the running ecosystem from the measured results.
 
+The current development increment adds a **regional ecology foundation**: five terrain/water/climate habitat profiles, local finite soil and litter stocks, sparse prey-budgeted predator placement, and physically checked resource corridors. Existing expeditions retain their objects, depletion, people and memories. This is the first stage of the [v0.8 development plan](docs/DEVELOPMENT-v08.md), not a claim that the inhabitants can yet sustain themselves or migrate intelligently. See [regional verification](docs/TESTING-regional-foundation.md) for measured limits.
+
 ## Clone, build, and run
 
 Install Node.js **22.12.0 or newer**, then:
@@ -25,7 +27,11 @@ Original pixel terrain, shoreline edges, trees, cliffs, bridges, caves and chara
 
 The mountain-ringed valley preserves the human avatar, five-minute reference crossing, lake, river, smaller ponds and four enterable caves. Its saved clock drives daylight, seeded clear/cloudy/rainy/windy weather and seasonal resources. A day lasts one hour at normal simulation speed. Temperature peaks in the early afternoon; wind, rain, shade and wetness affect exposure. Caves provide temperate shelter.
 
-Fresh expeditions use **discovery mode**. Grass, brambles, mature apple trees and animal habitats are distributed across the traversable valley, rather than concentrated around the starting pond. Grass and fruit retain finite biomass and crops. Grazing, picking, detached material and decomposition change the actual saved ecosystem; fruit does not refill on the preceding ten-minute patch timer. Rabbits, bobcats and foxes have simple local survival controllers, species-specific bodies, limited resources and bounded reproduction. Their feeding and pursuit are physical events, not ambient animation. In discovery mode the old decorative animal layer is replaced by the actual ecosystem.
+Fresh expeditions use **discovery mode**. Wet banks, woodland, meadows, dry meadows and cooler uplands derive from the existing terrain, shoreline, canopy and ridge/latitude proxies. Producer density and fruit suitability vary by site. Rabbits concentrate around productive water-accessible refuges, while a larger remote lakeshore prey community permits sparse predators under an explicit initial energy-budget heuristic. Those estimates do not prove realized births or long-term population balance.
+
+Collision-checked paths connect the hydric refuges using real bridges and traversable ground. Vegetated stepping stones are physical objects; the routes and private habitat descriptors are not given to the inhabitants. A walkable route containing grass is not necessarily nutritious or known to a human. The current controller's home range and food-throughput limitations remain separate work.
+
+Each of the 49 regions has finite soil and detritus stocks. Grass and fruit growth debit the plant's actual region; litter decays where it lies, and carried litter follows its holder. Exhausted soil cannot draw from a distant region. Opening, uptake, deposit and decay counters support separate nutrient, detritus-mass and energy audits. The global energy ledger remains independent. Soil units are approximate, with a configured 0.004-unit cost per gram of new producer tissue. Animal excretion, full nutrient cycling and finite water reservoirs are not yet implemented. Grass and fruit retain finite biomass and crops. Grazing, picking, detached material and decomposition change the actual saved ecosystem; fruit does not refill on the preceding ten-minute patch timer. Rabbits, bobcats and foxes have simple local survival controllers, species-specific bodies, limited resources and bounded reproduction. Their feeding and pursuit are physical events, not ambient animation. In discovery mode the old decorative animal layer is replaced by the actual ecosystem.
 
 Grass consumers compete for vegetation, predators expend energy pursuing prey, and omnivores have alternatives. Carcasses and spoiled material decompose into the resource cycle. Sleeping creatures are vulnerable to contact and threats. Animal instincts may recognize their species' diet; the human controller does not receive those diet tables.
 
@@ -121,7 +127,7 @@ Live model behavior must be evaluated separately from deterministic provider fix
 
 Existing v1–v4 saves remain **legacy expeditions**, preserving identities, progress, memories and the preceding body/food rules. A newly missing second character is added independently. A new expedition uses discovery mode and explicitly replaces the old saved world. Unsupported or damaged saves are reported rather than silently overwritten.
 
-Existing v0.6 discovery expeditions gain Cardinal and missing valley habitats automatically. Migration preserves their people, memories, old object IDs and held material; introduced habitat energy is recorded separately. Legacy expeditions retain their existing physics and observation-only Cardinal.
+Existing discovery expeditions gain regional bookkeeping by partitioning their existing aggregate soil/litter stock. No plants, animals, fruit, calories or soil are added, and exhausted worlds stay exhausted. Their original layout, people, memories, object IDs and held material remain intact. Old aggregate litter has no location history; its one-time allocation is a deterministic approximation weighted by the existing producer distribution. Future saves retain actual local deposits. Damaged regional or oversized saves are protected rather than refilled or silently truncated. Legacy expeditions retain their existing physics and observation-only Cardinal.
 
 | Control | Action |
 | --- | --- |
@@ -152,6 +158,8 @@ npm run build       # Build the desktop app in dist/
 npm run smoke       # Isolated Electron lifecycle check
 npm run evaluate    # Offline scenarios; inspect their stated duration and limits
 npm run evaluate:cardinal # Actual paired supervisor, adaptation and coverage probes
+npm run evaluate:regions  # One-day ecology + remote-start diagnostics
+npm run verify:regions   # Actual isolated Electron close/reopen migration check
 ```
 
 Windows and Linux CI check the source build and launch the actual Electron application. Optional `npm run package:win` and `npm run package:linux` distributions remain available; packaging is not required to run or develop the project. Windows distributions remain unsigned prototypes.

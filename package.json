@@ -21,7 +21,9 @@
     "evaluate": "node scripts/evaluate-npc.mjs",
     "package:win": "npm run build && electron-builder --win zip --x64 --publish never",
     "package:linux": "npm run build && electron-builder --linux dir --x64 --publish never",
-    "evaluate:cardinal": "node scripts/evaluate-cardinal.mjs"
+    "evaluate:cardinal": "node scripts/evaluate-cardinal.mjs",
+    "evaluate:regions": "node scripts/evaluate-regional.mjs",
+    "verify:regions": "node scripts/verify-regional-desktop.mjs"
   },
   "productName": "Aincrad",
   "build": {

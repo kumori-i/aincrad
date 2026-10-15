@@ -9,13 +9,14 @@ const audit=e=>ecologyEnergy(e)+e.ledger.humanRemovedKcal+e.ledger.metabolizedKc
 const advance=(e,seconds,env={})=>{for(let i=0;i<seconds/.5;i++)tickEcology(e,.5,env);};
 const quadrant=p=>`${p.y<0?'north':'south'}${p.x<0?'West':'East'}`;
 
-test('stratified habitats cover the entire valley deterministically across seeds',()=>{
+test('regional producers cover the valley while consumers concentrate in supported habitats',()=>{
   for(const seed of [3,74193,119311]){
     const e=createEcology(seed),coverage=ecologyCoverage(e);
-    assert.equal(coverage.plantRegions,49);assert.equal(coverage.animalRegions,49);
+    assert.equal(coverage.plantRegions,49);assert.ok(coverage.animalRegions>=8&&coverage.animalRegions<49);
     assert.ok(coverage.bounds.minX<-19000&&coverage.bounds.maxX>19000&&coverage.bounds.minY<-19000&&coverage.bounds.maxY>19000);
     for(const kind of ['apple_tree','bramble','grass'])assert.equal(new Set(e.plants.filter(p=>p.kind===kind).map(p=>quadrant(p.position))).size,4,kind);
-    for(const species of ['rabbit','fox','bobcat'])assert.equal(new Set(e.animals.filter(a=>a.species===species).map(a=>quadrant(a.position))).size,4,species);
+    assert.equal(new Set(e.animals.filter(a=>a.species==='rabbit').map(a=>quadrant(a.position))).size,4);
+    assert.ok(coverage.species.fox<=2&&coverage.species.bobcat<=2);
     for(const p of e.plants)assert.ok(canStandOutside(p.position.x,p.position.y,10));
     for(const a of e.animals){assert.ok(canStandOutside(a.position.x,a.position.y,ECOLOGY_SPECIES[a.species].radius));assert.ok(e.plants.some(p=>p.kind==='grass'&&distance(p.position,a.position)<600));}
     assert.ok(e.plants.length<=ECOLOGY_RULES.maxPlants&&e.animals.length<=ECOLOGY_RULES.maxAnimals);
@@ -24,7 +25,7 @@ test('stratified habitats cover the entire valley deterministically across seeds
   }
 });
 
-test('old discovery habitats migrate once, retain all existing state and explicitly account introduced energy',()=>{
+test('old discovery habitats partition existing stocks once without adding objects or energy',()=>{
   const original=createEcology();original.distributionVersion=1;
   original.plants=original.plants.filter(p=>Math.abs(p.position.x)<2000&&Math.abs(p.position.y)<2000);
   original.animals=original.animals.filter(a=>Math.abs(a.position.x)<2000&&Math.abs(a.position.y)<2000);
@@ -32,11 +33,11 @@ test('old discovery habitats migrate once, retain all existing state and explici
   const detached=interactEcologyObject(original,source.id,'pull',{actorId:'aster',position:source.position});assert.ok(detached.ok);
   source.quantity=0;original.ledger.initialKcal=ecologyEnergy(original);original.ledger.externalKcal=0;original.ledger.discardedKcal=0;
   const existing=JSON.parse(JSON.stringify({plants:original.plants,animals:original.animals,materials:original.materials}));
-  const result=migrateEcologyDistribution(original);assert.ok(result.changed&&result.addedPlants>200&&result.addedAnimals>80&&result.externalKcal>0);
+  const result=migrateEcologyDistribution(original);assert.ok(result.changed);assert.equal(result.addedPlants,0);assert.equal(result.addedAnimals,0);assert.equal(result.externalKcal,0);
   assert.equal(original.ledger.externalKcal,result.externalKcal);assert.ok(Math.abs(audit(original))<1e-6);
   for(const group of ['plants','animals','materials'])for(const object of existing[group])assert.deepEqual(original[group].find(o=>o.id===object.id),object);
   assert.equal(lookupEcologyObject(original,source.id).quantity,0);assert.equal(lookupEcologyObject(original,detached.materialId).heldBy,'aster');
-  const count=original.plants.length,saved=validateEcology(JSON.parse(JSON.stringify(original)));assert.equal(saved.distributionVersion,2);
+  const count=original.plants.length,saved=validateEcology(JSON.parse(JSON.stringify(original)));assert.equal(saved.distributionVersion,3);
   assert.equal(migrateEcologyDistribution(saved).changed,false);assert.equal(saved.plants.length,count);
   saved.plants=[];saved.animals=[];assert.equal(migrateEcologyDistribution(saved).changed,false);assert.equal(saved.plants.length,0);
 });
@@ -50,7 +51,7 @@ test('invalid remote placement never falls back to the starting area',()=>{
 
 test('remote local sensing uses real opaque objects and excludes distant habitats',()=>{
   const e=createEcology(),remote=e.plants.find(p=>p.position.x<-19000&&p.position.y<-19000),objects=senseEcology(e,remote.position,'valley',500);
-  assert.ok(objects.length>=5&&objects.some(o=>o.id===remote.id));assert.ok(objects.every(o=>distance(o.position,remote.position)<=500));
+  assert.ok(objects.length>=2&&objects.some(o=>o.id===remote.id));assert.ok(objects.every(o=>distance(o.position,remote.position)<=500));
   assert.doesNotMatch(JSON.stringify(objects),/"(?:species|kind|diet|energyKcal|waterMl)"|apple|rabbit|carnivore/);
   assert.ok(!objects.some(o=>distance(o.position,{x:276,y:760})<500));
 });

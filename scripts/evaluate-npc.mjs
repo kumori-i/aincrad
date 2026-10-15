@@ -18,7 +18,7 @@ import {freshState,canStand,distance} from '../src/world.js';
 import {recordEvent} from '../src/npc-memory.js';
 
 const DEFAULT_SEEDS=[74193,3],dt=isMainThread?CONFIG.fixedStep:workerData.timestep??CONFIG.fixedStep;
-const MODULES=['config','biology-config','biology','npc-state','npc','ecology-config','ecology','environment','population','controller','interoception','discovery-config','discovery-state','discovery-actions','discovery','npc-memory','perception','navigation','cognition','social','world','resources'];
+const MODULES=['config','biology-config','biology','npc-state','npc','ecology-config','ecology','ecology-regions','ecology-corridors','environment','population','controller','interoception','discovery-config','discovery-state','discovery-actions','discovery','npc-memory','perception','navigation','cognition','social','world','resources'];
 function sourceFingerprint(){const modules=Object.fromEntries(MODULES.map(name=>[name+'.js',createHash('sha256').update(readFileSync(new URL('../src/'+name+'.js',import.meta.url))).digest('hex')]));return {sha256:createHash('sha256').update(JSON.stringify(modules)).digest('hex'),modules};}
 const loadedSource=sourceFingerprint();
 const SCENARIOS=[

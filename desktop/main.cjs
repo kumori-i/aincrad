@@ -105,7 +105,9 @@ async function runSmoke(){
       }
       assert(initial.environment.ecology.animals.length>0&&initial.environment.ecology.plants.length>0,'Living ecology is absent');
       const {ecologyCoverage}=await import('./src/ecology.js');const coverage=ecologyCoverage(initial.environment.ecology);
-      assert(coverage.plantRegions===coverage.regions&&coverage.animalRegions===coverage.regions,'Resources do not cover the whole valley');
+      assert(coverage.plantRegions===coverage.regions&&coverage.animalRegions>=8,'Regional producers and distributed consumer refuges are absent');
+      const {regionalResourceAudit}=await import('./src/ecology-regions.js');const regional=regionalResourceAudit(initial.environment.ecology);
+      assert(regional.regions===49&&Math.abs(regional.soilBalanceError)<1e-6,'Regional stocks failed to initialize');
       assert(initial.cardinal.version===1&&initial.cardinal.mode==='adaptive','Cardinal is not active in a new expedition');
       assert(initial.environment.worldRules.version===1,'Authoritative world rules are absent');
       const {BUILD_SOURCE_FINGERPRINT}=await import('./src/build-info.js');
@@ -130,7 +132,7 @@ async function runSmoke(){
       document.getElementById('atlas-zoom-in').click();assert(window.__aincrad.atlas().status.zoom>atlasBefore.status.zoom,'Field map did not zoom');document.getElementById('close-map').click();
       document.getElementById('open-cardinal').click();const beforeCardinal=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed>beforeCardinal,'Cardinal panel paused simulation');document.getElementById('close-cardinal').click();
       window.__aincrad.save();assert(document.getElementById('fatal').classList.contains('hidden'),'A renderer error occurred');
-      return {version:'0.7.0',mode:initial.simulationMode,characters:pair.map(n=>n.id),emptyInitialFoodKnowledge:true,qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,sharedClock:true,livingEcology:true,coverage,cardinalAdaptive:true,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,escapePause:true,mapContinues:true,mapZoomAndMarkers:true,cardinalPanelContinues:true,provider:'offline experiential controller; no live inference'};
+      return {version:'0.7.0',mode:initial.simulationMode,characters:pair.map(n=>n.id),emptyInitialFoodKnowledge:true,qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,sharedClock:true,livingEcology:true,coverage,regional,cardinalAdaptive:true,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,escapePause:true,mapContinues:true,mapZoomAndMarkers:true,cardinalPanelContinues:true,provider:'offline experiential controller; no live inference'};
     })()`);
     const before=await win.webContents.executeJavaScript('window.__aincrad.snapshot().elapsed');
     win.hide();await new Promise(resolve=>setTimeout(resolve,450));
