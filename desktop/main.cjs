@@ -95,7 +95,7 @@ async function runSmoke(){
       const status=await window.aincradAgent.status();assert(status.enabled===false,'Smoke inference must be disabled');
       document.getElementById('watch-aster').click();
       const initial=window.__aincrad.snapshot(),pair=initial.agents;
-      assert(initial.version===5&&initial.simulationMode==='discovery','Fresh expedition must use discovery rules');
+      assert(initial.version===6&&initial.simulationMode==='discovery','Fresh expedition must use discovery rules');
       assert(pair.length===2&&pair[0].id==='aster'&&pair[1].id==='mira','The two independent characters are absent');
       for(const n of pair){
         assert(n.mode==='discovery'&&n.physiology&&n.health===100,'Game-hour body did not initialize');
@@ -104,6 +104,12 @@ async function runSmoke(){
         assert(Object.keys(n.memory.sources).length>0,'Starter water must be locally observed');
       }
       assert(initial.environment.ecology.animals.length>0&&initial.environment.ecology.plants.length>0,'Living ecology is absent');
+      const {ecologyCoverage}=await import('./src/ecology.js');const coverage=ecologyCoverage(initial.environment.ecology);
+      assert(coverage.plantRegions===coverage.regions&&coverage.animalRegions===coverage.regions,'Resources do not cover the whole valley');
+      assert(initial.cardinal.version===1&&initial.cardinal.mode==='adaptive','Cardinal is not active in a new expedition');
+      assert(initial.environment.worldRules.version===1,'Authoritative world rules are absent');
+      const {BUILD_SOURCE_FINGERPRINT}=await import('./src/build-info.js');
+      assert(/^[a-f0-9]{64}$/.test(BUILD_SOURCE_FINGERPRINT),'Built source provenance is absent');
       assert(!('ecology' in initial),'Ecology has duplicate ownership');
       assert(document.getElementById('npc-condition').classList.contains('hidden'),'Exact physiology must be hidden');
       const {decisionObservation}=await import('./src/controller.js');const observation=decisionObservation(pair[0]);
@@ -119,9 +125,12 @@ async function runSmoke(){
       document.getElementById('journal-message').focus();window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'}));assert(window.__aincrad.metrics().paused,'Escape did not pause');
       const frozen=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed===frozen,'Explicit pause did not freeze simulation');
       window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'}));assert(!window.__aincrad.metrics().paused,'Escape did not resume');
-      document.getElementById('open-map').click();const beforeMap=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed>beforeMap,'Map paused simulation');document.getElementById('close-map').click();
+      document.getElementById('open-map').click();const beforeMap=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed>beforeMap,'Map paused simulation');
+      const atlasBefore=window.__aincrad.atlas();assert(atlasBefore.markers.some(m=>m.id==='aster')&&atlasBefore.markers.some(m=>m.id==='mira'),'Human map markers are absent');
+      document.getElementById('atlas-zoom-in').click();assert(window.__aincrad.atlas().status.zoom>atlasBefore.status.zoom,'Field map did not zoom');document.getElementById('close-map').click();
+      document.getElementById('open-cardinal').click();const beforeCardinal=window.__aincrad.snapshot().elapsed;await new Promise(r=>setTimeout(r,180));assert(window.__aincrad.snapshot().elapsed>beforeCardinal,'Cardinal panel paused simulation');document.getElementById('close-cardinal').click();
       window.__aincrad.save();assert(document.getElementById('fatal').classList.contains('hidden'),'A renderer error occurred');
-      return {version:'0.6.0',mode:initial.simulationMode,characters:pair.map(n=>n.id),emptyInitialFoodKnowledge:true,qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,sharedClock:true,livingEcology:true,escapePause:true,mapContinues:true,provider:'offline experiential controller; no live inference'};
+      return {version:'0.7.0',mode:initial.simulationMode,characters:pair.map(n=>n.id),emptyInitialFoodKnowledge:true,qualitativeObservation:observation.condition.body,journalMessages:window.__aincrad.conversation().messages.length,sharedClock:true,livingEcology:true,coverage,cardinalAdaptive:true,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,escapePause:true,mapContinues:true,mapZoomAndMarkers:true,cardinalPanelContinues:true,provider:'offline experiential controller; no live inference'};
     })()`);
     const before=await win.webContents.executeJavaScript('window.__aincrad.snapshot().elapsed');
     win.hide();await new Promise(resolve=>setTimeout(resolve,450));

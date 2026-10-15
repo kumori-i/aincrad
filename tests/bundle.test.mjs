@@ -5,12 +5,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildApplication } from '../scripts/build.mjs';
+import { BUILD_SOURCE_FINGERPRINT } from '../src/build-info.js';
 test('desktop build contains deterministic renderer assets and desktop runtime with restrictive CSP',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'aincrad-build-'));
   try{
     const a=await buildApplication(join(dir,'a')),b=await buildApplication(join(dir,'b'));
     const manifest=await readFile(join(a.renderer,'asset-manifest.json'),'utf8');
     assert.equal(manifest,await readFile(join(b.renderer,'asset-manifest.json'),'utf8'));
+    assert.match(a.sourceFingerprint,/^[a-f0-9]{64}$/);
+    assert.equal(JSON.parse(manifest).sourceFingerprint,a.sourceFingerprint);
+    assert.equal(await readFile(join(a.renderer,'src','build-info.js'),'utf8'),`export const BUILD_SOURCE_FINGERPRINT=${JSON.stringify(a.sourceFingerprint)};\n`);
+    assert.equal(BUILD_SOURCE_FINGERPRINT,'','Unbuilt source must not claim compiled provenance');
     for(const file of JSON.parse(manifest).files){
       const data=await readFile(join(a.renderer,file.path));
       assert.equal(file.sha256,createHash('sha256').update(data).digest('hex'));

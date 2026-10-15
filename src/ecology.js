@@ -1,9 +1,10 @@
-import { CONFIG, PONDS, APPLE_PATCHES, CAVES, CAVE_SPAWN } from './config.js';
+import { CONFIG, PONDS, CAVES, CAVE_SPAWN } from './config.js';
 import { ECOLOGY_RULES as R, ECOLOGY_SPECIES as SPECIES, ECOLOGY_MATERIALS as MATERIALS } from './ecology-config.js';
-import { hash, distance, canStandOutside, canStandCave, waterDistance, riverX, riverWidth } from './world.js';
+import { hash, distance, canStandOutside, canStandCave, waterDistance, riverX, riverWidth, LAKE } from './world.js';
 import { environmentConditions } from './environment.js';
 import { createPhysiology, validatePhysiology, tickPhysiology, exertPhysiology, ingestMaterial, beginSleep, wakePhysiology, isSleeping } from './biology.js';
 import { BIOLOGY_PROFILES } from './biology-config.js';
+import { getWorldRule } from './world-rules.js';
 
 const finite = (v,f=0) => Number.isFinite(v)?v:f;
 const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,finite(v,lo)));
@@ -13,27 +14,57 @@ const idPattern = /^object:[1-9][0-9]{0,8}$/;
 const speciesNames = Object.keys(SPECIES);
 const materialNames = Object.keys(MATERIALS);
 const activities = ['idle','moving','fleeing','chasing','feeding','drinking','resting','sleeping'];
-const emptyLedger = () => ({initialKcal:0,photosynthesisKcal:0,humanRemovedKcal:0,metabolizedKcal:0,decomposedKcal:0,discardedKcal:0,birthTransferredKcal:0,externalKcal:0,waterConsumedMl:0});
+const emptyLedger = () => ({initialKcal:0,photosynthesisKcal:0,humanRemovedKcal:0,metabolizedKcal:0,decomposedKcal:0,discardedKcal:0,birthTransferredKcal:0,externalKcal:0,waterConsumedMl:0,animalAbsorbedKcal:0,animalAbsorbedWaterMl:0,animalWaterLostMl:0});
 const nextId = e => `object:${e.nextId++}`;
+// Runtime indexes are rebuilt on restoration and never serialized. Local animal
+// queries remain proportional to their habitat rather than the whole valley.
+const indexes=new WeakMap(),navigation=new WeakMap();
+const cellKey=(o)=>`${o.scene}:${Math.floor(o.position.x/R.spatialCell)}:${Math.floor(o.position.y/R.spatialCell)}`;
+function invalidateIndex(e){indexes.delete(e);}
+function buildIndex(e){
+  const index={ids:new Map(),cells:new Map(),species:{},elapsed:e.elapsed,plants:e.plants,animals:e.animals,materials:e.materials,lengths:[e.plants.length,e.animals.length,e.materials.length]};
+  for(const o of [...e.plants,...e.animals,...e.materials]){
+    index.ids.set(o.id,o);const key=cellKey(o);if(!index.cells.has(key))index.cells.set(key,new Set());index.cells.get(key).add(o);
+    if(o.species)index.species[o.species]=(index.species[o.species]||0)+1;
+  }
+  indexes.set(e,index);return index;
+}
+function indexFor(e){const i=indexes.get(e);return i&&i.elapsed===e.elapsed&&i.plants===e.plants&&i.animals===e.animals&&i.materials===e.materials&&i.lengths[0]===e.plants.length&&i.lengths[1]===e.animals.length&&i.lengths[2]===e.materials.length?i:buildIndex(e);}
+function nearby(e,point,scene,radius){
+  const i=indexFor(e),out=[];
+  for(let y=Math.floor((point.y-radius)/R.spatialCell);y<=Math.floor((point.y+radius)/R.spatialCell);y++)for(let x=Math.floor((point.x-radius)/R.spatialCell);x<=Math.floor((point.x+radius)/R.spatialCell);x++)
+    for(const o of i.cells.get(`${scene}:${x}:${y}`)||[])if(distance(o.position,point)<=radius)out.push(o);
+  return out;
+}
+function movedInIndex(e,o,oldKey){const i=indexes.get(e);if(!i)return;const key=cellKey(o);if(key!==oldKey){i.cells.get(oldKey)?.delete(o);if(!i.cells.has(key))i.cells.set(key,new Set());i.cells.get(key).add(o);}}
 function safePoint(x,y,radius=10) {
+  if(!Number.isFinite(x)||!Number.isFinite(y))return null;
   x=clamp(x,-CONFIG.halfSize+100,CONFIG.halfSize-100);y=clamp(y,-CONFIG.halfSize+100,CONFIG.halfSize-100);
   if(canStandOutside(x,y,radius))return{x,y};
   for(let ring=1;ring<32;ring++)for(let a=0;a<12;a++){
     const px=x+Math.cos(a*Math.PI/6)*ring*22,py=y+Math.sin(a*Math.PI/6)*ring*22;
     if(canStandOutside(px,py,radius))return{x:px,y:py};
   }
-  return {x:276,y:760};
+  // A failed placement remains absent. Teleporting distant habitats to the
+  // starting village was the cause of the old clustering defect.
+  return null;
 }
 function plant(e,kind,p,index) {
-  const point=safePoint(p.x,p.y),capacity=kind==='grass'?R.grassCapacityGrams:kind==='apple_tree'?10:28;
-  const count=kind==='grass'?0:Math.round(capacity*(.55+hash(index,8,e.seed)*.35));
+  if(e.plants.length>=R.maxPlants||!p)return null;
+  const point=safePoint(p.x,p.y);if(!point)return null;
+  const capacity=kind==='grass'?R.grassCapacityGrams:kind==='apple_tree'?10:28;
+  const absoluteSeason=R.startSeasonDay+e.elapsed/CONFIG.dayRealSeconds,seasonDay=absoluteSeason%R.yearDays,start=kind==='apple_tree'?65:40,end=kind==='apple_tree'?85:95;
+  const ripe=seasonDay>=start&&seasonDay<end;
+  const count=kind==='grass'||!ripe?0:Math.round(capacity*(.55+hash(index,8,e.seed)*.35));
   const out={id:nextId(e),kind,scene:'valley',position:point,capacity,quantity:count,
     biomassGrams:kind==='grass'?capacity*(.7+hash(index,9,e.seed)*.2):0,moisture:.65,
-    stage:kind==='grass'?'green':'ripe',growth:0,seasonIndex:0,fallHours:0,ageDays:kind==='apple_tree'?2000:400};
-  e.plants.push(out);return out;
+    stage:kind==='grass'?'green':ripe?'ripe':seasonDay>=start-12&&seasonDay<start?seasonDay<start-8?'flowering':'growing':'bare',growth:0,seasonIndex:Math.floor(absoluteSeason/R.yearDays),fallHours:0,ageDays:kind==='apple_tree'?2000:400};
+  e.plants.push(out);invalidateIndex(e);return out;
 }
 function animal(e,species,p,elapsed=0,{juvenile=false,energyKcal,structureKcal}={}){
+  if(e.animals.length>=R.maxAnimals||!p)return null;
   const rules=SPECIES[species],pos=safePoint(p.x,p.y,rules.radius);
+  if(!pos)return null;
   const capacity=BIOLOGY_PROFILES[species].availableCapacityKcal;
   const body=createPhysiology(species,{availableEnergyKcal:energyKcal===undefined?rules.initialReserveKcal*.4:Math.min(capacity,energyKcal),storedEnergyKcal:energyKcal===undefined?rules.initialReserveKcal*.6:Math.max(0,energyKcal-capacity)});
   const out={id:nextId(e),species,scene:'valley',position:pos,physiology:body,health:100,
@@ -42,23 +73,68 @@ function animal(e,species,p,elapsed=0,{juvenile=false,energyKcal,structureKcal}=
     structureKcal:structureKcal ?? rules.structureKcal,lastBirthHours:hours(elapsed)-rules.birthIntervalDays*24,
     targetId:null,targetPosition:null,targetKind:null,homePosition:{...pos},lastAttackAt:-100,cooldownHours:0,bornAt:elapsed,
     direction:hash(e.nextId,44,e.seed)*Math.PI*2,actionHours:0};
-  e.animals.push(out);return out;
+  e.animals.push(out);invalidateIndex(e);return out;
+}
+/** Deterministic strata cover the whole walkable valley, including remote edges. */
+function habitatAnchors(seed){
+  const anchors=[{key:'starter',x:360,y:1080}];
+  for(let row=0;row<R.habitatGridSize;row++)for(let col=0;col<R.habitatGridSize;col++){
+    const x=-R.habitatExtent+col*(R.habitatExtent*2/(R.habitatGridSize-1)),y=-R.habitatExtent+row*(R.habitatExtent*2/(R.habitatGridSize-1));
+    let best=null,score=Infinity;
+    // Water-aware within each stratum; never collapse a remote region into a
+    // central pond. Grazers also obtain water from their local moist plants.
+    for(let n=0;n<20;n++){
+      const angle=hash(col*31+n,row*17+11,seed)*Math.PI*2,range=n===0?0:hash(col*17+n,row*29+3,seed)*1100;
+      const p=safePoint(x+Math.cos(angle)*range,y+Math.sin(angle)*range,16);if(!p)continue;
+      const value=waterDistance(p.x,p.y)+distance(p,{x,y})*.3;
+      if(value<score){best=p;score=value;}
+    }
+    if(best)anchors.push({key:`region:${col}:${row}`,...best});
+  }
+  for(const pond of PONDS){const p=safePoint(pond.x-pond.rx-130,pond.y+140,16);if(p)anchors.push({key:`pond:${pond.id}`,...p});}
+  return anchors;
+}
+function seedHabitat(e,p,index,{animals=true}={}){
+  const beforePlants=e.plants.length,beforeAnimals=e.animals.length;
+  plant(e,'apple_tree',p,index);plant(e,'bramble',{x:p.x+130,y:p.y+90},index+100);
+  for(let n=0;n<4;n++)plant(e,'grass',{x:p.x+(n%2?160:-120),y:p.y+(n<2?160:-145)},index*4+n);
+  if(animals){
+    for(let n=0;n<2;n++)animal(e,'rabbit',{x:p.x-90+n*160,y:p.y+180},e.elapsed);
+    if(index>0&&index%4===0)animal(e,'fox',{x:p.x+260,y:p.y+130},e.elapsed);
+    const [,col,row]=p.key?.split(':')||[],catHabitat=p.key==='pond:oldwood'||Number(row)%2===1&&[1,5].includes(Number(col));
+    if(catHabitat)animal(e,'bobcat',{x:p.x-270,y:p.y-200},e.elapsed);
+  }
+  return{plants:e.plants.length-beforePlants,animals:e.animals.length-beforeAnimals};
 }
 /** Authoritative starting ecosystem. Tree/animal labels remain private to the engine. */
 export function createEcology(seed=CONFIG.seed,elapsed=0) {
-  const e={version:R.version,seed:Number.isInteger(seed)?seed>>>0:CONFIG.seed,elapsed:Math.max(0,finite(elapsed)),pending:0,nextId:1,
+  const e={version:R.version,distributionVersion:R.distributionVersion,seed:Number.isInteger(seed)?seed>>>0:CONFIG.seed,elapsed:Math.max(0,finite(elapsed)),pending:0,nextId:1,
     plants:[],animals:[],materials:[],detritus:{massGrams:0,nutrients:2500,energyKcal:0},ledger:emptyLedger(),births:0,deaths:0};
-  const anchors=[{x:360,y:1080},...APPLE_PATCHES.map(p=>({x:p.x,y:p.y})),...PONDS.slice(1).map(p=>({x:p.x-280,y:p.y+230}))];
-  anchors.forEach((p,i)=>{
-    plant(e,i%2===0?'apple_tree':'bramble',p,i);
-    plant(e,'bramble',{x:p.x+130,y:p.y+90},i+25);
-    for(let n=0;n<4;n++)plant(e,'grass',{x:p.x+(n%2?160:-120),y:p.y+(n<2?160:-145)},i*4+n);
-  });
-  // Starter creatures are close enough to observe; predators begin farther away.
-  for(let i=0;i<14;i++)animal(e,'rabbit',{x:anchors[i%7].x-80+(i>=7?75:0),y:anchors[i%7].y+200},elapsed);
-  for(const p of [anchors[7],anchors[9]])for(let i=0;i<2;i++)animal(e,'rabbit',{x:p.x-60+i*60,y:p.y+150},elapsed);
-  for(const [species,point] of [['fox',{x:1750,y:1500}],['fox',{x:5100,y:4850}],['fox',{x:-10400,y:7650}],['bobcat',{x:9000,y:-6750}],['bobcat',{x:11900,y:15100}]])animal(e,species,point,elapsed);
+  const anchors=habitatAnchors(e.seed);anchors.forEach((p,i)=>seedHabitat(e,p,i));
+  e.detritus.nutrients=Math.max(2500,anchors.length*180);
   e.ledger.initialKcal=ecologyEnergy(e);return e;
+}
+/** One-time additive v0.6 migration. Existing objects, depletion and bodies are untouched. */
+export function migrateEcologyDistribution(e,version=R.distributionVersion){
+  if(!e||version!==R.distributionVersion||(e.distributionVersion||1)>=version)return{changed:false,addedPlants:0,addedAnimals:0,externalKcal:0};
+  const before=ecologyEnergy(e);let addedPlants=0,addedAnimals=0,addedSoilNutrients=0;
+  for(const [i,p]of habitatAnchors(e.seed).entries()){
+    // Existing populated habitats are preserved, including depleted fruit trees.
+    if(e.plants.some(o=>distance(o.position,p)<1500))continue;
+    const added=seedHabitat(e,p,i);addedPlants+=added.plants;addedAnimals+=added.animals;
+    if(added.plants){const nutrients=Math.min(180,500000-e.detritus.nutrients);e.detritus.nutrients+=nutrients;addedSoilNutrients+=nutrients;}
+  }
+  const externalKcal=Math.max(0,ecologyEnergy(e)-before);e.ledger.externalKcal+=externalKcal;e.distributionVersion=version;
+  invalidateIndex(e);return{changed:true,addedPlants,addedAnimals,externalKcal,addedSoilNutrients};
+}
+/** Read-only engine coverage audit, never part of an inhabitant's observation. */
+export function ecologyCoverage(e){
+  const grid=R.habitatGridSize,cell=R.habitatExtent*2/(grid-1),region=p=>`${Math.floor((p.x+R.habitatExtent+cell/2)/cell)},${Math.floor((p.y+R.habitatExtent+cell/2)/cell)}`;
+  const plants=e?.plants||[],animals=e?.animals||[],objects=[...plants,...animals],quadrants={northWest:0,northEast:0,southWest:0,southEast:0};
+  for(const o of objects)quadrants[`${o.position.y<0?'north':'south'}${o.position.x<0?'West':'East'}`]++;
+  return{distributionVersion:e?.distributionVersion||1,regions:grid*grid,occupiedRegions:new Set(objects.map(o=>region(o.position))).size,plantRegions:new Set(plants.map(o=>region(o.position))).size,animalRegions:new Set(animals.map(o=>region(o.position))).size,quadrants,
+    bounds:objects.length?{minX:Math.min(...objects.map(o=>o.position.x)),maxX:Math.max(...objects.map(o=>o.position.x)),minY:Math.min(...objects.map(o=>o.position.y)),maxY:Math.max(...objects.map(o=>o.position.y))}:null,
+    plants:plants.length,animals:animals.length,species:Object.fromEntries(speciesNames.map(s=>[s,animals.filter(a=>a.species===s).length]))};
 }
 function plantEnergy(p){return p.kind==='grass'?p.biomassGrams*R.grassKcalPerGram:p.quantity*(p.kind==='apple_tree'?MATERIALS.apple.energyKcal:MATERIALS.berry.energyKcal);}
 function bodyEnergy(p){return Math.max(0,finite(p?.availableEnergyKcal))+Math.max(0,finite(p?.storedEnergyKcal))+(p?.stomach||[]).reduce((n,v)=>n+Math.max(0,finite(v.remainingKcal)),0);}
@@ -69,7 +145,7 @@ export function ecologyEnergy(e) {
 }
 export function lookupEcologyObject(e,id) {
   if(!e || typeof id!=='string' || !idPattern.test(id))return null;
-  return [...e.plants,...e.animals,...e.materials].find(o=>o.id===id)||null;
+  return indexFor(e).ids.get(id)||null;
 }
 function appearance(o){
   if(o.species){
@@ -90,8 +166,7 @@ function publicObject(o){return{id:o.id,scene:o.scene,position:{...o.position},a
 export function senseEcology(e,position,scene='valley',radius=400) {
   if(!e||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y))return[];
   const r=clamp(radius,0,1200);
-  return [...e.plants,...e.animals,...e.materials].filter(o=>o.scene===scene&&!o.heldBy&&distance(o.position,position)<=r)
-    .slice(0,96).map(publicObject);
+  return nearby(e,position,scene,r).filter(o=>!o.heldBy).sort((a,b)=>distance(a.position,position)-distance(b.position,position)).slice(0,96).map(publicObject);
 }
 export function describeEcologyObject(e,id,{actorId}={}) {
   const o=lookupEcologyObject(e,id);if(!o||o.heldBy&&o.heldBy!==actorId)return null;return publicObject(o);
@@ -107,11 +182,11 @@ export function renderEcology(e,scene='valley') {
 function addDetritus(e,mass,energy){e.detritus.massGrams=Math.min(R.maxDetritus,e.detritus.massGrams+Math.max(0,mass));e.detritus.energyKcal+=Math.max(0,energy);}
 function addMaterial(e,type,pos,{massGrams,energyKcal,waterMl,heldBy=null,kind='material'}={}) {
   const def=MATERIALS[type];
-  if(e.materials.length>=R.maxMaterials){e.ledger.discardedKcal+=Math.max(0,finite(energyKcal,def.energyKcal));addDetritus(e,finite(massGrams,def.massGrams),0);return null;}
+  if(e.materials.length>=R.maxMaterials||!pos){e.ledger.discardedKcal+=Math.max(0,finite(energyKcal,def.energyKcal));addDetritus(e,finite(massGrams,def.massGrams),0);return null;}
   const m={id:nextId(e),kind,materialType:type,scene:'valley',position:{...pos},heldBy,
     massGrams:Math.max(0,finite(massGrams,def.massGrams)),energyKcal:Math.max(0,finite(energyKcal,def.energyKcal)),waterMl:Math.max(0,finite(waterMl,def.waterMl)),
     createdAt:e.elapsed,ageHours:0,spoiled:false,digestHours:def.digestHours,toxicity:def.toxicity||0};
-  e.materials.push(m);return m;
+  e.materials.push(m);invalidateIndex(e);return m;
 }
 function detached(e,p,actorId){
   if(p.kind==='apple_tree'||p.kind==='bramble'){
@@ -128,12 +203,12 @@ function detached(e,p,actorId){
   }
   return null;
 }
-function removeMaterial(e,m){const i=e.materials.indexOf(m);if(i>=0)e.materials.splice(i,1);}
+function removeMaterial(e,m){const i=e.materials.indexOf(m);if(i>=0){e.materials.splice(i,1);invalidateIndex(e);}}
 function death(e,a){
   if(!e.animals.includes(a))return;
   const energy=a.structureKcal+bodyEnergy(a.physiology),mass=energy/MATERIALS.flesh.energyKcal*MATERIALS.flesh.massGrams;
   addMaterial(e,'flesh',a.position,{kind:'carcass',massGrams:mass,energyKcal:energy,waterMl:mass*.7});
-  e.animals.splice(e.animals.indexOf(a),1);e.deaths++;
+  e.animals.splice(e.animals.indexOf(a),1);e.deaths++;invalidateIndex(e);
 }
 /** Engine interaction. Reach and ownership are checked again at completion. */
 export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley',power=1,amount=.02}={}){
@@ -150,7 +225,7 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
   }
   if(verb==='release'){
     if(o.heldBy!==actorId)return{ok:false,code:'object_not_held'};
-    o.heldBy=null;o.position={...position};o.scene=scene;return{ok:true,code:'object_released',targetId:id};
+    o.heldBy=null;o.position={...position};o.scene=scene;invalidateIndex(e);return{ok:true,code:'object_released',targetId:id};
   }
   if(verb==='pull'){
     if(o.species)return{ok:false,code:'object_resists_pull',targetId:id};
@@ -189,15 +264,16 @@ export function consumeEcologyMaterial(e,id,amount=.02,{actorId,accept}={}){
   if(m.massGrams<.1){e.ledger.discardedKcal+=m.energyKcal;removeMaterial(e,m);}
   return{ok:true,code:'object_sampled',material,materialId:id,remaining:!!lookupEcologyObject(e,id),...(ingestion?{ingestion}:{})};
 }
-function season(e){const absolute=R.startSeasonDay+e.elapsed/CONFIG.dayRealSeconds;return{day:absolute%R.yearDays,index:Math.floor(absolute/R.yearDays)};}
+function season(e,environment){const absolute=R.startSeasonDay+e.elapsed/CONFIG.dayRealSeconds/getWorldRule(environment,'seasonLengthMultiplier');return{day:absolute%R.yearDays,index:Math.floor(absolute/R.yearDays)};}
 function growPlants(e,dt,environment){
-  const day=hours(dt)/24,s=season(e),weather=environment?.settings?.weatherOverride||environment?.weather?.kind||'clear';
+  const day=hours(dt)/24,s=season(e,environment),weather=environment?.settings?.weatherOverride||environment?.weather?.kind||'clear';
+  const growthMultiplier=getWorldRule(environment,'plantGrowthMultiplier'),yieldMultiplier=getWorldRule(environment,'fruitYieldMultiplier');
   const hour=(CONFIG.startHour+hours(e.elapsed))%24,sun=hour>=6&&hour<=19?1:.08;
-  const temperature=weather==='rainy'?16:weather==='cloudy'?20:weather==='windy'?18:24;
+  const rain=weather==='rainy'?getWorldRule(environment,'rainfallMultiplier'):0;
   for(const p of e.plants){
-    p.ageDays+=day;p.moisture=clamp(p.moisture+day*(weather==='rainy'?.42:-.06),0,1);
+    p.ageDays+=day;p.moisture=clamp(p.moisture+day*(rain>0?.42*rain:-.06),0,1);
     if(p.kind==='grass'){
-      const before=p.biomassGrams,growth=Math.min(e.detritus.nutrients/.004,R.grassGrowthGramsPerDay*day*sun*(.15+p.moisture*.85)*Math.max(.03,p.biomassGrams/p.capacity)*(1-p.biomassGrams/p.capacity));
+      const before=p.biomassGrams,growth=Math.min(e.detritus.nutrients/.004,R.grassGrowthGramsPerDay*growthMultiplier*day*sun*(.15+p.moisture*.85)*Math.max(.03,p.biomassGrams/p.capacity)*(1-p.biomassGrams/p.capacity));
       p.biomassGrams=Math.min(p.capacity,p.biomassGrams+Math.max(0,growth));e.detritus.nutrients=Math.max(0,e.detritus.nutrients-(p.biomassGrams-before)*.004);
       e.ledger.photosynthesisKcal+=(p.biomassGrams-before)*R.grassKcalPerGram;
       if(p.moisture<.1){const lost=p.biomassGrams*day*.06;p.biomassGrams-=lost;addDetritus(e,lost,lost*R.grassKcalPerGram);}
@@ -206,7 +282,7 @@ function growPlants(e,dt,environment){
     const start=p.kind==='apple_tree'?65:40,end=p.kind==='apple_tree'?85:95;
     if(s.index!==p.seasonIndex){p.seasonIndex=s.index;p.growth=0;p.fallHours=0;}
     if(s.day>=start&&s.day<end){
-      p.stage='ripe';p.growth+=day*sun*p.moisture*(p.kind==='apple_tree'?.13:10);
+      p.stage='ripe';p.growth+=day*sun*p.moisture*(p.kind==='apple_tree'?.13:10)*growthMultiplier*yieldMultiplier;
       if(p.growth>=1&&p.quantity<p.capacity){const added=Math.min(Math.floor(p.growth),p.capacity-p.quantity);p.quantity+=added;p.growth-=added;e.ledger.photosynthesisKcal+=added*(p.kind==='apple_tree'?95:19);}
     }else if(s.day<start&&s.day>=start-12){p.stage=s.day<start-8?'flowering':'growing';}
     else p.stage='bare';
@@ -219,30 +295,99 @@ function growPlants(e,dt,environment){
   }
 }
 function nearest(list,a,predicate=()=>true,radius=Infinity){let best=null,d=radius;for(const o of list){if(o===a||o.scene!==a.scene||!predicate(o))continue;const n=distance(a.position,o.position);if(n<d){d=n;best=o;}}return best;}
-function waterBank(a){
-  let best=null,d=Infinity;
-  for(const p of PONDS){const angle=Math.atan2(a.position.y-p.y,a.position.x-p.x),candidate={x:p.x+Math.cos(angle)*(p.rx+35),y:p.y+Math.sin(angle)*(p.ry+35)},dist=distance(a.position,candidate);if(dist<d){d=dist;best=candidate;}}
-  const river={x:riverX(a.position.y)+(a.position.x>=riverX(a.position.y)?1:-1)*(riverWidth(a.position.y)+38),y:a.position.y};
-  if(distance(a.position,river)<d)best=river;return safePoint(best.x,best.y,SPECIES[a.species].radius);
+function clearSegment(from,to,radius){
+  const length=distance(from,to),steps=Math.max(1,Math.ceil(length/16));
+  for(let i=1;i<=steps;i++)if(!canStandOutside(from.x+(to.x-from.x)*i/steps,from.y+(to.y-from.y)*i/steps,radius))return false;
+  return true;
 }
-function travel(a,destination,dt,stopDistance=0){
+/** All candidates must be genuine dry drinking banks, not displaced by a
+ * generic placement search. Includes the lake that the old controller omitted. */
+function waterBank(a){
+  const radius=SPECIES[a.species].radius,candidates=[];
+  const add=p=>{const d=waterDistance(p.x,p.y);if(d>=radius+2&&d<=60&&canStandOutside(p.x,p.y,radius))candidates.push(p);};
+  for(const pond of [...PONDS,LAKE]){
+    const nearAngle=Math.atan2((a.position.y-pond.y)/pond.ry,(a.position.x-pond.x)/pond.rx);
+    for(let n=0;n<24;n++){
+      const angle=nearAngle+(n?Math.ceil(n/2)*(n%2?1:-1)*Math.PI/12:0),cos=Math.cos(angle),sin=Math.sin(angle);
+      // Terrain's actual shoreline has a wavy lake edge. Bracket its dry side
+      // using the authoritative distance function instead of an ellipse guess.
+      let lo=.75,hi=1.3;
+      for(let j=0;j<12;j++){const mid=(lo+hi)/2;if(waterDistance(pond.x+cos*pond.rx*mid,pond.y+sin*pond.ry*mid)<radius+18)lo=mid;else hi=mid;}
+      add({x:pond.x+cos*pond.rx*hi,y:pond.y+sin*pond.ry*hi});
+    }
+  }
+  const preferred=a.position.x>=riverX(a.position.y)?1:-1;
+  for(let n=0;n<15;n++){
+    const y=clamp(a.position.y+(n?Math.ceil(n/2)*(n%2?1:-1)*160:0),-21500,21500);
+    for(const side of [preferred,-preferred])add({x:riverX(y)+side*(riverWidth(y)+radius+20),y});
+  }
+  candidates.sort((p,q)=>distance(a.position,p)-distance(a.position,q));
+  return candidates[0]||null;
+}
+/** Bounded local A*: routes around trees and shore obstacles. It grants no
+ * teleportation or human knowledge and replans as new terrain is approached. */
+function localRoute(from,destination,radius){
+  const grid=64,reach=12,maxNodes=80,dir=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+  const length=distance(from,destination),projected=length>640?{x:from.x+(destination.x-from.x)*640/length,y:from.y+(destination.y-from.y)*640/length}:destination;
+  const goal=safePoint(projected.x,projected.y,radius);if(!goal)return[];
+  const nodes=new Map(),open=[],standing=new Map(),edges=new Map(),point=(x,y)=>({x:from.x+x*grid,y:from.y+y*grid}),key=(x,y)=>`${x},${y}`;
+  const stand=(id,p)=>{if(!standing.has(id))standing.set(id,canStandOutside(p.x,p.y,radius));return standing.get(id);};
+  const start={x:0,y:0,g:0,f:distance(from,goal),parent:null};nodes.set('0,0',start);open.push(start);let best=start,visited=0;
+  while(open.length&&visited++<maxNodes){
+    let index=0;for(let i=1;i<open.length;i++)if(open[i].f<open[index].f)index=i;
+    const node=open.splice(index,1)[0];if(node.closed)continue;node.closed=true;
+    const p=point(node.x,node.y),remaining=distance(p,goal);
+    if(remaining<distance(point(best.x,best.y),goal))best=node;
+    if(remaining<70&&clearSegment(p,goal,radius)){best=node;break;}
+    for(const [dx,dy]of dir){
+      const x=node.x+dx,y=node.y+dy;if(Math.abs(x)>reach||Math.abs(y)>reach)continue;
+      const to=point(x,y),id=key(x,y),g=node.g+grid*Math.hypot(dx,dy),old=nodes.get(id);if(old&&old.g<=g)continue;
+      if(!stand(id,to))continue;
+      const edge=[key(node.x,node.y),id].sort().join('>');if(!edges.has(edge))edges.set(edge,clearSegment(p,to,radius));if(!edges.get(edge))continue;
+      const next={x,y,g,f:g+distance(to,goal)*1.05,parent:node};nodes.set(id,next);open.push(next);
+    }
+  }
+  if(best===start||length-distance(point(best.x,best.y),destination)<16)return[];
+  const route=[];for(let node=best;node.parent;node=node.parent)route.push(point(node.x,node.y));route.reverse();
+  if(distance(route.at(-1),goal)<70&&clearSegment(route.at(-1),goal,radius))route.push({...goal});
+  return route;
+}
+function travel(a,destination,dt,stopDistance=0,elapsed=0){
   if(!destination)return 0;
-  const p=a.position,startX=p.x,startY=p.y,dx=destination.x-p.x,dy=destination.y-p.y,len=Math.hypot(dx,dy);if(len<Math.max(3,stopDistance))return 0;
+  const p=a.position,startX=p.x,startY=p.y,radius=SPECIES[a.species].radius,total=distance(p,destination);if(total<Math.max(3,stopDistance))return 0;
+  let nav=navigation.get(a),target=destination;
+  if(nav&&distance(nav.goal,destination)>100){navigation.delete(a);nav=null;}
+  if(nav&&nav.failed){if(elapsed>=nav.retryAt){navigation.delete(a);nav=null;}}
+  else if(nav){
+    while(nav.index<nav.route.length&&distance(p,nav.route[nav.index])<12)nav.index++;
+    if(nav.index>=nav.route.length||nav.stalled>2){navigation.delete(a);nav=null;}
+    else target=nav.route[nav.index];
+  }
+  if(!nav){
+    const look=Math.min(75,total),ahead={x:p.x+(destination.x-p.x)*look/total,y:p.y+(destination.y-p.y)*look/total};
+    if(!clearSegment(p,ahead,radius)){
+      const route=localRoute(p,destination,radius);
+      if(route.length){nav={goal:{...destination},route,index:0,stalled:0,at:elapsed};navigation.set(a,nav);target=route[0];}
+      else{nav={goal:{...destination},route:[],failed:true,retryAt:elapsed+4};navigation.set(a,nav);}
+    }
+  }
+  const dx=target.x-p.x,dy=target.y-p.y,len=Math.hypot(dx,dy);if(len<.001)return 0;
   const bodyFactor=clamp((a.stamina??100)/100,.35,1),speed=SPECIES[a.species].speed*bodyFactor;
-  const move=Math.min(speed*dt,Math.max(0,len-stopDistance)),steps=Math.max(1,Math.ceil(move/12));let moved=0;
+  const move=Math.min(speed*dt,Math.max(0,len-(target===destination?stopDistance:0))),steps=Math.max(1,Math.ceil(move/12));let moved=0;
   for(let i=0;i<steps;i++){
     const vx=dx/len*move/steps,vy=dy/len*move/steps,x=p.x,y=p.y;
-    if(canStandOutside(p.x+vx,p.y,SPECIES[a.species].radius))p.x+=vx;
-    if(canStandOutside(p.x,p.y+vy,SPECIES[a.species].radius))p.y+=vy;
+    if(canStandOutside(p.x+vx,p.y,radius))p.x+=vx;
+    if(canStandOutside(p.x,p.y+vy,radius))p.y+=vy;
     if(Math.hypot(p.x-x,p.y-y)<move/steps*.2){
       const side=Number(a.id.split(':')[1])%2?1:-1;
       for(const angle of [side*Math.PI/3,-side*Math.PI/3,side*Math.PI/2,-side*Math.PI/2]){
         const cos=Math.cos(angle),sin=Math.sin(angle),rx=vx*cos-vy*sin,ry=vx*sin+vy*cos;
-        if(canStandOutside(p.x+rx,p.y+ry,SPECIES[a.species].radius)){p.x+=rx;p.y+=ry;break;}
+        if(canStandOutside(p.x+rx,p.y+ry,radius)){p.x+=rx;p.y+=ry;break;}
       }
     }
     moved+=Math.hypot(p.x-x,p.y-y);
   }
+  if(nav&&!nav.failed)nav.stalled=moved<move*.2?nav.stalled+dt:0;
   if(moved>0)a.direction=Math.atan2(p.y-startY,p.x-startX);
   return moved;
 }
@@ -265,16 +410,16 @@ function consumeForAnimal(e,a,source,grams){
   else {source.massGrams-=mass;source.energyKcal-=energy;source.waterMl-=water;if(source.massGrams<.1){e.ledger.discardedKcal+=source.energyKcal;removeMaterial(e,source);}}
   a.cooldownHours=SPECIES[a.species].biteHours;e.ledger.waterConsumedMl+=water;return true;
 }
-function selectFood(e,a){
-  const rules=SPECIES[a.species],availablePlants=p=>p.kind==='grass'?p.biomassGrams>10:p.quantity>0;
+function selectFood(e,a,environment){
+  const rules=SPECIES[a.species],sight=rules.sight*getWorldRule(environment,'animalForagingRangeMultiplier'),local=nearby(e,a.position,a.scene,sight),availablePlants=p=>p.kind==='grass'?p.biomassGrams>10:p.quantity>0;
   const availableMaterials=m=>!m.heldBy&&m.massGrams>1&&(a.species==='rabbit'?m.materialType!=='flesh':a.species==='bobcat'?m.materialType==='flesh':m.materialType!=='grass');
-  const detachedFood=nearest(e.materials,a,availableMaterials,rules.sight);
+  const detachedFood=nearest(local,a,o=>o.materialType&&availableMaterials(o),sight);
   if(a.species==='bobcat')return detachedFood;
-  const growingFood=nearest(e.plants,a,p=>availablePlants(p)&&(a.species==='rabbit'?p.kind==='grass':p.kind!=='grass'),rules.sight);
+  const growingFood=nearest(local,a,p=>['grass','apple_tree','bramble'].includes(p.kind)&&availablePlants(p)&&(a.species==='rabbit'?p.kind==='grass':p.kind!=='grass'),sight);
   if(!growingFood)return detachedFood;if(!detachedFood)return growingFood;return distance(a.position,growingFood.position)<distance(a.position,detachedFood.position)?growingFood:detachedFood;
 }
-function decide(e,a,agents,callbacks){
-  const rules=SPECIES[a.species],p=a.physiology,threat=nearest(e.animals,a,b=>rules.diet==='herbivore'&&b.species!=='rabbit'&&b.activity!=='sleeping',rules.sight*.65);
+function decide(e,a,agents,callbacks,environment){
+  const rules=SPECIES[a.species],p=a.physiology,sight=rules.sight*getWorldRule(environment,'animalForagingRangeMultiplier'),local=nearby(e,a.position,a.scene,sight),threat=nearest(local,a,b=>b.species&&rules.diet==='herbivore'&&b.species!=='rabbit'&&b.activity!=='sleeping',rules.sight*.65);
   const humanThreat=agents.find(h=>h.scene===a.scene&&distance(a.position,h.position)<65);
   if(threat||humanThreat&&a.species==='rabbit'){
     const source=threat||humanThreat,sp=positionOf(source);wakePhysiology(a,{kind:'sound',strength:.9});a.activity='fleeing';a.targetId=null;
@@ -286,16 +431,16 @@ function decide(e,a,agents,callbacks){
   }
   if((a.hydration??100)<60){
     if(waterDistance(a.position.x,a.position.y)<=65){const drank=Math.min(40,p.waterDeficitMl);p.waterDeficitMl-=drank;a.activity='drinking';a.targetPosition=null;e.ledger.waterConsumedMl+=drank;return;}
-    if(a.targetKind!=='water'||!a.targetPosition||distance(a.position,a.targetPosition)<5)a.targetPosition=waterBank(a);
+    if(a.targetKind!=='water'||!a.targetPosition||distance(a.position,a.targetPosition)<5||waterDistance(a.targetPosition.x,a.targetPosition.y)>60)a.targetPosition=waterBank(a);
     a.activity='moving';a.targetId=null;a.targetKind='water';return;
   }
   if(((a.sleepPressure??0)>75||(a.fatigue??0)>80)&&(a.energy??100)>12){beginSleep(a,{hours:Math.min(4,rules.sleepHours),at:e.elapsed});a.activity='sleeping';a.targetId=null;a.targetPosition=null;a.targetKind=null;return;}
   const hungry=(a.energy??100)<20||finite(p.hoursSinceMeal)>6||finite(p.storedEnergyKcal)<BIOLOGY_PROFILES[a.species].storedCapacityKcal*.92;
   if(hungry){
-    const source=selectFood(e,a);
+    const source=selectFood(e,a,environment);
     if(source){a.targetId=source.id;a.targetPosition={...source.position};a.targetKind='source';a.activity=distance(a.position,source.position)<=28?'feeding':'moving';return;}
     if(a.species!=='rabbit'){
-      const prey=nearest(e.animals,a,b=>b.species==='rabbit',rules.sight);
+      const prey=nearest(local,a,b=>b.species==='rabbit',sight);
       if(prey){a.targetId=prey.id;a.targetPosition={...prey.position};a.activity='chasing';return;}
       // Only an extremely depleted predator without another local source risks contact.
       const victim=agents.find(h=>h.scene===a.scene&&h.lifecycle==='AWAKE'&&distance(a.position,h.position)<160);
@@ -312,45 +457,48 @@ function decide(e,a,agents,callbacks){
   }
   a.activity='moving';a.targetId=null;a.targetKind='wander';
 }
-function reproduce(e,a){
-  const rules=SPECIES[a.species],p=a.physiology;
-  if(a.ageDays<rules.juvenileDays||e.animals.length>=R.maxAnimals||e.animals.filter(b=>b.species===a.species).length>=rules.maxPopulation||
-    hours(e.elapsed)-a.lastBirthHours<rules.birthIntervalDays*24||(a.hydration??100)<70||(a.energy??100)<70||finite(p.availableEnergyKcal)+finite(p.storedEnergyKcal)<rules.birthKcal+rules.initialReserveKcal*.2)return;
-  const mate=nearest(e.animals,a,b=>b.species===a.species&&b.ageDays>=rules.juvenileDays,220);
+function reproduce(e,a,environment){
+  const rules=SPECIES[a.species],p=a.physiology,multiplier=getWorldRule(environment,'animalReproductionMultiplier');
+  if(multiplier<=0||a.ageDays<rules.juvenileDays||e.animals.length>=R.maxAnimals||(indexFor(e).species[a.species]||0)>=rules.maxPopulation||
+    hours(e.elapsed)-a.lastBirthHours<rules.birthIntervalDays*24/multiplier||(a.hydration??100)<70||(a.energy??100)<70||finite(p.availableEnergyKcal)+finite(p.storedEnergyKcal)<rules.birthKcal+rules.initialReserveKcal*.2)return;
+  const local=nearby(e,a.position,a.scene,rules.sight*1.3),mate=nearest(local,a,b=>b.species===a.species&&b.ageDays>=rules.juvenileDays,220);
   if(!mate||a.activity==='chasing'||a.activity==='fleeing')return;
   // Reproductive condition also depends on the local habitat. A full stomach
   // alone cannot support another consumer in a depleted patch.
   if(a.species==='rabbit'){
-    const local=e.plants.filter(v=>v.kind==='grass'&&distance(v.position,a.position)<rules.sight*1.2);
-    const dailyProduction=local.reduce((sum,v)=>sum+R.grassGrowthGramsPerDay*.25*.54*v.moisture*R.grassKcalPerGram*Math.min(1,v.biomassGrams/(v.capacity*.5)),0);
+    const grass=local.filter(v=>v.kind==='grass'&&distance(v.position,a.position)<rules.sight*1.2);
+    const dailyProduction=grass.reduce((sum,v)=>sum+R.grassGrowthGramsPerDay*getWorldRule(environment,'plantGrowthMultiplier')*.25*.54*v.moisture*R.grassKcalPerGram*Math.min(1,v.biomassGrams/(v.capacity*.5)),0);
     const expectedCost=BIOLOGY_PROFILES.rabbit.basalKcalPerDay+BIOLOGY_PROFILES.rabbit.walkingKcalPerHour*8;
     const capacity=Math.floor(dailyProduction/expectedCost);
-    if(e.animals.filter(v=>v.species==='rabbit'&&distance(v.position,a.position)<rules.sight*1.3).length>=capacity)return;
-  }else if(e.animals.filter(v=>v.species==='rabbit'&&distance(v.position,a.position)<rules.sight).length<4)return;
+    if(local.filter(v=>v.species==='rabbit').length>=capacity)return;
+  }else if(local.filter(v=>v.species==='rabbit'&&distance(v.position,a.position)<rules.sight).length<4)return;
+  const childPosition=safePoint(a.position.x+35,a.position.y+20,rules.radius);if(!childPosition)return;
   const available=finite(p.availableEnergyKcal),debit=rules.birthKcal;
   p.availableEnergyKcal=Math.max(0,available-debit);p.storedEnergyKcal=Math.max(0,finite(p.storedEnergyKcal)-Math.max(0,debit-available));
   const reserve=debit*.25,structure=debit-reserve;
-  animal(e,a.species,{x:a.position.x+35,y:a.position.y+20},e.elapsed,{juvenile:true,energyKcal:reserve,structureKcal:structure});
+  animal(e,a.species,childPosition,e.elapsed,{juvenile:true,energyKcal:reserve,structureKcal:structure});
   a.lastBirthHours=hours(e.elapsed);e.births++;e.ledger.birthTransferredKcal+=debit;
 }
 function simulationStep(e,dt,environment,agents,callbacks){
-  e.elapsed+=dt;growPlants(e,dt,environment);
+  e.elapsed+=dt;growPlants(e,dt,environment);buildIndex(e);
   for(const a of [...e.animals]){
-    if(!e.animals.includes(a))continue;
+    if(indexFor(e).ids.get(a.id)!==a)continue;
     a.ageDays+=hours(dt)/24;a.cooldownHours=Math.max(0,a.cooldownHours-hours(dt));
-    decide(e,a,agents,callbacks);
+    decide(e,a,agents,callbacks,environment);
     const prior=finite(a.physiology?.totals?.metabolizedKcal),discarded=finite(a.physiology?.totals?.discardedKcal);
+    const absorbed=finite(a.physiology?.totals?.absorbedKcal),absorbedWater=finite(a.physiology?.totals?.absorbedWaterMl),waterLost=finite(a.physiology?.totals?.waterLostMl);
     const condition=environmentConditions({...environment,elapsed:e.elapsed},a);
     // Fur changes cold exposure without removing weather, wetness or water costs.
     if(condition.feltTemperature<14)condition.feltTemperature+=Math.min(12,14-condition.feltTemperature);
     tickPhysiology(a,dt,condition,{activity:a.activity==='sleeping'?'sleeping':['moving','fleeing','chasing'].includes(a.activity)?a.activity==='moving'?'walking':'running':a.activity==='resting'?'resting':'awake'});
+    e.ledger.animalAbsorbedKcal+=Math.max(0,finite(a.physiology?.totals?.absorbedKcal)-absorbed);e.ledger.animalAbsorbedWaterMl+=Math.max(0,finite(a.physiology?.totals?.absorbedWaterMl)-absorbedWater);e.ledger.animalWaterLostMl+=Math.max(0,finite(a.physiology?.totals?.waterLostMl)-waterLost);
     e.ledger.discardedKcal+=Math.max(0,finite(a.physiology?.totals?.discardedKcal)-discarded);
     if(a.health<=0||a.physiology.health<=0){e.ledger.metabolizedKcal+=Math.max(0,finite(a.physiology?.totals?.metabolizedKcal)-prior);death(e,a);continue;}
     if(['moving','fleeing','chasing'].includes(a.activity)){
       const target=lookupEcologyObject(e,a.targetId),victim=a.activity==='chasing'?(target?.species?target:agents.find(h=>h.id===a.targetId)):null;
       const stopDistance=victim?SPECIES[a.species].radius+(victim.species?SPECIES[victim.species].radius:10):0;
-      const moved=travel(a,a.targetPosition,dt,stopDistance);
-      if(moved>0)exertPhysiology(a,dt*(moved/Math.max(1,SPECIES[a.species].speed*dt)),a.activity==='moving'?1:2.5);
+      const oldKey=cellKey(a),moved=travel(a,a.targetPosition,dt,stopDistance,e.elapsed);movedInIndex(e,a,oldKey);
+      if(moved>0){const lost=finite(a.physiology?.totals?.waterLostMl);exertPhysiology(a,dt*(moved/Math.max(1,SPECIES[a.species].speed*dt)),a.activity==='moving'?1:2.5);e.ledger.animalWaterLostMl+=Math.max(0,finite(a.physiology?.totals?.waterLostMl)-lost);}
     }
     e.ledger.metabolizedKcal+=Math.max(0,finite(a.physiology?.totals?.metabolizedKcal)-prior);
     const target=lookupEcologyObject(e,a.targetId);
@@ -365,7 +513,7 @@ function simulationStep(e,dt,environment,agents,callbacks){
           callbacks.wake?.(victim,{kind:'contact',intensity:1,strength:1,sourceId:a.id});callbacks.harm?.(victim,event);}
       }
     }
-    reproduce(e,a);
+    reproduce(e,a,environment);
   }
   for(const m of [...e.materials]){
     m.ageHours+=hours(dt);m.spoiled=m.ageHours>=MATERIALS[m.materialType].spoilDays*24;
@@ -385,19 +533,21 @@ export function tickEcology(e,dt,environment={},agents=[],callbacks={}){
 /** Bounded data-only disk restoration; no arbitrary species, scripts or nutrition. */
 export function validateEcology(raw,{seed=CONFIG.seed,elapsed=0}={}){
   if(!raw||raw.version!==R.version)return createEcology(seed,elapsed);
-  const out={version:R.version,seed:Number.isInteger(raw.seed)?raw.seed>>>0:seed,elapsed:clamp(raw.elapsed,0,CONFIG.dayRealSeconds*100000),pending:clamp(raw.pending,0,R.stepSeconds),nextId:1,
+  const out={version:R.version,distributionVersion:raw.distributionVersion===R.distributionVersion?R.distributionVersion:1,seed:Number.isInteger(raw.seed)?raw.seed>>>0:seed,elapsed:clamp(raw.elapsed,0,CONFIG.dayRealSeconds*100000),pending:clamp(raw.pending,0,R.stepSeconds),nextId:1,
     plants:[],animals:[],materials:[],detritus:{massGrams:clamp(raw.detritus?.massGrams,0,R.maxDetritus),nutrients:clamp(raw.detritus?.nutrients,0,500000),energyKcal:clamp(raw.detritus?.energyKcal,0,1e9)},ledger:emptyLedger(),births:clamp(Math.floor(raw.births),0,1e7),deaths:clamp(Math.floor(raw.deaths),0,1e7)};
   const seen=new Set(),acceptId=id=>typeof id==='string'&&idPattern.test(id)&&!seen.has(id),position=(o,radius=10)=>safePoint(o?.position?.x,o?.position?.y,radius);
   const add=(list,o)=>{seen.add(o.id);out.nextId=Math.max(out.nextId,Number(o.id.split(':')[1])+1);list.push(o);};
   for(const p of (Array.isArray(raw.plants)?raw.plants:[]).slice(0,R.maxPlants)){
     if(!acceptId(p?.id)||!['grass','apple_tree','bramble'].includes(p.kind))continue;
+    const point=position(p);if(!point)continue;
     const cap=p.kind==='grass'?R.grassCapacityGrams:p.kind==='apple_tree'?10:28;
-    add(out.plants,{id:p.id,kind:p.kind,scene:'valley',position:position(p),capacity:cap,quantity:Math.floor(clamp(p.quantity,0,p.kind==='grass'?0:cap)),biomassGrams:clamp(p.biomassGrams,0,p.kind==='grass'?cap:0),moisture:clamp(p.moisture,0,1),stage:['green','dry','bare','flowering','growing','ripe'].includes(p.stage)?p.stage:'bare',growth:clamp(p.growth,0,100),seasonIndex:clamp(Math.floor(p.seasonIndex),0,100000),fallHours:clamp(p.fallHours,0,R.fruitFallDays*24),ageDays:clamp(p.ageDays,0,100000)});
+    add(out.plants,{id:p.id,kind:p.kind,scene:'valley',position:point,capacity:cap,quantity:Math.floor(clamp(p.quantity,0,p.kind==='grass'?0:cap)),biomassGrams:clamp(p.biomassGrams,0,p.kind==='grass'?cap:0),moisture:clamp(p.moisture,0,1),stage:['green','dry','bare','flowering','growing','ripe'].includes(p.stage)?p.stage:'bare',growth:clamp(p.growth,0,100),seasonIndex:clamp(Math.floor(p.seasonIndex),0,100000),fallHours:clamp(p.fallHours,0,R.fruitFallDays*24),ageDays:clamp(p.ageDays,0,100000)});
   }
   for(const a of (Array.isArray(raw.animals)?raw.animals:[]).slice(0,R.maxAnimals)){
     if(!acceptId(a?.id)||!speciesNames.includes(a.species))continue;
     const species=a.species,profile=SPECIES[species];
-    add(out.animals,{id:a.id,species,scene:'valley',position:position(a,profile.radius),physiology:validatePhysiology(a.physiology,{profile:species,elapsed:out.elapsed}),health:clamp(a.health,0,100),energy:clamp(a.energy,0,100),hydration:clamp(a.hydration,0,100),nourishment:clamp(a.nourishment,0,100),stamina:clamp(a.stamina,0,100),fatigue:clamp(a.fatigue,0,100),sleepPressure:clamp(a.sleepPressure,0,100),thermal:{hot:clamp(a.thermal?.hot,0,100),cold:clamp(a.thermal?.cold,0,100),wetness:clamp(a.thermal?.wetness,0,100)},bodyMode:['awake','resting','sleeping','dozing'].includes(a.bodyMode)?a.bodyMode:'awake',activity:activities.includes(a.activity)?a.activity:'idle',ageDays:clamp(a.ageDays,0,10000),structureKcal:clamp(a.structureKcal,0,profile.structureKcal),lastBirthHours:clamp(a.lastBirthHours,-2000,hours(out.elapsed)),targetId:idPattern.test(a.targetId)?a.targetId:['aster','mira'].includes(a.targetId)?a.targetId:null,targetKind:['water','source','flee','wander'].includes(a.targetKind)?a.targetKind:null,homePosition:a.homePosition&&Number.isFinite(a.homePosition.x)&&Number.isFinite(a.homePosition.y)?safePoint(a.homePosition.x,a.homePosition.y,profile.radius):position(a,profile.radius),targetPosition:a.targetPosition&&Number.isFinite(a.targetPosition.x)&&Number.isFinite(a.targetPosition.y)?{x:clamp(a.targetPosition.x,-22000,22000),y:clamp(a.targetPosition.y,-22000,22000)}:null,lastAttackAt:clamp(a.lastAttackAt,-100,out.elapsed),cooldownHours:clamp(a.cooldownHours,0,1),bornAt:clamp(a.bornAt,0,out.elapsed),direction:clamp(a.direction,-100000,100000),actionHours:0});
+    const point=position(a,profile.radius);if(!point)continue;
+    add(out.animals,{id:a.id,species,scene:'valley',position:point,physiology:validatePhysiology(a.physiology,{profile:species,elapsed:out.elapsed}),health:clamp(a.health,0,100),energy:clamp(a.energy,0,100),hydration:clamp(a.hydration,0,100),nourishment:clamp(a.nourishment,0,100),stamina:clamp(a.stamina,0,100),fatigue:clamp(a.fatigue,0,100),sleepPressure:clamp(a.sleepPressure,0,100),thermal:{hot:clamp(a.thermal?.hot,0,100),cold:clamp(a.thermal?.cold,0,100),wetness:clamp(a.thermal?.wetness,0,100)},bodyMode:['awake','resting','sleeping','dozing'].includes(a.bodyMode)?a.bodyMode:'awake',activity:activities.includes(a.activity)?a.activity:'idle',ageDays:clamp(a.ageDays,0,10000),structureKcal:clamp(a.structureKcal,0,profile.structureKcal),lastBirthHours:clamp(a.lastBirthHours,-2000,hours(out.elapsed)),targetId:idPattern.test(a.targetId)?a.targetId:['aster','mira'].includes(a.targetId)?a.targetId:null,targetKind:['water','source','flee','wander'].includes(a.targetKind)?a.targetKind:null,homePosition:(a.homePosition&&Number.isFinite(a.homePosition.x)&&Number.isFinite(a.homePosition.y)?safePoint(a.homePosition.x,a.homePosition.y,profile.radius):null)||{...point},targetPosition:a.targetPosition&&Number.isFinite(a.targetPosition.x)&&Number.isFinite(a.targetPosition.y)?{x:clamp(a.targetPosition.x,-22000,22000),y:clamp(a.targetPosition.y,-22000,22000)}:null,lastAttackAt:clamp(a.lastAttackAt,-100,out.elapsed),cooldownHours:clamp(a.cooldownHours,0,1),bornAt:clamp(a.bornAt,0,out.elapsed),direction:clamp(a.direction,-100000,100000),actionHours:0});
   }
   for(const m of (Array.isArray(raw.materials)?raw.materials:[]).slice(0,R.maxMaterials)){
     if(!acceptId(m?.id)||!materialNames.includes(m.materialType)||!['material','carcass'].includes(m.kind))continue;
@@ -405,6 +555,7 @@ export function validateEcology(raw,{seed=CONFIG.seed,elapsed=0}={}){
     const mass=clamp(m.massGrams,0,cap),maxEnergy=m.kind==='carcass'?mass*1.5:def.energyKcal*mass/def.massGrams;
     const scene=CAVES.some(c=>c.id===m.scene)?m.scene:'valley';
     const point=scene==='valley'?position(m):canStandCave(m.position?.x,m.position?.y)?{...m.position}:{...CAVE_SPAWN};
+    if(!point)continue;
     add(out.materials,{id:m.id,kind:m.kind,materialType:m.materialType,scene,position:point,heldBy:m.kind==='material'&&['aster','mira'].includes(m.heldBy)?m.heldBy:null,massGrams:mass,energyKcal:clamp(m.energyKcal,0,maxEnergy),waterMl:clamp(m.waterMl,0,mass),createdAt:clamp(m.createdAt,0,out.elapsed),ageHours:clamp(m.ageHours,0,100000),spoiled:!!m.spoiled,digestHours:def.digestHours,toxicity:def.toxicity||0});
   }
   for(const k of Object.keys(out.ledger))out.ledger[k]=clamp(raw.ledger?.[k],0,1e12);

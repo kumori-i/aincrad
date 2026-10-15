@@ -3,6 +3,7 @@ import { CONFIG, CAVES, SPAWN, CAVE_SPAWN, CAVE_EXIT, PONDS, APPLE_PATCHES, STAR
 import { createNpc } from './npc-state.js';
 import { createEnvironment } from './environment.js';
 import { createCommunity } from './social.js';
+import { createCardinal } from './cardinal.js';
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -211,7 +212,7 @@ export function regionName(x, y, scene) {
 export function freshState({mode='discovery'}={}) {
   const simulationMode=mode==='legacy'?'legacy':'discovery';
   const agents = [createNpc({id:'aster',mode:simulationMode}), createNpc({id:'mira',mode:simulationMode})];
-  return { version: 5, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+  return { version: 6, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode}), cardinal:createCardinal({mode:simulationMode==='discovery'?'adaptive':'observe'}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 export function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);

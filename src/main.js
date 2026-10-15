@@ -5,6 +5,7 @@ import { Renderer } from './renderer.js';
 import { PopulationRuntime } from './population.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { createNpcPanel } from './npc-panel.js';
+import { createCardinalPanel } from './cardinal-panel.js';
 import { observeNpc } from './npc.js';
 import { recordEvent } from './npc-memory.js';
 import { tickEnvironment, environmentConditions, environmentHour } from './environment.js';
@@ -20,6 +21,7 @@ const renderer = new Renderer(ui.world,state);
 let population=new PopulationRuntime(state);
 const selectedAgent=()=>population.getAgent(state.selectedAgentId)||state.npc;
 const npcPanel=createNpcPanel({getNpc:selectedAgent,getAgents:()=>state.agents,getController:()=>population.controller(selectedAgent().id),getRuntime:()=>population,getCommunity:()=>state.community,selectAgent:id=>{if(!population.getAgent(id))return;state.selectedAgentId=id;renderer.followId=id;if(renderer.followNpc)renderer.snap(selectedAgent().position);save();},renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
+const cardinalPanel=createCardinalPanel({getState:()=>state,getRuntime:()=>population.cardinal,save:()=>save(),notify,onVisibilityChange:visible=>{if(visible){closePanels(true);npcPanel.close();}}});
 let started=false, paused=false, simulationSpeed=1, windowFocused=true, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
 let lastTime=performance.now()/1000, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
@@ -36,15 +38,15 @@ function save(explicit=false){
   else {ui['save-status'].textContent='Save unavailable';if(explicit)notify('Local saving is unavailable. Your current session is still running.',7);}
   return ok;
 }
-function closePanels(){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');panel=null;keys.clear();ui.world.focus({preventScroll:true});}
+function closePanels(keepCardinal=false){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');if(keepCardinal!==true)cardinalPanel.close();panel=null;keys.clear();ui.world.focus({preventScroll:true});}
+function updateAtlas(){renderer.drawAtlas(ui['atlas-map'],state);const status=renderer.atlasStatus();$('atlas-zoom-label').textContent=`${status.zoom.toFixed(1)}×`;}
 function openPanel(name){
   if(!started)return;
   closePanels();panel=name;ui[name+'-panel'].classList.remove('hidden');keys.clear();anim.moving=false;
   if(name==='map'){
-    const viewedScene=renderer.viewScene(state);
-    ui['map-title'].textContent=viewedScene==='valley'?'Crown Ridge & the lowlands':CAVES.find(c=>c.id===viewedScene)?.name||'Cavern';
-    ui['map-hint'].textContent=renderer.viewScene(state)==='valley'?'Click to set a waypoint · right-click to clear':'The stairs lead back to the valley';
-    renderer.drawAtlas(ui['atlas-map'],state);
+    ui['map-title'].textContent='Crown Ridge & the lowlands';
+    ui['map-hint'].textContent='Scroll to zoom · drag to pan · click to mark · right-click to clear';
+    updateAtlas();
   }
   const dialog=ui[name+'-panel'];dialog.querySelector('button')?.focus();save();
 }
@@ -75,6 +77,7 @@ function newExpedition(){
 }
 ui.begin.addEventListener('click',begin);
 $('watch-aster').addEventListener('click',()=>{begin();npcPanel.follow(true);npcPanel.toggle();});
+$('open-npc').addEventListener('click',()=>cardinalPanel.close());
 $('open-map').addEventListener('click',()=>togglePanel('map'));
 $('close-map').addEventListener('click',closePanels);
 $('help-button').addEventListener('click',()=>togglePanel('help'));
@@ -95,17 +98,20 @@ window.addEventListener('keydown',e=>{
   if(!started)return;
   if(e.code==='Escape'){e.preventDefault();if(!e.repeat)togglePause();return;}
   if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
-  if(e.code==='KeyN'){e.preventDefault();keys.clear();npcPanel.toggle();return;}
-  if(movementCodes.has(e.code)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();if(!panel&&!e.ctrlKey&&!e.metaKey&&!e.altKey)keys.add(e.code);return;}
+  if(e.code==='KeyN'){e.preventDefault();keys.clear();cardinalPanel.close();npcPanel.toggle();return;}
+  if(e.code==='KeyC'){e.preventDefault();keys.clear();if(!paused)cardinalPanel.toggle();return;}
+  if(movementCodes.has(e.code)){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();if(!panel&&!cardinalPanel.visible&&!e.ctrlKey&&!e.metaKey&&!e.altKey)keys.add(e.code);return;}
   if(e.repeat)return;
   if(e.code==='KeyM'){e.preventDefault();togglePanel('map');}
   else if(e.code==='KeyH'){e.preventDefault();togglePanel('help');}
-  else if(e.code==='KeyE'&&!panel){e.preventDefault();interact();}
+  else if(e.code==='KeyE'&&!panel&&!cardinalPanel.visible){e.preventDefault();interact();}
+  else if(panel==='map'&&(e.code==='Equal'||e.code==='NumpadAdd')){e.preventDefault();renderer.atlasZoom(1.35);updateAtlas();}
+  else if(panel==='map'&&(e.code==='Minus'||e.code==='NumpadSubtract')){e.preventDefault();renderer.atlasZoom(1/1.35);updateAtlas();}
   else if(!panel&&(e.code==='Equal'||e.code==='NumpadAdd'))renderer.targetZoom=clamp(renderer.targetZoom*1.12,.8,2.6);
   else if(!panel&&(e.code==='Minus'||e.code==='NumpadSubtract'))renderer.targetZoom=clamp(renderer.targetZoom/1.12,.8,2.6);
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
-ui.world.addEventListener('wheel',e=>{if(!started||panel)return;e.preventDefault();renderer.targetZoom=clamp(renderer.targetZoom*Math.exp(-e.deltaY*.001),.8,2.6);},{passive:false});
+ui.world.addEventListener('wheel',e=>{if(!started||panel||cardinalPanel.visible)return;e.preventDefault();renderer.targetZoom=clamp(renderer.targetZoom*Math.exp(-e.deltaY*.001),.8,2.6);},{passive:false});
 window.addEventListener('resize',()=>renderer.resize());
 function clearFocusInput(){keys.clear();anim.moving=false;if(started)save();}
 window.addEventListener('blur',()=>{windowFocused=false;clearFocusInput();});
@@ -114,16 +120,28 @@ window.aincradAgent?.onWindowActive?.(active=>{windowFocused=active;if(!active)c
 document.addEventListener('visibilitychange',()=>{if(document.hidden)clearFocusInput();});
 window.addEventListener('pagehide',()=>{if(started)save();});
 window.addEventListener('beforeunload',()=>{if(started)save();});
-ui['atlas-map'].addEventListener('click',e=>{
-  if(renderer.viewScene(state)!=='valley')return;
-  const r=ui['atlas-map'].getBoundingClientRect();
-  const p=renderer.atlasPoint((e.clientX-r.left)/r.width*ui['atlas-map'].width,(e.clientY-r.top)/r.height*ui['atlas-map'].height);
+const atlasCanvas=ui['atlas-map'];
+const atlasEventPoint=e=>{const r=atlasCanvas.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*atlasCanvas.width,y:(e.clientY-r.top)/r.height*atlasCanvas.height};};
+let atlasGesture=null,skipAtlasClick=false;
+atlasCanvas.addEventListener('pointerdown',e=>{if(e.button!==0)return;atlasGesture={id:e.pointerId,startX:e.clientX,startY:e.clientY,last:atlasEventPoint(e),moved:false};atlasCanvas.setPointerCapture(e.pointerId);});
+atlasCanvas.addEventListener('pointermove',e=>{if(!atlasGesture||atlasGesture.id!==e.pointerId)return;if(!atlasGesture.moved&&Math.hypot(e.clientX-atlasGesture.startX,e.clientY-atlasGesture.startY)<5)return;atlasGesture.moved=true;const p=atlasEventPoint(e);renderer.atlasPan(p.x-atlasGesture.last.x,p.y-atlasGesture.last.y);atlasGesture.last=p;updateAtlas();});
+atlasCanvas.addEventListener('pointerup',e=>{if(!atlasGesture||atlasGesture.id!==e.pointerId)return;skipAtlasClick=atlasGesture.moved;atlasGesture=null;if(atlasCanvas.hasPointerCapture(e.pointerId))atlasCanvas.releasePointerCapture(e.pointerId);});
+atlasCanvas.addEventListener('pointercancel',()=>{atlasGesture=null;skipAtlasClick=true;});
+atlasCanvas.addEventListener('wheel',e=>{e.preventDefault();const p=atlasEventPoint(e);renderer.atlasZoom(Math.exp(-e.deltaY*.0015),p.x,p.y);updateAtlas();},{passive:false});
+for(const [id,factor]of [['atlas-zoom-in',1.35],['atlas-zoom-out',1/1.35]])$(id).addEventListener('click',()=>{renderer.atlasZoom(factor);updateAtlas();});
+$('atlas-fit').addEventListener('click',()=>{renderer.atlasFit();updateAtlas();});
+for(const id of ['you','aster','mira'])$('atlas-center-'+id).addEventListener('click',()=>{renderer.atlasCenter(id,state);updateAtlas();});
+atlasCanvas.addEventListener('click',e=>{
+  if(skipAtlasClick){skipAtlasClick=false;return;}
+  const point=atlasEventPoint(e),marker=renderer.atlasMarkerAt(point.x,point.y);
+  if(marker){renderer.atlasCenter(marker,state);updateAtlas();return;}
+  const p=renderer.atlasPoint(point.x,point.y);
   if(!p)return;state.waypoint=p;renderer.drawAtlas(ui['atlas-map'],state);save();
 });
 ui['atlas-map'].addEventListener('contextmenu',e=>{e.preventDefault();state.waypoint=null;renderer.drawAtlas(ui['atlas-map'],state);save();});
 function fixedUpdate(dt){
-  let dx=panel||!windowFocused?0:(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-  let dy=panel||!windowFocused?0:(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
+  let dx=panel||cardinalPanel.visible||!windowFocused?0:(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
+  let dy=panel||cardinalPanel.visible||!windowFocused?0:(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
   const travelled=moveActor(state.player,dx,dy,dt,keys.has('ShiftLeft')||keys.has('ShiftRight'),state.scene);
   anim.moving=travelled>.01;
   if(dx||dy){const n=Math.hypot(dx,dy);anim.facing={x:dx/n,y:dy/n};}
@@ -164,13 +182,13 @@ function loop(ms){
   if(started&&!paused)anim.time+=dt;
   else{anim.moving=false;if(!started)anim.time+=dt;}
   renderer.render(state,anim,dt,started);
-  if(started){npcPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(now-lastAutosave>10){lastAutosave=now;save();}}
+  if(started){npcPanel.update(now);cardinalPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(panel==='map'&&now-(loop.lastAtlas||0)>.1){loop.lastAtlas=now;updateAtlas();}if(now-lastAutosave>10){lastAutosave=now;save();}}
   requestAnimationFrame(loop);
 }
 window.addEventListener('error',e=>{ $('fatal-message').textContent=e.message||'An unexpected runtime error occurred.';$('fatal').classList.remove('hidden'); });
 window.addEventListener('unhandledrejection',e=>{ $('fatal-message').textContent=String(e.reason?.message||e.reason||'An unexpected error occurred.');$('fatal').classList.remove('hidden'); });
 requestAnimationFrame(loop);
-setInterval(()=>{simulationClock.advance(performance.now()/1000,{running:started&&!paused,speed:simulationSpeed});if(started&&performance.now()/1000-lastAutosave>10){lastAutosave=performance.now()/1000;save();}},1000/60);
+setInterval(()=>{simulationClock.advance(performance.now()/1000,{running:started&&!paused,speed:simulationSpeed});if(started&&!paused)population.workCardinal(8);if(started&&performance.now()/1000-lastAutosave>10){lastAutosave=performance.now()/1000;save();}},1000/60);
 // Local test hooks are absent in normal play. They expose game state only, never OS access.
 if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ === true){
   window.__aincrad={
@@ -181,6 +199,11 @@ if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ =
     start:begin,interact,save:()=>save(true),reset:()=>{population.dispose();state=freshState();population=new PopulationRuntime(state);renderer.followId=state.selectedAgentId;renderer.snap(state.player);},
     npc:(id=state.selectedAgentId)=>structuredClone(population.getAgent(id)),
     agents:()=>structuredClone(state.agents),conversation:()=>structuredClone(state.community),
+    cardinal:()=>structuredClone(state.cardinal),
+    cardinalMode:mode=>population.setCardinalMode(mode),
+    cardinalWork:(calls=1)=>{for(let i=0;i<Math.min(100,Math.max(0,Math.floor(calls)));i++)population.workCardinal(8);return structuredClone(state.cardinal);},
+    testCardinalTiming:settings=>{const runtime=population.cardinal;if(!runtime)return false;for(const key of ['observationSeconds','minHistorySeconds','experimentIntervalSeconds','experimentHorizonSeconds','monitoringSeconds'])if(Number.isFinite(settings?.[key])&&settings[key]>=.25&&settings[key]<=3600)runtime.config[key]=settings[key];runtime.diagnose('DEVELOPER_TIMING_FIXTURE','info','Native verification uses explicitly shortened Cardinal scheduling and copied-world horizons; biological rates are unchanged.');return true;},
+    atlas:()=>({status:renderer.atlasStatus(),markers:structuredClone(renderer.atlasMarkers||[])}),
     postMessage:(text,to='all',replyTo=null)=>population.social.postUserMessage(text,{to,replyTo}),
     npcAction:(id,action)=>population.controller(id)?.perform(action),
     testPlan:(id,plan)=>{const n=population.getAgent(id);if(!n)return false;population.cancel(id);n.active=null;n.skillRun=null;recordEvent(n,'debug',{setting:'test plan',provenance:'native QA fixture'});population.controller(id).applyDecision({plan,provider:'native QA fixture',reason:'A bounded persistence fixture.'});return n.cognition.plan?.status==='active';},

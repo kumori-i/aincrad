@@ -6,7 +6,7 @@ This is a standalone exploration game, independent of `agentic-workspace`.
 
 Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/trees, and enterable caves. The central reference crossing must remain approximately five minutes at normal walking speed. An in-game day is one hour of unpaused play.
 
-The owner has approved the 0.6 first ecosystem release: strict experiential food discovery, physiological time in game hours/days, vulnerable naps/sleep and rudimentary survival animals (rabbits, bobcats and foxes), seasonal grass/brambles/mature apple trees and decomposition. Preserve Aster and Mira, the optional human journal, pixel desktop presentation and npm workflow. Human food methods must not be supplied through object labels, action menus, fallback policies or peer templates; physically executed outcomes or explicit human advice supply evidence. Legacy saves remain available with their previous rules; fresh expeditions use discovery rules. Fish, large predators, climbing, tool construction, cooking and cultivation are later milestones. Keep model access optional/local and no agent OS/filesystem/shell access. Do not add signup, analytics, cloud services or additional human characters.
+The owner has approved the 0.7 Cardinal milestone: an autonomous world governor observes full private diagnostics, diagnoses problems, runs controlled copied-world experiments, learns from their outcomes, and applies validated world changes. Spread real ecology across the entire walkable valley and provide a zoomable/pannable map showing both humans and the player. Preserve strict experiential food discovery, physiological time, vulnerable sleep, finite ecology, Aster and Mira, the optional journal, pixel desktop presentation and npm workflow. Cardinal may manage world rules but must not insert answers or completed skills into inhabitants' minds. Keep model access optional/local and no agent OS/filesystem/shell access. No signup, analytics, cloud services or additional human characters. New physical mechanics and arbitrary source modification remain a separate tested development process.
 
 ## Boundaries
 
@@ -30,7 +30,7 @@ Use `npm run smoke` for the actual Electron application and rendered desktop scr
 
 ## Scope discipline
 
-Implement the approved first ecosystem and discovery milestone using the contracts in docs/DEVELOPMENT-v06.md. Start new expeditions beside locally observed water. Preserve historical save identity/progress without claiming old supplied food routines were cold-start discoveries. Keep drives concurrent, evidence and bounded budgets. Animal reproduction consumes resources and has population bounds. Preserve collision, the valley, original pixel art and source application workflow. Human construction, reproduction and larger societies remain later milestones.
+Implement the approved Cardinal and map milestone using docs/DEVELOPMENT-v07.md. Preserve historical save identity/progress; migrate discovery ecology distribution once with all additions accounted for. Old legacy worlds retain prior agent rules. Cardinal operates through authoritative world APIs; shadow experiments must not alter the live world, leak hidden information to agents, fabricate results, or block explicit pause. Animal reproduction consumes resources and has population bounds. Preserve collision, the valley, original pixel art and source application workflow. Human construction, reproduction and larger societies remain later milestones.
 
 ## Publication
 

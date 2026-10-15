@@ -6,10 +6,14 @@ import { harmPhysiology, wakePhysiology, isSleeping } from './biology.js';
 import { recordEvent } from './npc-memory.js';
 import { bodySignals } from './interoception.js';
 import { lineOfSight } from './perception.js';
+import { CardinalRuntime } from './cardinal.js';
+import { createCardinalExperiment } from './cardinal-experiments.js';
+import { applyWorldRules, getWorldRules } from './world-rules.js';
+import { BUILD_SOURCE_FINGERPRINT } from './build-info.js';
 
 /** Owns the two characters and the single shared simulation clock. */
 export class PopulationRuntime {
-  constructor(state,{providerFactory}={}) {
+  constructor(state,{providerFactory,cardinal=true,experimentFactory}={}) {
     this.state=state;
     this.providerFactory=providerFactory;
     this.controllers=new Map();
@@ -22,6 +26,16 @@ export class PopulationRuntime {
       this.social.observe(npc);
       this.observedAt.set(npc.id,npc.elapsed);
     }
+    // Shadow worlds reuse exactly the ordinary simulation but never start
+    // supervisors, model clients or another generation of experiments.
+    this.cardinal=cardinal&&state.cardinal?new CardinalRuntime(state,{
+      experimentFactory:experimentFactory||(({state:snapshot,proposal,seeds,horizonSeconds})=>createCardinalExperiment(snapshot,proposal,{
+        seeds,horizonSeconds,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,
+        runtimeFactory:(shadow,options)=>new PopulationRuntime(shadow,{...options,cardinal:false}),
+      })),
+      getRules:getWorldRules,
+      applyRules:applyWorldRules,
+    }):null;
   }
   getAgent(id='aster'){return this.state.agents.find(npc=>npc.id===id)||null;}
   controller(id='aster'){return this.controllers.get(id)||null;}
@@ -68,7 +82,16 @@ export class PopulationRuntime {
       }
     }
     this.social.tick(step);
+    this.cardinal?.tick(step);
   }
+  /** Expensive copied-world trials run outside the fixed simulation step. The
+   * application calls this only while its explicit simulation clock is running. */
+  workCardinal(budget=8){
+    if(this.disposed||!this.cardinal)return null;
+    return this.cardinal.work(budget);
+  }
+  setCardinalMode(mode){return !this.disposed&&this.cardinal?.setMode(mode);}
+  cancelCardinal(){return this.cardinal?.cancel();}
   cancel(id){
     if(id){this.controller(id)?.cancel();return;}
     for(const controller of this.controllers.values())controller.cancel();
@@ -78,5 +101,6 @@ export class PopulationRuntime {
     this.disposed=true;
     for(const controller of this.controllers.values())controller.dispose();
     this.social.dispose?.();
+    this.cardinal?.dispose();
   }
 }

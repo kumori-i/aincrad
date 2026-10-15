@@ -1,6 +1,6 @@
-# Aincrad 0.6 architecture
+# Aincrad 0.7 architecture
 
-Aincrad is a local-first Electron desktop application with two embodied characters, Aster and Mira, a human-controlled avatar and a finite first food web. It preserves the original valley, five-minute reference crossing, one-hour day, weather and independent cave transitions.
+Aincrad is a local-first Electron desktop application with two embodied characters, Aster and Mira, a human-controlled avatar, a finite food web and the Cardinal world supervisor. It preserves the original valley, five-minute reference crossing, one-hour day, weather and independent cave transitions.
 
 `npm run dev`, `npm run build` and `npm start` form the source workflow. Builds create ignored files in `dist/`; a strict application protocol serves allowlisted renderer assets. HTML is an internal Electron asset, not a browser deliverable.
 
@@ -15,6 +15,10 @@ flowchart TD
     H["Explicit human advice"] --> R["Unverified technique reports"]
     R --> C
     L["Optional pretrained model"] --> J["Human-journal language only"]
+    W --> O["Cardinal private measurements"]
+    O --> X["Paired copied-world experiments"]
+    X --> RUL["Validated environmental adjustments"]
+    RUL --> W
 ```
 
 ## Authority and shared time
@@ -26,6 +30,22 @@ flowchart TD
 Focus loss, hidden state and minimizing do not pause the open application. Held movement keys are cleared on blur. Escape controls the explicit pause state independently of map/help/journal visibility. Closing the application stops progression; reopening does not backfill wall-clock time. The renderer stays passive even when drawing is suppressed in the background.
 
 NPC and human scenes are independent. Following one character changes the rendered scene and field map to hers; it does not move the other actors. Every route and interaction still passes through authoritative collision, position, reach, ownership and available-resource checks.
+
+## Cardinal authority, experiments and adaptation
+
+Cardinal is an engine supervisor rather than another inhabitant controller. It can inspect the complete simulated world, including private physiological stores, actual action failures, held material, species, nutrient budgets and the history of outside assistance. Aster and Mira continue receiving only their local sensory observations and qualitative sensations. Cardinal records do not enter their memories or model prompts.
+
+Saved world rules provide explicit bounded environmental actuators. Runtime operations validate those settings and account for physical resource changes. The supervisor can adjust implemented resource production and ecological conditions; it cannot manufacture skill evidence, set a human's health, erase deprivation, grant inventory items or bypass a physical action. External additions have separate accounting. Full world supervision means authority over the implemented simulation, not arbitrary source execution or permission to corrupt its invariants.
+
+`cardinal-metrics.js` takes private measurements from actual engine state. The objectives combine bodily strain and deficits, resource condition, acquired empirical capability and ecosystem diversity. Movement stalls and energy-accounting errors are diagnostics/guardrails, rather than reasons to add more food blindly. The objective and proposal policy are supplied design choices, not values discovered by a blank model.
+
+`cardinal-experiments.js` incrementally advances paired sandbox copies of a saved world. A control and a candidate start from the same snapshot and seeded conditions. Only the candidate's validated environmental rule changes; neither branch receives supplied food techniques or fabricated successes. Training pairs and a separate held-out pair yield measured utility differences and explicit adoption/rejection reasons. Sandbox runtimes disable their own Cardinal to prevent recursive intervention. Limited work per live frame keeps the application responsive while a pending experiment makes progress.
+
+`cardinal.js` owns observation cadence, diagnoses, proposals, pending work, outcome records, interventions and parameter/context utility estimates. Later proposals use the persisted estimates, including negative results. Three unsuccessful tests can retire a hypothesis temporarily while other measured problems remain eligible; a game-day retry interval permits later testing under changed conditions. This is a bounded adaptive experiment policy, not LLM fine-tuning or a learned human neural network. A change is applied only after an eligible result; outcomes and reasons remain inspectable. Future evidence can favor different settings, and rollback is an explicit recorded operation rather than erasing intervention history.
+
+The live supervisor and every sandbox use simulation time. Pausing stops live observation and experiment progression; minimizing does not. Copied-world experiments are finite horizons and cannot establish indefinite sustainability or causal understanding beyond the tested difference. Ordinary Cardinal scheduling must remain distinct from any accelerated scheduling used by a developer evaluation.
+
+Automatic runtime control is restricted to existing engine actuators. New executable mechanics, source editing, deployment and operating-system access are not part of this supervisor. Optional future LLM analysis would remain separate from the evidence and physical-application boundary.
 
 ## Discovery-mode knowledge boundary
 
@@ -57,7 +77,7 @@ The model is configurable gameplay biology, not clinically validated human physi
 
 `ecology-config.js` supplies species and resource rules. Canonical ecology state retains stable opaque IDs, scene/position, plant biomass and seasonal crops, animal bodies, detached material, carcasses, decomposition, birth/death counters and resource budgets. Public sensory objects exclude private species and material metadata.
 
-The first ecosystem contains grass, brambles and existing mature apple trees, with rabbits, bobcats and foxes. Fruit passes through seasonal growth, availability, detachment and spoilage rather than instant stock refill. Grazing consumes vegetation. Detached plant/animal material decays, and decomposition returns resources to the aggregate nutrient cycle. Reproduction and growth cost resources and obey population bounds.
+The first ecosystem contains grass, brambles and existing mature apple trees, with rabbits, bobcats and foxes. Deterministic traversable habitat placement spans the valley instead of only the human starting area. Nearby searches use local candidates rather than granting humans access to the full ecological index. Fruit passes through seasonal growth, availability, detachment and spoilage rather than instant stock refill. Grazing consumes vegetation. Detached plant/animal material decays, and decomposition returns resources to the aggregate nutrient cycle. Reproduction and growth cost resources and obey population bounds.
 
 Animals use deterministic, inexpensive local controllers without an LLM. They seek food/water, flee, pursue, rest and sleep according to species bodies and immediate conditions. Innate animal diet recognition does not enter human observations. Pursuit expends effort and must reach physical contact; failure, injury and flight are possible. Predator threat/contact can wound or wake a human through authoritative callbacks, but cannot silently fill inventories or fabricate human action results.
 
@@ -81,11 +101,11 @@ Field notes are persistent authored artifacts with position, scene and optional 
 
 ## Persistence and compatibility
 
-World snapshots use version 5; discovery NPCs use version 4. Historical v1–v4 worlds restore as legacy mode, preserving Aster's identity, memory, procedures and prior body/resource rules. Mira remains independently initialized where missing. Only a new expedition starts discovery rules; incompatible saves are not silently deleted or reclassified.
+World snapshots use version 6; discovery NPCs remain version 4. Historical v1–v4 worlds restore as legacy mode, preserving Aster's identity, memory, procedures and prior body/resource rules. Their Cardinal runs in observation mode because adaptive experiments require discovery physics. Existing v5 discovery worlds receive Cardinal and validated default environmental rules automatically; they do not need to discard their characters or restart. Distribution migration supplements missing valley habitats once, accounts for introduced resources as external additions and preserves old object IDs and held material. Mira remains independently initialized where missing. Incompatible saves are not silently deleted or reclassified.
 
 The historical in-memory `state.npc` alias refers to Aster. Canonical disk state stores each agent once, with the selected character, community, environment and its single ecology state. All validators allowlist and bound fields, inventories, object identities, coordinates, physiological histories and experimental records. Saves are data, never programs.
 
-Restart cancels unfinished physical actions without counting them as successes. Persisted memories and plans still require fresh authoritative outcomes. Unknown future versions and read errors are surfaced without overwriting the source save. Bodies, ecosystem state, messages, claims, notes and simulation time restart together.
+Restart cancels unfinished physical actions without counting them as successes. An unfinished copied-world experiment is marked interrupted rather than assigned a result; Cardinal's completed evidence, utility estimates, settings and intervention history persist. Persisted memories and plans still require fresh authoritative outcomes. Unknown future versions and read errors are surfaced without overwriting the source save. Bodies, ecosystem state, messages, claims, notes and simulation time restart together.
 
 ## Optional local model bridge
 

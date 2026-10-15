@@ -6,12 +6,17 @@ import { createNpc } from './npc-state.js';
 import { validateCommunity } from './social.js';
 import { ECOLOGY_RULES } from './ecology-config.js';
 import { BIOLOGY_RULES } from './biology-config.js';
-const SAVE_VERSIONS = new Set([1,2,3,4,5]);
+import { validateCardinal } from './cardinal.js';
+const SAVE_VERSIONS = new Set([1,2,3,4,5,6]);
 const AGENT_IDS = ['aster','mira'];
 function unsupportedRules(raw){
-  if(raw?.version===5&&!['legacy','discovery'].includes(raw.simulationMode))return true;
+  if(raw?.version>=5&&!['legacy','discovery'].includes(raw.simulationMode))return true;
+  if(raw.environment?.schemaVersion!=null&&![1,2,3].includes(raw.environment.schemaVersion))return true;
+  if(raw.environment?.worldRules && raw.environment.worldRules.version!==1)return true;
+  if(raw.cardinal && raw.cardinal.version!==1)return true;
+  if(raw.environment?.ecology?.distributionVersion!=null&&![1,2].includes(raw.environment.ecology.distributionVersion))return true;
   if(raw.environment?.ecology?.version>ECOLOGY_RULES.version)return true;
-  const maximumActorVersion=raw?.version===5&&raw.simulationMode==='discovery'?4:3;
+  const maximumActorVersion=raw?.version>=5&&raw.simulationMode==='discovery'?4:3;
   return [...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(npc=>npc?.version>maximumActorVersion||npc?.physiology?.version>BIOLOGY_RULES.version||npc?.discovery?.version>1);
 }
 function newCharacterAt(id,elapsed,mode){
@@ -43,6 +48,10 @@ export function validateSave(raw, {restoring=true}={}) {
   const wp = raw.waypoint;
   if (wp && Number.isFinite(wp.x) && Number.isFinite(wp.y) && Math.abs(wp.x) < CONFIG.halfSize && Math.abs(wp.y) < CONFIG.halfSize) base.waypoint = { x: wp.x, y: wp.y };
   base.environment=validateEnvironment(raw.environment,{elapsed:base.elapsed,mode});
+  base.cardinal=validateCardinal(raw.cardinal??base.cardinal,{restoring});
+  // Historical worlds retain their former simulation rules. Cardinal can
+  // diagnose them, but automatic rule experiments require discovery physics.
+  if(mode==='legacy'&&base.cardinal.mode==='adaptive')base.cardinal.mode='observe';
   // Canonical agents are serialized only once. Preserve the old Aster alias for
   // historical saves and callers; discovery records cannot import old recipes.
   const records = new Map(), validVersions=mode==='discovery'?[4]:[1,2,3];

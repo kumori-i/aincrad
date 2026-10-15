@@ -1,6 +1,7 @@
 import { CONFIG, ENV_RULES, APPLE_PATCHES, CAVES, PONDS } from './config.js';
 import { clamp, lerp, hash, distance, objectsInRect, terrain, canStandOutside } from './world.js';
-import { createEcology, validateEcology } from './ecology.js';
+import { createEcology, validateEcology, migrateEcologyDistribution } from './ecology.js';
+import { createWorldRules, validateWorldRules, getWorldRule } from './world-rules.js';
 
 export const WEATHER_KINDS = Object.freeze(['clear', 'cloudy', 'rainy', 'windy']);
 const WEATHER_EFFECTS = Object.freeze({
@@ -10,13 +11,14 @@ const WEATHER_EFFECTS = Object.freeze({
 const finite = (v, fallback) => Number.isFinite(v) ? v : fallback;
 const safeElapsed = v => clamp(finite(v, 0), 0, ENV_RULES.maxElapsed);
 const pointOf = actor => actor?.position || actor || { x: 0, y: 0 };
-function weatherAt(index, seed) {
-  const n = hash(index, 811, seed);
-  return n < .42 ? 'clear' : n < .68 ? 'cloudy' : n < .84 ? 'rainy' : 'windy';
+function weatherAt(index, seed, rainfallMultiplier=1) {
+  const n = hash(index, 811, seed), rain = clamp(.16 * rainfallMultiplier, 0, .64), dryScale = (1-rain)/.84;
+  return n < .42*dryScale ? 'clear' : n < .68*dryScale ? 'cloudy' : n < .68*dryScale+rain ? 'rainy' : 'windy';
 }
 function updateWeather(env) {
   const index = Math.floor(env.elapsed / ENV_RULES.weatherSeconds);
-  const kind = weatherAt(index, env.seed), previous = weatherAt(Math.max(0, index - 1), env.seed);
+  const rainfall=getWorldRule(env,'rainfallMultiplier');
+  const kind = weatherAt(index, env.seed,rainfall), previous = weatherAt(Math.max(0, index - 1), env.seed,rainfall);
   const phase = clamp((env.elapsed - index * ENV_RULES.weatherSeconds) / ENV_RULES.weatherTransitionSeconds, 0, 1);
   env.weather = {
     kind, previous, changedAt: index * ENV_RULES.weatherSeconds, duration: ENV_RULES.weatherSeconds,
@@ -27,8 +29,8 @@ function updateWeather(env) {
 export function createEnvironment(seed = CONFIG.seed, {mode='legacy'}={}) {
   const discovery=mode==='discovery';
   const env = {
-    schemaVersion: discovery?2:1, ...(discovery?{mode:'discovery'}:{}), seed: Number.isInteger(seed) ? seed >>> 0 : CONFIG.seed, elapsed: 0,
-    settings: { hourOverride: null, weatherOverride: null }, weather: null,
+    schemaVersion: discovery?3:1, ...(discovery?{mode:'discovery'}:{}), seed: Number.isInteger(seed) ? seed >>> 0 : CONFIG.seed, elapsed: 0,
+    settings: { hourOverride: null, weatherOverride: null }, weather: null, worldRules:createWorldRules(),
     foodStocks: discovery?[]:APPLE_PATCHES.map(p => ({ id: `apple:${p.id}`, stock: p.capacity, renewAt: ENV_RULES.foodRenewalSeconds })),
   };
   if(discovery)env.ecology=createEcology(env.seed,0);
@@ -51,6 +53,7 @@ export function tickEnvironment(env, dt) {
 export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'?'discovery':'legacy' } = {}) {
   const base = createEnvironment(Number.isInteger(raw?.seed) ? raw.seed : CONFIG.seed,{mode});
   base.elapsed = safeElapsed(Number.isFinite(elapsed) ? elapsed : raw?.elapsed);
+  base.worldRules=validateWorldRules(raw?.worldRules);
   const hour = raw?.settings?.hourOverride;
   base.settings.hourOverride = Number.isFinite(hour) && hour >= 0 && hour < 24 ? hour : null;
   base.settings.weatherOverride = WEATHER_KINDS.includes(raw?.settings?.weatherOverride) ? raw.settings.weatherOverride : null;
@@ -65,7 +68,12 @@ export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'
       entry.stock = patch.capacity; entry.renewAt = base.elapsed + ENV_RULES.foodRenewalSeconds;
     }
   }
-  if(mode==='discovery')base.ecology=validateEcology(raw?.ecology,{seed:base.seed,elapsed:base.elapsed});
+  if(mode==='discovery'){
+    base.ecology=validateEcology(raw?.ecology,{seed:base.seed,elapsed:base.elapsed});
+    // Expand old habitats once, preserving every existing physical object and
+    // accounting for introduced energy rather than renewing depleted populations.
+    if(raw?.ecology && (raw.ecology.distributionVersion??1)<2)migrateEcologyDistribution(base.ecology,2);
+  }
   updateWeather(base); return base;
 }
 export function environmentHour(env) {
@@ -84,18 +92,19 @@ export function environmentConditions(env = {}, actor = {}) {
   const position = pointOf(actor), hour = environmentHour(env), scene = actor.scene || 'valley';
   const sheltered = scene !== 'valley' && CAVES.some(c => c.id === scene);
   const override = env.settings?.weatherOverride;
-  const weather = WEATHER_KINDS.includes(override) ? override : WEATHER_KINDS.includes(env.weather?.kind) ? env.weather.kind : weatherAt(Math.floor(safeElapsed(env.elapsed) / ENV_RULES.weatherSeconds), Number.isInteger(env.seed) ? env.seed : CONFIG.seed);
+  const weather = WEATHER_KINDS.includes(override) ? override : WEATHER_KINDS.includes(env.weather?.kind) ? env.weather.kind : weatherAt(Math.floor(safeElapsed(env.elapsed) / ENV_RULES.weatherSeconds), Number.isInteger(env.seed) ? env.seed : CONFIG.seed,getWorldRule(env,'rainfallMultiplier'));
   const effect = WEATHER_EFFECTS[weather];
-  const wind = sheltered ? 0 : (WEATHER_KINDS.includes(override) ? effect.wind : finite(env.weather?.wind, effect.wind));
+  const rainfall=getWorldRule(env,'rainfallMultiplier');
+  const wind = sheltered ? 0 : (WEATHER_KINDS.includes(override) ? effect.wind : finite(env.weather?.wind, effect.wind))*getWorldRule(env,'windMultiplier');
   const shade = !sheltered && objectsInRect(position.x - 145, position.y - 145, 290, 290)
     .some(o => ['oak', 'pine'].includes(o.kind) && distance(o, position) < 85 * o.scale);
   const airTemperature = sheltered ? ENV_RULES.caveTemperature : dailyTemperature(hour)
-    + (WEATHER_KINDS.includes(override) ? effect.offset : finite(env.weather?.temperatureOffset, effect.offset));
+    + (WEATHER_KINDS.includes(override) ? effect.offset : finite(env.weather?.temperatureOffset, effect.offset)) + getWorldRule(env,'temperatureOffsetC');
   const wetness = clamp(finite(actor.wetness ?? actor.thermal?.wetness, 0), 0, 100) / 100;
-  const raining = !sheltered && weather === 'rainy';
+  const raining = !sheltered && weather === 'rainy' && rainfall>0;
   const shadeCooling = shade && hour >= 7 && hour <= 19 ? ENV_RULES.shadeCooling : 0;
   const feltTemperature = sheltered ? ENV_RULES.caveTemperature : airTemperature - wind * ENV_RULES.windCooling - shadeCooling - wetness * 3;
-  return { hour, weather, airTemperature, temperature: airTemperature, feltTemperature, wind, sheltered, shade, raining, rain: raining };
+  return { hour, weather, airTemperature, temperature: airTemperature, feltTemperature, wind, sheltered, shade, raining, rain: raining, rainfall: raining?rainfall:0 };
 }
 export function localConditions(env, position, scene = 'valley') {
   return environmentConditions(env, { position, scene });

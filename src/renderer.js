@@ -5,6 +5,7 @@ import { ART_PIXEL, canvas, makeGroundChunk, groundColor, ellipse, line, poly, d
 import { environmentConditions, ambientEcology } from './environment.js';
 import { foodSource } from './resources.js';
 import { renderEcology } from './ecology.js';
+import { AtlasViewport, atlasActors } from './atlas.js';
 
 /** The world is painted into an art-pixel buffer, then enlarged by an integer factor. */
 export class Renderer {
@@ -14,6 +15,7 @@ export class Renderer {
     this.pixels=canvas(1,1);this.pixelCtx=this.pixels.getContext('2d',{alpha:false});
     this.camera={x:state.player.x-220,y:state.player.y-70};this.zoom=1.5;this.targetZoom=1.5;
     this.chunks=new Map();this.caveCanvas=null;this.mapCanvas=null;this.scene=state.scene;
+    this.atlasView=new AtlasViewport({bounds:{x:-CONFIG.halfSize,y:-CONFIG.halfSize,width:CONFIG.halfSize*2,height:CONFIG.halfSize*2}});this.atlasScene='valley';this.atlasMarkers=[];this.atlasDetail=null;
     this.followNpc=false;this.followId='aster';this.inspectorOpen=false;this.viewportOffsetX=0;this.frame=0;this.lastMini=0;this.resize();
   }
   resize(){this.width=window.innerWidth;this.height=window.innerHeight;this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);this.ctx.imageSmoothingEnabled=false;}
@@ -166,35 +168,65 @@ export class Renderer {
     }
     if(!follow){ellipse(g,w/2,h/2,8,8,'#142d27bb');poly(g,[[w/2,h/2-6],[w/2-4,h/2+5],[w/2,h/2+2],[w/2+4,h/2+5]],'#fff1c8');}
   }
-  drawAtlas(target,state) {
-    const g=target.getContext('2d'),w=target.width,h=target.height;g.imageSmoothingEnabled=false;
-    const scene=this.viewScene(state),subject=this.viewSubject(state),isValley=scene==='valley',worldW=isValley?CONFIG.halfSize*2:2700,worldH=isValley?CONFIG.halfSize*2:1900,ox=isValley?-CONFIG.halfSize:0,oy=isValley?-CONFIG.halfSize:0;
-    // Square world in an 840 x 700 atlas, with aspect ratio preserved.
-    const scale=Math.min((w-30)/worldW,(h-30)/worldH),mx=(w-worldW*scale)/2,my=(h-worldH*scale)/2;
-    const toMap=(x,y)=>({x:mx+(x-ox)*scale,y:my+(y-oy)*scale});
+  atlasStatus(){return{...this.atlasView.status(),scene:this.atlasScene};}
+  atlasFit(){return this.atlasView.fit();}
+  atlasZoom(factor,x,y){return this.atlasView.zoomAt(factor,x,y);}
+  atlasPan(dx,dy){return this.atlasView.pan(dx,dy);}
+  atlasCenter(id,state){
+    const actor=atlasActors(state,CAVES).find(item=>item.id===id);if(!actor)return false;
+    if(this.atlasScene!=='valley'){this.atlasScene='valley';this.atlasView.setBounds({x:-CONFIG.halfSize,y:-CONFIG.halfSize,width:CONFIG.halfSize*2,height:CONFIG.halfSize*2});}
+    if(this.atlasView.zoom<8)this.atlasView.zoomAt(8/this.atlasView.zoom);
+    this.atlasView.centerOn(actor.position.x,actor.position.y);return true;
+  }
+  atlasMarkerAt(x,y){return [...this.atlasMarkers].reverse().find(marker=>Math.hypot(marker.x-x,marker.y-y)<11||x>=marker.label.x&&x<=marker.label.x+marker.label.w&&y>=marker.label.y&&y<=marker.label.y+marker.label.h)?.id||null;}
+  atlasPoint(x,y){return this.atlasView.toWorld(x,y);}
+  atlasTerrain(g,w,h){
+    const view=this.atlasView,b=view.bounds,scale=view.scale;
     if(!this.mapCanvas){
       this.mapCanvas=canvas(420,420);const m=this.mapCanvas.getContext('2d'),img=m.createImageData(420,420);
-      for(let y=0;y<420;y++)for(let x=0;x<420;x++){const col=groundColor((x/420-.5)*48000,(y/420-.5)*48000,true),i=(y*420+x)*4;img.data[i]=col[0];img.data[i+1]=col[1];img.data[i+2]=col[2];img.data[i+3]=255;}m.putImageData(img,0,0);
+      for(let y=0;y<420;y++)for(let x=0;x<420;x++){const col=groundColor((x/420-.5)*CONFIG.halfSize*2,(y/420-.5)*CONFIG.halfSize*2,true),i=(y*420+x)*4;img.data[i]=col[0];img.data[i+1]=col[1];img.data[i+2]=col[2];img.data[i+3]=255;}m.putImageData(img,0,0);
     }
-    g.fillStyle='#1a332d';g.fillRect(0,0,w,h);
-    if(isValley)g.drawImage(this.mapCanvas,mx,my,worldW*scale,worldH*scale);
+    const corner=view.toCanvas(b.x,b.y);g.drawImage(this.mapCanvas,corner.x,corner.y,b.width*scale,b.height*scale);
+    if(view.zoom<=2)return;
+    // Sample visible terrain at higher zoom; this is artwork, never a world-rule tick.
+    const quantum=32/scale,key=`${Math.round(view.center.x/quantum)},${Math.round(view.center.y/quantum)},${view.zoom},${w},${h}`;
+    if(this.atlasDetail?.key!==key){
+      const pw=Math.min(500,Math.ceil(w*.6)),ph=Math.min(400,Math.ceil(h*.6)),image=canvas(pw,ph),ig=image.getContext('2d'),pixels=ig.createImageData(pw,ph),ww=w*1.25/scale,wh=h*1.25/scale,ox=view.center.x-ww/2,oy=view.center.y-wh/2;
+      for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const col=groundColor(ox+x/pw*ww,oy+y/ph*wh,true),i=(y*pw+x)*4;pixels.data[i]=col[0];pixels.data[i+1]=col[1];pixels.data[i+2]=col[2];pixels.data[i+3]=255;}ig.putImageData(pixels,0,0);this.atlasDetail={key,image,ox,oy,ww,wh};
+    }
+    const detail=this.atlasDetail,p=view.toCanvas(detail.ox,detail.oy);g.drawImage(detail.image,p.x,p.y,detail.ww*scale,detail.wh*scale);
+  }
+  drawAtlas(target,state,{scene='valley'}={}) {
+    const size=target.getBoundingClientRect?.();if(size?.width>0&&size?.height>0){const width=Math.round(size.width),height=Math.round(size.height);if(target.width!==width)target.width=width;if(target.height!==height)target.height=height;}
+    const g=target.getContext('2d'),w=target.width,h=target.height,isValley=scene==='valley';g.imageSmoothingEnabled=false;
+    if(this.atlasScene!==scene){this.atlasScene=scene;this.atlasView.setBounds(isValley?{x:-CONFIG.halfSize,y:-CONFIG.halfSize,width:CONFIG.halfSize*2,height:CONFIG.halfSize*2}:{x:0,y:0,width:2700,height:1900});}
+    this.atlasView.resize(w,h);const view=this.atlasView,b=view.bounds,scale=view.scale,toMap=(x,y)=>view.toCanvas(x,y),corner=toMap(b.x,b.y),mx=corner.x,my=corner.y,worldW=b.width,worldH=b.height;
+    g.fillStyle='#1a332d';g.fillRect(0,0,w,h);g.save();g.beginPath();g.rect(Math.max(0,mx),Math.max(0,my),Math.min(w,mx+worldW*scale)-Math.max(0,mx),Math.min(h,my+worldH*scale)-Math.max(0,my));g.clip();
+    if(isValley)this.atlasTerrain(g,w,h);
     else{if(!this.caveCanvas)this.buildCave();g.drawImage(this.caveCanvas,mx,my,worldW*scale,worldH*scale);for(const o of CAVE_OBJECTS){const p=toMap(o.x,o.y);ellipse(g,p.x,p.y,2,2,o.kind==='crystal'?(CAVES.find(c=>c.id===scene)?.tint??'#bdf'):'#bec5ad');}}
     g.fillStyle='#12362618';g.fillRect(mx,my,worldW*scale,worldH*scale);
     for(let i=0;i<=6;i++){line(g,[[mx+worldW*scale*i/6,my],[mx+worldW*scale*i/6,my+worldH*scale]],'#efedc416',1);line(g,[[mx,my+worldH*scale*i/6],[mx+worldW*scale,my+worldH*scale*i/6]],'#efedc416',1);}
     if(isValley){
-      // Trails are deliberately exaggerated on the field map for legibility.
-      g.save();g.setLineDash([3,3]);for(const y of [0,-12600,11800]){const a=toMap(-21600,y),b=toMap(21600,y);line(g,[[a.x,a.y],[b.x,b.y]],'#e1cf9866',1);}
-      for(const c of CAVES){if(c.id==='refuge')continue;const a=toMap(c.x,c.y),b=toMap(c.x,c.y<0?-12600:11800);line(g,[[a.x,a.y],[b.x,b.y]],'#e1cf9866',1);}
-      for(const [ax,ay,bx,by] of HABITAT_TRAILS){const a=toMap(ax,ay),b=toMap(bx,by);line(g,[[a.x,a.y],[b.x,b.y]],'#e1cf9888',1);}g.restore();
-      for(const l of LANDMARKS){const p=toMap(l.x,l.y),discovered=state.discoveries.includes(l.id);g.textAlign='center';g.font='16px Georgia';g.fillStyle=discovered?'#fff0c1':'#e5dfb8';g.shadowColor='#173b32';g.shadowBlur=5;g.fillText(l.kind==='cave'?'△':l.kind==='camp'?'⌂':'·',p.x,p.y);g.font='11px Georgia';g.fillText(l.name,p.x,p.y+15);g.shadowBlur=0;}
-      g.font='italic 19px Georgia';g.fillStyle='#e0dec06e';g.textAlign='center';g.fillText('C R O W N   R I D G E',w/2,48);
-    }else{const exit=toMap(CAVE_EXIT.x,CAVE_EXIT.y);g.fillStyle='#f1d499';g.font='11px Georgia';g.textAlign='center';g.fillText('↑ Valley exit',exit.x,exit.y+18);}
+      g.save();g.setLineDash([3,3]);for(const y of [0,-12600,11800]){const a=toMap(-21600,y),bp=toMap(21600,y);line(g,[[a.x,a.y],[bp.x,bp.y]],'#e1cf9866',1);}
+      for(const c of CAVES){if(c.id==='refuge')continue;const a=toMap(c.x,c.y),bp=toMap(c.x,c.y<0?-12600:11800);line(g,[[a.x,a.y],[bp.x,bp.y]],'#e1cf9866',1);}
+      for(const [ax,ay,bx,by] of HABITAT_TRAILS){const a=toMap(ax,ay),bp=toMap(bx,by);line(g,[[a.x,a.y],[bp.x,bp.y]],'#e1cf9888',1);}g.restore();
+      for(const l of LANDMARKS){const p=toMap(l.x,l.y);if(p.x<-160||p.x>w+160||p.y<-30||p.y>h+30)continue;const discovered=state.discoveries.includes(l.id);g.textAlign='center';g.font='16px Georgia';g.fillStyle=discovered?'#fff0c1':'#e5dfb8';g.shadowColor='#173b32';g.shadowBlur=5;g.fillText(l.kind==='cave'?'△':l.kind==='camp'?'⌂':'·',p.x,p.y);g.font='11px "Courier New",monospace';g.fillText(l.name,p.x,p.y+15);g.shadowBlur=0;}
+    }else{const exit=toMap(CAVE_EXIT.x,CAVE_EXIT.y);g.fillStyle='#f1d499';g.font='11px "Courier New",monospace';g.textAlign='center';g.fillText('↑ Valley exit',exit.x,exit.y+18);}
     for(const note of this.notes(state,scene)){const np=toMap(note.position.x,note.position.y);g.fillStyle='#e7d5a6';g.fillRect(Math.round(np.x)-2,Math.round(np.y)-3,4,6);}
-    if(state.scene===scene){const player=toMap(state.player.x,state.player.y);poly(g,[[player.x,player.y-5],[player.x-4,player.y+4],[player.x+4,player.y+4]],'#f3d399');}
-    for(const agent of this.agents(state)){if((agent.scene||'valley')!==scene)continue;const ap=toMap(agent.position.x,agent.position.y),color=agent.id==='mira'?'#ceb0d7':'#b7d584';poly(g,[[ap.x,ap.y-5],[ap.x+4,ap.y],[ap.x,ap.y+5],[ap.x-4,ap.y]],color);g.font='11px Georgia';g.textAlign='left';g.fillStyle=color;g.fillText(agent.name||'Aster',ap.x+7,ap.y+(agent.id==='mira'?14:-4));}
-    const p=toMap(subject.x,subject.y);g.strokeStyle='#fff1bb';g.lineWidth=1;g.beginPath();g.arc(p.x,p.y,11,0,Math.PI*2);g.stroke();
-    if(state.waypoint&&isValley){const wp=toMap(state.waypoint.x,state.waypoint.y);g.save();g.setLineDash([3,4]);line(g,[[p.x,p.y],[wp.x,wp.y]],'#f1d08e88',1);g.restore();poly(g,[[wp.x,wp.y-7],[wp.x+5,wp.y],[wp.x,wp.y+7],[wp.x-5,wp.y]],'#f0cd82');}
-    this.atlasTransform={mx,my,scale,ox,oy,worldW,worldH};
+    if(state.waypoint&&isValley){const wp=toMap(state.waypoint.x,state.waypoint.y);poly(g,[[wp.x,wp.y-7],[wp.x+5,wp.y],[wp.x,wp.y+7],[wp.x-5,wp.y]],'#f0cd82');}
+    g.restore();
+    // Constant-size, labelled markers remain legible when the whole valley is fitted.
+    const actors=isValley?atlasActors(state,CAVES):atlasActors(state,CAVES).filter(actor=>actor.scene===scene).map(actor=>({...actor,position:actor.id==='you'?state.player:this.agents(state).find(n=>n.id===actor.id).position}));
+    this.atlasMarkers=[];g.font='bold 12px "Courier New",monospace';g.textAlign='left';g.textBaseline='middle';
+    for(let index=0;index<actors.length;index++){
+      const actor=actors[index],point=toMap(actor.position.x,actor.position.y),outside=point.x<9||point.x>w-9||point.y<9||point.y>h-9,x=Math.max(9,Math.min(w-9,point.x)),y=Math.max(9,Math.min(h-9,point.y)),text=actor.name+(actor.inCave?' · '+actor.place:'')+(outside?' · beyond view':'');
+      const labelW=Math.min(w-16,g.measureText(text).width+12),labelH=21;let lx=Math.max(8,Math.min(w-labelW-8,x+(index===0?-labelW-14:14))),ly=Math.max(8,Math.min(h-labelH-8,y+(index===2?15:-28)));
+      for(let attempt=0;attempt<8&&this.atlasMarkers.some(other=>lx<other.label.x+other.label.w+3&&lx+labelW+3>other.label.x&&ly<other.label.y+other.label.h+3&&ly+labelH+3>other.label.y);attempt++)ly=Math.max(8,Math.min(h-labelH-8,ly+(index%2?25:-25)));
+      const label={x:lx,y:ly,w:labelW,h:labelH};line(g,[[x,y],[lx+(lx<x?labelW:0),ly+labelH/2]],actor.color,1);g.fillStyle='#18362ee8';g.fillRect(lx,ly,labelW,labelH);g.strokeStyle=actor.color;g.lineWidth=1;g.strokeRect(lx+.5,ly+.5,labelW-1,labelH-1);g.fillStyle=actor.color;g.fillText(text,lx+6,ly+labelH/2);
+      g.fillStyle='#18362e';g.fillRect(x-6,y-6,12,12);g.fillStyle=actor.color;if(actor.id==='you')poly(g,[[x,y-5],[x-4,y+4],[x+4,y+4]],actor.color);else{g.fillRect(x-4,y-4,8,8);if(actor.inCave){g.strokeStyle='#fff0c9';g.strokeRect(x-6.5,y-6.5,13,13);}}
+      this.atlasMarkers.push({id:actor.id,x,y,label,scene:actor.scene,position:{...actor.position}});
+    }
+    g.textBaseline='alphabetic';
+    this.atlasTransform={mx,my,scale,ox:b.x,oy:b.y,worldW,worldH};
   }
-  atlasPoint(x,y){const t=this.atlasTransform;if(!t)return null;const wx=(x-t.mx)/t.scale+t.ox,wy=(y-t.my)/t.scale+t.oy;if(wx<t.ox||wx>t.ox+t.worldW||wy<t.oy||wy>t.oy+t.worldH)return null;return{x:wx,y:wy};}
 }

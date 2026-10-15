@@ -1,6 +1,6 @@
 # Aincrad
 
-An original pixel-art desktop world with two persistent characters, **Aster and Mira**, discovering useful actions through experience. Version 0.6 adds a finite food web, slower bodies tied to game hours and days, vulnerable sleep and a strict food-discovery expedition mode.
+An original pixel-art desktop world with two persistent characters, **Aster and Mira**, discovering useful actions through experience. Version 0.7 adds **Cardinal**, a persistent world supervisor that observes private simulation measurements, tests environmental changes in copied worlds and adapts the running ecosystem from the measured results.
 
 ## Clone, build, and run
 
@@ -25,7 +25,7 @@ Original pixel terrain, shoreline edges, trees, cliffs, bridges, caves and chara
 
 The mountain-ringed valley preserves the human avatar, five-minute reference crossing, lake, river, smaller ponds and four enterable caves. Its saved clock drives daylight, seeded clear/cloudy/rainy/windy weather and seasonal resources. A day lasts one hour at normal simulation speed. Temperature peaks in the early afternoon; wind, rain, shade and wetness affect exposure. Caves provide temperate shelter.
 
-Fresh expeditions use **discovery mode**. Grass, brambles and existing mature apple trees have finite biomass and crops. Grazing, picking, detached material and decomposition change the actual saved ecosystem; fruit does not refill on the preceding ten-minute patch timer. Rabbits, bobcats and foxes have simple local survival controllers, species-specific bodies, limited resources and bounded reproduction. Their feeding and pursuit are physical events, not ambient animation. In discovery mode the old decorative animal layer is replaced by the actual ecosystem.
+Fresh expeditions use **discovery mode**. Grass, brambles, mature apple trees and animal habitats are distributed across the traversable valley, rather than concentrated around the starting pond. Grass and fruit retain finite biomass and crops. Grazing, picking, detached material and decomposition change the actual saved ecosystem; fruit does not refill on the preceding ten-minute patch timer. Rabbits, bobcats and foxes have simple local survival controllers, species-specific bodies, limited resources and bounded reproduction. Their feeding and pursuit are physical events, not ambient animation. In discovery mode the old decorative animal layer is replaced by the actual ecosystem.
 
 Grass consumers compete for vegetation, predators expend energy pursuing prey, and omnivores have alternatives. Carcasses and spoiled material decompose into the resource cycle. Sleeping creatures are vulnerable to contact and threats. Animal instincts may recognize their species' diet; the human controller does not receive those diet tables.
 
@@ -42,6 +42,32 @@ Useful sequences become bounded remembered techniques only after physical practi
 Your journal advice can seed a **reported, unverified hypothesis** about a technique. The initial offline instruction parser recognizes basic manipulation words and an already observed opaque ID or matching visible features, for example `pull object:17 then sample it`. A pronoun can refer to material actually detached by that operation. Ordinary food names do not look up an edible-item table or grant a routine. The character still has to carry out actions and observe consequences. Peer reports and notes remain testimony rather than instant verified facts. A familiar appearance alone does not certify an object's identity or edibility.
 
 Movement, local navigation, water handling, bodily drives, action exploration and qualitative sensation mapping are supplied structure. This is strict experiential **food** discovery, not a blank starting mind, an unconstrained human nervous system or proof of open-ended civilization. A clean discovery experiment uses a new expedition rather than reclassifying old apple routines as self-discovered skills.
+
+## Cardinal: an adaptive world supervisor
+
+Cardinal has full visibility into the simulated bodies, resources, action outcomes and ecosystem budgets. Its authority is separate from the inhabitants' local knowledge. It can change implemented environmental rules and resource conditions through validated engine operations; it cannot quietly teach Aster or Mira a technique, rewrite their memories, heal them or claim an unexecuted action succeeded.
+
+The supervisor records observations, diagnoses bottlenecks and proposes a bounded world adjustment. It compares the unchanged world with that candidate in copied simulations, uses separate training and held-out seeds, and retains the actual outcomes. Accepted adjustments change the running world. Persisted parameter/context scores influence later choices, so its record changes future decisions rather than serving only as a journal of suggestions. Failed candidates remain evidence too. Resource additions are recorded as outside assistance instead of independent ecological production.
+
+Cardinal's objective combines bodily strain, resource balance, acquired practical evidence and ecological condition. It checks for navigation stalls and budget violations so that extra food cannot automatically conceal a broken movement path. A finite experiment is evidence about that snapshot and tested horizon; it is not proof that a change will sustain a civilization indefinitely.
+
+This first implementation runs locally without a language model. Its world control covers implemented, allowlisted actuators with hard physical limits and an intervention history. It does not rewrite executable source, invent mechanics such as fishing, or give itself operating-system access. Those capabilities require a separate development workflow. Cardinal can guide the environment while food discovery remains experiential.
+
+Press **C** to inspect Cardinal's observations, diagnoses, proposals, paired experiments, learned outcomes and world settings. Choose adaptive, observe-only or off; propose a setting for a copied-world test; or reverse the latest eligible intervention. The panel is privileged owner information and does not teach the inhabitants.
+
+![Cardinal's privileged world supervision and experiment history](docs/cardinal-v07.png)
+
+| World setting | Valid range |
+| --- | --- |
+| Plant growth and fruit yield | 0.25–3× |
+| Animal foraging range | 0.5–2× |
+| Animal reproduction rate | 0–2× |
+| Outdoor temperature offset | −6 to +6 °C |
+| Rainfall influence | 0–2.5× |
+| Wind strength | 0.25–2× |
+| Season length | 0.5–2×; owner-requested tests only |
+
+Automatic proposals address intake gaps, depleted producers, dry soil, habitat pressure and thermal exposure. Cardinal can test production, rainfall, foraging range, reproductive pressure, temperature and wind when the corresponding measurements support a hypothesis. A nutrition hypothesis must improve actual intake; unused extra vegetation alone cannot pass as feeding a person.
 
 ## Bodies, digestion and sleep
 
@@ -89,11 +115,13 @@ Free generated language can still reflect pretrained knowledge; no prompt can es
 
 Legacy expeditions retain their preceding optional model action/planning contract. The shared request queue and hourly budget remain bounded, with character-specific cancellation. Failures, stale responses and timeouts leave the offline controller in charge. The model has no operating-system, filesystem, shell, code-execution or rescue access. See [the configuration example](docs/local-model.example.json).
 
-Live model behavior must be evaluated separately from deterministic provider fixtures and offline runs. [Verification](docs/TESTING.md) records 242 passing tests, native background/pause/restart checks and frozen-source discovery trials. All four ordinary characters discovered useful food without human advice over two game days, but intake remained below expenditure. A fourteen-day animal-only diagnostic lost both bobcats and much of its initial population. Long-term self-sufficiency and ecological stability remain experimental; the detailed measurements and limits are in that record.
+Live model behavior must be evaluated separately from deterministic provider fixtures and offline runs. [Verification](docs/TESTING.md) separates current Cardinal checks from the [historical v0.6 discovery measurements](docs/TESTING-v06.md). Those earlier trials found food discovery but inadequate caloric intake and unstable animal populations; they are not evidence that the new supervisor has solved either problem. Long-term self-sufficiency and ecological stability remain experimental.
 
 ## Existing saves and controls
 
 Existing v1–v4 saves remain **legacy expeditions**, preserving identities, progress, memories and the preceding body/food rules. A newly missing second character is added independently. A new expedition uses discovery mode and explicitly replaces the old saved world. Unsupported or damaged saves are reported rather than silently overwritten.
+
+Existing v0.6 discovery expeditions gain Cardinal and missing valley habitats automatically. Migration preserves their people, memories, old object IDs and held material; introduced habitat energy is recorded separately. Legacy expeditions retain their existing physics and observation-only Cardinal.
 
 | Control | Action |
 | --- | --- |
@@ -101,7 +129,9 @@ Existing v1–v4 saves remain **legacy expeditions**, preserving identities, pro
 | Hold Shift | Run your avatar |
 | E | Enter/exit caves or read the trail sign |
 | N | Character journal, follow controls and conversation |
-| M | Field map; click for a waypoint |
+| C | Cardinal observations, experiments, mode and world controls |
+| M | Zoomable field map with live Aster/Mira markers; click for a waypoint |
+| Drag / wheel / + / − in the map | Pan / zoom the field map; find buttons center a person |
 | Right-click field map | Clear waypoint |
 | Mouse wheel / + / − | Pixel camera zoom |
 | H | Guide |
@@ -112,6 +142,8 @@ Existing v1–v4 saves remain **legacy expeditions**, preserving identities, pro
 
 **The world continues when you click out, hide or minimize the window.** Focus loss clears held movement keys. Opening the map, help or journal does not pause. Escape is the explicit pause control; closing the app stops simulation. Speed changes affect the shared clock consistently, not separate animal, body or plant timers.
 
+![The zoomable valley map with live human markers](docs/atlas-v07.png)
+
 ## Verify and package
 
 ```sh
@@ -119,6 +151,7 @@ npm run check       # Syntax, engine, discovery, ecology, save and provider test
 npm run build       # Build the desktop app in dist/
 npm run smoke       # Isolated Electron lifecycle check
 npm run evaluate    # Offline scenarios; inspect their stated duration and limits
+npm run evaluate:cardinal # Actual paired supervisor, adaptation and coverage probes
 ```
 
 Windows and Linux CI check the source build and launch the actual Electron application. Optional `npm run package:win` and `npm run package:linux` distributions remain available; packaging is not required to run or develop the project. Windows distributions remain unsigned prototypes.

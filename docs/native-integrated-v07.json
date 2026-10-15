@@ -1,0 +1,35 @@
+{
+  "sourceFingerprint": "9b02b8159eac0b393650e0ef04af956ff2cd4d74c6b7ccfaec96444fd4a07ea6",
+  "escapeWhileTyping": true,
+  "mapAndHelpContinue": true,
+  "hiddenWindowContinues": true,
+  "nativeBlurObserved": true,
+  "minimizedWindowContinues": true,
+  "executedDiscoveryWithDelayedEffect": true,
+  "actualCardinalExperiment": {
+    "recommendation": "reject",
+    "status": "completed",
+    "pairs": 3,
+    "sourceFingerprint": "9b02b8159eac0b393650e0ef04af956ff2cd4d74c6b7ccfaec96444fd4a07ea6",
+    "shortSchedulingFixture": true,
+    "horizonSeconds": 1
+  },
+  "escapePausesCardinalWork": true,
+  "pendingReplicaDiscardedOnRestart": true,
+  "cardinalEvidencePersists": true,
+  "diskRestart": {
+    "digestion": true,
+    "heldMaterial": true,
+    "evidence": true,
+    "longSleep": true,
+    "ecology": true,
+    "bothBodies": true,
+    "journal": true,
+    "worldRules": true,
+    "cardinalLearning": true,
+    "completedExperiments": true,
+    "pendingJobCancelled": true
+  },
+  "errors": [],
+  "wallSeconds": 17.954
+}

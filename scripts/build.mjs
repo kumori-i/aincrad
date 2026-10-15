@@ -16,9 +16,12 @@ export async function buildApplication(destination=DIST){
   await mkdir(renderer,{recursive:true});await mkdir(desktop,{recursive:true});
   const modules=(await readdir(resolve(ROOT,'src'))).filter(name=>/^[\w-]+\.js$/.test(name)).sort();
   const paths=['index.html','style.css','icon.svg',...modules.map(name=>`src/${name}`)];
+  const sourceHash=createHash('sha256');
+  for(const path of paths.filter(path=>path!=='src/build-info.js'))sourceHash.update(path).update('\0').update(await readFile(resolve(ROOT,path))).update('\0');
+  const sourceFingerprint=sourceHash.digest('hex');
   const files=[];
   for(const path of paths){
-    const data=await readFile(resolve(ROOT,path));
+    const data=path==='src/build-info.js'?Buffer.from(`export const BUILD_SOURCE_FINGERPRINT=${JSON.stringify(sourceFingerprint)};\n`):await readFile(resolve(ROOT,path));
     await replaceFile(resolve(renderer,path),data);
     files.push({path,sha256:hash(data)});
   }
@@ -28,8 +31,8 @@ export async function buildApplication(destination=DIST){
   for(const name of await readdir(resolve(renderer,'src')))if(!modules.includes(name))await rm(resolve(renderer,'src',name),{recursive:true,force:true});
   for(const name of await readdir(desktop))if(!desktopFiles.includes(name))await rm(resolve(desktop,name),{recursive:true,force:true});
   // Written last. Dev mode observes this marker only after all files are ready.
-  await replaceFile(resolve(renderer,'asset-manifest.json'),JSON.stringify({version:1,files},null,2)+'\n');
-  return {destination:resolve(destination),renderer,desktop,files};
+  await replaceFile(resolve(renderer,'asset-manifest.json'),JSON.stringify({version:1,sourceFingerprint,files},null,2)+'\n');
+  return {destination:resolve(destination),renderer,desktop,files,sourceFingerprint};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const result=await buildApplication();
