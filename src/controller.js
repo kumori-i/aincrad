@@ -136,7 +136,7 @@ export class DesktopModelProvider {
   cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null}={}){this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;observeNpc(npc,environment);updateCognition(npc);}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true}={}){this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;observeNpc(npc,environment);updateCognition(npc);}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;this.readyDecision=null;this.provider.cancel?.();}
   dispose(){this.disposed=true;this.cancel();}
@@ -209,7 +209,7 @@ export class NpcController {
   tickDiscovery(dt){
     if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;}
     if(isSleeping(n)||n.lifecycle!=='AWAKE')return;
-    processDiscoveryFeedback(n,{recordEffect:effect=>recordEvent(n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});
+    processDiscoveryFeedback(n,{foodLearning:this.discoveryFoodLearning,recordEffect:effect=>recordEvent(n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});
     if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.social?.observe?.(n);this.senseAt=n.elapsed;}
     const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}
     // Dialogue inference runs alongside bodily life; it cannot select an experiment.
@@ -225,6 +225,6 @@ export class NpcController {
         }else {this.perform({...dialogue,offline:true});return;}
       }
     }
-    const decision=discoveryDecision(n);n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.perform(decision.action);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
+    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.perform(decision.action);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }
