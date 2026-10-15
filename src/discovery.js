@@ -1,3 +1,4 @@
+import { recordSelectionWork,chooseSelection,experiencedConsequences,sampleAcquisition as acquisitionFromExperiments,selectionPolicy,selectionUpdates } from './discovery-selection.js';
 import { CONFIG,NPC_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { createDiscoveryMemory,cleanSensoryObject,objectId } from './discovery-state.js';
@@ -17,6 +18,7 @@ export function rememberDiscoveryObservation(npc,objects=[]){
 export function recordDiscoveryOutcome(npc,action,result,event){
   if(!DISCOVERY_RULES.primitives.includes(action?.type))return;
   const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
+  if(selectionUpdates(npc))d.selection=recordSelectionWork(d.selection,action,result,event);
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
   d.experiments.push(experiment);if(d.experiments.length>DISCOVERY_RULES.maxExperiments){const protectedIds=new Set([...d.techniques.flatMap(t=>t.evidence),...d.experiments.filter(e=>(npc.inventory.items||[]).includes(e.materialId)||(npc.inventory.items||[]).includes(e.targetId)||d.samplesPending[e.targetId]!==undefined||e.materialId&&d.samplesPending[e.materialId]!==undefined).map(e=>e.id)]);const removable=d.experiments.findIndex(e=>!protectedIds.has(e.id));d.experiments.splice(removable<0?0:removable,1);}
@@ -31,7 +33,7 @@ export function recordDiscoveryOutcome(npc,action,result,event){
   return experiment;
 }
 function sampleAcquisition(d,sample){
-  return d.experiments.filter(e=>e.ok&&e.materialId===sample.targetId&&e.id<sample.id).at(-1)||d.experiments.filter(e=>e.ok&&e.primitive==='grasp'&&e.targetId===sample.targetId&&e.id<sample.id).at(-1);
+  return acquisitionFromExperiments(d.experiments,sample);
 }
 export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=true}={}){
   const d=memory(npc);
@@ -249,6 +251,15 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900&&distance(c,home)<DISCOVERY_RULES.searchRadius).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);
     for(const {c} of candidate.slice(0,8)){const move=routeTarget(npc,c);if(move){choices.push({action:move,score:2.5/(1+(c.visits||0))+random(npc),reason:'I can investigate another locally observed patch of terrain.'});break;}}
   }
-  if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
+  if(choices.length){
+    let selected=choices.sort((a,b)=>b.score-a.score)[0];
+    // Keep the existing observed movement opportunity and every care/safety gate.
+    // Only rank eligible body operations when an object experiment was selected.
+    if(selected.action.type!=='move'){
+      const policy=selectionPolicy(npc,experiencedConsequences(d.experiments,d.effects,{foodLearning,elapsed:npc.elapsed}),{foodLearning});
+      if(policy){selected=chooseSelection(policy.model,choices.filter(c=>c.action.type!=='move'),{fatigue:body.fatigue,hunger:body.hunger,thirst:body.thirst,consequences:policy.consequences});selected.reason='I can compare the time and exertion I actually experienced, exact-object outcomes, and remaining uncertainty for this bounded experiment.';}
+    }
+    return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');
+  }
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
 }

@@ -1,5 +1,7 @@
 /** Supplied body primitives and bounded learning budgets; no food recipes or species tables. */
 export const DISCOVERY_RULES=Object.freeze({
+  // Owner opt-in experiment. Change to true and restart via npm start; no reset.
+  experimentalSelection:false,
   primitives:['inspect_object','grasp','release','pull','sample','strike'],
   reach:80,capacity:4,maxObjects:128,maxExperiments:160,maxEffects:64,maxReports:24,maxTechniques:24,
   durations:{inspect_object:1.8,grasp:2.5,release:1.2,pull:5,sample:3.5,strike:4},
