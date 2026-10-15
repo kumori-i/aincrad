@@ -6,6 +6,8 @@ The current development increment adds a **regional ecology foundation**: five t
 
 Bounded controller experiments now cover [discovery retry/feedback correctness](docs/TESTING-discovery-throughput.md), [evidence-supported repetition on one held item](docs/TESTING-supported-consumption.md), and [remembered rest refusals with learned care](docs/TESTING-rest-arbitration.md). The rest work corrects an apparent deadlock into a temporary store-supported recovery spell and measures a real feeding/rest trade-off. These experiments do not yet establish sustained self-feeding. A separate [experienced action-selection research candidate](docs/TESTING-experienced-selection.md) evaluates learned effort and exact outcomes against cold, frozen and shuffled controls; its frozen comparison failed to establish useful learning, so it remains disabled and is retained only as a research snapshot.
 
+The follow-up [selection-consistent gate diagnostic](docs/TESTING-selection-gate.md) reproduced the sponsor mismatch but failed development evaluation: more movement did not produce adequate sampling or nourishment. It is another rejected research snapshot, with no default-policy promotion.
+
 ## Clone, build, and run
 
 Install Node.js **22.12.0 or newer**, then:
