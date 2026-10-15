@@ -1,4 +1,4 @@
-# Aincrad 0.7 architecture
+# Aincrad architecture: Cardinal and regional ecology foundation
 
 Aincrad is a local-first Electron desktop application with two embodied characters, Aster and Mira, a human-controlled avatar, a finite food web and the Cardinal world supervisor. It preserves the original valley, five-minute reference crossing, one-hour day, weather and independent cave transitions.
 
@@ -36,6 +36,8 @@ NPC and human scenes are independent. Following one character changes the render
 Cardinal is an engine supervisor rather than another inhabitant controller. It can inspect the complete simulated world, including private physiological stores, actual action failures, held material, species, nutrient budgets and the history of outside assistance. Aster and Mira continue receiving only their local sensory observations and qualitative sensations. Cardinal records do not enter their memories or model prompts.
 
 Saved world rules provide explicit bounded environmental actuators. Runtime operations validate those settings and account for physical resource changes. The supervisor can adjust implemented resource production and ecological conditions; it cannot manufacture skill evidence, set a human's health, erase deprivation, grant inventory items or bypass a physical action. External additions have separate accounting. Full world supervision means authority over the implemented simulation, not arbitrary source execution or permission to corrupt its invariants.
+
+`ecology-regions.js` derives private habitat/climate descriptors and owns regional stock partitioning, validation and soil uptake. `ecology-corridors.js` builds bounded, cached, collision-checked generation/audit paths; it never supplies those paths to controllers or changes terrain. Regional detritus is a partition of the compatibility aggregate, not additional energy counted a second time. Current discovery migration adds no resources or organisms. Existing v3 saves with damaged local metadata are not repartitioned from the aggregate. Normal restoration avoids fresh-world generation.
 
 `cardinal-metrics.js` takes private measurements from actual engine state. The objectives combine bodily strain and deficits, resource condition, acquired empirical capability and ecosystem diversity. Movement stalls and energy-accounting errors are diagnostics/guardrails, rather than reasons to add more food blindly. The objective and proposal policy are supplied design choices, not values discovered by a blank model.
 

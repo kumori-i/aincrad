@@ -10,11 +10,15 @@ import { validateCardinal } from './cardinal.js';
 const SAVE_VERSIONS = new Set([1,2,3,4,5,6]);
 const AGENT_IDS = ['aster','mira'];
 function unsupportedRules(raw){
+  const ecology=raw.environment?.ecology;
+  if(ecology?.distributionVersion===3&&(ecology.regionalVersion!==1||!Array.isArray(ecology.regions)||ecology.regions.length!==ECOLOGY_RULES.habitatGridSize**2))return true;
+  if(ecology&&[['plants',ECOLOGY_RULES.maxPlants],['animals',ECOLOGY_RULES.maxAnimals],['materials',ECOLOGY_RULES.maxMaterials],['regions',ECOLOGY_RULES.habitatGridSize**2]].some(([key,max])=>Array.isArray(ecology[key])&&ecology[key].length>max))return true;
   if(raw?.version>=5&&!['legacy','discovery'].includes(raw.simulationMode))return true;
   if(raw.environment?.schemaVersion!=null&&![1,2,3].includes(raw.environment.schemaVersion))return true;
   if(raw.environment?.worldRules && raw.environment.worldRules.version!==1)return true;
   if(raw.cardinal && raw.cardinal.version!==1)return true;
-  if(raw.environment?.ecology?.distributionVersion!=null&&![1,2].includes(raw.environment.ecology.distributionVersion))return true;
+  if(raw.environment?.ecology?.distributionVersion!=null&&![1,2,3].includes(raw.environment.ecology.distributionVersion))return true;
+  if(raw.environment?.ecology?.regionalVersion!=null&&raw.environment.ecology.regionalVersion!==1)return true;
   if(raw.environment?.ecology?.version>ECOLOGY_RULES.version)return true;
   const maximumActorVersion=raw?.version>=5&&raw.simulationMode==='discovery'?4:3;
   return [...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(npc=>npc?.version>maximumActorVersion||npc?.physiology?.version>BIOLOGY_RULES.version||npc?.discovery?.version>1);
@@ -34,7 +38,7 @@ function newCharacterAt(id,elapsed,mode){
 export function validateSave(raw, {restoring=true}={}) {
   const supported=raw&&typeof raw==='object'&&SAVE_VERSIONS.has(raw.version)&&!unsupportedRules(raw);
   const mode=supported&&(raw.version<5||raw.simulationMode!=='discovery')?'legacy':'discovery';
-  const base = freshState({mode});
+  const base = freshState({mode,populateEcology:!supported});
   if (!supported) return base;
   const ids = new Set(CAVES.map(c => c.id));
   base.scene = ids.has(raw.scene) ? raw.scene : 'valley';

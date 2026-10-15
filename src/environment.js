@@ -1,6 +1,7 @@
 import { CONFIG, ENV_RULES, APPLE_PATCHES, CAVES, PONDS } from './config.js';
 import { clamp, lerp, hash, distance, objectsInRect, terrain, canStandOutside } from './world.js';
 import { createEcology, validateEcology, migrateEcologyDistribution } from './ecology.js';
+import { habitatConditions } from './ecology-regions.js';
 import { createWorldRules, validateWorldRules, getWorldRule } from './world-rules.js';
 
 export const WEATHER_KINDS = Object.freeze(['clear', 'cloudy', 'rainy', 'windy']);
@@ -26,14 +27,14 @@ function updateWeather(env) {
     temperatureOffset: lerp(WEATHER_EFFECTS[previous].offset, WEATHER_EFFECTS[kind].offset, phase),
   };
 }
-export function createEnvironment(seed = CONFIG.seed, {mode='legacy'}={}) {
+export function createEnvironment(seed = CONFIG.seed, {mode='legacy',populate=true}={}) {
   const discovery=mode==='discovery';
   const env = {
     schemaVersion: discovery?3:1, ...(discovery?{mode:'discovery'}:{}), seed: Number.isInteger(seed) ? seed >>> 0 : CONFIG.seed, elapsed: 0,
     settings: { hourOverride: null, weatherOverride: null }, weather: null, worldRules:createWorldRules(),
     foodStocks: discovery?[]:APPLE_PATCHES.map(p => ({ id: `apple:${p.id}`, stock: p.capacity, renewAt: ENV_RULES.foodRenewalSeconds })),
   };
-  if(discovery)env.ecology=createEcology(env.seed,0);
+  if(discovery&&populate)env.ecology=createEcology(env.seed,0);
   updateWeather(env); return env;
 }
 /** Called once by the authoritative unpaused world update, never by artwork. */
@@ -51,7 +52,7 @@ export function tickEnvironment(env, dt) {
 }
 /** Ignore arbitrary fields, forged weather and unknown resource IDs in disk saves. */
 export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'?'discovery':'legacy' } = {}) {
-  const base = createEnvironment(Number.isInteger(raw?.seed) ? raw.seed : CONFIG.seed,{mode});
+  const base = createEnvironment(Number.isInteger(raw?.seed) ? raw.seed : CONFIG.seed,{mode,populate:false});
   base.elapsed = safeElapsed(Number.isFinite(elapsed) ? elapsed : raw?.elapsed);
   base.worldRules=validateWorldRules(raw?.worldRules);
   const hour = raw?.settings?.hourOverride;
@@ -70,9 +71,9 @@ export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'
   }
   if(mode==='discovery'){
     base.ecology=validateEcology(raw?.ecology,{seed:base.seed,elapsed:base.elapsed});
-    // Expand old habitats once, preserving every existing physical object and
-    // accounting for introduced energy rather than renewing depleted populations.
-    if(raw?.ecology && (raw.ecology.distributionVersion??1)<2)migrateEcologyDistribution(base.ecology,2);
+    // Partition existing soil once; preserve old populations, depletion, IDs
+    // and bodies without introducing resources or refilling an exhausted world.
+    if(raw?.ecology && (raw.ecology.distributionVersion??1)<3)migrateEcologyDistribution(base.ecology,3);
   }
   updateWeather(base); return base;
 }
@@ -99,7 +100,7 @@ export function environmentConditions(env = {}, actor = {}) {
   const shade = !sheltered && objectsInRect(position.x - 145, position.y - 145, 290, 290)
     .some(o => ['oak', 'pine'].includes(o.kind) && distance(o, position) < 85 * o.scale);
   const airTemperature = sheltered ? ENV_RULES.caveTemperature : dailyTemperature(hour)
-    + (WEATHER_KINDS.includes(override) ? effect.offset : finite(env.weather?.temperatureOffset, effect.offset)) + getWorldRule(env,'temperatureOffsetC');
+    + (WEATHER_KINDS.includes(override) ? effect.offset : finite(env.weather?.temperatureOffset, effect.offset)) + getWorldRule(env,'temperatureOffsetC') + (env.mode==='discovery'&&env.ecology?.regionalVersion===1?habitatConditions(position).temperatureOffsetC:0);
   const wetness = clamp(finite(actor.wetness ?? actor.thermal?.wetness, 0), 0, 100) / 100;
   const raining = !sheltered && weather === 'rainy' && rainfall>0;
   const shadeCooling = shade && hour >= 7 && hour <= 19 ? ENV_RULES.shadeCooling : 0;

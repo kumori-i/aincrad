@@ -17,18 +17,18 @@ test('new worlds save one canonical supervisor and validated world rules without
   const restored=loadSave(store).state;assert.equal(restored.cardinal.mode,'adaptive');assert.deepEqual(restored.agents[0].discovery,state.agents[0].discovery);assert.notEqual(restored.cardinal,restored.agents[0].discovery);
 });
 
-test('old discovery worlds add map distribution once while retaining existing materials, identities and evidence',()=>{
+test('old discovery worlds gain regional stocks without replacing materials, identities or evidence',()=>{
   const raw=freshState();raw.version=5;delete raw.cardinal;delete raw.environment.worldRules;raw.environment.schemaVersion=2;raw.environment.ecology.distributionVersion=1;
   const ecology=raw.environment.ecology;
   ecology.plants=ecology.plants.filter(p=>Math.hypot(p.position.x-276,p.position.y-760)<5000);
   ecology.animals=ecology.animals.filter(a=>Math.hypot(a.position.x-276,a.position.y-760)<5000);
   const oldPlantCount=ecology.plants.length;assert.ok(oldPlantCount>0);
-  // Retaining a real, depleted existing object verifies migration is additive,
-  // rather than a reset of the entire ecosystem around the two inhabitants.
+  // Retaining a real, depleted existing object verifies migration never
+  // replaces or repopulates the existing ecosystem around the two inhabitants.
   const plant=ecology.plants.find(p=>p.kind==='bramble')||ecology.plants[0];plant.quantity=0;const oldId=plant.id;ecology.ledger.initialKcal=ecologyEnergy(ecology);
   const npcBefore=structuredClone(raw.agents[0]);const migrated=validateSave(raw,{restoring:false});
-  assert.equal(migrated.version,6);assert.equal(migrated.environment.ecology.distributionVersion,2);assert.equal(migrated.environment.ecology.plants.find(p=>p.id===oldId).quantity,0);
-  assert.ok(migrated.environment.ecology.plants.length>oldPlantCount);assert.ok(migrated.environment.ecology.ledger.externalKcal>0);
+  assert.equal(migrated.version,6);assert.equal(migrated.environment.ecology.distributionVersion,3);assert.equal(migrated.environment.ecology.plants.find(p=>p.id===oldId).quantity,0);
+  assert.equal(migrated.environment.ecology.plants.length,oldPlantCount);assert.equal(migrated.environment.ecology.ledger.externalKcal,0);
   assert.equal(migrated.cardinal.mode,'adaptive');assert.deepEqual(migrated.agents[0].discovery,npcBefore.discovery);assert.equal(migrated.agents[0].id,npcBefore.id);assert.equal(migrated.npc,migrated.agents[0]);
   const first=structuredClone(migrated.environment.ecology);const again=validateSave(migrated,{restoring:false});assert.deepEqual(again.environment.ecology,first);
 });

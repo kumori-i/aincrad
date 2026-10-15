@@ -8,6 +8,12 @@ Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/
 
 The owner has approved the 0.7 Cardinal milestone: an autonomous world governor observes full private diagnostics, diagnoses problems, runs controlled copied-world experiments, learns from their outcomes, and applies validated world changes. Spread real ecology across the entire walkable valley and provide a zoomable/pannable map showing both humans and the player. Preserve strict experiential food discovery, physiological time, vulnerable sleep, finite ecology, Aster and Mira, the optional journal, pixel desktop presentation and npm workflow. Cardinal may manage world rules but must not insert answers or completed skills into inhabitants' minds. Keep model access optional/local and no agent OS/filesystem/shell access. No signup, analytics, cloud services or additional human characters. New physical mechanics and arbitrary source modification remain a separate tested development process.
 
+## Current regional development
+
+The next bounded stage follows docs/DEVELOPMENT-v08.md: differentiated terrain/water/climate habitats, finite regional soil/litter accounting, physically verified corridors, and preserved saves. Subsequent work must measure food throughput, learned relocation and bounded regional Cardinal interventions before claiming survival or open-ended society. Use local-only runtime/behavior training, optional Ollama language, CPU-capable 32 GB RAM / 1 TB laptop constraints, and no paid/cloud runtime dependencies. The implementation may be developed/tested in the cloud without deploying a simulation service.
+
+Regional bookkeeping must partition existing stocks without adding or replenishing any existing-world objects or calories. A damaged v3 save must not fall back to global soil or fresh allocation. Preserve history and use feature branches and reviewable pull requests; test and review before any authorized merge. Do not confuse physical corridor connectivity with learned or nutritionally viable migration.
+
 ## Boundaries
 
 - `world.js` is authoritative. Human and future NPC controllers must use the same validated movement and actions.
@@ -30,7 +36,7 @@ Use `npm run smoke` for the actual Electron application and rendered desktop scr
 
 ## Scope discipline
 
-Implement the approved Cardinal and map milestone using docs/DEVELOPMENT-v07.md. Preserve historical save identity/progress; migrate discovery ecology distribution once with all additions accounted for. Old legacy worlds retain prior agent rules. Cardinal operates through authoritative world APIs; shadow experiments must not alter the live world, leak hidden information to agents, fabricate results, or block explicit pause. Animal reproduction consumes resources and has population bounds. Preserve collision, the valley, original pixel art and source application workflow. Human construction, reproduction and larger societies remain later milestones.
+Keep the Cardinal/map contracts in docs/DEVELOPMENT-v07.md and use docs/DEVELOPMENT-v08.md for the current regional stage. Preserve historical save identity/progress; regional migration partitions old stock without additions or population replacement. Old legacy worlds retain prior agent rules. Cardinal operates through authoritative world APIs; shadow experiments must not alter the live world, leak hidden information to agents, fabricate results, or block explicit pause. Animal reproduction consumes resources and has population bounds. Preserve collision, the valley, original pixel art and source application workflow. Human construction, reproduction and larger societies remain later milestones.
 
 ## Publication
 
