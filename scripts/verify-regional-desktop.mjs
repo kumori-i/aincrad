@@ -31,7 +31,7 @@ app.on('browser-window-created',(_event,win)=>{
      const {CONFIG}=await import('./src/config.js');
      const {ecologyEnergy}=await import('./src/ecology.js');
      const {observeNpc,requestNpcAction,tickNpc}=await import('./src/npc.js');
-     const {beginSleep}=await import('./src/biology.js');
+     const {beginSleep,projectPhysiology}=await import('./src/biology.js');
      const {PopulationRuntime}=await import('./src/population.js');
      const {validateSave}=await import('./src/save.js');
      const raw=window.__aincrad.snapshot(),e=raw.environment.ecology,a=raw.agents[0],m=raw.agents[1];
@@ -44,6 +44,13 @@ app.on('browser-window-created',(_event,win)=>{
      if(!pulled.ok)throw new Error('Physical native detachment failed');
      for(let i=0;i<500&&a.active;i++)tickNpc(a,.05,raw.environment);
      const heldId=a.inventory.items[0];if(!heldId)throw new Error('Physical action did not record possession evidence');
+     // Explicit depleted checkpoint tests refusal persistence, not autonomous survival.
+     Object.assign(a.physiology,{availableEnergyKcal:40,storedEnergyKcal:84000,fatigue:80,sleepPressure:90,hoursSinceMeal:12});projectPhysiology(a);
+     const refused=requestNpcAction(a,{type:'rest',seconds:5},raw.environment);
+     if(refused.code!=='UNSAFE_TO_REST')throw new Error('Expected actual rest refusal');
+     const refusalEventId=a.lastResult.eventId;
+     requestNpcAction(a,{type:'wait',seconds:1},raw.environment);
+     for(let i=0;i<100&&a.active;i++)tickNpc(a,.05,raw.environment);
      raw.elapsed=raw.environment.elapsed=e.elapsed=m.elapsed=a.elapsed;
      beginSleep(m,{hours:5});
      const grass=e.plants.find(p=>p.kind==='grass');grass.biomassGrams=0;
@@ -54,7 +61,7 @@ app.on('browser-window-created',(_event,win)=>{
      raw.npc=raw.agents[0];
      localStorage.setItem(CONFIG.saveKey,JSON.stringify(raw));
      const expected=validateSave(raw),runtime=new PopulationRuntime(expected),checkpoint=structuredClone(expected);runtime.dispose();
-     return {expected:checkpoint,plantId:plant.id,heldId,grassId:grass.id};
+     return {expected:checkpoint,plantId:plant.id,heldId,grassId:grass.id,refusalEventId};
     })()\`);
     await fs.writeFile(path.join(context.directory,'expected.json'),JSON.stringify(expected));
     session.defaultSession.flushStorageData();
@@ -69,16 +76,20 @@ app.on('browser-window-created',(_event,win)=>{
     if(e.plants.find(p=>p.id===fixture.grassId).biomassGrams!==0)throw new Error('Depleted grass refilled');
     if(e.materials.find(m=>m.id===fixture.heldId).heldBy!=='aster')throw new Error('Held object identity lost');
     if(actual.agents[1].physiology.sleep.state!=='onset')throw new Error('Sleep did not persist');
+    if(!actual.agents[0].memory.experience.some(e=>e.id===fixture.refusalEventId&&e.details.result?.code==='UNSAFE_TO_REST'))throw new Error('Rest refusal context did not persist');
     const runtime=await win.webContents.executeJavaScript(\`(async()=>{
       const {BUILD_SOURCE_FINGERPRINT}=await import('./src/build-info.js');
       const {regionalResourceAudit}=await import('./src/ecology-regions.js');
+      const {discoveryDecision}=await import('./src/discovery.js');
+      const restRetryDeferred=discoveryDecision(window.__aincrad.snapshot().agents[0]).action.type==='wait';
+      if(!restRetryDeferred)throw new Error('Reopened rest context did not defer repeat');
       document.getElementById('watch-aster').click();
       window.__aincrad.cardinalMode('off');
       window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'}));
       document.getElementById('close-npc')?.click();
       document.getElementById('pause-panel').classList.add('hidden');
       await new Promise(r=>setTimeout(r,200));
-      return {sourceFingerprint:BUILD_SOURCE_FINGERPRINT,regional:regionalResourceAudit(window.__aincrad.environment().ecology),metrics:window.__aincrad.metrics()};
+      return {restOutcomePreserved:true,restRetryDeferred,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,regional:regionalResourceAudit(window.__aincrad.environment().ecology),metrics:window.__aincrad.metrics()};
     })()\`);
     await fs.writeFile(path.join(context.output,'remote-lakeshore.png'),(await win.webContents.capturePage()).toPNG());
     await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,twoIndependentProcesses:true,isolatedProfile:true,oldDistribution:2,newDistribution:3,completeCheckpointPreserved:true,heldMaterialPreserved:true,depletedGrassPreserved:true,soilStockPreserved:37,sleepPreserved:true,noClosedTimeBackfill:true,...runtime},null,2));

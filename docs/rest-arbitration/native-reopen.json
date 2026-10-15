@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "twoIndependentProcesses": true,
+  "isolatedProfile": true,
+  "oldDistribution": 2,
+  "newDistribution": 3,
+  "completeCheckpointPreserved": true,
+  "heldMaterialPreserved": true,
+  "depletedGrassPreserved": true,
+  "soilStockPreserved": 37,
+  "sleepPreserved": true,
+  "noClosedTimeBackfill": true,
+  "restOutcomePreserved": true,
+  "restRetryDeferred": true,
+  "sourceFingerprint": "c94bb72a423bc723af39ee0ea73184034bd137c0182062870f60a72595cefa60",
+  "regional": {
+    "version": 1,
+    "regions": 49,
+    "maxRegionalMassError": 0,
+    "maxRegionalEnergyError": 0,
+    "maxRegionalSoilError": 0,
+    "soilBalanceError": 0,
+    "unassigned": {
+      "nutrients": 7.105427357601002e-15,
+      "massGrams": 0,
+      "energyKcal": 0
+    },
+    "depletedRegions": []
+  },
+  "metrics": {
+    "fps": 54.67371922093163,
+    "cache": 18,
+    "zoom": 1.5,
+    "panel": "pause",
+    "started": true,
+    "paused": true,
+    "simulationSpeed": 1,
+    "windowFocused": true,
+    "interaction": null
+  }
+}

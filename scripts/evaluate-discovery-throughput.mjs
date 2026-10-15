@@ -52,16 +52,20 @@ async function run(settings){
   }
   const opening=clone(n.physiology),initialRemoved=s.environment.ecology.ledger.humanRemovedKcal,events=[],feedbackEvents=[],windows=[],outcomes={},activeSeconds={},forbidden=[];
   const bodyStock=f=>f.availableEnergyKcal+f.storedEnergyKcal;
-  const checkpoint=()=>({at:n.elapsed,totals:clone(n.physiology.totals),reservesKcal:bodyStock(n.physiology),pendingKcal:sum(n.physiology.stomach,'remainingKcal'),gutEntries:n.physiology.stomach.length,gutMassGrams:sum(n.physiology.stomach,'remainingMassGrams'),health:n.physiology.health,waterDeficitMl:n.physiology.waterDeficitMl,body:bodySignals(n),techniques:n.discovery.techniques.length,position:{...n.position},scene:n.scene});
+  const checkpoint=()=>({at:n.elapsed,totals:clone(n.physiology.totals),reservesKcal:bodyStock(n.physiology),availableEnergyKcal:n.physiology.availableEnergyKcal,storedEnergyKcal:n.physiology.storedEnergyKcal,fatigue:n.physiology.fatigue,sleepPressure:n.physiology.sleepPressure,sleepState:n.physiology.sleep.state,pendingKcal:sum(n.physiology.stomach,'remainingKcal'),gutEntries:n.physiology.stomach.length,gutMassGrams:sum(n.physiology.stomach,'remainingMassGrams'),health:n.physiology.health,waterDeficitMl:n.physiology.waterDeficitMl,body:bodySignals(n),techniques:n.discovery.techniques.length,position:{...n.position},scene:n.scene});
   let prior=checkpoint(),nextId=0,firstPositiveAt=null,decisionBefore='',peakRss=process.memoryUsage().rss,tooFull=0,streak=0,maxFailureStreak=0;
   const prefix=createHash('sha256'),actionHistory=createHash('sha256');let firstSixHourActionSha256=null;
+  const restDiagnostics={actualSleepSeconds:0,actualRestSeconds:0,starts:[],refusals:[],interruptions:[],preFirstRefusalActionSha256:null};let restStartKey=null;
   const privateKeys=new Set(['physiology','energyKcal','remainingKcal','availableEnergyKcal','storedEnergyKcal','species','materialType','nutrients','ledger','worldRules']);
   const privacy=(v,path='')=>{if(v&&typeof v==='object')for(const[k,x]of Object.entries(v)){if(privateKeys.has(k))forbidden.push(path+k);privacy(x,path+k+'.');}};
   const started=performance.now();
   for(let i=0;i<Math.round(settings.seconds*60);i++){
     if(settings.arm==='warm-association-ablated'&&i===900*60){c.discoveryFoodLearning=false;assert.equal(n.learning,true);}
+    if(n.physiology.sleep.state==='sleeping')restDiagnostics.actualSleepSeconds+=1/60;
+    if(n.active?.request?.type==='rest')restDiagnostics.actualRestSeconds+=1/60;
     const active=n.active?.request?.type||'idle';activeSeconds[active]=(activeSeconds[active]||0)+1/60;
     decisionBefore=n.decision;s.elapsed+=1/60;r.tick(1/60);
+    if(['rest','sleep'].includes(n.active?.request?.type)){const key=n.active.request.type+'|'+n.active.startedAt;if(key!==restStartKey){restDiagnostics.starts.push({action:clone(n.active.request),...checkpoint()});restStartKey=key;}}
     if(firstPositiveAt===null&&n.discovery.effects.some(e=>e.effect==='sustained'))firstPositiveAt=n.elapsed;
     if(n.memory.nextId!==nextId){
       for(const event of n.memory.experience){
@@ -71,6 +75,7 @@ async function run(settings){
         const result=event.details.result||{},action=event.details.action||{},code=result.code||'UNKNOWN';outcomes[code]=(outcomes[code]||0)+1;
         const row={at:event.at,action:clone(action),ok:result.ok,code,durationSeconds:result.durationSeconds||0,reason:decisionBefore,...(result.materialId?{materialId:result.materialId}:{}),...(result.ingestionId?{ingestionId:result.ingestionId}:{}),actionId:event.id};
         actionHistory.update(JSON.stringify(row));
+        if(['UNSAFE_TO_REST','REST_INTERRUPTED'].includes(code)&&['rest','sleep'].includes(action.type)){const observation={...row,body:clone(result.body||{}),availableEnergyKcal:n.physiology.availableEnergyKcal,storedEnergyKcal:n.physiology.storedEnergyKcal};if(code==='UNSAFE_TO_REST'){restDiagnostics.preFirstRefusalActionSha256??=actionHistory.copy().digest('hex');restDiagnostics.refusals.push(observation);}else restDiagnostics.interruptions.push(observation);}
         if(!firstPositiveAt)prefix.update(JSON.stringify({at:row.at,action:row.action,code}));
         if(code==='TOO_FULL'){tooFull++;streak++;maxFailureStreak=Math.max(maxFailureStreak,streak);row.body=bodySignals(n);row.gutEntries=n.physiology.stomach.length;row.gutMassGrams=sum(n.physiology.stomach,'remainingMassGrams');}else streak=0;
         events.push(row);
@@ -88,7 +93,7 @@ async function run(settings){
   const residual=bodyStock(opening)+sum(opening.stomach,'remainingKcal')+t.ingestedKcal-opening.totals.ingestedKcal-final.reservesKcal-final.pendingKcal-(t.metabolizedKcal-opening.totals.metabolizedKcal)-(t.discardedKcal-opening.totals.discardedKcal);
   const endFingerprint=await fingerprint(settings.root);assert.equal(endFingerprint.sha256,startFingerprint.sha256,'Runtime sources changed during evaluation.');
   const checks={humanEnergyBalance:Math.abs(residual)<=1e-6,finiteEcologyTransfer:Math.abs(remainingEcology-t.ingestedKcal)<=1e-6,noOutsideAssistance:n.physiology.outsideAssistance.energyKcal===0&&n.physiology.outsideAssistance.waterMl===0&&n.physiology.outsideAssistance.count===0&&s.environment.ecology.ledger.externalKcal===0&&n.stats.rescues===0,privacy:forbidden.length===0};
-  const completed={checks,forbiddenObservationPaths:[...new Set(forbidden)],arm:settings.arm,seed:settings.seed,anchor:settings.anchor,seconds:settings.seconds,gameHours:settings.seconds/150,sourceSha256:startFingerprint.sha256,sourceCommit:commit(settings.root),initialStateSha256,firstSixHourActionSha256,opening,final,windows,outcomes,activeSeconds,firstPositiveAt,prePositiveActionSha256:prefix.digest('hex'),tooFull,maxConsecutiveTooFull:maxFailureStreak,energyResidualKcal:residual,ecologyRemovedKcal:remainingEcology,absorbedToSpent:t.absorbedKcal/t.metabolizedKcal,ingestedToSpent:t.ingestedKcal/t.metabolizedKcal,assistance:n.physiology.outsideAssistance,privacyPassed:checks.privacy,wallSeconds:(performance.now()-started)/1000,peakSampledRssBytes:peakRss,events,feedbackEvents,finalEvidence:{experiments:clone(n.discovery.experiments),effects:clone(n.discovery.effects),techniques:clone(n.discovery.techniques)}};
+  const completed={checks,forbiddenObservationPaths:[...new Set(forbidden)],arm:settings.arm,seed:settings.seed,anchor:settings.anchor,seconds:settings.seconds,gameHours:settings.seconds/150,sourceSha256:startFingerprint.sha256,sourceCommit:commit(settings.root),initialStateSha256,firstSixHourActionSha256,opening,final,windows,outcomes,activeSeconds,firstPositiveAt,prePositiveActionSha256:prefix.digest('hex'),tooFull,maxConsecutiveTooFull:maxFailureStreak,energyResidualKcal:residual,ecologyRemovedKcal:remainingEcology,absorbedToSpent:t.absorbedKcal/t.metabolizedKcal,ingestedToSpent:t.ingestedKcal/t.metabolizedKcal,assistance:n.physiology.outsideAssistance,privacyPassed:checks.privacy,wallSeconds:(performance.now()-started)/1000,peakSampledRssBytes:peakRss,restDiagnostics,events,feedbackEvents,finalEvidence:{experiments:clone(n.discovery.experiments),effects:clone(n.discovery.effects),techniques:clone(n.discovery.techniques)}};
   parentPort?.postMessage({type:'progress',text:`${settings.arm}, seed ${settings.seed}, ${settings.anchor}: ${(completed.absorbedToSpent*100).toFixed(1)}% absorbed/spent; ${tooFull} full refusals; residual ${residual.toExponential(2)}.`});return completed;
 }
 
