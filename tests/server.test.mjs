@@ -11,7 +11,8 @@ test('loopback renderer QA serves only built game assets, never desktop or repos
   const {server,url}=await startServer({port:0,assetRoot:renderer});
   try{
     const index=await fetch(url);assert.equal(index.status,200);assert.match(await index.text(),/Aincrad/);
-    assert.equal((await fetch(url+'/src/world.js')).status,200);
+    const js=await fetch(url+'/src/world.js');assert.equal(js.status,200);assert.match(js.headers.get('content-security-policy'),/connect-src 'none'/);assert.match(js.headers.get('content-security-policy'),/worker-src 'none'/);
+    assert.match(await (await fetch(url+'/src/save-worker.js')).text(),/createSavePreparationProtocol/);
     const css=await fetch(url+'/style.css');assert.equal(css.status,200);assert.match(css.headers.get('content-type'),/text\/css/);
     assert.equal((await fetch(url+'/.git/config')).status,404);
     assert.equal((await fetch(url+'/package.json')).status,404);

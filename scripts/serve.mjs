@@ -1,5 +1,6 @@
 /** Loopback-only renderer QA utility; normal development opens Electron directly. */
 import http from 'node:http';
+import { WORKER_CSP } from '../desktop/security-policy.cjs';
 import { readFile, realpath } from 'node:fs/promises';
 import { resolve, relative, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +22,7 @@ export async function startServer({port=4173,assetRoot=resolve(ROOT,'dist/render
       const path=await realpath(resolve(root,name));
       if(relative(root,path).startsWith('..')){res.writeHead(403);res.end('Forbidden');return;}
       const data=await readFile(path);
-      res.writeHead(200,{'Content-Type':MIME[extname(path)]||'application/octet-stream','X-Content-Type-Options':'nosniff','Cache-Control':'no-store','Cross-Origin-Resource-Policy':'same-origin'});
+      res.writeHead(200,{'Content-Type':MIME[extname(path)]||'application/octet-stream','X-Content-Type-Options':'nosniff','Cache-Control':'no-store','Cross-Origin-Resource-Policy':'same-origin',...(name.endsWith('.js')?{'Content-Security-Policy':WORKER_CSP}:{})});
       res.end(req.method==='HEAD'?undefined:data);
     }catch{res.writeHead(404);res.end('Not found');}
   });
