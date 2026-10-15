@@ -29,7 +29,10 @@ export function recordEvent(npc,type,details={}){
   const event={id:npc.memory.nextId++,at:npc.elapsed,type,details:compact(details)};
   npc.memory.experience.push(event);
   if(npc.memory.experience.length>NPC_RULES.maxExperience){
-    const protectedIds=new Set([...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),...(npc.discovery?.experiments||[]).map(e=>e.actionId),...(npc.discovery?.effects||[]).map(e=>e.proofEventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
+    // One actual rest outcome survives unrelated action/detail rotation. Keeping
+    // a later success also prevents an older failure from resurfacing on reopen.
+    const restOutcome=npc.mode==='discovery'?npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1)?.id:null;
+    const protectedIds=new Set([restOutcome,...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),...(npc.discovery?.experiments||[]).map(e=>e.actionId),...(npc.discovery?.effects||[]).map(e=>e.proofEventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
     const removable=npc.memory.experience.findIndex(e=>!protectedIds.has(e.id));
     npc.memory.experience.splice(removable<0?0:removable,1);
   }

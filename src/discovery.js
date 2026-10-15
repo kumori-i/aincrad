@@ -129,6 +129,36 @@ function sampleEligible(npc,id,body=bodySignals(npc),foodLearning=true){
   if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds&&!(foodLearning&&supportedHeldMaterial(npc,id)))return false;
   return !recentlyFailed(npc,'sample',id);
 }
+function unfinishedHeldTrial(npc,body){
+  const d=memory(npc);
+  for(const id of npc.inventory.items){
+    if(!sampleEligible(npc,id,body))continue;
+    const acquired=sampleAcquisition(d,{targetId:id,id:Infinity});
+    if(!acquired||d.experiments.some(e=>e.id>acquired.id&&e.primitive==='sample'&&e.targetId===id&&e.ok))continue;
+    const technique=d.techniques.find(t=>t.sourceId===acquired.targetId&&t.steps[0]?.type===acquired.primitive&&t.confidence!=='revised'&&t.failures<=t.successes+2&&t.steps[1]?.type==='sample');
+    if(!technique)continue;
+    // Restore only an actual acquired, still-held next step, including after a
+    // save clears the transient run. This new item has no presumed benefit or
+    // safety: its first portion retains ordinary pending and adverse gates.
+    d.run={techniqueId:technique.id,cursor:1,materialId:id,awaiting:false,startedAt:npc.elapsed};
+    return learnedStep(npc);
+  }
+  return null;
+}
+function deferRestRetry(npc,body){
+  const event=npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1);
+  if(!event||event.details.result?.ok||!['UNSAFE_TO_REST','REST_INTERRUPTED'].includes(event.details.result?.code)||event.at>npc.elapsed||npc.elapsed-event.at>=60)return false;
+  const previous=event.details.result.body||{};
+  // Only an improvement in a safety-related sensation reopens an early test.
+  // Activity, fatigue, circadian sleepiness and transient relief are not evidence
+  // that the cause of a rejected rest has changed.
+  const scales={energy:['steady','waning','low','depleted'],thirst:['quenched','dry mouth','thirsty','parched','desperate thirst'],pain:['none','aching','hurting','severe'],overall:['settled','uncomfortable','distressed','urgent']};
+  for(const [key,scale] of Object.entries(scales)){const before=scale.indexOf(previous[key]),now=scale.indexOf(body[key]);if(before>0&&now>=0&&now<before)return false;}
+  const thermal=value=>['dangerously hot','dangerously cold'].includes(value)?2:['overheated','shivering'].includes(value)?1:0;
+  if(thermal(body.thermal)<thermal(previous.thermal))return false;
+  if(thermal(previous.thermal)&&typeof event.details.scene==='string'&&event.details.scene!==npc.scene)return false;
+  return true;
+}
 function learnedStep(npc){
   const d=memory(npc),run=d.run;if(!run)return null;
   const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){d.run=null;return null;}
@@ -150,6 +180,7 @@ export function contactEscape(npc){
 /** A generic novelty/outcome learner. It never looks up an object's species or nutrients. */
 export function discoveryDecision(npc,{foodLearning=true}={}){
   processDiscoveryFeedback(npc,{foodLearning});const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
+  const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
   // Evaluation can ablate positive food associations without erasing perception,
   // navigation, practice, novelty, failures, or experienced discomfort.
   if(!foodLearning)d.run=null;
@@ -166,15 +197,27 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     const refuge=Object.values(npc.memory.shelters).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];if(refuge){if(distance(refuge,npc.position)<=100)return wrap({type:'enter_shelter',shelterId:refuge.id},'Exposure hurts; the observed opening may provide cover.','thermal');const move=routeTarget(npc,refuge);if(move)return wrap(move,'I am moving toward an observed opening.','thermal');}
   }
   if(npc.scene!=='valley'&&(!dangerous||body.thirst==='desperate thirst'||body.hunger==='faint with hunger')&&(thirsty||['hungry','ravenous','faint with hunger'].includes(body.hunger))){const exit=npc.memory.caveExits?.[npc.scene];if(exit){if(distance(npc.position,exit)<100)return wrap({type:'exit_shelter'},'My body needs something outside this refuge.','survival');const move=routeTarget(npc,exit);if(move)return wrap(move,'I remember this route toward the opening.','survival');}}
-  if(foodLearning&&['ravenous','faint with hunger'].includes(body.hunger)&&!samplingBlocked(npc,body)){
+  if(foodLearning&&(['ravenous','faint with hunger'].includes(body.hunger)||depletedAfterRefusal)&&!samplingBlocked(npc,body)){
+    if(depletedAfterRefusal){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I still hold the result of an operation sequence I previously tested; I can cautiously finish its first sampling trial before acquiring more.','food');}
     const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
-    if(carried)return wrap({type:'sample',targetId:carried},'My hunger is urgent, and a previous portion of this held material brought relief; I can test another before resting.','food');
-    const reachable=npc.inventory.items.length<DISCOVERY_RULES.capacity&&d.techniques.find(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach);
-    if(reachable&&!d.run)d.run={techniqueId:reachable.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
-    if(d.run){const action=learnedStep(npc);if(action)return wrap(action,'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.','food');}
+    if(carried)return wrap({type:'sample',targetId:carried},depletedAfterRefusal?'Rest was refused while I felt depleted; a previous portion of this held material brought relief, so I can test another.':'My hunger is urgent, and a previous portion of this held material brought relief; I can test another before resting.','food');
+    const reason=depletedAfterRefusal?'Rest was refused while I felt depleted; I can try an observed route and operation sequence that previously brought bodily relief.':'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.';
+    if(d.run){const action=learnedStep(npc);if(action)return wrap(action,reason,'food');}
+    if(!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
+      const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&(depletedAfterRefusal||distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach));
+      if(depletedAfterRefusal)candidates.sort((a,b)=>distance(npc.position,d.observations[a.sourceId].position)-distance(npc.position,d.observations[b.sourceId].position));
+      for(const technique of candidates){
+        d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
+        const action=learnedStep(npc);if(action)return wrap(action,reason,'food');
+        // An observed source without a usable observed route must not conceal a
+        // later viable source. Retain genuinely pending sequences, however.
+        if(d.run)break;
+      }
+    }
   }
-  if(['sleepy','struggling to stay awake'].includes(body.sleepiness)&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'sleep',seconds:CONFIG.dayRealSeconds/3},'I can hardly remain awake; a longer sleep may restore alertness.','rest');
-  if(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue))return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
+  if(!restDeferred&&['sleepy','struggling to stay awake'].includes(body.sleepiness)&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'sleep',seconds:CONFIG.dayRealSeconds/3},'I can hardly remain awake; a longer sleep may restore alertness.','rest');
+  if(!restDeferred&&(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue)))return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
+  if(depletedAfterRefusal&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'wait',seconds:5},'Rest was interrupted or refused while I felt depleted; without an available learned relief action, I can keep still briefly and reassess my sensations.','rest');
   if(d.run){const action=learnedStep(npc);if(action)return wrap(action,'I am repeating an operation sequence supported by my own bodily feedback.','food');}
   const hungry=foodLearning&&body.hunger!=='content'&&!samplingBlocked(npc,body);
   const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));

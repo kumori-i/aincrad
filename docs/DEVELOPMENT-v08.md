@@ -80,7 +80,7 @@ Fresh worlds may receive vegetated stepping stones on verified corridors, subjec
 
 ## 4. Milestone B: caloric throughput and learned physical sequences
 
-**Status: diagnosis and bounded controller experiments implemented; survival acceptance gates remain open.** [Retry/feedback correctness](TESTING-discovery-throughput.md) and [same-held-material repetition](TESTING-supported-consumption.md) have separate matched evidence. Neither completes this milestone. Diagnose the bottleneck before adding food or another action priority. A beneficial taste or technique counter does not prove sufficient meals.
+**Status: diagnosis and bounded controller experiments implemented; survival acceptance gates remain open.** [Retry/feedback correctness](TESTING-discovery-throughput.md) and [same-held-material repetition](TESTING-supported-consumption.md) have separate matched evidence. [Remembered rest refusals and bounded care](TESTING-rest-arbitration.md) correct the temporary-refusal diagnosis and measure actual recovery alongside feeding/rest trade-offs. These increments do not complete this milestone. Diagnose the bottleneck before adding food or another action priority. A beneficial taste or technique counter does not prove sufficient meals.
 
 ### Measure the full acquisition pipeline
 
