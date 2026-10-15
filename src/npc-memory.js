@@ -8,6 +8,7 @@ import { validateSocialMemory } from './social.js';
 import { rememberDiscoveryObservation,recordDiscoveryOutcome } from './discovery.js';
 import { validateDiscoveryMemory,objectId } from './discovery-state.js';
 import { validatePhysiology,projectPhysiology } from './biology.js';
+import { BIOLOGY_RULES } from './biology-config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
@@ -32,7 +33,7 @@ export function recordEvent(npc,type,details={}){
     // One actual rest outcome survives unrelated action/detail rotation. Keeping
     // a later success also prevents an older failure from resurfacing on reopen.
     const restOutcome=npc.mode==='discovery'?npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1)?.id:null;
-    const protectedIds=new Set([restOutcome,...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),...(npc.discovery?.experiments||[]).map(e=>e.actionId),...(npc.discovery?.effects||[]).map(e=>e.proofEventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
+    const protectedIds=new Set([restOutcome,...(npc.discovery?.selection?.records||[]).map(r=>r.actionId),...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),...(npc.discovery?.experiments||[]).map(e=>e.actionId),...(npc.discovery?.effects||[]).map(e=>e.proofEventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
     const removable=npc.memory.experience.findIndex(e=>!protectedIds.has(e.id));
     npc.memory.experience.splice(removable<0?0:removable,1);
   }
@@ -180,7 +181,12 @@ export function validateNpc(raw,{restoring=true}={}){
   const scenes=new Set(['valley',...CAVES.map(c=>c.id)]);n.scene=scenes.has(raw.scene)?raw.scene:'valley';
   if(Number.isFinite(raw.position?.x)&&Number.isFinite(raw.position?.y)&&canStand(raw.position.x,raw.position.y,n.scene))n.position={x:raw.position.x,y:raw.position.y};else n.scene='valley';
   n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,n.hydration,100);n.nourishment=finite(raw.nourishment,n.nourishment,100);n.health=finite(raw.health,n.health,100);n.riskCost=finite(raw.riskCost);
-  if(n.mode==='discovery')n.physiology=validatePhysiology(raw.physiology,{profile:'human',elapsed:n.elapsed});
+  if(n.mode==='discovery'){
+    // This queue contains already experienced feedback, not scheduled digestion.
+    // Discard impossible future history without changing gut matter or totals.
+    const feedback=(Array.isArray(raw.physiology?.feedback)?raw.physiology.feedback:[]).slice(-BIOLOGY_RULES.maxFeedback).filter(f=>Number.isFinite(f?.at)&&f.at>=0&&f.at<=n.elapsed);
+    n.physiology=validatePhysiology({...raw.physiology,feedback},{profile:'human',elapsed:n.elapsed});
+  }
   for(const field of ['energy','stamina','fatigue','sleepPressure'])n[field]=finite(raw[field],n[field],100);n.bodyMode=['awake','resting','sleeping'].includes(raw.bodyMode)?raw.bodyMode:'awake';
   n.thermal={hot:finite(raw.thermal?.hot,0,100),cold:finite(raw.thermal?.cold,0,100),wetness:finite(raw.thermal?.wetness,0,100)};
   for(const name of Object.keys(n.feelings||{}))n.feelings[name]=finite(raw.feelings?.[name],0,1);

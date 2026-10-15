@@ -9,7 +9,7 @@ import { recordEvent, rememberObservation, policyContext, learnOutcome, recovery
 import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
 import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, wakePhysiology, isSleeping, relievePhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { requestDiscoveryAction, tickDiscoveryAction } from './discovery-actions.js';
+import { requestDiscoveryAction, tickDiscoveryAction, discoveryWorkFeedback } from './discovery-actions.js';
 
 const allowedActions=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
 const needSeverity=(reserve,warning,critical)=>{
@@ -42,6 +42,7 @@ export function observeNpc(npc,environment={}){
 }
 function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene){
   const active=npc.active;
+  if(npc.mode==='discovery'&&active?.kind==='interaction')result={...result,...discoveryWorkFeedback(active)};
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
   if(active&&result.durationSeconds===undefined)result.durationSeconds=Math.max(0,npc.elapsed-active.startedAt);
   if(active?.startScene)startScene=active.startScene;

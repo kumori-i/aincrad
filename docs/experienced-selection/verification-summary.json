@@ -1,0 +1,292 @@
+{
+  "candidateSource": {
+    "sha256": "3a44663ffb966e78dbdd713ac1c20bd63f1c17c975c9ad081a2f5b889641b8af",
+    "files": {
+      "src/art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+      "src/atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+      "src/biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+      "src/biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+      "src/build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+      "src/cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+      "src/cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+      "src/cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+      "src/cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+      "src/cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+      "src/cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+      "src/cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+      "src/config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+      "src/controller.js": "1f6352937434e6e7786a2ea6720233a62b07df215da30464ce247dd41bf488cc",
+      "src/discovery-actions.js": "edc8f90c0db24faead036b1d2f628bcf5bb213e30f04d4a11521e121908060d3",
+      "src/discovery-config.js": "5e808e46c5ffe2b61cbf35be02ff2745d1799838f8958c5d0fb52cd65d805b4a",
+      "src/discovery-selection.js": "0b3d62a0ce231588ef726ccb1ef6183ff7fc8f23aa8a4a1f67aa0c90056db0d4",
+      "src/discovery-state.js": "0064d6ca2312d6304bff7a4064b0e29ecd43537ca9c267178e2a88555161a9e6",
+      "src/discovery.js": "4b88971044ae3e0b8455ec12e5fe755cf1b5479523fb9aaca1637613b7adcd88",
+      "src/ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+      "src/ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+      "src/ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+      "src/ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+      "src/environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+      "src/interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+      "src/main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+      "src/navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+      "src/npc-memory.js": "c04d8a178455ce7a3930740841e0ab6b489dbef03f5654a02f5729fb005727e6",
+      "src/npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+      "src/npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+      "src/npc.js": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162",
+      "src/perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+      "src/population.js": "2afefdbe29ebde6e42ceb55705e2b42f2dceee3fca45a13c9ee4b4c2961f0832",
+      "src/renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+      "src/resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+      "src/save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+      "src/simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+      "src/social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+      "src/world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+      "src/world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a",
+      "package.json": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757",
+      "package-lock.json": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+    }
+  },
+  "baselineSource": {
+    "sha256": "0d2e0d39175fd4e199133726b27da87ee9512ad36cc51f425d4487e9c20b9ea1",
+    "files": {
+      "src/art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+      "src/atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+      "src/biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+      "src/biology.js": "58a0378edf4ef233397c715ae830309846e044a9cb13df38277f2122feaf0a15",
+      "src/build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+      "src/cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+      "src/cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+      "src/cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+      "src/cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+      "src/cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+      "src/cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+      "src/cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+      "src/config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+      "src/controller.js": "f28cb7323c7a28b0407b9a185804e17e7adec2182893a30bb786b522387ee96e",
+      "src/discovery-actions.js": "5c141bc92be6f338192ef59467b7d3992c9d2a6ca318fcf0488b16bb29b43e0b",
+      "src/discovery-config.js": "ef4ce5deca8baf48a4ea3c804f4dddb22175886fa80a1f1d5e485e254ea34191",
+      "src/discovery-state.js": "347548cdbd37c7a60dc8978818cdc2e023cbfdb50d15c66e9ea4ee9569a92824",
+      "src/discovery.js": "9c20347c4e888ddff372ead11d38a44cd3b7f1e7397d691ce64e46fca15f574e",
+      "src/ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+      "src/ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+      "src/ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+      "src/ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+      "src/environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+      "src/interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+      "src/main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+      "src/navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+      "src/npc-memory.js": "977495b3af98531fc57e5bc56dbfe53400b1bc4814db1c44492ad59f6a637d33",
+      "src/npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+      "src/npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+      "src/npc.js": "fae9cdcc42c633d8ec1fa2203c90ac41fc812ded25c41207a42618a06c14cbe0",
+      "src/perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+      "src/population.js": "eda9257649c52dcd2751bef3cc0e2324b15fe54bc33a0c5fc8fcd5d6c38ccab6",
+      "src/renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+      "src/resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+      "src/save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+      "src/simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+      "src/social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+      "src/world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+      "src/world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a",
+      "package.json": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757",
+      "package-lock.json": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+    }
+  },
+  "defaultParity": {
+    "status": "passed",
+    "seed": 74193,
+    "anchor": "pond:north",
+    "actors": [
+      {
+        "id": "aster",
+        "seed": 74193,
+        "start": "pond:north"
+      },
+      {
+        "id": "mira",
+        "seed": 74194,
+        "start": "normal spawn"
+      }
+    ],
+    "seconds": 900,
+    "restoreSeconds": 450,
+    "fixedStep": 0.016666666666666666,
+    "sourceFingerprint": [
+      "48a36c234a81e00b7085d2c3ce3e0ad8ba3a4d8cd05a2110d21919552bb84f1b",
+      "5d8274adab98611565cd3a1cf13c962759a30e6b15cb0609782f19227928b847"
+    ],
+    "omittedKeys": [
+      "exertion",
+      "exertionContext",
+      "performedExertion"
+    ],
+    "runtimeOptions": {
+      "cardinal": false
+    },
+    "selectorOptionOmitted": true,
+    "checks": {
+      "rngActorFrames": 108000,
+      "physicalActorFrames": 108000,
+      "physiologyActorSeconds": 1800,
+      "retentionComparisons": 1221,
+      "fullWorldCheckpoints": 8
+    },
+    "initialStateSha256": "3f881e6f8d6d529148c88460c606933af48397da88838531e7b007c6b4a7c6cd",
+    "wallSeconds": 110.96668413799999,
+    "sourceChangesDuringRun": [
+      [],
+      []
+    ],
+    "fullActionTraceSha256": "008dca2a9208a9eca24c8ff5b4a289e53fbe0519d39936a60e63144fa742bf0f",
+    "fullFeedbackTraceSha256": "0de0e923122661e6af508a0ca5e82e1d3df27105da99bc39db4730e8c858b682",
+    "actions": 531,
+    "feedbackEvents": 104,
+    "firstHistoryRotationAt": {
+      "aster": 590.1499999997919,
+      "mira": 590.5499999997916
+    },
+    "selectorRecordsCreated": false,
+    "reportSha256": "f8f004a82026f4c779d8325aa7f8b97175170079d1c7250f0b1f77ca84702280",
+    "restore": {
+      "at": 449.9999999999194,
+      "validatedCheckpointSha256": "d2c111995bff82c7f9b6de5950b133d0dc3636593196fd4e44bb0b2efbd5625b",
+      "savedCheckpointSha256": "fd1992b424e1215d26c0a9907f5936a70c8a2767bc7ae8ce6ec6b4a38039446e",
+      "restoredCheckpointSha256": "9db4a9110267676f3e20017519b887a4d41e25028360db4866e885a87f7bd440",
+      "validTimestamps": true,
+      "actors": [
+        {
+          "id": "aster",
+          "experiments": 128,
+          "effects": 16,
+          "feedback": 17,
+          "stomachEntries": 17,
+          "beforeRng": 452341307,
+          "restoredRng": 452341307,
+          "fullPhysiologyUnchanged": true,
+          "firstPhysiologyChange": null,
+          "bodyTotalsUnchanged": true,
+          "gutUnchanged": true
+        },
+        {
+          "id": "mira",
+          "experiments": 126,
+          "effects": 17,
+          "feedback": 18,
+          "stomachEntries": 13,
+          "beforeRng": 2431839952,
+          "restoredRng": 2431839952,
+          "fullPhysiologyUnchanged": true,
+          "firstPhysiologyChange": null,
+          "bodyTotalsUnchanged": true,
+          "gutUnchanged": true
+        }
+      ]
+    },
+    "finalHistoryCounts": [
+      {
+        "id": "aster",
+        "totalEvents": 628,
+        "retainedEvents": 400
+      },
+      {
+        "id": "mira",
+        "totalEvents": 647,
+        "retainedEvents": 400
+      }
+    ]
+  },
+  "fixedActionParity": {
+    "baseline": "3db83047c96158b39214b3f5a68ed5929ad1f40d",
+    "physiologyCases": 44,
+    "physicalCheckpoints": 114,
+    "completedActions": 78,
+    "result": "Exact deep equality of all compared physical actor states and entire environment including ecology and finite ledgers.",
+    "summaries": [
+      {
+        "seed": 74193,
+        "dt": 0.25,
+        "completedActions": 13,
+        "elapsed": 94.5,
+        "metabolizedKcal": 102.54347880347302,
+        "ingestedKcal": 94.99999999999999,
+        "absorbedKcal": 23.077083333333086,
+        "humanRemovedKcal": 94.99999999999999,
+        "outsideAssistance": 0
+      },
+      {
+        "seed": 74193,
+        "dt": 0.016666666666666666,
+        "completedActions": 13,
+        "elapsed": 93.79999999999596,
+        "metabolizedKcal": 102.07681213679187,
+        "ingestedKcal": 94.99999999999999,
+        "absorbedKcal": 23.00671296296269,
+        "humanRemovedKcal": 94.99999999999999,
+        "outsideAssistance": 0
+      },
+      {
+        "seed": 1978,
+        "dt": 0.25,
+        "completedActions": 13,
+        "elapsed": 94.5,
+        "metabolizedKcal": 102.54347880347302,
+        "ingestedKcal": 94.99999999999999,
+        "absorbedKcal": 23.077083333333086,
+        "humanRemovedKcal": 94.99999999999999,
+        "outsideAssistance": 0
+      },
+      {
+        "seed": 1978,
+        "dt": 0.016666666666666666,
+        "completedActions": 13,
+        "elapsed": 93.79999999999596,
+        "metabolizedKcal": 102.07681213679187,
+        "ingestedKcal": 94.99999999999999,
+        "absorbedKcal": 23.00671296296269,
+        "humanRemovedKcal": 94.99999999999999,
+        "outsideAssistance": 0
+      },
+      {
+        "seed": 97531,
+        "dt": 0.25,
+        "completedActions": 13,
+        "elapsed": 94.5,
+        "metabolizedKcal": 102.54347880347302,
+        "ingestedKcal": 94.99999999999999,
+        "absorbedKcal": 23.077083333333086,
+        "humanRemovedKcal": 94.99999999999999,
+        "outsideAssistance": 0
+      },
+      {
+        "seed": 97531,
+        "dt": 0.016666666666666666,
+        "completedActions": 13,
+        "elapsed": 93.79999999999596,
+        "metabolizedKcal": 102.07681213679187,
+        "ingestedKcal": 94.99999999999999,
+        "absorbedKcal": 23.00671296296269,
+        "humanRemovedKcal": 94.99999999999999,
+        "outsideAssistance": 0
+      }
+    ],
+    "reportSha256": "5c21a450187e8d05a4eede3ebb844c1c9d8883af5658f926d53cceb29915d80b"
+  },
+  "verificationLogs": [
+    {
+      "file": "aincrad-learning-check-reviewed.log",
+      "sha256": "3bb8cf2d7ae5e9cd79cfd965e3cbb21b34300fdb9ab2183a29a1978e26e605d4"
+    },
+    {
+      "file": "aincrad-learning-build-reviewed.log",
+      "sha256": "355b839eb987046492494911e1a7abed7ccaff8af42055713e79450edfab73ef"
+    },
+    {
+      "file": "aincrad-learning-smoke-reviewed.log",
+      "sha256": "6d38cfa0306a5f268081ab3df15f51eb72b79eea98b34e01446d73c75fc4f696"
+    },
+    {
+      "file": "aincrad-learning-reopen-reviewed.log",
+      "sha256": "1de5a697dacb158fd3d366f1bdb7eff05ee138c5e20e6db5a589181989110243"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { DISCOVERY_RULES } from './discovery-config.js';
 import { NpcController } from './controller.js';
 import { tickEnvironment } from './environment.js';
 import { SocialCoordinator } from './social.js';
@@ -13,7 +14,7 @@ import { BUILD_SOURCE_FINGERPRINT } from './build-info.js';
 
 /** Owns the two characters and the single shared simulation clock. */
 export class PopulationRuntime {
-  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true}={}) {
+  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true,discoverySelection=DISCOVERY_RULES.experimentalSelection===true?'learned':'baseline'}={}) {
     this.state=state;
     this.providerFactory=providerFactory;
     this.controllers=new Map();
@@ -22,7 +23,7 @@ export class PopulationRuntime {
     this.disposed=false;
     this.social=new SocialCoordinator({getAgents:()=>this.state.agents,getCommunity:()=>this.state.community,getEnvironment:()=>this.state.environment});
     for(const npc of state.agents){
-      this.controllers.set(npc.id,new NpcController(npc,{provider:providerFactory?.(npc),environment:state.environment,social:this.social,discoveryFoodLearning}));
+      this.controllers.set(npc.id,new NpcController(npc,{provider:providerFactory?.(npc),environment:state.environment,social:this.social,discoveryFoodLearning,discoverySelection}));
       this.social.observe(npc);
       this.observedAt.set(npc.id,npc.elapsed);
     }
@@ -31,7 +32,7 @@ export class PopulationRuntime {
     this.cardinal=cardinal&&state.cardinal?new CardinalRuntime(state,{
       experimentFactory:experimentFactory||(({state:snapshot,proposal,seeds,horizonSeconds})=>createCardinalExperiment(snapshot,proposal,{
         seeds,horizonSeconds,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,
-        runtimeFactory:(shadow,options)=>new PopulationRuntime(shadow,{...options,discoveryFoodLearning,cardinal:false}),
+        runtimeFactory:(shadow,options)=>new PopulationRuntime(shadow,{...options,discoveryFoodLearning,discoverySelection,cardinal:false}),
       })),
       getRules:getWorldRules,
       applyRules:applyWorldRules,

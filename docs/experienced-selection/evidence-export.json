@@ -1,0 +1,6 @@
+{
+  "file": "aincrad-experienced-selection-evidence-export.zip",
+  "bytes": 1618606,
+  "sha256": "1d16a6eac2b7881eeb46e39314059f5f763b193a5884440cb78a876040c032ef",
+  "contents": "Full frozen autonomous trials, default save/reopen parity traces and checkpoints, fixed-action evidence, replay programs, logs, native summaries and compact study summary. Retained outside Git; available as an evidence export."
+}

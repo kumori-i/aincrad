@@ -1,3 +1,4 @@
+import { DISCOVERY_RULES } from './discovery-config.js';
 import { CONFIG, NPC_RULES } from './config.js';
 import { distance, clamp } from './world.js';
 import { tilePoint, rememberedCells, rememberedEdges } from './perception.js';
@@ -7,6 +8,7 @@ import { policyContext, actionCategory, recordEvent, learnedValue, learnOutcome 
 
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { signalUrgencies, cognitiveObservation, updateCognition, localPlan, adoptPlan, progressPlan, cancelPlan, cognitiveAction, explorationFrontier, searchReturn, estimatedWalkingSpeed } from './cognition.js';
+import { configureSelection } from './discovery-selection.js';
 import { discoveryDecision,discoveryObservation,processDiscoveryFeedback,contactEscape } from './discovery.js';
 import { isSleeping } from './biology.js';
 
@@ -136,7 +138,7 @@ export class DesktopModelProvider {
   cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true}={}){this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;observeNpc(npc,environment);updateCognition(npc);}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,discoverySelection=DISCOVERY_RULES.experimentalSelection===true?'learned':'baseline'}={}){configureSelection(npc,discoverySelection,{foodLearning:discoveryFoodLearning!==false});this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;observeNpc(npc,environment);updateCognition(npc);}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;this.readyDecision=null;this.provider.cancel?.();}
   dispose(){this.disposed=true;this.cancel();}
