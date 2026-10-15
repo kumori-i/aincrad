@@ -7,7 +7,8 @@ import { validateCommunity } from './social.js';
 import { ECOLOGY_RULES } from './ecology-config.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { validateCardinal } from './cardinal.js';
-const SAVE_VERSIONS = new Set([1,2,3,4,5,6]);
+import { encodeTemporalWire,TEMPORAL_STORAGE } from './temporal-storage.js';
+const SAVE_VERSIONS = new Set([1,2,3,4,5,6,7]);
 const AGENT_IDS = ['aster','mira'];
 function unsupportedRules(raw){
   const ecology=raw.environment?.ecology;
@@ -21,7 +22,10 @@ function unsupportedRules(raw){
   if(raw.environment?.ecology?.regionalVersion!=null&&raw.environment.ecology.regionalVersion!==1)return true;
   if(raw.environment?.ecology?.version>ECOLOGY_RULES.version)return true;
   const maximumActorVersion=raw?.version>=5&&raw.simulationMode==='discovery'?4:3;
-  return [...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(npc=>npc?.version>maximumActorVersion||npc?.physiology?.version>BIOLOGY_RULES.version||npc?.discovery?.version>1);
+  return [...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(npc=>npc?.version>maximumActorVersion||npc?.physiology?.version>BIOLOGY_RULES.version||npc?.discovery?.version>1||unsupportedTemporal(npc?.discovery?.temporal,raw.version));
+}
+function unsupportedTemporal(temporal,saveVersion){
+  return temporal!=null&&(temporal.version!==1||(temporal.encoding!==undefined&&(temporal.encoding!==TEMPORAL_STORAGE.encoding||saveVersion<7)));
 }
 function newCharacterAt(id,elapsed,mode){
   const npc=createNpc({id,mode});
@@ -94,12 +98,14 @@ export function loadSave(storage) {
     const parsed = JSON.parse(data);
     if (!SAVE_VERSIONS.has(parsed?.version)||unsupportedRules(parsed)) return protectedFresh('The previous save uses unsupported rules or a newer version. It has been preserved; start a new expedition explicitly to replace it.');
     return { state: validateSave(parsed), exists: true, error: null, blocked:false };
-  } catch { return protectedFresh('The local save could not be read. Your previous data has not been overwritten.'); }
+  } catch(error) { return protectedFresh(error?.code==='TEMPORAL_BUDGET'||error?.code==='TEMPORAL_STORAGE'?'The experimental learner memory exceeds its budget or has an unsupported encoding. Your previous save has been preserved.':'The local save could not be read. Your previous data has not been overwritten.'); }
 }
 export function writeSave(storage, state) {
   if(state?.saveBlocked || !SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))return false;
   try {
     const {npc:historicalAlias,...saved}=validateSave(state,{restoring:false});
+    // Validate the live proof graph first; dictionary encoding is wire-only.
+    for(const actor of saved.agents)if(actor.discovery?.temporal){actor.discovery.temporal=encodeTemporalWire(actor.discovery.temporal);saved.version=7;}
     storage.setItem(CONFIG.saveKey, JSON.stringify(saved));
     return true;
   }

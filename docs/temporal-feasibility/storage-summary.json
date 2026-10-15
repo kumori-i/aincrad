@@ -1,0 +1,601 @@
+{
+  "stage": "manual temporal core with bounded wire storage; performance gate remains failed",
+  "sourceCommit": "3959b270239bbc2f249450051b26a9ade057f313",
+  "baselineCommit": "3db83047c96158b39214b3f5a68ed5929ad1f40d",
+  "sourceHashes": {
+    "src/temporal-ledger.js": "911959e4e1328b1a54bf8373dc92888ef47746324e1364b5746f5428c05d75aa",
+    "src/temporal-returns.js": "f62184a037ca9444967d545fbdeb3c0e2e90f0c43e37c24c6984fd25f782136c",
+    "src/temporal-storage.js": "a7e74c2af8e241df471c5e008404a312ee2de82539f168c034458797d6f6ea28",
+    "src/save.js": "62b5d8b9aaaddbcd1125c744fc1e0f011bbffa855b833ffdeb9fb61601a17ad6",
+    "src/npc-memory.js": "c4fe6ced5d7154d3c9156b541089b3be7715f2029e25f67c4672fa0949496851",
+    "src/biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+    "src/npc.js": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162",
+    "src/discovery-actions.js": "95987fa0df42014aa14595bdc8b2822ec22f309ea94478915925959c258374a8",
+    "tests/temporal-storage-v08.test.mjs": "c5749cb4870480ff1fb4961ff2db300182540a1470cafbcf49034b24dc5a85f1",
+    "tests/temporal-returns-v08.test.mjs": "913778244b7249848537d33e5bf4651bb1fc07dc01a55e43f9724e9c4f8bda34"
+  },
+  "checks": {
+    "allTests": 449,
+    "failed": 0,
+    "storageTests": 15,
+    "physicalCases": 5,
+    "independentStorageReview": "cleared",
+    "independentPerformanceEquivalenceReview": "cleared",
+    "linuxElectronSmoke": true,
+    "version7TwoProcessReopen": true
+  },
+  "storageContract": {
+    "completePerActorUtf8Bytes": 8388608,
+    "metadataReservationBytes": 2097152,
+    "reservedRows": 4096,
+    "bytesPerReservedRow": 384,
+    "dictionaryEntriesLimit": 32768,
+    "unknownContext": "explicit null; no learned reward or adjacent replay, provenance/channel cursors retained",
+    "topLevelWireSaveVersion": 7,
+    "liveTemporalVersion": 1
+  },
+  "resourceCases": [
+    {
+      "kind": "typical",
+      "rows": 4096,
+      "transitions": 512,
+      "receipts": 768,
+      "wireBytes": 5270248,
+      "diagnostics": {
+        "limitBytes": 8388608,
+        "reservedBytes": 8388576,
+        "contexts": 13870,
+        "saturated": true,
+        "overflows": 1
+      },
+      "decisionMs": {
+        "p50": 2.4943030000004,
+        "p95": 4.208877999999913,
+        "max": 6.391002999999728,
+        "includes": "canonical context, actual submission/closure, completion, eight training sweeps"
+      },
+      "memory": {
+        "before": {
+          "rss": 41254912,
+          "heapTotal": 12054528,
+          "heapUsed": 6920160,
+          "external": 3801473,
+          "arrayBuffers": 146559
+        },
+        "after": {
+          "rss": 219582464,
+          "heapTotal": 159842304,
+          "heapUsed": 16467368,
+          "external": 15797102,
+          "arrayBuffers": 11618655
+        },
+        "heapUsedDelta": 9547208,
+        "rssDelta": 178327552,
+        "notes": "process delta includes retained stress fixture contexts and wire, not isolated learner heap; RSS is current not peak"
+      },
+      "encodeMs": [
+        25.592345000000023,
+        23.853801000000203,
+        26.328215,
+        17.20209799999975,
+        16.102980000000116,
+        16.251134000000093,
+        18.886406999999963,
+        23.38081399999919,
+        24.649642000000313,
+        17.564894999999524
+      ],
+      "restoreMs": [
+        548.5026099999995,
+        1037.3179090000003,
+        555.7785019999992,
+        541.7942749999993,
+        575.9707870000002
+      ],
+      "rawSha256": "d477118b53a27c05c719fa41317a683053bdcf09e91ad6d5e206dcf2b3e86df6"
+    },
+    {
+      "kind": "maximum",
+      "rows": 4096,
+      "transitions": 512,
+      "receipts": 768,
+      "wireBytes": 5264511,
+      "diagnostics": {
+        "limitBytes": 8388608,
+        "reservedBytes": 8388478,
+        "contexts": 5291,
+        "saturated": true,
+        "overflows": 1
+      },
+      "decisionMs": {
+        "p50": 3.1813529999999446,
+        "p95": 5.864071999999851,
+        "max": 12.452497000000221,
+        "includes": "canonical context, actual submission/closure, completion, eight training sweeps"
+      },
+      "memory": {
+        "before": {
+          "rss": 41254912,
+          "heapTotal": 12316672,
+          "heapUsed": 6943944,
+          "external": 3801473,
+          "arrayBuffers": 146559
+        },
+        "after": {
+          "rss": 250970112,
+          "heapTotal": 185827328,
+          "heapUsed": 41725840,
+          "external": 9892836,
+          "arrayBuffers": 146559
+        },
+        "heapUsedDelta": 34781896,
+        "rssDelta": 209715200,
+        "notes": "process delta includes retained stress fixture contexts and wire, not isolated learner heap; RSS is current not peak"
+      },
+      "encodeMs": [
+        22.384094000000005,
+        21.883916999999656,
+        17.22260899999992,
+        19.354284000000007,
+        20.747337000000243,
+        18.291040000000066,
+        18.914682000000084,
+        17.85377299999982,
+        21.34920800000009,
+        21.72935499999994
+      ],
+      "restoreMs": [
+        463.912726,
+        454.63932199999954,
+        513.2484649999997,
+        461.6963799999994,
+        557.3168620000006
+      ],
+      "rawSha256": "7adc19fe516b9fbe119281b4eda6627ec01a2ae2f0453c2b3762ebc2dd4e3f77"
+    },
+    {
+      "kind": "unicode",
+      "rows": 2273,
+      "transitions": 512,
+      "receipts": 768,
+      "wireBytes": 5142597,
+      "diagnostics": {
+        "limitBytes": 8388608,
+        "reservedBytes": 8387654,
+        "contexts": 2273,
+        "saturated": true,
+        "overflows": 1
+      },
+      "decisionMs": {
+        "p50": 4.646009000000049,
+        "p95": 8.581457999999884,
+        "max": 13.690619999999853,
+        "includes": "canonical context, actual submission/closure, completion, eight training sweeps"
+      },
+      "memory": {
+        "before": {
+          "rss": 41078784,
+          "heapTotal": 12054528,
+          "heapUsed": 6943944,
+          "external": 3801473,
+          "arrayBuffers": 146559
+        },
+        "after": {
+          "rss": 398962688,
+          "heapTotal": 197390336,
+          "heapUsed": 26833056,
+          "external": 9769924,
+          "arrayBuffers": 5604556
+        },
+        "heapUsedDelta": 19889112,
+        "rssDelta": 357883904,
+        "notes": "process delta includes retained stress fixture contexts and wire, not isolated learner heap; RSS is current not peak"
+      },
+      "encodeMs": [
+        34.8051260000002,
+        33.85787200000004,
+        30.480845000000045,
+        37.62784499999998,
+        28.11842099999967,
+        44.204075999999986,
+        34.65285899999981,
+        28.921428000000105,
+        27.910292000000027,
+        36.29913699999997
+      ],
+      "restoreMs": [
+        370.0736189999998,
+        370.61898699999983,
+        352.790939,
+        462.68037600000025,
+        343.79380199999923
+      ],
+      "rawSha256": "cf351c1986c8cee335e034ba3ed3e8beca98a895dbca516678e356adf3622fe6"
+    },
+    {
+      "kind": "escaped",
+      "rows": 1769,
+      "transitions": 512,
+      "receipts": 768,
+      "wireBytes": 5110277,
+      "diagnostics": {
+        "limitBytes": 8388608,
+        "reservedBytes": 8388598,
+        "contexts": 1769,
+        "saturated": true,
+        "overflows": 1
+      },
+      "decisionMs": {
+        "p50": 3.419484999999895,
+        "p95": 5.320136000000048,
+        "max": 10.79045599999995,
+        "includes": "canonical context, actual submission/closure, completion, eight training sweeps"
+      },
+      "memory": {
+        "before": {
+          "rss": 41082880,
+          "heapTotal": 12578816,
+          "heapUsed": 6944864,
+          "external": 3801473,
+          "arrayBuffers": 146559
+        },
+        "after": {
+          "rss": 173752320,
+          "heapTotal": 94629888,
+          "heapUsed": 21242520,
+          "external": 14576767,
+          "arrayBuffers": 10473793
+        },
+        "heapUsedDelta": 14297656,
+        "rssDelta": 132669440,
+        "notes": "process delta includes retained stress fixture contexts and wire, not isolated learner heap; RSS is current not peak"
+      },
+      "encodeMs": [
+        26.923176999999896,
+        31.85038399999985,
+        28.33446700000013,
+        23.804572000000007,
+        25.493263999999954,
+        26.086996,
+        31.20896599999992,
+        33.15044499999999,
+        22.776309999999967,
+        22.434742000000142
+      ],
+      "restoreMs": [
+        315.3626429999997,
+        360.7774480000003,
+        305.56471999999985,
+        444.52986899999996,
+        544.254089
+      ],
+      "rawSha256": "7593b473548f8bf9e60496100049604cea123b54b0ba862cdb9aba96cc90822e"
+    }
+  ],
+  "resourceLimitations": [
+    "Synthetic saturated ledger, not autonomous learning.",
+    "Full decision includes context, submission/completion and eight training sweeps; p95 target5ms is not met in all cases.",
+    "Cold validation times are not an interactive frame budget. Actual renderer save-path delay is separately measured.",
+    "Memory deltas include stress fixture contexts and wire; RSS is current, not peak or isolated actor allocation.",
+    "Earlier shared-load and pre-optimization runs are retained; no minimum-run selection used."
+  ],
+  "desktopSave": {
+    "quotaProbe": {
+      "filledKeys": 49,
+      "fillMiB": 49,
+      "quotaError": {
+        "name": "QuotaExceededError",
+        "message": "Failed to execute 'setItem' on 'Storage': Setting the value of 'isolated-quota-probe:49' exceeded the quota."
+      },
+      "saveOk": false,
+      "saveMs": 440.3999999985099,
+      "previousSavePreserved": true
+    },
+    "sourceFingerprint": "4f02ba0d6c7a9c0b63e0edbb2a841d3b1f7cb9f30da912a13ad4ef2787943b09",
+    "isolatedProfile": true,
+    "actualElectron": true,
+    "scope": "same synchronous save function used by autosave, synthetic saturated learner attached to copied world; no autonomous claim",
+    "perActor": {
+      "limitBytes": 8388608,
+      "reservedBytes": 8388442,
+      "contexts": 14076,
+      "saturated": true,
+      "overflows": 1,
+      "wireBytes": 5118101,
+      "rows": 4096,
+      "receipts": 768,
+      "transitions": 512
+    },
+    "rows": [
+      {
+        "actors": 0,
+        "ok": true,
+        "durationMs": 47.29999999701977,
+        "followingFrameGapMs": 58.79999999701977,
+        "payloadBytes": 383211,
+        "storageError": null,
+        "previousBytesPreserved": false
+      },
+      {
+        "actors": 1,
+        "ok": true,
+        "durationMs": 479.5999999977648,
+        "followingFrameGapMs": 484.5999999977648,
+        "payloadBytes": 5501324,
+        "storageError": null,
+        "previousBytesPreserved": false
+      },
+      {
+        "actors": 2,
+        "ok": true,
+        "durationMs": 907.1999999992549,
+        "followingFrameGapMs": 922.5,
+        "payloadBytes": 10619437,
+        "storageError": null,
+        "previousBytesPreserved": false
+      }
+    ]
+  },
+  "nativeReopen": {
+    "passed": true,
+    "temporalMemoryPreserved": true,
+    "dictionaryVersion7": true,
+    "twoIndependentProcesses": true,
+    "isolatedProfile": true,
+    "oldDistribution": 2,
+    "newDistribution": 3,
+    "completeCheckpointPreserved": true,
+    "heldMaterialPreserved": true,
+    "depletedGrassPreserved": true,
+    "soilStockPreserved": 37,
+    "sleepPreserved": true,
+    "noClosedTimeBackfill": true,
+    "restOutcomePreserved": true,
+    "restRetryDeferred": true,
+    "sourceFingerprint": "4f02ba0d6c7a9c0b63e0edbb2a841d3b1f7cb9f30da912a13ad4ef2787943b09",
+    "regional": {
+      "version": 1,
+      "regions": 49,
+      "maxRegionalMassError": 0,
+      "maxRegionalEnergyError": 0,
+      "maxRegionalSoilError": 0,
+      "soilBalanceError": 0,
+      "unassigned": {
+        "nutrients": 7.105427357601002e-15,
+        "massGrams": 0,
+        "energyKcal": 0
+      },
+      "depletedRegions": []
+    },
+    "metrics": {
+      "fps": 53.44695510510511,
+      "cache": 18,
+      "zoom": 1.5,
+      "panel": "pause",
+      "started": true,
+      "paused": true,
+      "simulationSpeed": 1,
+      "windowFocused": true,
+      "interaction": null
+    }
+  },
+  "logs": {
+    "aincrad-temporal-storage-benchmark-final-sources.txt": {
+      "sha256": "7d955ef4a9d681109aa20e2d1a4091379751e17c83085c707fa9a7b92e67dff5",
+      "bytes": 347
+    },
+    "aincrad-temporal-storage-benchmark-final.log": {
+      "sha256": "3b3144e14a4cd4273092bdaed96c068e8db23445244aaf3bf5d0908fad217b79",
+      "bytes": 4863
+    },
+    "aincrad-temporal-storage-benchmark-perf.log": {
+      "sha256": "75f5f8f2ee6f5d27c547cc27b7eb61deca408d3dfd6f01571de637a2ec7341b4",
+      "bytes": 4883
+    },
+    "aincrad-temporal-storage-benchmark.log": {
+      "sha256": "a5d448543c0e42184c0fd9f07ecfab94427d2122b75faf7978ebe64ce9962d9d",
+      "bytes": 4890
+    },
+    "aincrad-temporal-storage-benchmark.mjs": {
+      "sha256": "8a3a97495755d23facb1dd28b406a26d4bb229bb85b3aba7a042e97e5e1e3002",
+      "bytes": 3146
+    },
+    "aincrad-temporal-storage-build.log": {
+      "sha256": "66703588ab0168eb39bbbde23d57c6b9279b814518b1d2b742c7e82c6e6330b9",
+      "bytes": 237
+    },
+    "aincrad-temporal-storage-desktop-quota.log": {
+      "sha256": "020c681a9d802a6d023d3a383d9a53e801f9bc9e89eb513263b2a05bd0eae1a3",
+      "bytes": 8291
+    },
+    "aincrad-temporal-storage-desktop.log": {
+      "sha256": "135238c17275bbcbb5f4e6fbb5bb22605225c225d89a6ceb04b651f525666bf1",
+      "bytes": 7983
+    },
+    "aincrad-temporal-storage-escaped.json": {
+      "sha256": "dc45208ecbb16efe9bdfdcb2e634a02fb0f4474f360c698888d8af12c23237aa",
+      "bytes": 1550
+    },
+    "aincrad-temporal-storage-fast.log": {
+      "sha256": "0eecd8a87f3e3c3f1c798e994bed31e7c469773e3ddcb1fa4d351252ef8bbae3",
+      "bytes": 5740
+    },
+    "aincrad-temporal-storage-final-check.log": {
+      "sha256": "2a9d388f0e5014b218ab7138930015aed82b59026e369d8c59da4f9d5c353ca7",
+      "bytes": 46970
+    },
+    "aincrad-temporal-storage-final-escaped.json": {
+      "sha256": "f1ddeb175e9b027333ac1fff7667834aa456b4f5a0ae3d992d3f27dda7cd0ea4",
+      "bytes": 1534
+    },
+    "aincrad-temporal-storage-final-maximum.json": {
+      "sha256": "e8f68597b27e3e1793585721c843007be275a6725551735bf8bf1cbd46365c00",
+      "bytes": 1529
+    },
+    "aincrad-temporal-storage-final-native.log": {
+      "sha256": "a9effed4483be588ee4da0e51bce0729522234624e52ca702676f2a34f850783",
+      "bytes": 15426
+    },
+    "aincrad-temporal-storage-final-smoke.log": {
+      "sha256": "a77d933241264e5d0971d4ddd2ff848993b0e1ca4944145be6c617860d963772",
+      "bytes": 7873
+    },
+    "aincrad-temporal-storage-final-typical.json": {
+      "sha256": "908055c74899573026d99a8d522c681c022abd966b0a35fa19bc1937f2f66b7d",
+      "bytes": 1542
+    },
+    "aincrad-temporal-storage-final-unicode.json": {
+      "sha256": "5cc04ef85f53e0199c13e67397dd82d320b7d2b33207e56d58a73d785e14e9cb",
+      "bytes": 1538
+    },
+    "aincrad-temporal-storage-first.log": {
+      "sha256": "cb5f8b7d0f61b3b33c01d94966c84d84b316ff7d1f70c6d91a6fde283003a862",
+      "bytes": 5728
+    },
+    "aincrad-temporal-storage-fixes.log": {
+      "sha256": "f31398dc1ab9d7e13f29702e2ff741b1e8952019e961cf955b820e1d23e061a8",
+      "bytes": 3831
+    },
+    "aincrad-temporal-storage-full-check.log": {
+      "sha256": "2410f52a9574acb9f2cb340f19c7bad1fb0e2465aeafa4b5b31ac6565bf327f7",
+      "bytes": 46568
+    },
+    "aincrad-temporal-storage-maximum.json": {
+      "sha256": "4cbb3104fd5fb5d2fa8a747f37d53601c7b5b127a395b5655ea952d4f00a83ca",
+      "bytes": 1529
+    },
+    "aincrad-temporal-storage-native.log": {
+      "sha256": "11ea7a6cb50a43375088170f61b6796520306b3253ced09cb39bff0eca02e81f",
+      "bytes": 15426
+    },
+    "aincrad-temporal-storage-perf-escaped.json": {
+      "sha256": "7593b473548f8bf9e60496100049604cea123b54b0ba862cdb9aba96cc90822e",
+      "bytes": 1535
+    },
+    "aincrad-temporal-storage-perf-maximum.json": {
+      "sha256": "7adc19fe516b9fbe119281b4eda6627ec01a2ae2f0453c2b3762ebc2dd4e3f77",
+      "bytes": 1543
+    },
+    "aincrad-temporal-storage-perf-sources.txt": {
+      "sha256": "f3be1a6292462352137f38a564497dcba4422a66e79c602c290e09f871814ee5",
+      "bytes": 347
+    },
+    "aincrad-temporal-storage-perf-typical.json": {
+      "sha256": "d477118b53a27c05c719fa41317a683053bdcf09e91ad6d5e206dcf2b3e86df6",
+      "bytes": 1543
+    },
+    "aincrad-temporal-storage-perf-unicode.json": {
+      "sha256": "cf351c1986c8cee335e034ba3ed3e8beca98a895dbca516678e356adf3622fe6",
+      "bytes": 1542
+    },
+    "aincrad-temporal-storage-perf-unit.log": {
+      "sha256": "de38c2ba9231b606316672aba60871d9f22d26ede336d711f0297264960cec57",
+      "bytes": 5737
+    },
+    "aincrad-temporal-storage-physical.log": {
+      "sha256": "10c54a4ef8fca987f5b9c8aee8937f1f4304e6d02dfac313a1c0d0b3facbcd7b",
+      "bytes": 717
+    },
+    "aincrad-temporal-storage-smoke.log": {
+      "sha256": "2855222abd3153338a06e61bcee39a6842e0830ae705b907d2a49f8c00e6cfed",
+      "bytes": 7873
+    },
+    "aincrad-temporal-storage-tests.log": {
+      "sha256": "90e9ea3aafd5f80bb8ecd4ee264585d10ef1aabc014363ed33a1a8b4f974a703",
+      "bytes": 1376
+    },
+    "aincrad-temporal-storage-typical.json": {
+      "sha256": "326075b0507ce7cbd9931b473173ea109b41f204bd5436a544b421954537f779",
+      "bytes": 1554
+    },
+    "aincrad-temporal-storage-unicode.json": {
+      "sha256": "e31c71d354ea81799ae54406326ae7d6359d8ec6b4a0e4889d297e46992cc63f",
+      "bytes": 1537
+    },
+    "benchmark-temporal-desktop.mjs": {
+      "sha256": "136de615690f3f524b519fd63171d1164b250e3391dba235c7aca8df0c9ce6fa",
+      "bytes": 5243
+    },
+    "default-parity-final.json": {
+      "sha256": "2f6e49832506fcb0888ea8f2119182b92db38a9ad1f887a343297227c90f86fd",
+      "bytes": 140668
+    },
+    "default-parity-final.tar.gz": {
+      "sha256": "0021cc909f1973f763b28eea9903e9970edbdcb0467009ab95b56fe5758adc3e",
+      "bytes": 785376
+    },
+    "result.json": {
+      "sha256": "b1091fd901a91ea5d72c465bebc36c27d5df3c756d37c0dab352158e748a225b",
+      "bytes": 1082
+    },
+    "temporal-storage-desktop.json": {
+      "sha256": "ef357d4d742c04046ee66aa8cc73237e938ee4455eb87a18bd19df4b3d0dd022",
+      "bytes": 1564
+    },
+    "verify-temporal-desktop.mjs": {
+      "sha256": "ad09f9d26e9766232f1505814febdfe52891f798fed3b634f3d406c0b97c8452",
+      "bytes": 9564
+    }
+  },
+  "promotion": {
+    "autonomousTemporalPolicyPresent": false,
+    "autonomyCleared": false,
+    "mergeRecommended": false,
+    "reason": "Correctness/finite scripted returns and8MiBwire bound pass; saturated decision p95 and synchronous renderer save latency fail responsiveness targets."
+  },
+  "defaultParityFinal": {
+    "status": "passed",
+    "baselineCommit": "3db83047c96158b39214b3f5a68ed5929ad1f40d",
+    "sourceFingerprint": [
+      "48a36c234a81e00b7085d2c3ce3e0ad8ba3a4d8cd05a2110d21919552bb84f1b",
+      "b285fde5de1bf0447fac877f19aa41273fa829523377fd2b676c618f0462fbe3"
+    ],
+    "omittedInstrumentation": [
+      "exertion",
+      "exertionContext",
+      "performedExertion",
+      "workedSeconds"
+    ],
+    "normalizationRule": "Remove only additive exertion, exertionContext, performedExertion, workedSeconds keys. Baseline absence asserted. Existing durationSeconds and all other fields retained exactly.",
+    "physicsCases": 44,
+    "checks": {
+      "physicalActorFrames": 33513,
+      "rngActorFrames": 33513,
+      "environmentCheckpoints": 642,
+      "fullActorCheckpoints": 120,
+      "fullWorldCheckpoints": 12
+    },
+    "normalizedDifferences": [],
+    "wallSeconds": 104.93553766999999,
+    "autonomous": [
+      {
+        "dt": 0.016666666666666666,
+        "actions": 82,
+        "traceEqual": true,
+        "feedbackEqual": true,
+        "restore": {
+          "at": 60,
+          "savedEqual": true,
+          "loadedEqual": true,
+          "savedNormalizedSha256": "64427d36213ee25e6c7c07fa2db742f49382a5fe648c8e0e5a1eacbd42cc2b52",
+          "loadedNormalizedSha256": "e2f1feaccfe545f30cca78860a75a80bd39a025aae85ed5bcd9c702129c8c301"
+        },
+        "temporalCreated": false
+      },
+      {
+        "dt": 0.25,
+        "actions": 71,
+        "traceEqual": true,
+        "feedbackEqual": true,
+        "restore": {
+          "at": 60,
+          "savedEqual": true,
+          "loadedEqual": true,
+          "savedNormalizedSha256": "1998dd289b6f7be2e0995c9dcceca7ba76883e9679c6b4203a07dcdd46d9c9aa",
+          "loadedNormalizedSha256": "07de295887af3612c4a0b2c9303bbfeb702944761cb8f8307e814e103b959310"
+        },
+        "temporalCreated": false
+      }
+    ]
+  }
+}

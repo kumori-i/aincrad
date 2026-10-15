@@ -9,6 +9,7 @@ import { rememberDiscoveryObservation,recordDiscoveryOutcome } from './discovery
 import { validateDiscoveryMemory,objectId } from './discovery-state.js';
 import { validatePhysiology,projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
+import { validateTemporalLedger } from './temporal-ledger.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
 const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
@@ -180,7 +181,11 @@ export function validateNpc(raw,{restoring=true}={}){
   const scenes=new Set(['valley',...CAVES.map(c=>c.id)]);n.scene=scenes.has(raw.scene)?raw.scene:'valley';
   if(Number.isFinite(raw.position?.x)&&Number.isFinite(raw.position?.y)&&canStand(raw.position.x,raw.position.y,n.scene))n.position={x:raw.position.x,y:raw.position.y};else n.scene='valley';
   n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,n.hydration,100);n.nourishment=finite(raw.nourishment,n.nourishment,100);n.health=finite(raw.health,n.health,100);n.riskCost=finite(raw.riskCost);
-  if(n.mode==='discovery')n.physiology=validatePhysiology(raw.physiology,{profile:'human',elapsed:n.elapsed});
+  if(n.mode==='discovery'){
+    // Experimental history must be rejected before physiology normalizes bad clocks.
+    const physical=raw.discovery?.temporal?.version===1&&raw.physiology?{...raw.physiology,feedback:(Array.isArray(raw.physiology.feedback)?raw.physiology.feedback:[]).filter(e=>Number.isFinite(e?.at)&&e.at>=0&&e.at<=n.elapsed)}:raw.physiology;
+    n.physiology=validatePhysiology(physical,{profile:'human',elapsed:n.elapsed});
+  }
   for(const field of ['energy','stamina','fatigue','sleepPressure'])n[field]=finite(raw[field],n[field],100);n.bodyMode=['awake','resting','sleeping'].includes(raw.bodyMode)?raw.bodyMode:'awake';
   n.thermal={hot:finite(raw.thermal?.hot,0,100),cold:finite(raw.thermal?.cold,0,100),wetness:finite(raw.thermal?.wetness,0,100)};
   for(const name of Object.keys(n.feelings||{}))n.feelings[name]=finite(raw.feelings?.[name],0,1);
@@ -194,7 +199,12 @@ export function validateNpc(raw,{restoring=true}={}){
   n.memory.nextId=Math.max(1,Math.floor(finite(m.nextId,1)));
   n.memory.experience=(Array.isArray(m.experience)?m.experience:[]).filter(e=>Number.isInteger(e?.id)&&e.id>0&&EVENT_TYPES.has(e.type)).slice(-NPC_RULES.maxExperience).map(e=>({id:e.id,at:finite(e.at),type:e.type,details:compact(e.details)||{}}));
   const ids=new Set(n.memory.experience.map(e=>e.id));if(!n.memory.experience.some(e=>e.id===n.flask.fillEventId&&e.details.action?.type==='fill_flask'&&e.details.result?.ok)){n.flask.fillEventId=null;n.flask.provenance=null;}n.memory.nextId=Math.max(n.memory.nextId,1+Math.max(0,...ids));
-  if(n.mode==='discovery')n.discovery=validateDiscoveryMemory(raw.discovery,n);
+  if(n.mode==='discovery'){
+    n.discovery=validateDiscoveryMemory(raw.discovery,n);
+    if(raw.discovery?.temporal?.version===1){
+      n.discovery.temporal=validateTemporalLedger(raw.discovery.temporal,n.elapsed,{sourceFeedback:raw.physiology?.feedback});
+    }
+  }
   function restoreCells(input,scene){const out={};for(const [key,c] of Object.entries(input||{}).slice(-NPC_RULES.maxCells)){if(!/^-?\d{1,3},-?\d{1,3}$/.test(key)||typeof c.walkable!=='boolean'||!Number.isFinite(c.x)||!Number.isFinite(c.y))continue;const [x,y]=key.split(',').map(Number);if(c.x!==x*NPC_RULES.tileSize||c.y!==y*NPC_RULES.tileSize||!withinWorld(c))continue;out[key]={key,x:c.x,y:c.y,walkable:c.walkable,terrain:str(c.terrain,20),observedAt:finite(c.observedAt),visits:finite(c.visits)};}return out;}
   function restoreEdges(input){const out={};for(const [key,edge] of Object.entries(input||{}).slice(-512))if(/^-?\d{1,3},-?\d{1,3}>-?\d{1,3},-?\d{1,3}$/.test(key))out[key]={observedAt:finite(edge.observedAt),retryAfter:Math.min(n.elapsed+60,finite(edge.retryAfter))};return out;}
   n.memory.cells=restoreCells(m.cells,'valley');n.memory.blockedEdges=restoreEdges(m.blockedEdges);

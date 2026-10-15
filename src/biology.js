@@ -118,6 +118,7 @@ export function exertPhysiology(actor,seconds,effort=1){
   const f=ensure(actor),p=profileOf(f.profile),hours=gameHours(seconds),bounded=clamp(effort,0,5),cost=p.walkingKcalPerHour*bounded*hours,spent=Math.min(f.availableEnergyKcal,cost);
   f.availableEnergyKcal-=spent;f.totals.metabolizedKcal+=spent;f.waterDeficitMl=clamp(f.waterDeficitMl+p.effortWaterMlPerHour*bounded*hours,0,p.bodyWaterMl);f.totals.waterLostMl+=p.effortWaterMlPerHour*bounded*hours;
   f.stamina=clamp(f.stamina-45*bounded*hours,0,100);f.fatigue=clamp(f.fatigue+(4*bounded+(f.sleep.inertiaHours>0?3:0))*hours,0,100);projectPhysiology(actor);
+  return seconds*bounded; // Performed motor work; only the engine may quantize this as felt exertion.
 }
 
 function digest(actor,hours){
