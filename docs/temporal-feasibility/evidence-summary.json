@@ -1,0 +1,281 @@
+{
+  "stage": "scripted temporal-return feasibility only",
+  "sourceCommit": "15bad994ac6cd0275532c2e8e17aeea5aec57083",
+  "baselineCommit": "3db83047c96158b39214b3f5a68ed5929ad1f40d",
+  "sourceHashes": {
+    "src/temporal-returns.js": "675850dbdc5360636927043e606f2e9fb360bdad0b0d458027e92656ae643669",
+    "src/temporal-ledger.js": "d116366472a8dfd4e855143ecbec80e85ac5abd651fb6faaeb01cfff0a00c46c",
+    "src/npc-memory.js": "c4fe6ced5d7154d3c9156b541089b3be7715f2029e25f67c4672fa0949496851",
+    "src/biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+    "src/discovery-actions.js": "95987fa0df42014aa14595bdc8b2822ec22f309ea94478915925959c258374a8",
+    "src/npc.js": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162",
+    "tests/temporal-ledger-v08.test.mjs": "cff7898540f8bb3f6088a9f3b9809f86318ba6989e0466441c9a867fa342b64f",
+    "tests/temporal-persistence-v08.test.mjs": "8418622fb36cf21361342f8cef5ab21d31bd50f39b9ca5ef3fea0c423fdd4b29",
+    "tests/temporal-physical-v08.test.mjs": "949b1cc0af71e9b96dfc9176a6a9e997fb5b5831c97df3d12027d46359ec5915",
+    "tests/temporal-returns-v08.test.mjs": "2423265eae9ecfe3f47e753a0d05e38a9fdd27581bb5698b5b602cac94a707ad"
+  },
+  "checks": {
+    "allTests": 433,
+    "failed": 0,
+    "newModelLedgerPersistence": 56,
+    "scriptedPhysicalCases": 5,
+    "build": true,
+    "linuxElectronSmoke": true,
+    "twoProcessDiskReopen": true,
+    "optionalTemporalMemoryDiskReopen": true
+  },
+  "defaultParity": {
+    "status": "passed",
+    "generatedUtc": "2026-10-15T22:28:09.171973+00:00",
+    "baselineCommit": "3db83047c96158b39214b3f5a68ed5929ad1f40d",
+    "sourceFingerprints": [
+      "48a36c234a81e00b7085d2c3ce3e0ad8ba3a4d8cd05a2110d21919552bb84f1b",
+      "e71b4ae78d8c1e2f38a324b5a11c20da3ab7bd6c910c79e4207c2a80e34334c8"
+    ],
+    "candidateCoreSourceHashes": {
+      "src/biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+      "src/discovery-actions.js": "95987fa0df42014aa14595bdc8b2822ec22f309ea94478915925959c258374a8",
+      "src/npc.js": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162",
+      "src/npc-memory.js": "c4fe6ced5d7154d3c9156b541089b3be7715f2029e25f67c4672fa0949496851",
+      "src/temporal-ledger.js": "030908838bef2e9cd84298992fb9656e52a9c126fe10f2eaaba823053af34392",
+      "src/temporal-returns.js": "675850dbdc5360636927043e606f2e9fb360bdad0b0d458027e92656ae643669"
+    },
+    "liveChangedSinceFrozenCandidate": [
+      "src/temporal-ledger.js"
+    ],
+    "checks": {
+      "physicalActorFrames": 33513,
+      "rngActorFrames": 33513,
+      "environmentCheckpoints": 642,
+      "fullActorCheckpoints": 120,
+      "fullWorldCheckpoints": 12
+    },
+    "directPhysiologyCases": 44,
+    "fixedSeeds": [
+      74193,
+      1978,
+      97531
+    ],
+    "fixedTimeSteps": [
+      0.016666666666666666,
+      0.25
+    ],
+    "fixedRequests": 84,
+    "fixedCancellations": 24,
+    "normalizedDifferences": [],
+    "normalizationRule": "Remove only additive exertion, exertionContext, performedExertion, workedSeconds keys. Baseline absence asserted. Existing durationSeconds and all other fields retained exactly.",
+    "autonomous": [
+      {
+        "dt": 0.016666666666666666,
+        "seconds": 120,
+        "defaultRuntimeOptions": "No options; freshState() and new PopulationRuntime(state) defaults, Cardinal enabled.",
+        "deterministicCardinalBudget": false,
+        "cardinalClockExplanation": "Unmodified real-time Cardinal work budget.",
+        "actions": 82,
+        "feedbackEvents": 1,
+        "instrumentedWorkResults": 62,
+        "traceEqual": true,
+        "feedbackEqual": true,
+        "temporalStateCreated": false,
+        "restore": {
+          "at": 60,
+          "savedEqual": true,
+          "loadedEqual": true,
+          "savedNormalizedSha256": "64427d36213ee25e6c7c07fa2db742f49382a5fe648c8e0e5a1eacbd42cc2b52",
+          "loadedNormalizedSha256": "e2f1feaccfe545f30cca78860a75a80bd39a025aae85ed5bcd9c702129c8c301"
+        },
+        "finalWorldCheckpoint": {
+          "label": "running 120",
+          "at": 119.99999999999447,
+          "normalizedEqual": true,
+          "normalizedWorldSha256": "436c505deda41bcafd9e7fe3441cfda3ae2c53327e125fb98541922757dd9845",
+          "environmentSha256": "0778c883058c149e9210a16e98b79666fdc1f209b676be73f6b0c7538cb3ed59",
+          "actors": [
+            {
+              "id": "aster",
+              "rng": 498561452,
+              "physiologySha256": "5cf38de6d3a9b4a3641793d511ba0e355301ef20a8842340418cf01a93e7a5a3",
+              "events": 83,
+              "temporalCreated": false
+            },
+            {
+              "id": "mira",
+              "rng": 3703055591,
+              "physiologySha256": "6119614ba798d329fc675bca5e48633f00c970988bc1c6acb1cecf3f4d5fdd51",
+              "events": 84,
+              "temporalCreated": false
+            }
+          ]
+        },
+        "normalizedActionTraceSha256": "71d96192ce27de513eeaeba0ee447cb670e85d5fe45418b5034e7e0c32159252",
+        "normalizedFeedbackTraceSha256": "07e7aa81a98ea95771d66f6e313c42f1ea8bdeeb7d3e2a52191f7e822c984438"
+      },
+      {
+        "dt": 0.25,
+        "seconds": 120,
+        "defaultRuntimeOptions": "No options; freshState() and new PopulationRuntime(state) defaults, Cardinal enabled.",
+        "deterministicCardinalBudget": true,
+        "cardinalClockExplanation": "Only while workCardinal runs, performance.now returns zero so both engines complete the same 24 shadow-step budget instead of a machine-speed-dependent 8ms budget. No simulation clock or state fields are normalized.",
+        "actions": 71,
+        "feedbackEvents": 0,
+        "instrumentedWorkResults": 56,
+        "traceEqual": true,
+        "feedbackEqual": true,
+        "temporalStateCreated": false,
+        "restore": {
+          "at": 60,
+          "savedEqual": true,
+          "loadedEqual": true,
+          "savedNormalizedSha256": "1998dd289b6f7be2e0995c9dcceca7ba76883e9679c6b4203a07dcdd46d9c9aa",
+          "loadedNormalizedSha256": "07de295887af3612c4a0b2c9303bbfeb702944761cb8f8307e814e103b959310"
+        },
+        "finalWorldCheckpoint": {
+          "label": "running 120",
+          "at": 120,
+          "normalizedEqual": true,
+          "normalizedWorldSha256": "1b832f2a5e72e943d662430576b47d881de235053630066f21186dceca1d5ce3",
+          "environmentSha256": "aed521ebe6c3b70d13a0d3eb1a3a407370ac026651f0e5e08559fd06253a5d79",
+          "actors": [
+            {
+              "id": "aster",
+              "rng": 1150479658,
+              "physiologySha256": "d703ac760a789434914de10eef0f9d0fae320cfe4b1286d185ecd814b33106f0",
+              "events": 75,
+              "temporalCreated": false
+            },
+            {
+              "id": "mira",
+              "rng": 1883849960,
+              "physiologySha256": "0143dc778ae7e2e7412674dcd217d8cab426680ce30ab93ceebc09f6cdca76c2",
+              "events": 71,
+              "temporalCreated": false
+            }
+          ]
+        },
+        "normalizedActionTraceSha256": "a1dce82adaf8d7cf80c9cc915658083b657ee4d6d4ca099a633d328e99f3d025",
+        "normalizedFeedbackTraceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    ],
+    "wallSeconds": 93.404729374,
+    "artifactHashes": {
+      "verify.mjs": "64265b8430c72539a297aa9ba3bb2cb3746ff6a418129e68028fccb6701e3c06",
+      "report.json": "816e126fddbde680c123ebe050ba876a1ace68350eabb49bad7a0299276812be",
+      "README.md": "7e4c09c784921ac4d62ce0395867efb94fef17f04fae08a367f2aa046d2fbe11",
+      "run.log": "b356d2ae44ffcc86bf7358d63a681157b7939cd688752b4ab8e429427961ea26"
+    },
+    "limitations": [
+      "Bounded source-runtime test, not rendered Electron or OS disk-persistence QA.",
+      "No temporal chooser integrated or evaluated; default saves do not activate optional temporal-ledger validation.",
+      "Native default uses unmodified wall-time Cardinal work. Quarter-second supplemental run controls Cardinal wall clock only during copied-world work so both engines execute equal shadow-step budgets."
+    ],
+    "initialProbe": {
+      "report": "/tmp/aincrad-temporal-parity-20261015T2221/report.json",
+      "sha256": "d1736bd4ea021c0a9149f203de2faa323df0d14c96714351261af27686ca3051",
+      "finding": "Native cancelled-action duration metadata was being rewritten; updated candidate preserves it and adds workedSeconds. Quarter-step wall-budgeted Cardinal progress varied; supplemental final test uses explicit deterministic budget control."
+    }
+  },
+  "budgetProbe": {
+    "timestamp": "2026-10-15T22:30:03.620Z",
+    "node": "v24.19.0",
+    "cases": [
+      {
+        "kind": "typical",
+        "rows": 4096,
+        "transitions": 512,
+        "bytes": 2064070,
+        "p50ms": 1.9095400000001064,
+        "p95ms": 2.4904559999999947,
+        "maxms": 3.6643530000000055,
+        "processMemory": {
+          "rss": 87220224,
+          "heapTotal": 48459776,
+          "heapUsed": 25391016,
+          "external": 3800351,
+          "arrayBuffers": 146595
+        }
+      },
+      {
+        "kind": "maximum-public-context",
+        "rows": 4096,
+        "transitions": 512,
+        "bytes": 4444870,
+        "p50ms": 2.1871139999998377,
+        "p95ms": 3.8711629999997967,
+        "maxms": 7.12820099999999,
+        "processMemory": {
+          "rss": 136450048,
+          "heapTotal": 88068096,
+          "heapUsed": 17610944,
+          "external": 3800355,
+          "arrayBuffers": 146559
+        }
+      },
+      {
+        "kind": "unicode-public-context",
+        "rows": 4096,
+        "transitions": 512,
+        "bytes": 11013830,
+        "p50ms": 2.4571599999999307,
+        "p95ms": 3.152393000000302,
+        "maxms": 4.701366999999664,
+        "processMemory": {
+          "rss": 213356544,
+          "heapTotal": 165269504,
+          "heapUsed": 78383528,
+          "external": 3800355,
+          "arrayBuffers": 146559
+        }
+      }
+    ]
+  },
+  "budgetStatus": "Autonomy gated: prototype core-only serialized Unicode stress exceeds 8 MiB; entire-ledger admission guard not implemented. Warm timing excludes context/admission/save costs.",
+  "nativeTemporalReopen": {
+    "passed": true,
+    "temporalMemoryPreserved": true,
+    "twoIndependentProcesses": true,
+    "isolatedProfile": true,
+    "oldDistribution": 2,
+    "newDistribution": 3,
+    "completeCheckpointPreserved": true,
+    "heldMaterialPreserved": true,
+    "depletedGrassPreserved": true,
+    "soilStockPreserved": 37,
+    "sleepPreserved": true,
+    "noClosedTimeBackfill": true,
+    "restOutcomePreserved": true,
+    "restRetryDeferred": true,
+    "sourceFingerprint": "8fe277d183581d55d2f6addf9fab4d4f0d541d77a91667ec4ea7a37642f8cb22",
+    "regional": {
+      "version": 1,
+      "regions": 49,
+      "maxRegionalMassError": 0,
+      "maxRegionalEnergyError": 0,
+      "maxRegionalSoilError": 0,
+      "soilBalanceError": 0,
+      "unassigned": {
+        "nutrients": 7.105427357601002e-15,
+        "massGrams": 0,
+        "energyKcal": 0
+      },
+      "depletedRegions": []
+    },
+    "metrics": {
+      "fps": 92.15847341865756,
+      "cache": 18,
+      "zoom": 1.5,
+      "panel": "pause",
+      "started": true,
+      "paused": true,
+      "simulationSpeed": 1,
+      "windowFocused": true,
+      "interaction": null
+    }
+  },
+  "evidenceHashes": {
+    "aincrad-temporal-feasibility-final-check.log": "f6ca65340a85e9d0b482de2492d4c5bc70e37b72a30af5e944ba7fc098de5482",
+    "aincrad-temporal-build.log": "66703588ab0168eb39bbbde23d57c6b9279b814518b1d2b742c7e82c6e6330b9",
+    "aincrad-temporal-smoke.log": "338d0889f34e494fef1c286fe09affd72c412e2ef7b9b6420714ef22b1c48e47",
+    "aincrad-temporal-ledger-native-reopen.log": "f2cb14b41fa5aea243302568aa3fd8717ad98caf98c3ad50912d3ac44ef1aae3",
+    "aincrad-temporal-parity-final.tar.gz": "35573748291c63e69d9d852e8b382f1705c93aa04763fdd92a51a893c900f959"
+  }
+}

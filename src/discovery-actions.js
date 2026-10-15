@@ -1,3 +1,4 @@
+import { bodySignals } from './interoception.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { objectId } from './discovery-state.js';
 import { distance } from './world.js';
@@ -31,13 +32,14 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   if(['sample','release'].includes(request.type)&&check.physical.heldBy!==npc.id)return done(options.complete,npc,request,{ok:false,code:'NOT_HELD'});
   if(['grasp','pull'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity)return done(options.complete,npc,request,{ok:false,code:'HANDS_FULL'});
   const seconds=primitiveDuration(npc,request.type);
-  npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+seconds+.05,seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
+  npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+seconds+.05,seconds,worked:0,performedExertion:0,exertionContext:bodySignals(npc).fatigue,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   return {ok:true,code:'ACTION_STARTED'};
 }
 export function tickDiscoveryAction(npc,dt,environment={},options={}){
   const active=npc.active;if(active?.kind!=='interaction')return false;
   const worked=Math.min(Math.max(0,dt),Math.max(0,active.seconds-active.worked));active.worked+=worked;
-  (options.exert||exertPhysiology)(npc,worked,DISCOVERY_RULES.effort[active.request.type]);
+  const motorWork=(options.exert||exertPhysiology)(npc,worked,DISCOVERY_RULES.effort[active.request.type]);
+  if(Number.isFinite(motorWork)&&motorWork>=0)active.performedExertion+=motorWork;
   if(active.worked+1e-8<active.seconds)return true;
   const request=active.request,check=allowed(npc,request.targetId,environment,request.type==='inspect_object');
   if(!check.ok){done(options.complete,npc,request,{...check,durationSeconds:active.worked},active);return true;}
@@ -69,4 +71,10 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
   // Swallowing a final portion may exhaust the globally persisted held material.
   npc.inventory.items=npc.inventory.items.filter(id=>lookupEcologyObject(environment.ecology,id)?.heldBy===npc.id);
   done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);return true;
+}
+
+/** Action-local proprioception: same thresholds for every operation, after real work. */
+export function discoveryWorkFeedback(active){
+  if(active?.kind!=='interaction'||!Number.isFinite(active.worked)||!(active.worked>0))return {};
+  return {workedSeconds:active.worked,exertionContext:active.exertionContext,...(Number.isFinite(active.performedExertion)&&active.performedExertion>0?{exertion:active.performedExertion<=2?'light':active.performedExertion<=6?'moderate':'strenuous'}:{})};
 }
