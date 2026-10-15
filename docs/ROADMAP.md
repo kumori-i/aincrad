@@ -14,7 +14,9 @@ The first bounded regional ecological foundation is **implemented**, with [measu
 
 Gate: deterministic differentiated placement, local stock/transfer tests, corridor diagnostics, conservation, privacy and migration checks. This increment does not claim a completed movement/learning policy or sustainable food web.
 
-### 2. Caloric throughput and sequence learning — planned
+### 2. Caloric throughput and sequence learning — correctness increment implemented
+
+The first [bounded correctness increment](TESTING-discovery-throughput.md) repairs learned retry loops and overlapping-feedback attribution, with explicitly isolated positive-food-association controls. Its six- and twelve-hour paired intake results are mixed, not a survival or efficiency improvement. Cost-aware learning and the gates below remain planned.
 
 Trace encounter → manipulation → detached material → swallowed portion → delayed benefit. Measure absorbed/spent calories, reserves, water, sequence interruptions, failed loops, carry/digestion limits, sleep and travel costs. Diagnose why a useful taste fails to become adequate intake before increasing food supply.
 
