@@ -1,0 +1,309 @@
+{
+  "status": "passed",
+  "fullTests": 441,
+  "failures": 0,
+  "nativePlatform": "Linux cloud Electron; not a laptop, Windows installer, or Ollama test",
+  "nativeBuildFingerprint": "ed998b8a3bd3e61e7b146aece3ef6ee3cc397ace924b32d53314cfff03f90d65",
+  "sourceHashes": {
+    "src/discovery-choice.js": "72a9f39c7ef09561960976159f3b449017074ff470f843dc1a7d2c6c659fa998",
+    "src/discovery.js": "757ab5b326903b13ef8f5a95f27ee6b3a492fb6c50a5dfbf36d0c06f05ba5965",
+    "src/controller.js": "572cc3526b332ed9a5f629bd7f33cd8a959f14a6037c4214d311b6bac7e3f8bd",
+    "src/npc.js": "566810a8f490ec2d5a9d2b7473fb77abd29543ac0d62cfc68c81af414dd42d93",
+    "scripts/evaluate-discovery-throughput.mjs": "61d01ca174c93e340281191c0882a2d9dd615e114244bdf15841cfe21bbb42f9",
+    "tests/selection-gate-v08.test.mjs": "b6e226f130dd9e9b31f4016bed6701307629342ed32e85dac955812366b3f55f",
+    "tests/selection-gate-runtime-v08.test.mjs": "5245a7297cd7b21a7dfbdcb11804647b44bfab26f95e138c3a9578f005d55c6b"
+  },
+  "logs": [
+    {
+      "name": "aincrad-choice-check-final.log",
+      "bytes": 46613,
+      "sha256": "ac5472131d891553a0e22955cdf1a6b16eb0cb6fd8959679a60905973b9c6032"
+    },
+    {
+      "name": "aincrad-choice-build-final.log",
+      "bytes": 235,
+      "sha256": "451785d6019ffdf76cf19e22ebe8f38e3aa1fb256bbc75a0f7a2cf9ff38d53a7"
+    },
+    {
+      "name": "aincrad-choice-smoke.log",
+      "bytes": 7871,
+      "sha256": "f49ce725c403b523418dbc39cbd2d0cfe4955a355a4f1594c38687548c92a937"
+    },
+    {
+      "name": "aincrad-choice-reopen.log",
+      "bytes": 15780,
+      "sha256": "6c6d6901312effc0acca6510c11f571799d6c7619fecae3b5e2dd92f9c5ed458"
+    },
+    {
+      "name": "aincrad-choice-runtime-tests-final.log",
+      "bytes": 669,
+      "sha256": "23b9c45c96d9380f9c6789095221aa96a47f144112f945f20c51b6710c7f7c43"
+    }
+  ],
+  "prefixParity": {
+    "raw": {
+      "name": "aincrad-choice-prefix.json",
+      "bytes": 18544,
+      "sha256": "c89ebbfbe70bdc8b1282ce3009eb247b69c4937d76831c97dbc5f3ee06e3cf1d"
+    },
+    "script": {
+      "name": "verify-choice-prefix.mjs",
+      "bytes": 2695,
+      "sha256": "728cb8b2ab1e195d38faa1cf12840d2b980677ac1662780891bb7364599f5fc1"
+    },
+    "matchedNativeFrames": 1145,
+    "matchedSeconds": 19.083333333333332,
+    "firstVeto": {
+      "type": "choice",
+      "decisionId": 6,
+      "at": 19.100000000000197,
+      "sponsor": {
+        "action": {
+          "type": "inspect_object",
+          "targetId": "object:65"
+        },
+        "legacyScore": 10.431645194999874
+      },
+      "nominee": {
+        "action": {
+          "type": "inspect_object",
+          "targetId": "object:52"
+        },
+        "legacyScore": 4.056773990066722
+      },
+      "movement": {
+        "action": {
+          "type": "move",
+          "target": {
+            "x": 8400,
+            "y": -7120
+          }
+        },
+        "legacyScore": 5.70507173608685
+      },
+      "winner": {
+        "action": {
+          "type": "move",
+          "target": {
+            "x": 8400,
+            "y": -7120
+          }
+        },
+        "legacyScore": 5.70507173608685
+      },
+      "veto": true,
+      "learnedScore": 0.24350649350649342,
+      "selection": {
+        "count": 1,
+        "seconds": 1.7999999999999985,
+        "exertionRank": 1,
+        "benefit": 0,
+        "uncertainty": 1,
+        "cost": 2.053333333333334
+      }
+    },
+    "atVeto": {
+      "environmentIdentical": true,
+      "physiologyIdentical": true,
+      "selectionEstimatesPhaseRngIdentical": true,
+      "actorRngIdentical": true
+    },
+    "sourceFiles": [
+      {
+        "art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+        "atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+        "biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+        "biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+        "build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+        "cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+        "cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+        "cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+        "cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+        "cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+        "cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+        "cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+        "config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+        "controller.js": "1f6352937434e6e7786a2ea6720233a62b07df215da30464ce247dd41bf488cc",
+        "discovery-actions.js": "edc8f90c0db24faead036b1d2f628bcf5bb213e30f04d4a11521e121908060d3",
+        "discovery-config.js": "5e808e46c5ffe2b61cbf35be02ff2745d1799838f8958c5d0fb52cd65d805b4a",
+        "discovery-selection.js": "0b3d62a0ce231588ef726ccb1ef6183ff7fc8f23aa8a4a1f67aa0c90056db0d4",
+        "discovery-state.js": "0064d6ca2312d6304bff7a4064b0e29ecd43537ca9c267178e2a88555161a9e6",
+        "discovery.js": "4b88971044ae3e0b8455ec12e5fe755cf1b5479523fb9aaca1637613b7adcd88",
+        "ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+        "ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+        "ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+        "ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+        "environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+        "interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+        "main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+        "navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+        "npc-memory.js": "c04d8a178455ce7a3930740841e0ab6b489dbef03f5654a02f5729fb005727e6",
+        "npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+        "npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+        "npc.js": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162",
+        "perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+        "population.js": "2afefdbe29ebde6e42ceb55705e2b42f2dceee3fca45a13c9ee4b4c2961f0832",
+        "renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+        "resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+        "save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+        "simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+        "social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+        "world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+        "world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a"
+      },
+      {
+        "art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+        "atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+        "biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+        "biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+        "build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+        "cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+        "cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+        "cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+        "cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+        "cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+        "cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+        "cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+        "config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+        "controller.js": "572cc3526b332ed9a5f629bd7f33cd8a959f14a6037c4214d311b6bac7e3f8bd",
+        "discovery-actions.js": "edc8f90c0db24faead036b1d2f628bcf5bb213e30f04d4a11521e121908060d3",
+        "discovery-choice.js": "72a9f39c7ef09561960976159f3b449017074ff470f843dc1a7d2c6c659fa998",
+        "discovery-config.js": "5e808e46c5ffe2b61cbf35be02ff2745d1799838f8958c5d0fb52cd65d805b4a",
+        "discovery-selection.js": "0b3d62a0ce231588ef726ccb1ef6183ff7fc8f23aa8a4a1f67aa0c90056db0d4",
+        "discovery-state.js": "0064d6ca2312d6304bff7a4064b0e29ecd43537ca9c267178e2a88555161a9e6",
+        "discovery.js": "757ab5b326903b13ef8f5a95f27ee6b3a492fb6c50a5dfbf36d0c06f05ba5965",
+        "ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+        "ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+        "ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+        "ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+        "environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+        "interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+        "main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+        "navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+        "npc-memory.js": "c04d8a178455ce7a3930740841e0ab6b489dbef03f5654a02f5729fb005727e6",
+        "npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+        "npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+        "npc.js": "566810a8f490ec2d5a9d2b7473fb77abd29543ac0d62cfc68c81af414dd42d93",
+        "perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+        "population.js": "2afefdbe29ebde6e42ceb55705e2b42f2dceee3fca45a13c9ee4b4c2961f0832",
+        "renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+        "resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+        "save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+        "simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+        "social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+        "world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+        "world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a"
+      }
+    ]
+  },
+  "defaultParity": {
+    "raw": {
+      "name": "choice-default-equivalence-74193-pond-north-restore450.json",
+      "bytes": 181158,
+      "sha256": "799e7936ba56babd922770300f7064398f001bb796edd40f38afa5240dea2842"
+    },
+    "script": {
+      "name": "verify-choice-default-equivalence-restore450.mjs",
+      "bytes": 10985,
+      "sha256": "0a9735b7e41f681209c7795a37cadaf18bc12b3697b208285bd2359a1c189cfc"
+    },
+    "trace": {
+      "name": "choice-default-equivalence-74193-pond-north-restore450-traces.json",
+      "bytes": 663757,
+      "sha256": "4d1a56a8d9127e5ad473304c8280478d050bb9e09dfcf998e69d08e70efa798b"
+    },
+    "seed": 74193,
+    "anchor": "pond:north",
+    "actors": [
+      {
+        "id": "aster",
+        "seed": 74193,
+        "start": "pond:north"
+      },
+      {
+        "id": "mira",
+        "seed": 74194,
+        "start": "normal spawn"
+      }
+    ],
+    "seconds": 900,
+    "restoreSeconds": 450,
+    "fixedStep": 0.016666666666666666,
+    "commits": [
+      "c2908ea38ffbef32e31d2c5ac4472098f1dee515",
+      "aceae25296ec9fdd807a0b17862e6678c14c8f96"
+    ],
+    "sourceFingerprint": [
+      "48a36c234a81e00b7085d2c3ce3e0ad8ba3a4d8cd05a2110d21919552bb84f1b",
+      "a2b260003e8f50762cf5b21923f25d7c0922feb710f091f3b867f3bc0b67540a"
+    ],
+    "omittedKeys": [
+      "exertion",
+      "exertionContext",
+      "performedExertion"
+    ],
+    "runtimeOptions": {
+      "cardinal": false
+    },
+    "selectorOptionOmitted": true,
+    "checks": {
+      "rngActorFrames": 108000,
+      "physicalActorFrames": 108000,
+      "physiologyActorSeconds": 1800,
+      "retentionComparisons": 1221,
+      "fullWorldCheckpoints": 8
+    },
+    "initialStateSha256": "3f881e6f8d6d529148c88460c606933af48397da88838531e7b007c6b4a7c6cd",
+    "restore": {
+      "at": 449.9999999999194,
+      "validatedCheckpointSha256": "d2c111995bff82c7f9b6de5950b133d0dc3636593196fd4e44bb0b2efbd5625b",
+      "savedCheckpointSha256": "fd1992b424e1215d26c0a9907f5936a70c8a2767bc7ae8ce6ec6b4a38039446e",
+      "restoredCheckpointSha256": "9db4a9110267676f3e20017519b887a4d41e25028360db4866e885a87f7bd440",
+      "validTimestamps": true,
+      "actors": [
+        {
+          "id": "aster",
+          "experiments": 128,
+          "effects": 16,
+          "feedback": 17,
+          "stomachEntries": 17,
+          "beforeRng": 452341307,
+          "restoredRng": 452341307,
+          "fullPhysiologyUnchanged": true,
+          "firstPhysiologyChange": null,
+          "bodyTotalsUnchanged": true,
+          "gutUnchanged": true
+        },
+        {
+          "id": "mira",
+          "experiments": 126,
+          "effects": 17,
+          "feedback": 18,
+          "stomachEntries": 13,
+          "beforeRng": 2431839952,
+          "restoredRng": 2431839952,
+          "fullPhysiologyUnchanged": true,
+          "firstPhysiologyChange": null,
+          "bodyTotalsUnchanged": true,
+          "gutUnchanged": true
+        }
+      ]
+    },
+    "fullActionTraceSha256": "008dca2a9208a9eca24c8ff5b4a289e53fbe0519d39936a60e63144fa742bf0f",
+    "fullFeedbackTraceSha256": "0de0e923122661e6af508a0ca5e82e1d3df27105da99bc39db4730e8c858b682",
+    "actions": 531,
+    "feedbackEvents": 104,
+    "firstHistoryRotationAt": {
+      "aster": 590.1499999997919,
+      "mira": 590.5499999997916
+    },
+    "selectorRecordsCreated": false,
+    "wallSeconds": 119.568373702
+  },
+  "limits": [
+    "The real trace-on/off regression spans60seconds, not all possible callbacks or worlds. Throwing callbacks are isolated and cause diagnostic evaluation failure.",
+    "Default parity is one seed with two actors,900seconds and one save/reopen; this does not prove exhaustive compatibility.",
+    "The zero-record/phase-cap veto test is a controlled candidate fixture; the separate real post-veto test restores physically earned action evidence.",
+    "No held-out seeds were run for this diagnostic."
+  ]
+}

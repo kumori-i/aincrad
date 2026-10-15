@@ -1,0 +1,1896 @@
+{
+  "schemaVersion": 1,
+  "status": "completed",
+  "startedAt": "2026-10-15T21:21:54.634Z",
+  "completedAt": "2026-10-15T21:36:06.164Z",
+  "options": {
+    "seeds": [
+      74193
+    ],
+    "anchors": [
+      "pond:north",
+      "lake:west:2"
+    ],
+    "arms": [
+      "baseline",
+      "selector-reference",
+      "selector"
+    ],
+    "seconds": 3600,
+    "baselineRoot": "/workspace/scratch/9460752329be/aincrad-rest",
+    "selectorReferenceRoot": "/workspace/scratch/9460752329be/aincrad-learning",
+    "choiceDiagnostics": true,
+    "output": "/tmp/aincrad-choice-development.json"
+  },
+  "evaluatorHash": "61d01ca174c93e340281191c0882a2d9dd615e114244bdf15841cfe21bbb42f9",
+  "candidateSource": {
+    "sha256": "95e7965fc936c6f1ff2a12fab7dec2fb1db1eeb60864aef5523ffa044937e194",
+    "files": {
+      "src/art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+      "src/atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+      "src/biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+      "src/biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+      "src/build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+      "src/cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+      "src/cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+      "src/cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+      "src/cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+      "src/cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+      "src/cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+      "src/cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+      "src/config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+      "src/controller.js": "572cc3526b332ed9a5f629bd7f33cd8a959f14a6037c4214d311b6bac7e3f8bd",
+      "src/discovery-actions.js": "edc8f90c0db24faead036b1d2f628bcf5bb213e30f04d4a11521e121908060d3",
+      "src/discovery-choice.js": "72a9f39c7ef09561960976159f3b449017074ff470f843dc1a7d2c6c659fa998",
+      "src/discovery-config.js": "5e808e46c5ffe2b61cbf35be02ff2745d1799838f8958c5d0fb52cd65d805b4a",
+      "src/discovery-selection.js": "0b3d62a0ce231588ef726ccb1ef6183ff7fc8f23aa8a4a1f67aa0c90056db0d4",
+      "src/discovery-state.js": "0064d6ca2312d6304bff7a4064b0e29ecd43537ca9c267178e2a88555161a9e6",
+      "src/discovery.js": "757ab5b326903b13ef8f5a95f27ee6b3a492fb6c50a5dfbf36d0c06f05ba5965",
+      "src/ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+      "src/ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+      "src/ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+      "src/ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+      "src/environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+      "src/interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+      "src/main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+      "src/navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+      "src/npc-memory.js": "c04d8a178455ce7a3930740841e0ab6b489dbef03f5654a02f5729fb005727e6",
+      "src/npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+      "src/npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+      "src/npc.js": "566810a8f490ec2d5a9d2b7473fb77abd29543ac0d62cfc68c81af414dd42d93",
+      "src/perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+      "src/population.js": "2afefdbe29ebde6e42ceb55705e2b42f2dceee3fca45a13c9ee4b4c2961f0832",
+      "src/renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+      "src/resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+      "src/save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+      "src/simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+      "src/social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+      "src/world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+      "src/world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a",
+      "package.json": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757",
+      "package-lock.json": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+    }
+  },
+  "baselineSource": {
+    "sha256": "0d2e0d39175fd4e199133726b27da87ee9512ad36cc51f425d4487e9c20b9ea1",
+    "files": {
+      "src/art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+      "src/atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+      "src/biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+      "src/biology.js": "58a0378edf4ef233397c715ae830309846e044a9cb13df38277f2122feaf0a15",
+      "src/build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+      "src/cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+      "src/cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+      "src/cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+      "src/cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+      "src/cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+      "src/cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+      "src/cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+      "src/config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+      "src/controller.js": "f28cb7323c7a28b0407b9a185804e17e7adec2182893a30bb786b522387ee96e",
+      "src/discovery-actions.js": "5c141bc92be6f338192ef59467b7d3992c9d2a6ca318fcf0488b16bb29b43e0b",
+      "src/discovery-config.js": "ef4ce5deca8baf48a4ea3c804f4dddb22175886fa80a1f1d5e485e254ea34191",
+      "src/discovery-state.js": "347548cdbd37c7a60dc8978818cdc2e023cbfdb50d15c66e9ea4ee9569a92824",
+      "src/discovery.js": "9c20347c4e888ddff372ead11d38a44cd3b7f1e7397d691ce64e46fca15f574e",
+      "src/ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+      "src/ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+      "src/ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+      "src/ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+      "src/environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+      "src/interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+      "src/main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+      "src/navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+      "src/npc-memory.js": "977495b3af98531fc57e5bc56dbfe53400b1bc4814db1c44492ad59f6a637d33",
+      "src/npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+      "src/npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+      "src/npc.js": "fae9cdcc42c633d8ec1fa2203c90ac41fc812ded25c41207a42618a06c14cbe0",
+      "src/perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+      "src/population.js": "eda9257649c52dcd2751bef3cc0e2324b15fe54bc33a0c5fc8fcd5d6c38ccab6",
+      "src/renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+      "src/resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+      "src/save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+      "src/simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+      "src/social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+      "src/world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+      "src/world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a",
+      "package.json": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757",
+      "package-lock.json": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+    }
+  },
+  "selectorReferenceSource": {
+    "sha256": "3a44663ffb966e78dbdd713ac1c20bd63f1c17c975c9ad081a2f5b889641b8af",
+    "files": {
+      "src/art.js": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911",
+      "src/atlas.js": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83",
+      "src/biology-config.js": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184",
+      "src/biology.js": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3",
+      "src/build-info.js": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e",
+      "src/cardinal-config.js": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f",
+      "src/cardinal-experiments.js": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d",
+      "src/cardinal-metrics.js": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895",
+      "src/cardinal-panel.js": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43",
+      "src/cardinal-state.js": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706",
+      "src/cardinal.js": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520",
+      "src/cognition.js": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601",
+      "src/config.js": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e",
+      "src/controller.js": "1f6352937434e6e7786a2ea6720233a62b07df215da30464ce247dd41bf488cc",
+      "src/discovery-actions.js": "edc8f90c0db24faead036b1d2f628bcf5bb213e30f04d4a11521e121908060d3",
+      "src/discovery-config.js": "5e808e46c5ffe2b61cbf35be02ff2745d1799838f8958c5d0fb52cd65d805b4a",
+      "src/discovery-selection.js": "0b3d62a0ce231588ef726ccb1ef6183ff7fc8f23aa8a4a1f67aa0c90056db0d4",
+      "src/discovery-state.js": "0064d6ca2312d6304bff7a4064b0e29ecd43537ca9c267178e2a88555161a9e6",
+      "src/discovery.js": "4b88971044ae3e0b8455ec12e5fe755cf1b5479523fb9aaca1637613b7adcd88",
+      "src/ecology-config.js": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba",
+      "src/ecology-corridors.js": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c",
+      "src/ecology-regions.js": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265",
+      "src/ecology.js": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5",
+      "src/environment.js": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb",
+      "src/interoception.js": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb",
+      "src/main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742",
+      "src/navigation.js": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2",
+      "src/npc-memory.js": "c04d8a178455ce7a3930740841e0ab6b489dbef03f5654a02f5729fb005727e6",
+      "src/npc-panel.js": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7",
+      "src/npc-state.js": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452",
+      "src/npc.js": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162",
+      "src/perception.js": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22",
+      "src/population.js": "2afefdbe29ebde6e42ceb55705e2b42f2dceee3fca45a13c9ee4b4c2961f0832",
+      "src/renderer.js": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5",
+      "src/resources.js": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd",
+      "src/save.js": "07342439af9e713a473cbe2314c387b27b6df34a2afb16b2c78b8b23c139864d",
+      "src/simulation-clock.js": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e",
+      "src/social.js": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446",
+      "src/world-rules.js": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa",
+      "src/world.js": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a",
+      "package.json": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757",
+      "package-lock.json": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+    }
+  },
+  "failures": [],
+  "limitations": [
+    "Fixed valley terrain; seed changes are not independent generated terrain.",
+    "Warm windows are continuations after the first six game hours, not pre-taught or physiology-reset agents.",
+    "Positive food-association ablation preserves perception, navigation, practice, novelty/failure memory, bodily care and aversion; it is not all learning disabled.",
+    "Privileged capacity policy uses hidden plant/energy/eligibility information only inside this developer script; it is not an agent, achievable learned behavior, or indefinite food balance.",
+    "Selector arms are experimental: frozen/shuffled use identical learned warm-up for 900 seconds then freeze cost/outcome estimates; shuffled cyclically relabels their operation channels. Selector-cold uses neutral fixed estimates while preserving perception, negative gates, and ordinary food association learning.",
+    "Selector-reference is the original online policy from a separate frozen source root, not a warm-frozen estimate control. Only it versus selector isolates the gate. Choice diagnostics are copied developer-only records, not agent inputs; their session-local IDs are scoped to this trial.",
+    "No resets, food additions, energy assistance, changed physiology or Cardinal interventions. Native fixed timestep; no renderer or laptop performance claim."
+  ],
+  "rawReport": {
+    "name": "aincrad-choice-development.json",
+    "bytes": 6360929,
+    "sha256": "5474c0de9512124758690f2245b142e9f2e3c45485bd8bffebbe1b70a7aecbcc"
+  },
+  "trials": [
+    {
+      "arm": "baseline",
+      "seed": 74193,
+      "anchor": "pond:north",
+      "seconds": 3600,
+      "sourceSha256": "0d2e0d39175fd4e199133726b27da87ee9512ad36cc51f425d4487e9c20b9ea1",
+      "initialStateSha256": "b723491ef8a0713a1d2a513c71bbbfba184420c93e7ddd3cff82f426d3477445",
+      "firstSixHourActionSha256": "90e47935b913447cf481b5ed5914a2566f00599f09ae6d4e3fd42f98898817ed",
+      "checks": {
+        "humanEnergyBalance": true,
+        "finiteEcologyTransfer": true,
+        "noOutsideAssistance": true,
+        "privacy": true
+      },
+      "absorbedKcal": 661.4151964191107,
+      "ingestedKcal": 677.6666666666667,
+      "spentKcal": 3896.2626259629724,
+      "pendingKcal": 16.228412698413184,
+      "reserveChangeKcal": -3234.847429659072,
+      "finalHealth": 99.34860576441571,
+      "finalWaterDeficitMl": 88.9581578364944,
+      "firstSustainedFeedbackAt": 117.03333333332797,
+      "recordedActionOutcomeCounts": {
+        "inspect_object": 76,
+        "pull": 65,
+        "grasp": 123,
+        "sample": 73,
+        "release": 44,
+        "strike": 70,
+        "move": 210,
+        "ask_human": 2,
+        "write_note": 14,
+        "fill_flask": 4,
+        "drink": 8,
+        "rest": 5,
+        "sleep": 1
+      },
+      "successfulArrivals": 137,
+      "piecesDetached": 25,
+      "successfulSwallows": 72,
+      "actualRestSeconds": 375.08333333332087,
+      "actualSleepSeconds": 1187.5166666659154,
+      "activeSeconds": {
+        "idle": 458.19999999991194,
+        "inspect_object": 91.11666666666278,
+        "pull": 247.6666666667559,
+        "grasp": 114.66666666666144,
+        "sample": 172.86666666669637,
+        "release": 39.21666666666572,
+        "strike": 176.6666666666994,
+        "move": 724.4999999996697,
+        "rest": 375.08333333332087,
+        "sleep": 1200.016666665904
+      },
+      "retainedTechniques": [
+        {
+          "id": "technique:aster:32",
+          "sourceId": "object:52",
+          "steps": [
+            {
+              "type": "pull",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 117.03333333332797,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 7,
+          "failures": 10,
+          "evidenceCount": 14,
+          "evidenceSha256": "2ea29ec5fdc8e391ff50abb62ec540709c76855f599e1d2433ceb9ec1f1e8b0c"
+        },
+        {
+          "id": "technique:aster:59",
+          "sourceId": "object:858",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 203.28333333338725,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 2,
+          "failures": 5,
+          "evidenceCount": 3,
+          "evidenceSha256": "f8650d3807a98cdb66633bd11a7b186553dfcc13705ab3222e7a9a58d5613b51"
+        },
+        {
+          "id": "technique:aster:109",
+          "sourceId": "object:856",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 377.69999999998515,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 8,
+          "evidenceCount": 6,
+          "evidenceSha256": "eca6222f68ac0299bceac89b8b0ec59eb55e1f6f91bafa0dd27caa095d0881f9"
+        },
+        {
+          "id": "technique:aster:152",
+          "sourceId": "object:866",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 538.4166666665056,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 2,
+          "failures": 5,
+          "evidenceCount": 3,
+          "evidenceSha256": "6e9ac0fb42208c3321be8226e6a42f2dfcb8bc5a7170af1cf0f632d6bbed2d44"
+        },
+        {
+          "id": "technique:aster:153",
+          "sourceId": "object:865",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 540.1333333331708,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 8,
+          "evidenceCount": 6,
+          "evidenceSha256": "3239d3e1141271b1bc0b9edc8961460a996374a2755c829e7bb0f9b3cd765fbe"
+        },
+        {
+          "id": "technique:aster:239",
+          "sourceId": "object:874",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 970.6999999994458,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 8,
+          "evidenceCount": 6,
+          "evidenceSha256": "da9839e7b9b25eb9a226bcfce57bf48051924e41cc0daf30a5990c0b31fe503f"
+        },
+        {
+          "id": "technique:aster:277",
+          "sourceId": "object:876",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 1226.3333333325468,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 8,
+          "evidenceCount": 7,
+          "evidenceSha256": "d772618fc91bd03b66d13cb14357e3b1f57eec519df26c286d69dc8f1858dcee"
+        },
+        {
+          "id": "technique:aster:284",
+          "sourceId": "object:877",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 1259.6833333325164,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 8,
+          "evidenceCount": 6,
+          "evidenceSha256": "d8899c186f416b4c6285bf8a5cde3dcfe25a074c4cc6a963b565ee4ace3a203c"
+        },
+        {
+          "id": "technique:aster:371",
+          "sourceId": "object:872",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 3020.766666677519,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 7,
+          "evidenceCount": 7,
+          "evidenceSha256": "568811833a622226c253a659456703f717ae60687035ee42c1acd05ae777a43e"
+        },
+        {
+          "id": "technique:aster:375",
+          "sourceId": "object:870",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 3029.9333333443024,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 3,
+          "failures": 6,
+          "evidenceCount": 5,
+          "evidenceSha256": "bf86a53f2a23778e900031c60081d553541d7bca1c616f535f38cc162a7b5bce"
+        },
+        {
+          "id": "technique:aster:461",
+          "sourceId": "object:54",
+          "steps": [
+            {
+              "type": "pull",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 3595.133333351499,
+          "effect": "sustained",
+          "confidence": "tentative",
+          "successes": 1,
+          "failures": 0,
+          "evidenceCount": 2,
+          "evidenceSha256": "1800b71a16e2958c034d35775247bd6dad7688b6c3ab98545f1da0810ac6e90b"
+        }
+      ],
+      "strikePrerequisites": [
+        {
+          "targetId": "object:65",
+          "firstObservedRecoilAt": 67.44999999999746,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3532.55000001823,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:67",
+          "firstObservedRecoilAt": 198.0000000000497,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3402.000000018178,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:910",
+          "firstObservedRecoilAt": 1462.2833333323322,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2137.7166666858957,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:905",
+          "firstObservedRecoilAt": 1558.0666666655784,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2041.9333333526492,
+          "recordedStrikeAttempts": 2,
+          "positiveDurationStrikeAttempts": 1
+        }
+      ],
+      "energyResidualKcal": 1.1679976830852867e-07,
+      "wallSeconds": 146.939388106,
+      "peakSampledRssBytes": 266665984,
+      "actionSha256": "018ca17b6bc099464dca9235df27e4b567987d0e3bb61268930f140ff98a69a6",
+      "detachedPiecesNeverSampled": 1
+    },
+    {
+      "arm": "selector-reference",
+      "seed": 74193,
+      "anchor": "pond:north",
+      "seconds": 3600,
+      "sourceSha256": "3a44663ffb966e78dbdd713ac1c20bd63f1c17c975c9ad081a2f5b889641b8af",
+      "initialStateSha256": "b723491ef8a0713a1d2a513c71bbbfba184420c93e7ddd3cff82f426d3477445",
+      "firstSixHourActionSha256": "73637eb9b0a4edcf4039ddceadd18835bff9aa0851892c77e8c2810481b8a411",
+      "checks": {
+        "humanEnergyBalance": true,
+        "finiteEcologyTransfer": true,
+        "noOutsideAssistance": true,
+        "privacy": true
+      },
+      "absorbedKcal": 604.8128210993222,
+      "ingestedKcal": 604.8333333333333,
+      "spentKcal": 3440.8859730688123,
+      "pendingKcal": 0,
+      "reserveChangeKcal": -2836.0731520767877,
+      "finalHealth": 99.30755035493513,
+      "finalWaterDeficitMl": 809.4027715468409,
+      "firstSustainedFeedbackAt": 270.9333333334156,
+      "recordedActionOutcomeCounts": {
+        "grasp": 92,
+        "pull": 67,
+        "inspect_object": 829,
+        "strike": 41,
+        "ask_human": 2,
+        "sample": 43,
+        "release": 43,
+        "write_note": 9,
+        "move": 60,
+        "fill_flask": 3,
+        "drink": 9,
+        "sleep": 1
+      },
+      "successfulArrivals": 52,
+      "piecesDetached": 16,
+      "successfulSwallows": 43,
+      "actualRestSeconds": 0,
+      "actualSleepSeconds": 1187.5166666659154,
+      "activeSeconds": {
+        "idle": 790.9833333329426,
+        "grasp": 101.81666666666217,
+        "pull": 272.70000000008065,
+        "inspect_object": 840.3333333328977,
+        "strike": 122.64999999999432,
+        "sample": 111.61666666666162,
+        "release": 38.48333333333243,
+        "move": 121.39999999999439,
+        "sleep": 1200.016666665904
+      },
+      "retainedTechniques": [
+        {
+          "id": "technique:aster:125",
+          "sourceId": "object:52",
+          "steps": [
+            {
+              "type": "pull",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 270.9333333334156,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 16,
+          "failures": 19,
+          "evidenceCount": 16,
+          "evidenceSha256": "206bf257ca313abda3726d19f3eb1f272032bfd6977498796d77fe9afb717e1c"
+        },
+        {
+          "id": "technique:aster:225",
+          "sourceId": "object:856",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 490.49999999988256,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 8,
+          "evidenceCount": 6,
+          "evidenceSha256": "319ccf54f89517ec6d664f238f8c30eb598ca8f372a20fc408230f0d8503869c"
+        },
+        {
+          "id": "technique:aster:299",
+          "sourceId": "object:857",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 658.8333333330628,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 4,
+          "failures": 7,
+          "evidenceCount": 5,
+          "evidenceSha256": "210fb5c57c2252208b23c58eda80d0f0581ddc49e3f8a5d48ca2e97b75f56813"
+        },
+        {
+          "id": "technique:aster:423",
+          "sourceId": "object:862",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 903.6499999995068,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 6,
+          "failures": 9,
+          "evidenceCount": 9,
+          "evidenceSha256": "088ec4d73914fc5b3ed6b0a07c2beab2c7a790b52a6b891dea2b4e424da0f92d"
+        },
+        {
+          "id": "technique:aster:603",
+          "sourceId": "object:859",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 1253.6666666658552,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 6,
+          "failures": 9,
+          "evidenceCount": 9,
+          "evidenceSha256": "729486bcd4b7908de5973e6c96870e2514384fdde5a980a9446ddf543034ab3f"
+        },
+        {
+          "id": "technique:aster:753",
+          "sourceId": "object:916",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 1631.9833333321778,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 2,
+          "failures": 5,
+          "evidenceCount": 4,
+          "evidenceSha256": "e003ccb49a2c1edeb7c57ad40984f53f4c952f0a7d87fe5a28dc73b8d6a525ed"
+        }
+      ],
+      "strikePrerequisites": [
+        {
+          "targetId": "object:65",
+          "firstObservedRecoilAt": 111.63333333332828,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3488.3666666848994,
+          "recordedStrikeAttempts": 4,
+          "positiveDurationStrikeAttempts": 4
+        },
+        {
+          "targetId": "object:877",
+          "firstObservedRecoilAt": 1630.066666665513,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 1969.9333333527147,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        }
+      ],
+      "energyResidualKcal": 1.0601342806393355e-07,
+      "wallSeconds": 124.13613880600003,
+      "peakSampledRssBytes": 273731584,
+      "actionSha256": "1ca0cafae5c508999127604907b7986d2966039aa18c50219ac83a64618d1024",
+      "detachedPiecesNeverSampled": 4
+    },
+    {
+      "arm": "selector",
+      "seed": 74193,
+      "anchor": "pond:north",
+      "seconds": 3600,
+      "sourceSha256": "95e7965fc936c6f1ff2a12fab7dec2fb1db1eeb60864aef5523ffa044937e194",
+      "initialStateSha256": "b723491ef8a0713a1d2a513c71bbbfba184420c93e7ddd3cff82f426d3477445",
+      "firstSixHourActionSha256": "5c6de7403a0b7249af9b527a2101ce243958fb220f211fa416625e6109816b12",
+      "checks": {
+        "humanEnergyBalance": true,
+        "finiteEcologyTransfer": true,
+        "noOutsideAssistance": true,
+        "privacy": true
+      },
+      "absorbedKcal": 0,
+      "ingestedKcal": 0,
+      "spentKcal": 3628.720904895078,
+      "pendingKcal": 0,
+      "reserveChangeKcal": -3628.720905003982,
+      "finalHealth": 99.3667198914145,
+      "finalWaterDeficitMl": 451.2584909600852,
+      "firstSustainedFeedbackAt": null,
+      "recordedActionOutcomeCounts": {
+        "grasp": 9,
+        "pull": 12,
+        "inspect_object": 72,
+        "strike": 9,
+        "move": 332,
+        "ask_human": 1,
+        "sample": 1,
+        "release": 13,
+        "fill_flask": 4,
+        "drink": 8,
+        "write_note": 1,
+        "rest": 3,
+        "sleep": 6,
+        "wait": 42
+      },
+      "successfulArrivals": 253,
+      "piecesDetached": 10,
+      "successfulSwallows": 1,
+      "actualRestSeconds": 225.05000000007124,
+      "actualSleepSeconds": 1187.5166666659154,
+      "activeSeconds": {
+        "idle": 338.5333333333541,
+        "grasp": 22.150000000000023,
+        "pull": 55.66666666666479,
+        "inspect_object": 87.04999999999634,
+        "strike": 33.249999999999396,
+        "move": 1410.0999999990463,
+        "sample": 3.4999999999999925,
+        "release": 13.983333333333608,
+        "rest": 225.05000000007124,
+        "wait": 210.70000000005982,
+        "sleep": 1200.016666665904
+      },
+      "retainedTechniques": [],
+      "strikePrerequisites": [],
+      "energyResidualKcal": 1.089038050849922e-07,
+      "wallSeconds": 96.15849673999998,
+      "peakSampledRssBytes": 293584896,
+      "actionSha256": "2e80b71c55cf5f55410f23bf92a6c974e23a81b75d30fee4c83c8bc7a81426ea",
+      "choiceDiagnostics": {
+        "choices": 441,
+        "vetoes": 118,
+        "outcomes": 440,
+        "rejections": 0,
+        "nominationCounts": {
+          "grasp": 10,
+          "pull": 12,
+          "inspect_object": 187,
+          "strike": 9,
+          "sample": 1,
+          "release": 15
+        },
+        "vetoedNominationCounts": {
+          "inspect_object": 115,
+          "grasp": 1,
+          "release": 2
+        },
+        "firstVeto": {
+          "type": "choice",
+          "decisionId": 6,
+          "at": 19.100000000000197,
+          "sponsor": {
+            "action": {
+              "type": "inspect_object",
+              "targetId": "object:65"
+            },
+            "legacyScore": 10.431645194999874
+          },
+          "nominee": {
+            "action": {
+              "type": "inspect_object",
+              "targetId": "object:52"
+            },
+            "legacyScore": 4.056773990066722
+          },
+          "movement": {
+            "action": {
+              "type": "move",
+              "target": {
+                "x": 8400,
+                "y": -7120
+              }
+            },
+            "legacyScore": 5.70507173608685
+          },
+          "winner": {
+            "action": {
+              "type": "move",
+              "target": {
+                "x": 8400,
+                "y": -7120
+              }
+            },
+            "legacyScore": 5.70507173608685
+          },
+          "veto": true,
+          "learnedScore": 0.24350649350649342,
+          "selection": {
+            "count": 1,
+            "seconds": 1.7999999999999985,
+            "exertionRank": 1,
+            "benefit": 0,
+            "uncertainty": 1,
+            "cost": 2.053333333333334
+          }
+        },
+        "positiveBenefitSampleVetoes": 0,
+        "sampleVetoTargets": [],
+        "sampleVetoFeedback": []
+      },
+      "detachedPiecesNeverSampled": 9
+    },
+    {
+      "arm": "baseline",
+      "seed": 74193,
+      "anchor": "lake:west:2",
+      "seconds": 3600,
+      "sourceSha256": "0d2e0d39175fd4e199133726b27da87ee9512ad36cc51f425d4487e9c20b9ea1",
+      "initialStateSha256": "2dadff8b6b8fc62b2260f7690565ed97784d8f8d92ff62820b3dbddaf006840b",
+      "firstSixHourActionSha256": "43a275868832c58b2c25ce1cf4273576d6e1ce47f0648ec5af363fdadbd9a31b",
+      "checks": {
+        "humanEnergyBalance": true,
+        "finiteEcologyTransfer": true,
+        "noOutsideAssistance": true,
+        "privacy": true
+      },
+      "absorbedKcal": 113.99583318291916,
+      "ingestedKcal": 113.99999999999999,
+      "spentKcal": 4010.599214289366,
+      "pendingKcal": 0,
+      "reserveChangeKcal": -3896.6033812185196,
+      "finalHealth": 99.4246300507122,
+      "finalWaterDeficitMl": 761.9535933261094,
+      "firstSustainedFeedbackAt": 61.9333333333311,
+      "recordedActionOutcomeCounts": {
+        "inspect_object": 256,
+        "pull": 19,
+        "sample": 13,
+        "grasp": 23,
+        "strike": 239,
+        "release": 8,
+        "move": 133,
+        "ask_human": 1,
+        "write_note": 6,
+        "fill_flask": 4,
+        "drink": 8,
+        "rest": 10,
+        "sleep": 3,
+        "wait": 17
+      },
+      "successfulArrivals": 111,
+      "piecesDetached": 8,
+      "successfulSwallows": 13,
+      "actualRestSeconds": 525.1166666665177,
+      "actualSleepSeconds": 1187.5166666659154,
+      "activeSeconds": {
+        "idle": 487.9166666665516,
+        "inspect_object": 270.33333333341614,
+        "pull": 90.79999999999613,
+        "sample": 40.56666666666565,
+        "grasp": 50.88333333333173,
+        "strike": 537.0166666665069,
+        "release": 8.98333333333336,
+        "move": 303.08333333338635,
+        "rest": 525.1166666665177,
+        "wait": 85.28333333332978,
+        "sleep": 1200.016666665904
+      },
+      "retainedTechniques": [
+        {
+          "id": "technique:aster:18",
+          "sourceId": "object:197",
+          "steps": [
+            {
+              "type": "pull",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 61.9333333333311,
+          "effect": "sustained",
+          "confidence": "tentative",
+          "successes": 1,
+          "failures": 2,
+          "evidenceCount": 2,
+          "evidenceSha256": "e63b22ac167203571a5bf128474bd9c83cdf88c93e221b317f46e55a7337dc30"
+        },
+        {
+          "id": "technique:aster:42",
+          "sourceId": "object:856",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 147.4333333333428,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 2,
+          "failures": 1,
+          "evidenceCount": 3,
+          "evidenceSha256": "58dc540434c37cfef5b5ca3cd761ab6ed88bd52dca8fad2fc102b93f239e86d1"
+        },
+        {
+          "id": "technique:aster:124",
+          "sourceId": "object:855",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 397.21666666663407,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 0,
+          "evidenceCount": 6,
+          "evidenceSha256": "6ccde5b6d2b6ca9f23f4b1c07ea75a8d951e0924150644959dc2b4addea7118b"
+        }
+      ],
+      "strikePrerequisites": [
+        {
+          "targetId": "object:231",
+          "firstObservedRecoilAt": 170.05000000002747,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3429.9500000182,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:279",
+          "firstObservedRecoilAt": 232.25000000007697,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3367.750000018151,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:283",
+          "firstObservedRecoilAt": 265.8000000000869,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3334.2000000181406,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:290",
+          "firstObservedRecoilAt": 318.7666666667054,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3281.233333351522,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:285",
+          "firstObservedRecoilAt": 325.25000000003286,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3274.750000018195,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:195",
+          "firstObservedRecoilAt": 741.7333333329874,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2858.26666668524,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:232",
+          "firstObservedRecoilAt": 744.6833333329847,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2855.316666685243,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:142",
+          "firstObservedRecoilAt": 750.5666666663127,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2849.433333351915,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:193",
+          "firstObservedRecoilAt": 944.6999999994695,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2655.300000018758,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:185",
+          "firstObservedRecoilAt": 953.3999999994616,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2646.600000018766,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:196",
+          "firstObservedRecoilAt": 1083.8333333326764,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2516.1666666855513,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:852",
+          "firstObservedRecoilAt": 1106.8166666659888,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2493.183333352239,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:240",
+          "firstObservedRecoilAt": 1229.8499999992102,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2370.150000019017,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:243",
+          "firstObservedRecoilAt": 1273.7499999991703,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2326.2500000190576,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:194",
+          "firstObservedRecoilAt": 1278.9666666658322,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2321.0333333523954,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:186",
+          "firstObservedRecoilAt": 1281.849999999163,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2318.1500000190645,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:894",
+          "firstObservedRecoilAt": 1413.6666666657097,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2186.333333352518,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:892",
+          "firstObservedRecoilAt": 1440.4999999990187,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2159.500000019209,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:145",
+          "firstObservedRecoilAt": 1445.0499999990145,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2154.950000019213,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:137",
+          "firstObservedRecoilAt": 1458.1666666656693,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2141.8333333525584,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:891",
+          "firstObservedRecoilAt": 1461.049999999,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2138.9500000192274,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:907",
+          "firstObservedRecoilAt": 1472.8666666656559,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2127.1333333525718,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:143",
+          "firstObservedRecoilAt": 1486.5499999989768,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2113.450000019251,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:138",
+          "firstObservedRecoilAt": 1489.4333333323075,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2110.56666668592,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:144",
+          "firstObservedRecoilAt": 1492.3166666656382,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2107.683333352589,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:904",
+          "firstObservedRecoilAt": 1524.3333333322757,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2075.666666685952,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:901",
+          "firstObservedRecoilAt": 1528.8833333322716,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2071.1166666859563,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:191",
+          "firstObservedRecoilAt": 1640.7499999988365,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 1959.250000019391,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:912",
+          "firstObservedRecoilAt": 1672.583333332141,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 1927.4166666860867,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:900",
+          "firstObservedRecoilAt": 1677.1333333321368,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 1922.8666666860909,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:914",
+          "firstObservedRecoilAt": 1680.0166666654675,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 1919.9833333527602,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:918",
+          "firstObservedRecoilAt": 3050.650000011233,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 549.3500000069948,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:915",
+          "firstObservedRecoilAt": 3073.8000000115276,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 526.2000000067001,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:289",
+          "firstObservedRecoilAt": 3079.9666666782728,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 520.0333333399549,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:242",
+          "firstObservedRecoilAt": 3082.833333344976,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 517.1666666732517,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:236",
+          "firstObservedRecoilAt": 3085.700000011679,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 514.3000000065485,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:233",
+          "firstObservedRecoilAt": 3088.5666666783823,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 511.4333333398454,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:284",
+          "firstObservedRecoilAt": 3091.4333333450854,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 508.5666666731422,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:241",
+          "firstObservedRecoilAt": 3094.3000000117886,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 505.70000000643904,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:897",
+          "firstObservedRecoilAt": 3097.1666666784918,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 502.8333333397359,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:923",
+          "firstObservedRecoilAt": 3131.700000012265,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 468.30000000596283,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:324",
+          "firstObservedRecoilAt": 3134.566666678968,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 465.43333333925966,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:326",
+          "firstObservedRecoilAt": 3148.983333345818,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 451.01666667240943,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:288",
+          "firstObservedRecoilAt": 3152.5000000125297,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 447.500000005698,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:327",
+          "firstObservedRecoilAt": 3155.366666679233,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 444.6333333389948,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:333",
+          "firstObservedRecoilAt": 3158.233333345936,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 441.76666667229165,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:329",
+          "firstObservedRecoilAt": 3161.100000012639,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 438.9000000055885,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:922",
+          "firstObservedRecoilAt": 3163.9666666793423,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 436.0333333388853,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:853",
+          "firstObservedRecoilAt": 3186.050000012957,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 413.9500000052708,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:325",
+          "firstObservedRecoilAt": 3330.400000014795,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 269.6000000034328,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:928",
+          "firstObservedRecoilAt": 3418.416666682582,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 181.58333333564542,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:332",
+          "firstObservedRecoilAt": 3440.6666666828655,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 159.3333333353621,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:335",
+          "firstObservedRecoilAt": 3443.5333333495687,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 156.46666666865895,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:908",
+          "firstObservedRecoilAt": 3552.366666684288,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 47.633333333939845,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        }
+      ],
+      "energyResidualKcal": 1.1206630027432718e-07,
+      "wallSeconds": 152.22767570100004,
+      "peakSampledRssBytes": 304656384,
+      "actionSha256": "486f2bd9c7cd3f302d1411fd912e6405c5c6a6e326e3dd74375a891496eec479",
+      "detachedPiecesNeverSampled": 1
+    },
+    {
+      "arm": "selector-reference",
+      "seed": 74193,
+      "anchor": "lake:west:2",
+      "seconds": 3600,
+      "sourceSha256": "3a44663ffb966e78dbdd713ac1c20bd63f1c17c975c9ad081a2f5b889641b8af",
+      "initialStateSha256": "2dadff8b6b8fc62b2260f7690565ed97784d8f8d92ff62820b3dbddaf006840b",
+      "firstSixHourActionSha256": "59b2e75321bdee8c359883cfbf6bd9f54d971eb6e298d28ec7ae8591c2131b07",
+      "checks": {
+        "humanEnergyBalance": true,
+        "finiteEcologyTransfer": true,
+        "noOutsideAssistance": true,
+        "privacy": true
+      },
+      "absorbedKcal": 143.23025455607458,
+      "ingestedKcal": 184.49999999999997,
+      "spentKcal": 3357.6146879178677,
+      "pendingKcal": 41.264999999997976,
+      "reserveChangeKcal": -3214.384433465646,
+      "finalHealth": 99.37152569965625,
+      "finalWaterDeficitMl": 750.724183461288,
+      "firstSustainedFeedbackAt": 62.4666666666644,
+      "recordedActionOutcomeCounts": {
+        "grasp": 85,
+        "pull": 63,
+        "strike": 42,
+        "sample": 17,
+        "inspect_object": 914,
+        "release": 65,
+        "ask_human": 1,
+        "write_note": 9,
+        "move": 19,
+        "fill_flask": 4,
+        "drink": 17,
+        "sleep": 1
+      },
+      "successfulArrivals": 16,
+      "piecesDetached": 23,
+      "successfulSwallows": 17,
+      "actualRestSeconds": 0,
+      "actualSleepSeconds": 1187.5166666659154,
+      "activeSeconds": {
+        "idle": 816.7499999995858,
+        "grasp": 138.53333333333572,
+        "pull": 251.75000000009248,
+        "strike": 125.11666666666085,
+        "sample": 51.34999999999837,
+        "inspect_object": 928.5999999994841,
+        "release": 54.06666666666488,
+        "move": 33.81666666666603,
+        "sleep": 1200.016666665904
+      },
+      "retainedTechniques": [
+        {
+          "id": "technique:aster:25",
+          "sourceId": "object:197",
+          "steps": [
+            {
+              "type": "pull",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 62.4666666666644,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 3,
+          "failures": 6,
+          "evidenceCount": 6,
+          "evidenceSha256": "ed1b8cac3f8446951de55bbdcb18f146d311b29490748d6024123f0ee1ad744f"
+        },
+        {
+          "id": "technique:aster:54",
+          "sourceId": "object:855",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 137.11666666666792,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 5,
+          "failures": 5,
+          "evidenceCount": 7,
+          "evidenceSha256": "fd99f894cc88e18cd7fa74e2545cf4969871ed4be6080d5bbd66f2d786a236fe"
+        },
+        {
+          "id": "technique:aster:159",
+          "sourceId": "object:857",
+          "steps": [
+            {
+              "type": "grasp",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 364.8666666666635,
+          "effect": "sustained",
+          "confidence": "tentative",
+          "successes": 1,
+          "failures": 4,
+          "evidenceCount": 2,
+          "evidenceSha256": "6a7b4440d99afe1d6c9e3ee2ef3a6f9886e362196005c8a2f5b5e5855c7b1c67"
+        }
+      ],
+      "strikePrerequisites": [
+        {
+          "targetId": "object:853",
+          "firstObservedRecoilAt": 188.23333333337527,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3411.766666684852,
+          "recordedStrikeAttempts": 2,
+          "positiveDurationStrikeAttempts": 2
+        },
+        {
+          "targetId": "object:243",
+          "firstObservedRecoilAt": 1270.1666666658402,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2329.8333333523874,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:184",
+          "firstObservedRecoilAt": 1409.7166666657133,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2190.283333352514,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:230",
+          "firstObservedRecoilAt": 1499.116666665632,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2100.8833333525954,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:191",
+          "firstObservedRecoilAt": 1575.5499999988958,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2024.4500000193318,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:186",
+          "firstObservedRecoilAt": 1590.466666665549,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 2009.5333333526787,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:290",
+          "firstObservedRecoilAt": 3317.283333347961,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 282.7166666702665,
+          "recordedStrikeAttempts": 2,
+          "positiveDurationStrikeAttempts": 2
+        },
+        {
+          "targetId": "object:938",
+          "firstObservedRecoilAt": 3570.2833333511826,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 29.716666667045047,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        }
+      ],
+      "energyResidualKcal": 1.0378574598172985e-07,
+      "wallSeconds": 146.36188600699998,
+      "peakSampledRssBytes": 297930752,
+      "actionSha256": "ccd557db4464b1c921fde5edafc2cefd2f7617cccabc76d98027c97ec1a44b0a",
+      "detachedPiecesNeverSampled": 11
+    },
+    {
+      "arm": "selector",
+      "seed": 74193,
+      "anchor": "lake:west:2",
+      "seconds": 3600,
+      "sourceSha256": "95e7965fc936c6f1ff2a12fab7dec2fb1db1eeb60864aef5523ffa044937e194",
+      "initialStateSha256": "2dadff8b6b8fc62b2260f7690565ed97784d8f8d92ff62820b3dbddaf006840b",
+      "firstSixHourActionSha256": "07c392ccdde736997be2b5bd6fd87687c30e1e1bc9743720c9d9aa24440e53f6",
+      "checks": {
+        "humanEnergyBalance": true,
+        "finiteEcologyTransfer": true,
+        "noOutsideAssistance": true,
+        "privacy": true
+      },
+      "absorbedKcal": 142.49525455587994,
+      "ingestedKcal": 142.49999999999997,
+      "spentKcal": 3751.1621387674827,
+      "pendingKcal": 0,
+      "reserveChangeKcal": -3608.6668843234947,
+      "finalHealth": 99.41567628351139,
+      "finalWaterDeficitMl": 832.6808109311221,
+      "firstSustainedFeedbackAt": 62.4666666666644,
+      "recordedActionOutcomeCounts": {
+        "grasp": 17,
+        "pull": 40,
+        "strike": 28,
+        "sample": 17,
+        "inspect_object": 235,
+        "move": 544,
+        "release": 19,
+        "ask_human": 1,
+        "write_note": 10,
+        "fill_flask": 4,
+        "drink": 12,
+        "rest": 2,
+        "sleep": 1
+      },
+      "successfulArrivals": 437,
+      "piecesDetached": 21,
+      "successfulSwallows": 17,
+      "actualRestSeconds": 150.03333333334487,
+      "actualSleepSeconds": 1187.5166666659154,
+      "activeSeconds": {
+        "idle": 613.533333333104,
+        "grasp": 32.49999999999944,
+        "pull": 154.3166666666816,
+        "strike": 87.66666666666298,
+        "sample": 51.34999999999837,
+        "inspect_object": 250.3333333334247,
+        "move": 1040.7666666660489,
+        "release": 19.48333333333351,
+        "rest": 150.03333333334487,
+        "sleep": 1200.016666665904
+      },
+      "retainedTechniques": [
+        {
+          "id": "technique:aster:19",
+          "sourceId": "object:197",
+          "steps": [
+            {
+              "type": "pull",
+              "targetId": "$source"
+            },
+            {
+              "type": "sample",
+              "targetId": "$material"
+            }
+          ],
+          "at": 62.4666666666644,
+          "effect": "sustained",
+          "confidence": "supported",
+          "successes": 9,
+          "failures": 12,
+          "evidenceCount": 13,
+          "evidenceSha256": "8ef5d4a3c3416df6e549ecb5011c86e96ac83d280d06ccd8114f7fc834321237"
+        }
+      ],
+      "strikePrerequisites": [
+        {
+          "targetId": "object:136",
+          "firstObservedRecoilAt": 171.15000000002834,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 3428.8500000181994,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:230",
+          "firstObservedRecoilAt": 3122.0833333454757,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 477.91666667275194,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:288",
+          "firstObservedRecoilAt": 3185.366666679615,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 414.63333333861283,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        },
+        {
+          "targetId": "object:928",
+          "firstObservedRecoilAt": 3240.816666680321,
+          "stoppedAt": null,
+          "latencySeconds": null,
+          "rightCensoredSeconds": 359.1833333379068,
+          "recordedStrikeAttempts": 1,
+          "positiveDurationStrikeAttempts": 1
+        }
+      ],
+      "energyResidualKcal": 1.1201758252660926e-07,
+      "wallSeconds": 165.54727630899998,
+      "peakSampledRssBytes": 323280896,
+      "actionSha256": "2f2dce03c87bcfd4ba0043029c309be6dfd83ebf5905926eff3a74683ea1fa28",
+      "choiceDiagnostics": {
+        "choices": 847,
+        "vetoes": 512,
+        "outcomes": 846,
+        "rejections": 0,
+        "nominationCounts": {
+          "grasp": 18,
+          "pull": 32,
+          "strike": 28,
+          "sample": 157,
+          "inspect_object": 591,
+          "release": 19
+        },
+        "vetoedNominationCounts": {
+          "inspect_object": 356,
+          "pull": 7,
+          "sample": 148,
+          "grasp": 1
+        },
+        "firstVeto": {
+          "type": "choice",
+          "decisionId": 6,
+          "at": 20.116666666666806,
+          "sponsor": {
+            "action": {
+              "type": "inspect_object",
+              "targetId": "object:197"
+            },
+            "legacyScore": 10.065993132535368
+          },
+          "nominee": {
+            "action": {
+              "type": "inspect_object",
+              "targetId": "object:855"
+            },
+            "legacyScore": 4.08435712242499
+          },
+          "movement": {
+            "action": {
+              "type": "move",
+              "target": {
+                "x": -7200,
+                "y": -6640
+              }
+            },
+            "legacyScore": 5.862870882140265
+          },
+          "winner": {
+            "action": {
+              "type": "move",
+              "target": {
+                "x": -7200,
+                "y": -6640
+              }
+            },
+            "legacyScore": 5.862870882140265
+          },
+          "veto": true,
+          "learnedScore": 0.2706185567010308,
+          "selection": {
+            "count": 1,
+            "seconds": 1.7999999999999985,
+            "exertionRank": 1,
+            "benefit": 0,
+            "uncertainty": 1,
+            "cost": 1.8476190476190484
+          }
+        },
+        "positiveBenefitSampleVetoes": 143,
+        "sampleVetoTargets": [
+          "object:867",
+          "object:870"
+        ],
+        "sampleVetoFeedback": [
+          {
+            "id": "feedback:34",
+            "at": 837.1666666662339,
+            "objectId": "object:867",
+            "actionId": 594,
+            "ingestionId": "ingestion:14",
+            "effect": "water relief",
+            "hunger": "unchanged",
+            "thirst": "easing",
+            "energy": "unchanged",
+            "pain": "none",
+            "source": "experienced"
+          },
+          {
+            "id": "feedback:40",
+            "at": 1215.7666666658897,
+            "objectId": "object:870",
+            "actionId": 1048,
+            "ingestionId": "ingestion:38",
+            "effect": "water relief",
+            "hunger": "unchanged",
+            "thirst": "easing",
+            "energy": "unchanged",
+            "pain": "none",
+            "source": "experienced"
+          }
+        ]
+      },
+      "detachedPiecesNeverSampled": 9
+    }
+  ],
+  "postprocessingNotes": [
+    "firstSustainedFeedbackAt is the first sustained food/energy feedback time; the frozen raw field firstPositiveAt does not include water relief.",
+    "Frozen raw strikePrerequisites.completedWorkAttempts counts all recorded strike results, including zero-work refusals. Compact records use recordedStrikeAttempts for that total and positiveDurationStrikeAttempts for attempts with durationSeconds>0. No raw data or runtime was changed.",
+    "recordedActionOutcomeCounts includes all recorded action results, including immediate refusals and cancellations; it is not a completed-work count."
+  ]
+}

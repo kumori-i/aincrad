@@ -1,0 +1,28 @@
+{
+  "filename": "aincrad-selection-gate-evidence-export.zip",
+  "bytes": 848448,
+  "sha256": "678ae61ac596bc59fb6eff3cb80fedd9c1348f8868c9854074e9c3c1b55b4ca1",
+  "delivery": "Retained as a cloud development evidence export; available as an attachment on request. Full raw traces are not committed.",
+  "contains": [
+    "aincrad-choice-development.json",
+    "aincrad-choice-prefix.json",
+    "choice-default-equivalence-74193-pond-north-restore450.json",
+    "choice-default-equivalence-74193-pond-north-restore450-traces.json",
+    "choice-default-equivalence-74193-pond-north-restore450-baseline-save.json",
+    "choice-default-equivalence-74193-pond-north-restore450-candidate-save.json",
+    "verify-choice-prefix.mjs",
+    "verify-choice-default-equivalence-restore450.mjs",
+    "summarize-choice-development.py",
+    "finalize-choice-verification.py",
+    "aincrad-choice-check-final.log",
+    "aincrad-choice-build-final.log",
+    "aincrad-choice-smoke.log",
+    "aincrad-choice-reopen.log",
+    "aincrad-choice-runtime-tests-final.log",
+    "evaluate-discovery-throughput.mjs",
+    "evidence-summary.json",
+    "native-reopen.json",
+    "verification-summary.json",
+    "native-smoke.json"
+  ]
+}

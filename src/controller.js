@@ -1,3 +1,4 @@
+import { beginChoiceRequest,finishChoiceRequest } from './discovery-choice.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { CONFIG, NPC_RULES } from './config.js';
 import { distance, clamp } from './world.js';
@@ -227,6 +228,6 @@ export class NpcController {
         }else {this.perform({...dialogue,offline:true});return;}
       }
     }
-    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.perform(decision.action);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
+    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});beginChoiceRequest(n,decision.action);const result=this.perform(decision.action);finishChoiceRequest(n,result);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }

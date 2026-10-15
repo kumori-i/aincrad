@@ -1,3 +1,4 @@
+import { completeChoiceRequest } from './discovery-choice.js';
 import { CONFIG, NPC_RULES, NPC_PRESETS, BODY_RULES, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
 import { canStand, moveActor, distance, clamp } from './world.js';
 import { waterSource, foodSource, gatherFood, shelterSource } from './resources.js';
@@ -47,6 +48,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   if(active&&result.durationSeconds===undefined)result.durationSeconds=Math.max(0,npc.elapsed-active.startedAt);
   if(active?.startScene)startScene=active.startScene;
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
+  completeChoiceRequest(npc,active,request,result,event);
   npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
 }
 export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){

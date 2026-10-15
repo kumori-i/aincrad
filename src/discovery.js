@@ -1,3 +1,4 @@
+import { consistentSelection,beginChoiceDecision,traceChoice } from './discovery-choice.js';
 import { recordSelectionWork,chooseSelection,experiencedConsequences,sampleAcquisition as acquisitionFromExperiments,selectionPolicy,selectionUpdates } from './discovery-selection.js';
 import { CONFIG,NPC_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
@@ -181,6 +182,7 @@ export function contactEscape(npc){
 }
 /** A generic novelty/outcome learner. It never looks up an object's species or nutrients. */
 export function discoveryDecision(npc,{foodLearning=true}={}){
+  beginChoiceDecision(npc);
   processDiscoveryFeedback(npc,{foodLearning});const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
   // Evaluation can ablate positive food associations without erasing perception,
@@ -253,12 +255,18 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   }
   if(choices.length){
     let selected=choices.sort((a,b)=>b.score-a.score)[0];
-    // Keep the existing observed movement opportunity and every care/safety gate.
-    // Only rank eligible body operations when an object experiment was selected.
+    const sponsor=selected;let ranked=null,gate={selected,sponsor,nominee:null,movement:choices.find(c=>c.action.type==='move')||null,veto:false};
+    // The nominee must compete using its own original legacy opportunity score.
+    // Learned object utility and legacy movement scores have different units.
     if(selected.action.type!=='move'){
       const policy=selectionPolicy(npc,experiencedConsequences(d.experiments,d.effects,{foodLearning,elapsed:npc.elapsed}),{foodLearning});
-      if(policy){selected=chooseSelection(policy.model,choices.filter(c=>c.action.type!=='move'),{fatigue:body.fatigue,hunger:body.hunger,thirst:body.thirst,consequences:policy.consequences});selected.reason='I can compare the time and exertion I actually experienced, exact-object outcomes, and remaining uncertainty for this bounded experiment.';}
+      if(policy){
+        ranked=chooseSelection(policy.model,choices.filter(c=>c.action.type!=='move'),{fatigue:body.fatigue,hunger:body.hunger,thirst:body.thirst,consequences:policy.consequences});
+        gate=consistentSelection(choices,ranked);selected=gate.selected;
+        if(!gate.veto)selected={...selected,reason:'I can compare the time and exertion I actually experienced, exact-object outcomes, and remaining uncertainty for this bounded experiment.'};
+      }
     }
+    traceChoice(npc,gate,ranked);
     return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');
   }
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
