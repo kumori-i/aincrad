@@ -111,3 +111,19 @@ test('save validation bounds remaining digestive material and scales composition
   const f=validatePhysiology(raw),item=f.stomach[0];assert.equal(item.originalMassGrams,1400);assert.equal(item.remainingMassGrams,1400);assert.equal(item.originalKcal,700);assert.equal(item.remainingKcal,700);assert.equal(item.absorbedKcal,0);assert.equal(item.remainingWaterMl,1260);assert.equal(item.absorbedWaterMl,0);
   raw.stomach.push({...raw.stomach[0],id:'ingestion:2'});assert.equal(validatePhysiology(raw).stomach.length,1);
 });
+
+
+test('native-step digestive cleanup records tiny unabsorbed calories and water instead of deleting them',()=>{
+  for(const profile of ['human','rabbit'])for(const dt of [1/60,.05,.25]){
+    const a=actor(profile,{waterDeficitMl:1000}),f=a.physiology;
+    const initial=f.availableEnergyKcal+f.storedEnergyKcal;
+    assert.equal(ingestMaterial(a,{massGrams:30,energyKcal:95/6,waterMl:25.5,digestHours:2}).ok,true);
+    for(let i=0;i<Math.round(400/dt);i++){a.elapsed+=dt;tickPhysiology(a,dt,comfortable);}
+    assert.equal(f.stomach.length,0);
+    assert.ok(Math.abs(f.totals.ingestedKcal-f.totals.absorbedKcal-f.totals.discardedKcal)<1e-8,`${profile} energy at step ${dt}`);
+    assert.ok(Math.abs(f.totals.ingestedWaterMl-f.totals.absorbedWaterMl-f.totals.discardedWaterMl)<1e-8,`${profile} water at step ${dt}`);
+    assert.ok(Math.abs(initial+f.totals.ingestedKcal-f.availableEnergyKcal-f.storedEnergyKcal-f.totals.metabolizedKcal-f.totals.discardedKcal)<1e-6);
+    assert.ok(f.totals.discardedKcal>=0&&f.totals.discardedKcal<.001);
+    if(dt===1/60)assert.ok(f.totals.discardedKcal>0,'Native steps reproduce the former lost remainder');
+  }
+});

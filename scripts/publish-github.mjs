@@ -34,7 +34,15 @@ async function filesUnder(dir,prefix=''){
  }
  return files;
 }
+export function connectorBranch(args){
+ const index=args.indexOf('--branch');if(index<0)return 'main';
+ const value=args[index+1];
+ if(!args.includes('--prepare-connector')||typeof value!=='string'||value==='HEAD'||!/[A-Za-z0-9]/.test(value[0]||'')||!/^[A-Za-z0-9._/-]+$/.test(value)||value.endsWith('/')||value.endsWith('.')||value.includes('..')||value.includes('//')||value.split('/').some(part=>part.startsWith('.')||part.endsWith('.lock')))
+  throw new Error('--branch requires --prepare-connector and a safe explicit branch name.');
+ return value;
+}
 async function main(){
+ const branch=connectorBranch(process.argv);
  const sourceHead=run('git',['rev-parse','HEAD'],{capture:true,allowFail:true});
  const expected=sourceHead.status===0?sourceHead.stdout.trim():BASE;
  if(!/^[a-f0-9]{40}$/.test(expected))throw new Error('Could not resolve the source checkout baseline.');
@@ -46,7 +54,7 @@ async function main(){
   if(st.isDirectory())files.push(...await filesUnder(join(ROOT,item),item));
   else files.push(item);
  }
- console.log(`Aincrad: ${files.length} project files. Target: ${REPO}, branch main.`);
+ console.log(`Aincrad: ${files.length} project files. Target: ${REPO}, branch ${branch}.`);
  run(process.execPath,['scripts/build.mjs']);
  run(process.execPath,['scripts/check.mjs']);
  if(process.argv.includes('--check-only')){console.log('Local checks passed. No GitHub action was attempted.');return;}
@@ -61,9 +69,9 @@ async function main(){
    const sha=createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
    prepared.push({path:rel,mode:'100644',sha,size_bytes:data.length,encoding,content:data.toString(encoding==='base64'?'base64':'utf8')});
   }
-  await writeFile(resolve(destination),JSON.stringify({repository_full_name:REPO,branch_name:'main',expected_sha:expected,deleted_paths:deletedPaths,files:prepared}));
+  await writeFile(resolve(destination),JSON.stringify({repository_full_name:REPO,branch_name:branch,expected_sha:expected,deleted_paths:deletedPaths,files:prepared}));
   console.log(`Prepared validated publication manifest: ${resolve(destination)}. No remote changes made.`);
-  console.log('Verify push permission and the expected main SHA, then publish the complete tree and commit without force.');
+  console.log(`Verify push permission and the expected ${branch} SHA, then publish the complete tree and commit without force.`);
   return;
  }
  run('git',['--version']);run('gh',['auth','status']);

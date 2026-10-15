@@ -141,7 +141,13 @@ function digest(actor,hours){
       actor.feelings??={};if(effect==='sustained'||effect==='water relief')actor.feelings.relief=Math.max(number(actor.feelings.relief,0),.2);
     }
   }
-  f.stomach=f.stomach.filter(v=>v.remainingMassGrams>.001||v.remainingKcal>.001||v.remainingWaterMl>.001);
+  f.stomach=f.stomach.filter(v=>{
+    if(v.remainingMassGrams>.001||v.remainingKcal>.001||v.remainingWaterMl>.001)return true;
+    // Bounded cleanup is a physical loss, not absorption. Preserve the tiny
+    // unabsorbed remainder in the existing disposal ledger before removing it.
+    f.totals.discardedKcal+=v.remainingKcal;f.totals.discardedWaterMl+=v.remainingWaterMl;
+    return false;
+  });
 }
 
 export function tickPhysiology(actor,dt,conditions={},options={}){
