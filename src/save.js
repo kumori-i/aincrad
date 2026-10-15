@@ -100,14 +100,17 @@ export function loadSave(storage) {
     return { state: validateSave(parsed), exists: true, error: null, blocked:false };
   } catch(error) { return protectedFresh(error?.code==='TEMPORAL_BUDGET'||error?.code==='TEMPORAL_STORAGE'?'The experimental learner memory exceeds its budget or has an unsupported encoding. Your previous save has been preserved.':'The local save could not be read. Your previous data has not been overwritten.'); }
 }
+/** Pure preparation shared by synchronous storage and the experimental worker.
+ * Protection is explicit because structured cloning omits saveBlocked. */
+export function prepareSave(state,{blocked=false}={}) {
+  if(blocked||state?.saveBlocked)throw Object.assign(new Error('The existing save is protected.'),{code:'SAVE_BLOCKED'});
+  if(!SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))throw Object.assign(new Error('Unsupported save rules.'),{code:'SAVE_RULES'});
+  const {npc:historicalAlias,...saved}=validateSave(state,{restoring:false});
+  // Validate the live proof graph first; dictionary encoding is wire-only.
+  for(const actor of saved.agents)if(actor.discovery?.temporal){actor.discovery.temporal=encodeTemporalWire(actor.discovery.temporal);saved.version=7;}
+  return JSON.stringify(saved);
+}
 export function writeSave(storage, state) {
-  if(state?.saveBlocked || !SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))return false;
-  try {
-    const {npc:historicalAlias,...saved}=validateSave(state,{restoring:false});
-    // Validate the live proof graph first; dictionary encoding is wire-only.
-    for(const actor of saved.agents)if(actor.discovery?.temporal){actor.discovery.temporal=encodeTemporalWire(actor.discovery.temporal);saved.version=7;}
-    storage.setItem(CONFIG.saveKey, JSON.stringify(saved));
-    return true;
-  }
+  try { storage.setItem(CONFIG.saveKey,prepareSave(state));return true; }
   catch { return false; }
 }

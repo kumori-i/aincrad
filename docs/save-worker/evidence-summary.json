@@ -1,0 +1,860 @@
+{
+  "stage": "Pure experimental worker; application remains synchronous; no backend migration or responsiveness pass",
+  "sourceCommit": "f906c286d0405df8e1b4ee8cdfadadba8c1135fe",
+  "parentRemoteCommit": "6ad435156052c73673f057b6963629bc36483e31",
+  "sourceHashes": {
+    "src/save.js": "b2dffb83d63d16c067645ef600c4bf87b38cd481485caf6b3005a8db1d234449",
+    "src/save-preparation.js": "cae445d14482700edcfd6a457af45e5941c90bba173b46082e1ed2fd0108a806",
+    "src/save-worker.js": "58aeec602c3a353123c7851031436e39bfc65fe448a851f5611f624d8435a560",
+    "desktop/security-policy.cjs": "9dddaac31ce76e324dfc3bfdd687c82e2faf2d1fa08f288875668d230c5f0447",
+    "desktop/main.cjs": "814321eed8f1dde0709b3be400c9f0ba7b2cb0303b2cc698276ce38a428126ea",
+    "index.html": "6e0e6197a4e225248eba68c5f322c703508741da3308a64077b5e26acf5f8102",
+    "scripts/serve.mjs": "d3c8e2573fffa0d53b1657b4fb612176078a9d0afb0cc9efabe9bf267d01f4cf",
+    "scripts/verify-save-worker.mjs": "2f52325b8f81ed20600b4bfcef1c0646cc3d7a519f282a79faa19a271064b768",
+    "tests/save-preparation.test.mjs": "fe1465480f229606a348b0412d92b8437764495963647831cee6cf30a2601611",
+    "tests/server.test.mjs": "f385cdf5d094c828eee5d7c7a8c8a07537eb8a8b59aa9541ea7d76c1a2ed8b4a",
+    "src/main.js": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742"
+  },
+  "checks": {
+    "allTests": 461,
+    "failures": 0,
+    "independentFocused": 51,
+    "nativeSmoke": true,
+    "twoProcessVersion7Reopen": true,
+    "productionOsSandboxExercised": false
+  },
+  "measurementScope": {
+    "actualElectron": true,
+    "environment": "isolated Linux cloud profile, headless, root --no-sandbox; no laptop result",
+    "renderer": "welcome render loop; no simulation or Cardinal advance",
+    "load": "latency runs sequential; independent reviewer paused CPU tests, unrelated host load not measured",
+    "notFormalPairedPerformanceTrial": true,
+    "retainedInitialFailures": [
+      "An active-save test initially expected serialized active to survive; corrected to previous interrupted-save semantics, no runtime change."
+    ],
+    "fullApplicationAsyncPath": false
+  },
+  "artifacts": {
+    "save-phase-timings.json": {
+      "bytes": 3738,
+      "sha256": "142d1bfb11d585a82411a64009dbcffaddeac3eab24e503384e6f66b835378ec"
+    },
+    "save-transport-timings.json": {
+      "bytes": 7874,
+      "sha256": "2b495f0d3ee870bd9efff03e5e9a7d39ec5fb4a15605eb95dd35a5c74e2c0aba"
+    },
+    "save-worker-native.json": {
+      "bytes": 23562,
+      "sha256": "0d9a7dec60260ad7ac8cf6cdf94610fc3732c47e530b024ad6b688d3449d523c"
+    },
+    "save-worker-worker-localstorage-initial.json": {
+      "bytes": 14336,
+      "sha256": "d3e96616117e3d7007fac3c2c2bc042f3c6119cab0b75ed5b5a6892e8489a39e"
+    },
+    "save-worker-worker-idb-initial.json": {
+      "bytes": 18377,
+      "sha256": "56dea68bf671232a642710bf0aca6499200027f6e36570a0f43cce99cf3da085"
+    },
+    "save-worker-worker-localstorage.json": {
+      "bytes": 17384,
+      "sha256": "4977dcdd777fb3c672465dfe91416f88dc27bbe4d8fad81ee37380cfd92d1e73"
+    },
+    "save-worker-worker-idb.json": {
+      "bytes": 17713,
+      "sha256": "3b0bc586145c07bd05f32fc91f95bf249d6f005e0f6590bdc7c46b3ac633358c"
+    },
+    "benchmark-save-phases.mjs": {
+      "bytes": 4784,
+      "sha256": "b98427c777e7a0cad82041fbb89a6f997297550020a52635efb83b9195262fe4"
+    },
+    "benchmark-save-transport.mjs": {
+      "bytes": 6547,
+      "sha256": "fd73ac0b4c4883a2becb69fcd3b29516127c88ffbdfe2978628edf9890fdd0f4"
+    },
+    "verify-save-worker-mixed-frozen.mjs": {
+      "bytes": 8805,
+      "sha256": "81a1c158d2da38c2e1be47a607ca16924cc36587e0726457fc8a3a2502b267a0"
+    },
+    "verify-temporal-desktop.mjs": {
+      "bytes": 9564,
+      "sha256": "ad09f9d26e9766232f1505814febdfe52891f798fed3b634f3d406c0b97c8452"
+    },
+    "desktop-smoke.json": {
+      "bytes": 1780,
+      "sha256": "0c9ebac360375313002c4c1ed8d2d5243f85f16e9d3264bcaea71c51029e37b5"
+    },
+    "temporal-reopen.json": {
+      "bytes": 1081,
+      "sha256": "8a2a6d2e1b7f620c4aaf1ebde5be36dec9d2dee6e33dd9c5181915f2ce2fd034"
+    },
+    "aincrad-save-phases.log": {
+      "bytes": 9845,
+      "sha256": "a5b842d5028e62679fc5ee1d9ce6c282f939f220a8f309b636791aa5c7c97e6c"
+    },
+    "aincrad-save-transport.log": {
+      "bytes": 12319,
+      "sha256": "2449b6ce72e9a2c261414855120eeb4a8cf98dc0758dd3a39f93916677859a18"
+    },
+    "aincrad-save-worker-focused.log": {
+      "bytes": 1265,
+      "sha256": "46ff9e192d1c48780b0e1a8bb1963e0e7419395ea603ec447dd85fe914f22d33"
+    },
+    "aincrad-save-worker-focused-final.log": {
+      "bytes": 2350,
+      "sha256": "335c98f94734002ae326bfb2a01c76391c6e086113f01215095c57a17e69338c"
+    },
+    "aincrad-save-worker-native.log": {
+      "bytes": 7183,
+      "sha256": "cc2b04ae6e8f4ab7ceba34cb6c071d47e6958dad156dc3f05816724277bb806b"
+    },
+    "aincrad-save-worker-isolated-local.log": {
+      "bytes": 7183,
+      "sha256": "714a4ef5b7a1063692fbb3d950242fbdb6b4e34661c633574a978dff28ba1943"
+    },
+    "aincrad-save-worker-isolated-idb.log": {
+      "bytes": 7195,
+      "sha256": "d8a43a5891a57946365f02dac120880cbd9752ea690d8c714249ceb330cba695"
+    },
+    "aincrad-save-worker-final-local.log": {
+      "bytes": 7183,
+      "sha256": "894d49f08b23cff0b05388b6cc7b301afef21de3e0f7061f89c81e385070b175"
+    },
+    "aincrad-save-worker-final-idb.log": {
+      "bytes": 7195,
+      "sha256": "c94a4f1746617f92a6c5bd9a697904382e60c2399e63ef76d765579174a8ee04"
+    },
+    "aincrad-save-worker-full-check.log": {
+      "bytes": 48096,
+      "sha256": "6f3d9caa015e9e0079545022506e89e52abcb3ddc668b6e3efeddcb3e4130149"
+    },
+    "aincrad-save-worker-build.log": {
+      "bytes": 233,
+      "sha256": "4d04d91bc4139bc1f82353b0b9d50a7ce954eccb8547fe2ad91a2eaa1d8a97c8"
+    },
+    "aincrad-save-worker-smoke.log": {
+      "bytes": 7906,
+      "sha256": "d44ee51567d92d52213b739f7c569191d8de4566611955f884d8d7978c4f5929"
+    },
+    "aincrad-save-worker-reopen.log": {
+      "bytes": 15449,
+      "sha256": "01ee54e59c747c6d50a3269505f8cb0d27643bb6edae443e39ef449a39a862b7"
+    },
+    "verify-save-worker.mjs": {
+      "bytes": 10677,
+      "sha256": "2f52325b8f81ed20600b4bfcef1c0646cc3d7a519f282a79faa19a271064b768"
+    }
+  },
+  "runs": {
+    "save-worker-native.json": {
+      "sourceFingerprint": "76499a3166d26813ac0c19b287dd76ebd206f04f09253e116d3b901af264d9d8",
+      "arm": "mixed",
+      "idleMaxFrameGapMs": null,
+      "parityCases": [],
+      "security": {
+        "type": "security",
+        "evalBlocked": true,
+        "fetchBlocked": true,
+        "nestedBlocked": true,
+        "nodeAbsent": true,
+        "imported": true
+      },
+      "rows": [
+        {
+          "actors": 0,
+          "repeat": 0,
+          "bytes": 383211,
+          "worker": {
+            "dispatchMs": 2,
+            "roundTripMs": 178.29999999701977,
+            "prepareMs": 67.39999999850988,
+            "maxFrameGapMs": 22
+          },
+          "localStorageCommit": {
+            "setItemMs": 2,
+            "maxFrameGapMs": 17.300000000745058
+          },
+          "workerIdb": {
+            "prepareMs": 63.900000002235174,
+            "putCallMs": 2,
+            "transactionMs": 3.399999998509884,
+            "durability": "strict",
+            "bytes": 383211,
+            "dispatchMs": 1.5,
+            "roundTripMs": 78.80000000074506,
+            "maxFrameGapMs": 17.900000002235174
+          }
+        },
+        {
+          "actors": 0,
+          "repeat": 1,
+          "bytes": 383211,
+          "worker": {
+            "dispatchMs": 1.300000000745058,
+            "roundTripMs": 41.19999999925494,
+            "prepareMs": 37.30000000074506,
+            "maxFrameGapMs": 21.099999997764826
+          },
+          "localStorageCommit": {
+            "setItemMs": 2,
+            "maxFrameGapMs": 18.099999997764826
+          },
+          "workerIdb": {
+            "prepareMs": 35.80000000074506,
+            "putCallMs": 2.900000002235174,
+            "transactionMs": 4.199999999254942,
+            "durability": "strict",
+            "bytes": 383211,
+            "dispatchMs": 6.600000001490116,
+            "roundTripMs": 51,
+            "maxFrameGapMs": 19.199999999254942
+          }
+        },
+        {
+          "actors": 0,
+          "repeat": 2,
+          "bytes": 383211,
+          "worker": {
+            "dispatchMs": 1.4000000022351742,
+            "roundTripMs": 45,
+            "prepareMs": 41.5,
+            "maxFrameGapMs": 21.900000002235174
+          },
+          "localStorageCommit": {
+            "setItemMs": 1.800000000745058,
+            "maxFrameGapMs": 16.400000002235174
+          },
+          "workerIdb": {
+            "prepareMs": 38.30000000074506,
+            "putCallMs": 1.6000000014901161,
+            "transactionMs": 2.699999999254942,
+            "durability": "strict",
+            "bytes": 383211,
+            "dispatchMs": 2,
+            "roundTripMs": 47.899999998509884,
+            "maxFrameGapMs": 22.399999998509884
+          }
+        },
+        {
+          "actors": 1,
+          "repeat": 0,
+          "bytes": 5501324,
+          "worker": {
+            "dispatchMs": 13.699999999254942,
+            "roundTripMs": 567.6999999992549,
+            "prepareMs": 523.4000000022352,
+            "maxFrameGapMs": 25.599999997764826
+          },
+          "localStorageCommit": {
+            "setItemMs": 34.5,
+            "maxFrameGapMs": 37.899999998509884
+          },
+          "workerIdb": {
+            "prepareMs": 446.5,
+            "putCallMs": 9.300000000745058,
+            "transactionMs": 12,
+            "durability": "strict",
+            "bytes": 5501324,
+            "dispatchMs": 16.100000001490116,
+            "roundTripMs": 518.5,
+            "maxFrameGapMs": 21.300000000745058
+          }
+        },
+        {
+          "actors": 1,
+          "repeat": 1,
+          "bytes": 5501324,
+          "worker": {
+            "dispatchMs": 16.600000001490116,
+            "roundTripMs": 545.9000000022352,
+            "prepareMs": 505.5,
+            "maxFrameGapMs": 27.5
+          },
+          "localStorageCommit": {
+            "setItemMs": 26.199999999254942,
+            "maxFrameGapMs": 30.099999997764826
+          },
+          "workerIdb": {
+            "prepareMs": 453.5,
+            "putCallMs": 8.100000001490116,
+            "transactionMs": 11.5,
+            "durability": "strict",
+            "bytes": 5501324,
+            "dispatchMs": 20.300000000745058,
+            "roundTripMs": 520.8999999985099,
+            "maxFrameGapMs": 33.600000001490116
+          }
+        },
+        {
+          "actors": 1,
+          "repeat": 2,
+          "bytes": 5501324,
+          "worker": {
+            "dispatchMs": 15.199999999254942,
+            "roundTripMs": 426.8999999985099,
+            "prepareMs": 396.0999999977648,
+            "maxFrameGapMs": 23
+          },
+          "localStorageCommit": {
+            "setItemMs": 29.799999997019768,
+            "maxFrameGapMs": 31.599999997764826
+          },
+          "workerIdb": {
+            "prepareMs": 367,
+            "putCallMs": 12.800000000745058,
+            "transactionMs": 16.699999999254942,
+            "durability": "strict",
+            "bytes": 5501324,
+            "dispatchMs": 12.800000000745058,
+            "roundTripMs": 431.4000000022352,
+            "maxFrameGapMs": 24
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 0,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 34.099999997764826,
+            "roundTripMs": 897.5999999977648,
+            "prepareMs": 827.7999999970198,
+            "maxFrameGapMs": 44.5
+          },
+          "localStorageCommit": {
+            "setItemMs": 46.5,
+            "maxFrameGapMs": 48.899999998509884
+          },
+          "workerIdb": {
+            "prepareMs": 1055.6000000014901,
+            "putCallMs": 26.199999999254942,
+            "transactionMs": 42.400000002235174,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 27.100000001490116,
+            "roundTripMs": 1302.1000000014901,
+            "maxFrameGapMs": 99.5
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 1,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 23.399999998509884,
+            "roundTripMs": 1030.300000000745,
+            "prepareMs": 974.3000000007451,
+            "maxFrameGapMs": 25.399999998509884
+          },
+          "localStorageCommit": {
+            "setItemMs": 116.60000000149012,
+            "maxFrameGapMs": 119.5
+          },
+          "workerIdb": {
+            "prepareMs": 1003.1000000014901,
+            "putCallMs": 17.5,
+            "transactionMs": 20.700000002980232,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 32.30000000074506,
+            "roundTripMs": 1131.5,
+            "maxFrameGapMs": 89.39999999850988
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 2,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 28,
+            "roundTripMs": 1043.4000000022352,
+            "prepareMs": 974,
+            "maxFrameGapMs": 30.900000002235174
+          },
+          "localStorageCommit": {
+            "setItemMs": 64.09999999776483,
+            "maxFrameGapMs": 70.29999999701977
+          },
+          "workerIdb": {
+            "prepareMs": 851.5999999977648,
+            "putCallMs": 15.199999999254942,
+            "transactionMs": 30.100000001490116,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 30.599999997764826,
+            "roundTripMs": 998.0999999977648,
+            "maxFrameGapMs": 378.8999999985099
+          }
+        }
+      ]
+    },
+    "save-worker-worker-localstorage-initial.json": {
+      "sourceFingerprint": "76499a3166d26813ac0c19b287dd76ebd206f04f09253e116d3b901af264d9d8",
+      "arm": "worker-localstorage",
+      "idleMaxFrameGapMs": 20.200000002980232,
+      "parityCases": [],
+      "security": {
+        "type": "security",
+        "evalBlocked": true,
+        "fetchBlocked": true,
+        "nestedBlocked": true,
+        "nodeAbsent": true,
+        "imported": true
+      },
+      "rows": [
+        {
+          "actors": 2,
+          "repeat": 0,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 34.399999998509884,
+            "roundTripMs": 1181.199999999255,
+            "prepareMs": 934,
+            "maxFrameGapMs": 36.70000000298023
+          },
+          "localStorageCommit": {
+            "setItemMs": 51.100000001490116,
+            "maxFrameGapMs": 54.899999998509884
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 1,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 27.5,
+            "roundTripMs": 1001.4000000022352,
+            "prepareMs": 941.5999999977648,
+            "maxFrameGapMs": 31
+          },
+          "localStorageCommit": {
+            "setItemMs": 59.69999999925494,
+            "maxFrameGapMs": 80.29999999701977
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 2,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 25.600000001490116,
+            "roundTripMs": 871.1000000014901,
+            "prepareMs": 812.8999999985099,
+            "maxFrameGapMs": 27.5
+          },
+          "localStorageCommit": {
+            "setItemMs": 57.899999998509884,
+            "maxFrameGapMs": 60.69999999925494
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 3,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 28,
+            "roundTripMs": 904,
+            "prepareMs": 846.3000000007451,
+            "maxFrameGapMs": 30.100000001490116
+          },
+          "localStorageCommit": {
+            "setItemMs": 52.099999997764826,
+            "maxFrameGapMs": 56.19999999925494
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 4,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 33,
+            "roundTripMs": 936.9000000022352,
+            "prepareMs": 861.5,
+            "maxFrameGapMs": 41.19999999925494
+          },
+          "localStorageCommit": {
+            "setItemMs": 52.399999998509884,
+            "maxFrameGapMs": 55.099999997764826
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 5,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 31.5,
+            "roundTripMs": 898.5,
+            "prepareMs": 835.8999999985099,
+            "maxFrameGapMs": 34.599999997764826
+          },
+          "localStorageCommit": {
+            "setItemMs": 56,
+            "maxFrameGapMs": 58.5
+          },
+          "workerIdb": null
+        }
+      ]
+    },
+    "save-worker-worker-idb-initial.json": {
+      "sourceFingerprint": "76499a3166d26813ac0c19b287dd76ebd206f04f09253e116d3b901af264d9d8",
+      "arm": "worker-idb",
+      "idleMaxFrameGapMs": 17.900000002235174,
+      "parityCases": [],
+      "security": {
+        "type": "security",
+        "evalBlocked": true,
+        "fetchBlocked": true,
+        "nestedBlocked": true,
+        "nodeAbsent": true,
+        "imported": true
+      },
+      "rows": [
+        {
+          "actors": 2,
+          "repeat": 0,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1133.699999999255,
+            "putCallMs": 27.800000000745058,
+            "transactionMs": 30.599999997764826,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 31.300000000745058,
+            "roundTripMs": 1329.6000000014901,
+            "maxFrameGapMs": 34.100000001490116
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 1,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1262.699999999255,
+            "putCallMs": 18.699999999254942,
+            "transactionMs": 40.19999999925494,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 29.700000002980232,
+            "roundTripMs": 1405.1000000014901,
+            "maxFrameGapMs": 33
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 2,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 887.5,
+            "putCallMs": 16.699999999254942,
+            "transactionMs": 21.699999999254942,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 38,
+            "roundTripMs": 1019.2999999970198,
+            "maxFrameGapMs": 41.69999999925494
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 3,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 933.5,
+            "putCallMs": 23.599999997764826,
+            "transactionMs": 38.80000000074506,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 31.699999999254942,
+            "roundTripMs": 1107.5,
+            "maxFrameGapMs": 34.100000001490116
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 4,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1966.8999999985099,
+            "putCallMs": 26.5,
+            "transactionMs": 37.600000001490116,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 32.69999999925494,
+            "roundTripMs": 2133.7999999970198,
+            "maxFrameGapMs": 133.5
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 5,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1065.199999999255,
+            "putCallMs": 16.900000002235174,
+            "transactionMs": 29.100000001490116,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 28.899999998509884,
+            "roundTripMs": 1267.5999999977648,
+            "maxFrameGapMs": 33
+          }
+        }
+      ]
+    },
+    "save-worker-worker-localstorage.json": {
+      "sourceFingerprint": "23b9037c8e76dd4f4b2a3389e4212a1f7cb580ef10db6aaa3aee55f0541065bf",
+      "arm": "worker-localstorage",
+      "idleMaxFrameGapMs": 18.900000002235174,
+      "parityCases": [
+        "active",
+        "legacy",
+        "unsupported",
+        "damaged-temporal"
+      ],
+      "security": {
+        "type": "security",
+        "evalBlocked": true,
+        "fetchBlocked": true,
+        "nestedBlocked": true,
+        "nodeAbsent": true,
+        "imported": true
+      },
+      "rows": [
+        {
+          "actors": 2,
+          "repeat": 0,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 30.399999998509884,
+            "roundTripMs": 1225.699999999255,
+            "prepareMs": 1032.199999999255,
+            "maxFrameGapMs": 33.099999997764826
+          },
+          "localStorageCommit": {
+            "setItemMs": 55.900000002235174,
+            "maxFrameGapMs": 59.80000000074506
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 1,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 30.300000000745058,
+            "roundTripMs": 910.9000000022352,
+            "prepareMs": 852.6000000014901,
+            "maxFrameGapMs": 33.80000000074506
+          },
+          "localStorageCommit": {
+            "setItemMs": 62.29999999701977,
+            "maxFrameGapMs": 75
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 2,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 38,
+            "roundTripMs": 872,
+            "prepareMs": 801.1000000014901,
+            "maxFrameGapMs": 45.69999999925494
+          },
+          "localStorageCommit": {
+            "setItemMs": 56,
+            "maxFrameGapMs": 59.69999999925494
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 3,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 31.899999998509884,
+            "roundTripMs": 2209,
+            "prepareMs": 1995.9000000022352,
+            "maxFrameGapMs": 464.1000000014901
+          },
+          "localStorageCommit": {
+            "setItemMs": 193,
+            "maxFrameGapMs": 229.60000000149012
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 4,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 98.5,
+            "roundTripMs": 2251.199999999255,
+            "prepareMs": 2050.400000002235,
+            "maxFrameGapMs": 222.10000000149012
+          },
+          "localStorageCommit": {
+            "setItemMs": 79,
+            "maxFrameGapMs": 82.79999999701977
+          },
+          "workerIdb": null
+        },
+        {
+          "actors": 2,
+          "repeat": 5,
+          "bytes": 10619437,
+          "worker": {
+            "dispatchMs": 28.5,
+            "roundTripMs": 1554.4000000022352,
+            "prepareMs": 1469.1000000014901,
+            "maxFrameGapMs": 38
+          },
+          "localStorageCommit": {
+            "setItemMs": 67.39999999850988,
+            "maxFrameGapMs": 71.89999999850988
+          },
+          "workerIdb": null
+        }
+      ]
+    },
+    "save-worker-worker-idb.json": {
+      "sourceFingerprint": "23b9037c8e76dd4f4b2a3389e4212a1f7cb580ef10db6aaa3aee55f0541065bf",
+      "arm": "worker-idb",
+      "idleMaxFrameGapMs": 19.699999999254942,
+      "parityCases": [
+        "active",
+        "legacy",
+        "unsupported",
+        "damaged-temporal"
+      ],
+      "security": {
+        "type": "security",
+        "evalBlocked": true,
+        "fetchBlocked": true,
+        "nestedBlocked": true,
+        "nodeAbsent": true,
+        "imported": true
+      },
+      "rows": [
+        {
+          "actors": 2,
+          "repeat": 0,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1206.5,
+            "putCallMs": 22.399999998509884,
+            "transactionMs": 42.79999999701977,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 40.899999998509884,
+            "roundTripMs": 1436.3999999985099,
+            "maxFrameGapMs": 47.29999999701977
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 1,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1082,
+            "putCallMs": 26.199999999254942,
+            "transactionMs": 46,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 39.599999997764826,
+            "roundTripMs": 1262.7999999970198,
+            "maxFrameGapMs": 43.099999997764826
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 2,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1073,
+            "putCallMs": 21.199999999254942,
+            "transactionMs": 42.19999999925494,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 35.899999998509884,
+            "roundTripMs": 1248.5,
+            "maxFrameGapMs": 39.5
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 3,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1111.699999999255,
+            "putCallMs": 19.899999998509884,
+            "transactionMs": 32.30000000074506,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 33.19999999925494,
+            "roundTripMs": 1273.5,
+            "maxFrameGapMs": 36.19999999925494
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 4,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 933.2000000029802,
+            "putCallMs": 16.899999998509884,
+            "transactionMs": 20.899999998509884,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 43.900000002235174,
+            "roundTripMs": 1069.800000000745,
+            "maxFrameGapMs": 47.69999999925494
+          }
+        },
+        {
+          "actors": 2,
+          "repeat": 5,
+          "bytes": 10619437,
+          "worker": null,
+          "localStorageCommit": null,
+          "workerIdb": {
+            "prepareMs": 1021.6999999992549,
+            "putCallMs": 17.300000000745058,
+            "transactionMs": 29.900000002235174,
+            "durability": "strict",
+            "bytes": 10619437,
+            "dispatchMs": 39.30000000074506,
+            "roundTripMs": 1181.9000000022352,
+            "maxFrameGapMs": 42.400000002235174
+          }
+        }
+      ]
+    }
+  }
+}

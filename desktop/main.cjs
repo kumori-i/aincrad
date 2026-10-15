@@ -3,6 +3,7 @@ const path=require('node:path');
 const { pathToFileURL }=require('node:url');
 const { realpath, readFile, writeFile, mkdir, rename }=require('node:fs/promises');
 const { DEFAULTS, ModelService }=require('./model-provider.cjs');
+const { WORKER_CSP }=require('./security-policy.cjs');
 let modelService;
 const ROOT=path.resolve(__dirname,'..','renderer');
 const DEVELOPMENT=process.argv.includes('--dev')&&!app.isPackaged;
@@ -65,7 +66,11 @@ app.whenReady().then(async()=>{
       if(u.host!=='app'||!ALLOWED.has(name))return new Response('Not found',{status:404});
       const p=await realpath(path.resolve(ROOT,name));
       if(path.relative(ROOT,p).startsWith('..'))return new Response('Forbidden',{status:403});
-      return net.fetch(pathToFileURL(p).toString());
+      const response=await net.fetch(pathToFileURL(p).toString());
+      const headers=new Headers(response.headers);
+      // A worker has its own execution policy; HTML's meta CSP is insufficient.
+      if(name.endsWith('.js'))headers.set('Content-Security-Policy',WORKER_CSP);
+      return new Response(request.method==='HEAD'?null:response.body,{status:response.status,statusText:response.statusText,headers});
     }catch{return new Response('Not found',{status:404});}
   });
   await createWindow();
