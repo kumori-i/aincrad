@@ -4,7 +4,7 @@ import { createDiscoveryMemory,cleanSensoryObject,objectId } from './discovery-s
 import { bodySignals,sensedEnvironment } from './interoception.js';
 import { distance } from './world.js';
 import { rememberedCells,rememberedEdges,lineOfSight } from './perception.js';
-import { knownRoute } from './navigation.js';
+import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
@@ -91,10 +91,14 @@ export function discoveryObservation(npc){
 }
 function routeTarget(npc,point){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc);
-  const home=memory(npc).search.home||npc.position,b=bodySignals(npc),slowed=['winded','exhausted'].includes(b.stamina)||b.fatigue==='exhausted'||b.energy==='depleted'||b.sleepiness==='groggy';
+  const b=bodySignals(npc),slowed=['winded','exhausted'].includes(b.stamina)||b.fatigue==='exhausted'||b.energy==='depleted'||b.sleepiness==='groggy';
   const speed=Math.min(CONFIG.walkSpeed*(slowed?BIOLOGY_RULES.exhaustionWalkMultiplier:1),1/(npc.cognition?.travel?.secondsPerUnit||1/CONFIG.walkSpeed));
-  const choices=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>45&&distance(c,npc.position)<900&&(npc.scene!=='valley'||distance(c,home)<=Math.max(DISCOVERY_RULES.searchRadius,distance(npc.position,home)-40))).sort((a,b)=>distance(a,point)-distance(b,point));
-  for(const c of choices.slice(0,24)){if(distance(c,point)>=distance(npc.position,point)-20)continue;const route=knownRoute(cells,npc.position,c,30,edges,npc.elapsed,npc.navigationAnchor);if(!route)continue;const length=route.reduce((s,p,i)=>s+distance(i?route[i-1]:npc.position,p),0);if(length<speed*(NPC_RULES.maxActionSeconds-1))return {type:'move',target:{x:c.x,y:c.y}};}
+  const routes=createKnownRouteIndex(cells,npc.position,edges,npc.elapsed,npc.navigationAnchor);
+  // Invalid endpoints cannot consume the nearest-24 budget ahead of a usable
+  // care route. Admission uses the same observed search and exact path costs.
+  const choices=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>45&&distance(c,npc.position)<900).sort((a,b)=>distance(a,point)-distance(b,point));
+  let admitted=0;
+  for(const c of choices){if(admitted>=24)break;const route=routes.metrics(c,30);if(!route||!(route.returnedLength<speed*(NPC_RULES.maxActionSeconds-1)))continue;admitted++;if(distance(c,point)>=distance(npc.position,point)-20)continue;return {type:'move',target:{x:c.x,y:c.y}};}
   return null;
 }
 // All consumption paths use the same observed constraints. A swallowing refusal
@@ -224,7 +228,7 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&npc.inventory.items.length<DISCOVERY_RULES.capacity){const technique=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position))[0];if(technique){d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};const action=learnedStep(npc);if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');}}
   const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if((object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
-  const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||lineOfSight(npc.position,o.position,npc.scene))&&(npc.scene!=='valley'||npc.inventory.items.includes(o.id)||distance(o.position,d.search.home||npc.position)<=DISCOVERY_RULES.searchRadius));
+  const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||lineOfSight(npc.position,o.position,npc.scene)));
   const choices=[];
   for(const object of objects){
     const held=npc.inventory.items.includes(object.id),near=held||distance(npc.position,object.position)<=DISCOVERY_RULES.reach;
@@ -244,9 +248,8 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   const targets=objects.filter(o=>distance(o.position,npc.position)>DISCOVERY_RULES.reach).map(o=>({o,score:5/(1+Object.entries(d.trials||{}).filter(([key])=>key.startsWith(`${o.id}|`)).reduce((sum,[,t])=>sum+t.attempts,0))-distance(o.position,npc.position)/1500+random(npc)})).sort((a,b)=>b.score-a.score);
   for(const target of targets.slice(0,4)){const move=routeTarget(npc,target.o.position);if(move)choices.push({action:move,score:target.score,reason:'I can approach an unfamiliar object within my observed map.'});}
   if(npc.scene==='valley'){
-    const home=d.search.home||npc.position;
-    if(distance(npc.position,home)>DISCOVERY_RULES.searchRadius){const move=routeTarget(npc,home);if(move)return wrap(move,'I am returning along remembered terrain after a bounded investigation.','safety');}
-    const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900&&distance(c,home)<DISCOVERY_RULES.searchRadius).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);
+    // Exploration stays local to observed terrain and bounded actions, not the first observation's coordinates.
+    const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);
     for(const {c} of candidate.slice(0,8)){const move=routeTarget(npc,c);if(move){choices.push({action:move,score:2.5/(1+(c.visits||0))+random(npc),reason:'I can investigate another locally observed patch of terrain.'});break;}}
   }
   if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
