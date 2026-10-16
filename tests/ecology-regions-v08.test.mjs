@@ -1,3 +1,4 @@
+import {legacySave,legacyEcology} from './legacy-save-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync, readFileSync, writeFileSync, rmSync} from 'node:fs';
@@ -179,10 +180,10 @@ function migrationFixture(version,{empty=false}={}){
     state.cardinal.diagnoses.push({id:'cardinal:diagnosis:1',at:120,code:'PRIOR_PROBE',severity:'info',summary:'A recorded pre-migration observation.',evidence:{stock:17.25}});
   }
   // Canonicalize first, then downgrade only the representation/migration markers.
-  const canonical=validateSave(state,{restoring:false});canonical.environment.ecology.distributionVersion=version;
+  const canonical=legacySave(validateSave(state,{restoring:false}));canonical.environment.ecology.distributionVersion=version;
   delete canonical.environment.ecology.regionalVersion;delete canonical.environment.ecology.regions;return canonical;
 }
-function preserved(e){const {distributionVersion,regionalVersion,regions,...existing}=e;return existing;}
+function preserved(e){const {distributionVersion,regionalVersion,regions,...existing}=legacyEcology(structuredClone(e));return existing;}
 for(const version of [1,2]){
   test(`distribution v${version} migration preserves exact objects, bodies, depletion and authored evidence`,()=>{
     const old=migrationFixture(version),before=clone(old),rawText=JSON.stringify(old);
@@ -230,11 +231,12 @@ test('regional sanitizer is bounded and allowlisted without refilling missing or
   const e=fixture(),source=separatePlants('grass')[0];putSoil(e,source.position,5);const raw=clone(e);
   raw.regions[0].script='do not execute';raw.regions[0].nutrients=1e50;raw.regions[1].nutrients=-100;
   raw.regions.push(...Array.from({length:500},()=>({id:'untrusted:extra',nutrients:1e99,script:'discard'})));
-  const restored=validateEcology(raw);assert.equal(restored.regions.length,R.habitatGridSize**2);
+  assert.throws(()=>validateEcology(raw),/Protected lifecycle save/);
+  const restored=validateEcology(legacyEcology(raw));assert.equal(restored.regions.length,R.habitatGridSize**2);
   assert.equal(new Set(restored.regions.map(r=>r.id)).size,restored.regions.length);
   assert.ok(restored.regions.every(r=>Number.isFinite(r.nutrients)&&r.nutrients>=0));assert.ok(sumRegions(restored,'nutrients')<=5);
   assert.doesNotMatch(JSON.stringify(restored.regions),/script|untrusted/);
-  const missing=clone(e);missing.regions=[];const empty=validateEcology(missing);
+  const missing=clone(e);missing.regions=[];assert.throws(()=>validateEcology(missing),/Protected lifecycle save/);const empty=validateEcology(legacyEcology(missing));
   assert.equal(sumRegions(empty,'nutrients'),0);assert.equal(regionalResourceAudit(empty).unassigned.nutrients,5);
 });
 
@@ -274,7 +276,7 @@ test('detritus capacity loss is explicit and conserves independent material mass
 
 test('legacy v1/v2 saves retain legacy rules, prior body and depleted stock without regional seeding',()=>{
   for(const version of [1,2]){
-    const raw=freshState({mode:'legacy'});raw.version=version;raw.elapsed=raw.environment.elapsed=123;
+    const raw=freshState({mode:'legacy'});legacySave(raw,version);raw.elapsed=raw.environment.elapsed=123;
     raw.agents[0].hydration=57;raw.agents[0].memory.lessons.push({at:120,verified:'A prior learned routine.',hypothesis:'A possible alternative.'});
     for(const entry of raw.environment.foodStocks){entry.stock=0;entry.renewAt=3600;}
     const restored=validateSave(raw,{restoring:false});assert.equal(restored.simulationMode,'legacy');
@@ -292,7 +294,8 @@ for(const [name,damage]of [
   const e=fixture({plants:[local,fruit]});e.plants[0].biomassGrams=500;e.plants[0].moisture=.7;e.plants[1].quantity=0;e.plants[1].growth=1;
   assert.equal(regionAt(e,local.position).id,regionAt(e,fruit.position).id);
   putSoil(e,remote.position,100);resetBudget(e);damage(e);
-  const restored=validateEcology(e);assert.equal(restored.regionalVersion,1);
+  assert.throws(()=>validateEcology(e),/Protected lifecycle save/);
+  const restored=validateEcology(legacyEcology(clone(e)));assert.equal(restored.regionalVersion,1);
   assert.equal(regionAt(restored,local.position).nutrients,0);assert.equal(sumRegions(restored,'nutrients'),0);
   assert.equal(regionalResourceAudit(restored).unassigned.nutrients,100);tick(restored,10);
   assert.equal(restored.plants[0].biomassGrams,500);assert.equal(restored.plants[1].quantity,0);

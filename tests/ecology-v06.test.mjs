@@ -1,3 +1,4 @@
+import {legacyEcology} from './legacy-save-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, CAVE_SPAWN } from '../src/config.js';
@@ -84,7 +85,8 @@ test('death and decomposition transfer bounded tissue to detritus and soil nutri
 test('validation bounds hostile data and preserves valid ecosystem state',()=>{
   const e=createEcology();assert.deepEqual(validateEcology(JSON.parse(JSON.stringify(e)),{seed:e.seed,elapsed:e.elapsed}),e);
   const p=e.plants[0],pull=interactEcologyObject(e,p.id,'pull',context(p));lookupEcologyObject(e,pull.materialId).energyKcal=1e12;e.animals[0].species='dragon';e.materials[0].script='eval(1)';e.plants.push({...e.plants[0]});
-  const restored=validateEcology(e);assert.ok(!restored.animals.some(a=>a.species==='dragon'));assert.ok(lookupEcologyObject(restored,pull.materialId).energyKcal<=95);assert.equal('script'in restored.materials[0],false);assert.equal(new Set(restored.plants.map(p=>p.id)).size,restored.plants.length);
+  assert.throws(()=>validateEcology(e),/Protected lifecycle save/);
+  const restored=validateEcology(legacyEcology(e));assert.ok(!restored.animals.some(a=>a.species==='dragon'));assert.ok(lookupEcologyObject(restored,pull.materialId).energyKcal<=95);assert.equal('script'in restored.materials[0],false);assert.equal(new Set(restored.plants.map(p=>p.id)).size,restored.plants.length);
 });
 test('two game weeks of a grazing colony remain bounded and conserve the ecological energy budget',()=>{
   const e=createEcology(),rabbits=e.animals.filter(a=>a.species==='rabbit').slice(0,2),plants=e.plants.slice(0,6);e.animals=rabbits;e.plants=plants;

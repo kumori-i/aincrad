@@ -59,6 +59,10 @@ app.on('browser-window-created',(_event,win)=>{
      for(const key of Object.keys(e.ledger))e.ledger[key]=0;e.ledger.initialKcal=ecologyEnergy(e);
      e.detritus.nutrients=37;e.distributionVersion=2;delete e.regionalVersion;delete e.regions;
      raw.npc=raw.agents[0];
+     // Genuine v6 representation, before the juvenile schema existed.
+     raw.version=6;delete raw.features;delete e.lifecycle;
+     for(const p of e.plants)for(const k of ['lifecycleStage','structureMassGrams','structureKcal','structureWaterMl','recruitedAt','parentMaterialId'])delete p[k];
+     for(const m of e.materials)for(const k of ['seedOpportunity','nextGerminationAt'])delete m[k];
      localStorage.setItem(CONFIG.saveKey,JSON.stringify(raw));
      const expected=validateSave(raw),runtime=new PopulationRuntime(expected),checkpoint=structuredClone(expected);runtime.dispose();
      return {expected:checkpoint,plantId:plant.id,heldId,grassId:grass.id,refusalEventId};

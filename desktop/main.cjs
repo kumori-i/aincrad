@@ -95,7 +95,7 @@ async function runSmoke(){
       const status=await window.aincradAgent.status();assert(status.enabled===false,'Smoke inference must be disabled');
       document.getElementById('watch-aster').click();
       const initial=window.__aincrad.snapshot(),pair=initial.agents;
-      assert(initial.version===6&&initial.simulationMode==='discovery','Fresh expedition must use discovery rules');
+      assert(initial.version===8&&initial.features?.plantLifecycle===1&&initial.simulationMode==='discovery','Fresh expedition must use discovery rules');
       assert(pair.length===2&&pair[0].id==='aster'&&pair[1].id==='mira','The two independent characters are absent');
       for(const n of pair){
         assert(n.mode==='discovery'&&n.physiology&&n.health===100,'Game-hour body did not initialize');

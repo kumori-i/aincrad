@@ -11,7 +11,7 @@ const storage=()=>{const m=new Map();return {getItem:key=>m.get(key)??null,setIt
 const socialFor=state=>new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>state.environment});
 
 test('new expeditions use discovery actors and one authoritative ecosystem, while historical fixtures are explicit',()=>{
-  const state=freshState();assert.equal(state.version,6);assert.equal(state.simulationMode,'discovery');assert.equal(state.environment.mode,'discovery');assert.ok(state.environment.ecology);assert.equal('ecology' in state,false);
+  const state=freshState();assert.equal(state.version,8);assert.equal(state.simulationMode,'discovery');assert.equal(state.environment.mode,'discovery');assert.ok(state.environment.ecology);assert.equal('ecology' in state,false);
   for(const npc of state.agents){assert.equal(npc.version,4);assert.equal(npc.mode,'discovery');assert.ok(npc.physiology);assert.ok(npc.discovery);assert.equal(npc.discovery.techniques.length,0);assert.equal(npc.discovery.effects.length,0);assert.equal(npc.inventory.apples.length,0);}
   assert.deepEqual(state.environment.foodStocks,[]);assert.equal(createEnvironment().ecology,undefined);assert.equal(freshState({mode:'legacy'}).simulationMode,'legacy');
 });
@@ -29,7 +29,7 @@ test('saved discovery world retains independent physiology, evidence, ecology an
 test('v1-v4 saves preserve prior rules and facts instead of relabeling them cold-start discoveries',()=>{
   for(const version of [1,2,3,4]){
     const npc=createNpc();npc.elapsed=44;npc.hydration=57;npc.memory.lessons.push({at:43,verified:'An old acquired water routine.',hypothesis:'Another source may exist.'});
-    const state=validateSave({version,elapsed:44,npc,environment:createEnvironment()});assert.equal(state.version,6);assert.equal(state.simulationMode,'legacy');assert.equal(state.npc.hydration,57);assert.equal(state.npc.memory.lessons[0].verified,npc.memory.lessons[0].verified);assert.equal(state.environment.ecology,undefined);assert.equal(state.agents[1].elapsed,44);
+    const state=validateSave({version,elapsed:44,npc,environment:createEnvironment()});assert.equal(state.version,8);assert.equal(state.simulationMode,'legacy');assert.equal(state.npc.hydration,57);assert.equal(state.npc.memory.lessons[0].verified,npc.memory.lessons[0].verified);assert.equal(state.environment.ecology,undefined);assert.equal(state.agents[1].elapsed,44);
   }
 });
 

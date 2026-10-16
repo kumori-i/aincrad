@@ -77,7 +77,7 @@ test('cause-aware rescue is scene-safe, idempotent, does not refill supplies or 
 test('body, scene maps and depleted resources survive save/restart without executing arbitrary fields',()=>{
   const state=freshState(),{npc,env,shelter}=shelterFixture();state.npc=npc;state.environment=env;requestNpcAction(npc,{type:'enter_shelter',shelterId:shelter.id},env);npc.thermal.hot=30;npc.nourishment=25;npc.health=78;env.foodStocks[0].stock=0;state.elapsed=17;env.elapsed=17;npc.elapsed=17;
   const store=storage();assert.equal(writeSave(store,state),true);const restored=loadSave(store).state;assert.equal(restored.npc.scene,'refuge');assert.equal(restored.npc.nourishment,25);assert.equal(restored.npc.health,78);assert.equal(restored.npc.thermal.hot,30);assert.equal(restored.environment.foodStocks[0].stock,0);assert.ok(Object.keys(restored.npc.memory.caveCells.refuge).length>0);
-  const old=validateSave({version:2,elapsed:100,npc:{...npc,version:1,scene:'valley',position:{x:276,y:760}}});assert.equal(old.version,6);assert.equal(old.npc.id,'aster');assert.ok(Number.isFinite(old.npc.nourishment));assert.equal(old.environment.elapsed,100);
+  const old=validateSave({version:2,elapsed:100,npc:{...npc,version:1,scene:'valley',position:{x:276,y:760}}});assert.equal(old.version,8);assert.equal(old.npc.id,'aster');assert.ok(Number.isFinite(old.npc.nourishment));assert.equal(old.environment.elapsed,100);
 });
 test('cave perception respects walls and interruption creates a real bounded action outcome',()=>{
   const {npc,env,shelter}=shelterFixture();requestNpcAction(npc,{type:'enter_shelter',shelterId:shelter.id},env);assert.equal(lineOfSight(CAVE_SPAWN,{x:0,y:0},'refuge'),false);

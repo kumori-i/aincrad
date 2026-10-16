@@ -4,6 +4,14 @@ An original pixel-art desktop world with two persistent characters, **Aster and 
 
 The current development increment adds a **regional ecology foundation**: five terrain/water/climate habitat profiles, local finite soil and litter stocks, sparse prey-budgeted predator placement, and physically checked resource corridors. Existing expeditions retain their objects, depletion, people and memories. This is the first stage of the [v0.8 development plan](docs/DEVELOPMENT-v08.md), not a claim that the inhabitants can yet sustain themselves or migrate intelligently. See [regional verification](docs/TESTING-regional-foundation.md) for measured limits.
 
+The plant-life increment adds finite apple-derived seedlings and visibly growing,
+fruitless juveniles. Recruitment transfers existing material; growth consumes
+local soil and records photosynthetic inputs. Existing trees gain no invented
+historical wood. Old saves migrate without new seeds or refilled stock. See
+[plant lifecycle verification](docs/TESTING-plant-lifecycle.md) for the bounded
+physics, native desktop checks and limits. Mature forests, finite water flow and
+learned reasons to relocate remain later milestones.
+
 Bounded controller experiments now cover [discovery retry/feedback correctness](docs/TESTING-discovery-throughput.md), [evidence-supported repetition on one held item](docs/TESTING-supported-consumption.md), and [remembered rest refusals with learned care](docs/TESTING-rest-arbitration.md). The rest work corrects an apparent deadlock into a temporary store-supported recovery spell and measures a real feeding/rest trade-off. These experiments do not yet establish sustained self-feeding.
 
 ## Clone, build, and run
