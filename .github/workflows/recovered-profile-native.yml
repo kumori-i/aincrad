@@ -1,0 +1,65 @@
+name: Recovered profile native QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/recovered-profile-native.yml'
+      - 'desktop/**'
+      - 'src/**'
+      - 'scripts/build.mjs'
+      - 'scripts/bundle.mjs'
+      - 'scripts/verify-recovered-native.mjs'
+      - 'tests/native-profile-qa-driver.cjs'
+      - 'tests/native-synthetic-fixture.mjs'
+      - 'tests/windows-recovered-capability.test.mjs'
+      - 'index.html'
+      - 'style.css'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copied-profile:
+    strategy:
+      fail-fast: false
+      # Bounded sandbox-preserving pilot: ubuntu-22.04 is deprecated and retires
+      # 2027-04-17. Prior ubuntu-24.04 failure: actions/runs/38935216638.
+      # https://github.com/actions/runner-images/issues/14254
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run Windows source checks, including the capability gate
+        if: runner.os == 'Windows'
+        run: npm run check
+      - name: Verify Windows recovered-copy capability is unavailable and guarded
+        if: runner.os == 'Windows'
+        run: node --test tests/windows-recovered-capability.test.mjs
+      - name: Smoke-test the ordinary Windows desktop in a disposable original profile
+        if: runner.os == 'Windows'
+        run: npm run smoke
+      # The generated fixture contains no archived world or real profile bytes.
+      - name: Exercise Linux copied-profile import and reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-recovered-native.mjs --ci-synthetic
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Linux'
+        with:
+          name: recovered-profile-native-${{ runner.os }}
+          path: |
+            test-results/recovered-native-synthetic-summary.json
+            test-results/recovered-native-synthetic-*.png
+            test-results/recovered-native-failure.png
+          if-no-files-found: warn
+          retention-days: 7
