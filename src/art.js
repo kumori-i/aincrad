@@ -283,6 +283,15 @@ export function drawFauna(g,animal,time){
 /** Ecology sprites reflect persisted visual state. Drawing never advances a body or resource. */
 export function drawEcologyObject(g,object,time,subject=null){
   const kind=object.kind,quantity=Math.max(0,Math.floor(object.quantity||0)),stage=object.stage||'growing';
+  if(kind==='apple_tree'&&['seedling','juvenile'].includes(stage)){
+    g.save();g.translate(snap(object.x),snap(object.y));g.scale(ART_PIXEL,ART_PIXEL);
+    const ratio=Math.max(0,Math.min(1,object.structureRatio||0)),height=Math.round(9+ratio*25),young=stage==='seedling';
+    pixelOval(g,0,1,young?5:10,2,'#243c2b44');rect(g,-1,-height,2,height,young?'#719047':'#8e6942');
+    pixelPoly(g,[[-1,-height+2],[-7,-height-1],[-7,-height+3],[-2,-height+5]],'#77a94c');
+    pixelPoly(g,[[0,-height+3],[7,-height-3],[8,-height+1],[2,-height+6]],'#9abd5d');
+    if(!young){pixelLine(g,[[0,-height*.45],[-7,-height*.65]],'#8e6942',1);pixelOval(g,-8,-height*.68,5,3,'#658f43');pixelOval(g,4,-height-3,4,3,'#aecb6f');}
+    g.restore();return;
+  }
   if(kind==='apple_tree'&&stage!=='bare'){
     drawObject(g,{kind:'oak',x:object.x,y:object.y,variant:stage==='ripe'?4:1,scale:.82},subject);
     g.save();g.translate(snap(object.x),snap(object.y));g.scale(ART_PIXEL,ART_PIXEL);

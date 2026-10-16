@@ -1,3 +1,4 @@
+import {legacyEcology} from './legacy-save-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createEcology,validateEcology,migrateEcologyDistribution,ecologyCoverage,ecologyEnergy,tickEcology,senseEcology,lookupEcologyObject,interactEcologyObject} from '../src/ecology.js';
@@ -44,7 +45,8 @@ test('old discovery habitats partition existing stocks once without adding objec
 
 test('invalid remote placement never falls back to the starting area',()=>{
   const e=createEcology();e.plants[0].position={x:24000,y:24000};e.animals[0].position={x:24000,y:24000};
-  const plantId=e.plants[0].id,animalId=e.animals[0].id,restored=validateEcology(e);
+  assert.throws(()=>validateEcology(e),/Protected lifecycle save/);
+  const plantId=e.plants[0].id,animalId=e.animals[0].id,restored=validateEcology(legacyEcology(e));
   assert.equal(lookupEcologyObject(restored,plantId),null);assert.equal(lookupEcologyObject(restored,animalId),null);
   assert.equal(restored.plants.length,e.plants.length-1);assert.equal(restored.animals.length,e.animals.length-1);
 });

@@ -7,11 +7,16 @@ import { BIOLOGY_PROFILES } from './biology-config.js';
 import { getWorldRule } from './world-rules.js';
 import { habitatConditions, plantSuitability, initializeRegions, validateRegions, regionAt, consumeSoil } from './ecology-regions.js';
 import { buildHabitatCorridors, sampleCorridor } from './ecology-corridors.js';
+import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss } from './plant-lifecycle.js';
+import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, lifecycleError, hasLifecyclePayload, PLANT_FIELDS, MATERIAL_FIELDS, stockTolerance, lifecycleStockAudit, lifecycleRestorationError } from './plant-lifecycle-state.js';
 
 const finite = (v,f=0) => Number.isFinite(v)?v:f;
 const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,finite(v,lo)));
 const hours = seconds => seconds / CONFIG.dayRealSeconds * 24;
 const positionOf = actor => actor?.position || actor;
+// Preserve floating-point stock roundoff rather than manufacturing a transfer
+// during restoration; materially out-of-bound values retain legacy clipping.
+const stockClamp=(v,lo,hi)=>Number.isFinite(v)&&v>=lo-stockTolerance(v,lo)&&v<=hi+stockTolerance(v,hi)?v:clamp(v,lo,hi);
 const idPattern = /^object:[1-9][0-9]{0,8}$/;
 const speciesNames = Object.keys(SPECIES);
 const materialNames = Object.keys(MATERIALS);
@@ -64,7 +69,7 @@ function plant(e,kind,p,index) {
   const count=kind==='grass'||!ripe?0:Math.round(capacity*(.55+hash(index,8,e.seed)*.35));
   const out={id:nextId(e),kind,scene:'valley',position:point,capacity,quantity:count,
     biomassGrams:kind==='grass'?capacity*(.7+hash(index,9,e.seed)*.2):0,moisture:habitatConditions(point).moisture,
-    stage:kind==='grass'?'green':ripe?'ripe':seasonDay>=start-12&&seasonDay<start?seasonDay<start-8?'flowering':'growing':'bare',growth:0,seasonIndex:Math.floor(absoluteSeason/R.yearDays),fallHours:0,ageDays:kind==='apple_tree'?2000:400};
+    stage:kind==='grass'?'green':ripe?'ripe':seasonDay>=start-12&&seasonDay<start?seasonDay<start-8?'flowering':'growing':'bare',growth:0,seasonIndex:Math.floor(absoluteSeason/R.yearDays),fallHours:0,ageDays:kind==='apple_tree'?2000:400,...freshPlantLifecycle()};
   e.plants.push(out);invalidateIndex(e);return out;
 }
 function animal(e,species,p,elapsed=0,{juvenile=false,energyKcal,structureKcal}={}){
@@ -186,7 +191,7 @@ export function ecologyHabitatAudit(e){
 /** Authoritative starting ecosystem. Tree/animal labels remain private to the engine. */
 export function createEcology(seed=CONFIG.seed,elapsed=0) {
   const e={version:R.version,distributionVersion:R.distributionVersion,seed:Number.isInteger(seed)?seed>>>0:CONFIG.seed,elapsed:Math.max(0,finite(elapsed)),pending:0,nextId:1,
-    plants:[],animals:[],materials:[],detritus:{massGrams:0,nutrients:2500,energyKcal:0},ledger:emptyLedger(),births:0,deaths:0};
+    plants:[],animals:[],materials:[],detritus:{massGrams:0,nutrients:2500,energyKcal:0},ledger:emptyLedger(),lifecycle:freshLifecycleLedger(),births:0,deaths:0};
   seedRegionalWorld(e);
   e.detritus.nutrients=Math.max(2500,e.plants.length*34);
   initializeRegions(e);
@@ -207,7 +212,7 @@ export function ecologyCoverage(e){
     bounds:objects.length?{minX:Math.min(...objects.map(o=>o.position.x)),maxX:Math.max(...objects.map(o=>o.position.x)),minY:Math.min(...objects.map(o=>o.position.y)),maxY:Math.max(...objects.map(o=>o.position.y))}:null,
     plants:plants.length,animals:animals.length,species:Object.fromEntries(speciesNames.map(s=>[s,animals.filter(a=>a.species===s).length]))};
 }
-function plantEnergy(p){return p.kind==='grass'?p.biomassGrams*R.grassKcalPerGram:p.quantity*(p.kind==='apple_tree'?MATERIALS.apple.energyKcal:MATERIALS.berry.energyKcal);}
+function plantEnergy(p){return (p.kind==='grass'?p.biomassGrams*R.grassKcalPerGram:p.quantity*(p.kind==='apple_tree'?MATERIALS.apple.energyKcal:MATERIALS.berry.energyKcal))+finite(p.structureKcal);}
 function bodyEnergy(p){return Math.max(0,finite(p?.availableEnergyKcal))+Math.max(0,finite(p?.storedEnergyKcal))+(p?.stomach||[]).reduce((n,v)=>n+Math.max(0,finite(v.remainingKcal)),0);}
 /** An engine audit, never an agent observation. Transfers are counted once. */
 export function ecologyEnergy(e) {
@@ -223,6 +228,7 @@ function appearance(o){
     const s=o.species;
     return {shape:s==='rabbit'?'small furry body with long ears':s==='bobcat'?'stocky furry body with a short tail':'slender furry body with a long bushy tail',color:s==='rabbit'?'brown-grey':s==='bobcat'?'mottled brown':'russet and pale',texture:'fur',sound:o.activity==='chasing'?'rapid footfalls':o.activity==='sleeping'?'quiet breathing':'soft rustling'};
   }
+  if(o.lifecycleStage==='juvenile')return{shape:o.stage==='seedling'?'small stem with a few leaves':'slender branching stem with leaves',color:o.moisture<.1?'yellow-green and brown':'green and brown',texture:o.stage==='seedling'?'soft stem':'thin bark',details:'leaves above the ground'};
   if(o.kind==='apple_tree')return{shape:'branching trunk with a leafy crown',color:o.stage==='flowering'?'green and pale blossoms':'brown and green',texture:'rough bark',details:o.quantity?'round red-green growths among leaves':o.stage==='growing'?'small green growths among leaves':'bare branches among leaves'};
   if(o.kind==='bramble')return{shape:'low tangled stems',color:'green and purple',texture:'prickly stems',details:o.quantity?'small purple clusters':'leaves and stems'};
   if(o.kind==='grass')return{shape:'tuft of narrow blades',color:o.moisture<.2?'yellow-green':'green',texture:'fibrous',details:o.biomassGrams<100?'closely cropped':'dense blades'};
@@ -246,14 +252,14 @@ export function describeEcologyObject(e,id,{actorId}={}) {
 export function renderEcology(e,scene='valley') {
   if(!e)return[];
   return [...e.plants,...e.animals,...e.materials].filter(o=>o.scene===scene&&!o.heldBy).map(o=>({id:o.id,kind:o.species||o.kind,scene:o.scene,position:{...o.position},x:o.position.x,y:o.position.y,
-    stage:o.stage|| (o.spoiled?'spoiled':'fresh'),quantity:o.quantity??1,biomass:o.biomassGrams,biomassRatio:o.kind==='grass'?clamp(o.biomassGrams/o.capacity,0,1):undefined,
+    stage:o.stage|| (o.spoiled?'spoiled':'fresh'),structureRatio:o.lifecycleStage==='juvenile'?clamp(o.structureMassGrams/J.maxMassGrams,0,1):undefined,quantity:o.quantity??1,biomass:o.biomassGrams,biomassRatio:o.kind==='grass'?clamp(o.biomassGrams/o.capacity,0,1):undefined,
     facing:o.species?{x:Math.cos(o.direction),y:Math.sin(o.direction)}:undefined,
     activity:o.activity||'idle',sleeping:o.species?isSleeping(o):false,shape:appearance(o).shape,color:appearance(o).color}));
 }
 function addDetritus(e,mass,energy,position,scene='valley'){
   mass=Math.max(0,mass);energy=Math.max(0,energy);
   const admitted=Math.min(mass,Math.max(0,R.maxDetritus-e.detritus.massGrams));
-  const retained=mass>0?energy*admitted/mass:energy;
+  const retained=mass>0?Math.min(energy,energy*admitted/mass):energy;
   e.detritus.massGrams+=admitted;e.detritus.energyKcal+=retained;e.ledger.discardedKcal+=energy-retained;
   e.ledger.discardedDetritusMassGrams=(e.ledger.discardedDetritusMassGrams||0)+mass-admitted;
   const region=position?regionAt(e,position,scene):null;
@@ -264,7 +270,7 @@ function addMaterial(e,type,pos,{massGrams,energyKcal,waterMl,heldBy=null,kind='
   if(e.materials.length>=R.maxMaterials||!pos){e.ledger.discardedKcal+=Math.max(0,finite(energyKcal,def.energyKcal));addDetritus(e,finite(massGrams,def.massGrams),0,pos);return null;}
   const m={id:nextId(e),kind,materialType:type,scene:'valley',position:{...pos},heldBy,
     massGrams:Math.max(0,finite(massGrams,def.massGrams)),energyKcal:Math.max(0,finite(energyKcal,def.energyKcal)),waterMl:Math.max(0,finite(waterMl,def.waterMl)),
-    createdAt:e.elapsed,ageHours:0,spoiled:false,digestHours:def.digestHours,toxicity:def.toxicity||0};
+    createdAt:e.elapsed,ageHours:0,spoiled:false,digestHours:def.digestHours,toxicity:def.toxicity||0,...freshMaterialLifecycle(type==='apple'&&kind==='material',e.elapsed)};
   e.materials.push(m);invalidateIndex(e);return m;
 }
 function detached(e,p,actorId){
@@ -348,10 +354,13 @@ function growPlants(e,dt,environment){
   const day=hours(dt)/24,s=season(e,environment),weather=environment?.settings?.weatherOverride||environment?.weather?.kind||'clear';
   const growthMultiplier=getWorldRule(environment,'plantGrowthMultiplier'),yieldMultiplier=getWorldRule(environment,'fruitYieldMultiplier');
   const hour=Number.isFinite(environment?.settings?.hourOverride)?environment.settings.hourOverride:(CONFIG.startHour+hours(e.elapsed))%24,sun=hour>=6&&hour<=19?1:.08;
-  const rain=weather==='rainy'?getWorldRule(environment,'rainfallMultiplier'):0;
+  const rain=weather==='rainy'?getWorldRule(environment,'rainfallMultiplier'):0,dead=[];
   for(const p of e.plants){
     const site=e.regionalVersion===1?plantConditions(p):null;
     p.ageDays+=day;p.moisture=clamp(p.moisture+day*((rain>0?.42*rain:-.06)+(site?(site.moisture-p.moisture)*.35:0)),0,1);
+    if(p.lifecycleStage==='juvenile'){
+      if(growJuvenile(e,p,day,sun===1?1:0,site,growthMultiplier))dead.push(p);continue;
+    }
     if(p.kind==='grass'){
       const before=p.biomassGrams,growth=Math.min((regionAt(e,p.position)?.nutrients??e.detritus.nutrients)/.004,R.grassGrowthGramsPerDay*growthMultiplier*(site?.productivity??1)*day*sun*(.15+p.moisture*.85)*Math.max(.03,p.biomassGrams/p.capacity)*(1-p.biomassGrams/p.capacity));
       const added=consumeSoil(e,p.position,Math.max(0,growth)*.004)/.004;
@@ -379,7 +388,61 @@ function growPlants(e,dt,environment){
         addMaterial(e,p.kind==='apple_tree'?'apple':'berry',safePoint(p.position.x+45,p.position.y+30),{energyKcal:def.energyKcal});}
     }
   }
+  if(dead.length){for(const p of dead)e.plants.splice(e.plants.indexOf(p),1);invalidateIndex(e);}
 }
+/** Juveniles have no fruit or retroactive mature biomass. All structural input
+ * is explicit; actual local soil admission, not requested demand, funds growth. */
+function growJuvenile(e,p,days,daylight,site,multiplier){
+  const current={massGrams:p.structureMassGrams,energyKcal:p.structureKcal,waterMl:p.structureWaterMl};
+  const region=regionAt(e,p.position),crowding=nearby(e,p.position,'valley',64).filter(o=>o!==p&&o.kind==='apple_tree').length;
+  const growth=juvenileGrowth(current,{days,moisture:p.moisture,daylight,productivity:(site?.productivity??0)/(1+crowding*.5),multiplier,soilNutrients:region?.nutrients??0});
+  if(growth&&growth.nutrientCost>0){
+    const taken=consumeSoil(e,p.position,growth.nutrientCost),g=Math.min(growth.input.massGrams,taken/J.nutrientsPerGram);
+    const energy=g*J.growthKcalPerGram,water=g*J.growthWaterMlPerGram;
+    current.massGrams+=g;current.energyKcal+=energy;current.waterMl+=water;
+    e.lifecycle.growthMassGrams+=g;e.lifecycle.growthKcal+=energy;e.lifecycle.growthWaterMl+=water;e.lifecycle.nutrientUptake+=taken;
+    e.ledger.photosynthesisKcal+=energy;
+  }
+  const loss=juvenileLoss(current,{days,moisture:p.moisture});
+  if(loss&&loss.lost.massGrams>0){
+    addDetritus(e,loss.lost.massGrams,loss.lost.energyKcal,p.position);
+    e.lifecycle.lostMassGrams+=loss.lost.massGrams;e.lifecycle.lostKcal+=loss.lost.energyKcal;e.lifecycle.releasedWaterMl+=loss.lost.waterMl;
+  }
+  const remaining=loss?.remaining??current;
+  p.structureMassGrams=remaining.massGrams;p.structureKcal=remaining.energyKcal;p.structureWaterMl=remaining.waterMl;
+  p.quantity=0;p.capacity=0;p.growth=0;p.fallHours=0;p.stage=p.structureMassGrams<20?'seedling':'juvenile';
+  if(loss?.terminal){e.lifecycle.deadJuveniles++;return true;}return false;
+}
+function recruitmentPoint(e,m){
+  const candidates=[{...m.position}];
+  for(const radius of [12,24])for(let a=0;a<8;a++)candidates.push({x:m.position.x+Math.cos(a*Math.PI/4)*radius,y:m.position.y+Math.sin(a*Math.PI/4)*radius});
+  return candidates.find(p=>canStandOutside(p.x,p.y,10)&&waterDistance(p.x,p.y)>=12&&plantSuitability('apple_tree',p)&&
+    !nearby(e,p,'valley',32).some(o=>o.kind==='apple_tree'&&distance(o.position,p)<(o.lifecycleStage==='juvenile'?24:32)))||null;
+}
+/** At most four due attempts per ecology step, fixed order and 12-game-hour
+ * retry. Attempts never move the source or consume it without a viable plant. */
+function recruitJuveniles(e){
+  if(e.regionalVersion!==1)return;
+  const due=e.materials.filter(m=>m.seedOpportunity&&m.massGrams>=J.seedMassGrams&&!m.heldBy&&m.scene==='valley'&&m.ageHours>=J.germinationAgeHours&&m.nextGerminationAt<=e.elapsed)
+    .sort((a,b)=>a.nextGerminationAt-b.nextGerminationAt||Number(a.id.slice(7))-Number(b.id.slice(7))).slice(0,4);
+  for(const m of due){
+    const transfer=seedTransfer(m);if(!transfer)continue;
+    e.lifecycle.attempts++;m.nextGerminationAt=e.elapsed+CONFIG.dayRealSeconds/2;
+    if(e.plants.length>=R.maxPlants||e.nextId>=1e9){e.lifecycle.capacityBlockedAttempts++;continue;}
+    const point=recruitmentPoint(e,m);if(!point){e.lifecycle.placementBlockedAttempts++;continue;}
+    // No mature constructor, fresh fruit, global soil, or distant safePoint.
+    const stock=transfer.transferred,site=habitatConditions(point),s=season(e,{});
+    const p={id:nextId(e),kind:'apple_tree',scene:'valley',position:point,capacity:0,quantity:0,biomassGrams:0,moisture:site.moisture,
+      stage:'seedling',growth:0,seasonIndex:s.index,fallHours:0,ageDays:0,lifecycleStage:'juvenile',structureMassGrams:stock.massGrams,
+      structureKcal:stock.energyKcal,structureWaterMl:stock.waterMl,recruitedAt:e.elapsed,parentMaterialId:m.id};
+    Object.assign(m,transfer.remaining,{seedOpportunity:false,nextGerminationAt:null});e.plants.push(p);
+    e.lifecycle.seededPlants++;e.lifecycle.transferredMassGrams+=stock.massGrams;e.lifecycle.transferredKcal+=stock.energyKcal;e.lifecycle.transferredWaterMl+=stock.waterMl;
+    // Preserve every positive remainder; ordinary material decay owns its later fate.
+    if(m.massGrams===0&&m.energyKcal===0&&m.waterMl===0)removeMaterial(e,m);invalidateIndex(e);
+  }
+}
+/** Owner-only finite structural accounting; never an inhabitant food hint. */
+export function ecologyLifecycleAudit(e){return {...lifecycleStockAudit(e),...e.lifecycle,capacity:R.maxPlants,freePlantSlots:Math.max(0,R.maxPlants-e.plants.length)};}
 function nearest(list,a,predicate=()=>true,radius=Infinity){let best=null,d=radius;for(const o of list){if(o===a||o.scene!==a.scene||!predicate(o))continue;const n=distance(a.position,o.position);if(n<d){d=n;best=o;}}return best;}
 function clearSegment(from,to,radius){
   const length=distance(from,to),steps=Math.max(1,Math.ceil(length/16));
@@ -606,6 +669,7 @@ function simulationStep(e,dt,environment,agents,callbacks){
     if(m.spoiled){const f=Math.min(1,hours(dt)/(R.materialDecayDays*24)),mass=m.massGrams*f,energy=m.energyKcal*f;m.massGrams-=mass;m.energyKcal-=energy;m.waterMl*=1-f;addDetritus(e,mass,energy,m.heldBy?agents.find(a=>a.id===m.heldBy)?.position||m.position:m.position,m.heldBy?agents.find(a=>a.id===m.heldBy)?.scene||m.scene:m.scene);}
     if(m.massGrams<.1){addDetritus(e,m.massGrams,m.energyKcal,m.heldBy?agents.find(a=>a.id===m.heldBy)?.position||m.position:m.position,m.heldBy?agents.find(a=>a.id===m.heldBy)?.scene||m.scene:m.scene);removeMaterial(e,m);}
   }
+  recruitJuveniles(e);
   const fraction=hours(dt)/(24*10),decay=e.detritus.energyKcal*fraction,decayedMass=e.detritus.massGrams*fraction;
   e.detritus.massGrams=Math.max(0,e.detritus.massGrams-decayedMass);e.detritus.energyKcal=Math.max(0,e.detritus.energyKcal-decay);e.ledger.decomposedKcal+=decay;
   if(e.regionalVersion===1){
@@ -626,16 +690,24 @@ export function tickEcology(e,dt,environment={},agents=[],callbacks={}){
 }
 /** Bounded data-only disk restoration; no arbitrary species, scripts or nutrition. */
 export function validateEcology(raw,{seed=CONFIG.seed,elapsed=0}={}){
+  const lifecyclePresent=hasLifecyclePayload(raw);
+  if(lifecyclePresent&&raw.version!==R.version)throw new Error('Protected lifecycle save: unsupported ecology version');
   if(!raw||raw.version!==R.version)return createEcology(seed,elapsed);
+  if(lifecyclePresent){const error=lifecycleError(raw);if(error)throw new Error(`Protected lifecycle save: ${error}`);
+    // Plants and animals are checked by the canonical reader below; its exact
+    // retained-field comparison rejects any relocation, deletion or species repair.
+    // Materials preserve producer coordinates directly, so need this one check.
+    if(raw.materials.some(m=>m.scene==='valley'?![10,CONFIG.playerRadius,...speciesNames.map(name=>SPECIES[name].radius)].some(radius=>canStandOutside(m.position.x,m.position.y,radius)):!canStandCave(m.position.x,m.position.y)))throw new Error('Protected lifecycle save: invalid retained object position or species');
+  }
   const out={version:R.version,distributionVersion:[1,2,3].includes(raw.distributionVersion)?raw.distributionVersion:1,seed:Number.isInteger(raw.seed)?raw.seed>>>0:seed,elapsed:clamp(raw.elapsed,0,CONFIG.dayRealSeconds*100000),pending:clamp(raw.pending,0,R.stepSeconds),nextId:1,
-    plants:[],animals:[],materials:[],detritus:{massGrams:clamp(raw.detritus?.massGrams,0,R.maxDetritus),nutrients:clamp(raw.detritus?.nutrients,0,500000),energyKcal:clamp(raw.detritus?.energyKcal,0,1e9)},ledger:emptyLedger(),births:clamp(Math.floor(raw.births),0,1e7),deaths:clamp(Math.floor(raw.deaths),0,1e7)};
+    plants:[],animals:[],materials:[],detritus:{massGrams:clamp(raw.detritus?.massGrams,0,R.maxDetritus),nutrients:clamp(raw.detritus?.nutrients,0,500000),energyKcal:clamp(raw.detritus?.energyKcal,0,1e9)},ledger:emptyLedger(),lifecycle:lifecyclePresent?{...raw.lifecycle}:freshLifecycleLedger(),births:clamp(Math.floor(raw.births),0,1e7),deaths:clamp(Math.floor(raw.deaths),0,1e7)};
   const seen=new Set(),acceptId=id=>typeof id==='string'&&idPattern.test(id)&&!seen.has(id),position=(o,radius=10)=>safePoint(o?.position?.x,o?.position?.y,radius);
   const add=(list,o)=>{seen.add(o.id);out.nextId=Math.max(out.nextId,Number(o.id.split(':')[1])+1);list.push(o);};
   for(const p of (Array.isArray(raw.plants)?raw.plants:[]).slice(0,R.maxPlants)){
     if(!acceptId(p?.id)||!['grass','apple_tree','bramble'].includes(p.kind))continue;
     const point=position(p);if(!point)continue;
-    const cap=p.kind==='grass'?R.grassCapacityGrams:p.kind==='apple_tree'?10:28;
-    add(out.plants,{id:p.id,kind:p.kind,scene:'valley',position:point,capacity:cap,quantity:Math.floor(clamp(p.quantity,0,p.kind==='grass'?0:cap)),biomassGrams:clamp(p.biomassGrams,0,p.kind==='grass'?cap:0),moisture:clamp(p.moisture,0,1),stage:['green','dry','bare','flowering','growing','ripe'].includes(p.stage)?p.stage:'bare',growth:clamp(p.growth,0,100),seasonIndex:clamp(Math.floor(p.seasonIndex),0,100000),fallHours:clamp(p.fallHours,0,R.fruitFallDays*24),ageDays:clamp(p.ageDays,0,100000)});
+    const cap=p.lifecycleStage==='juvenile'?0:p.kind==='grass'?R.grassCapacityGrams:p.kind==='apple_tree'?10:28;
+    add(out.plants,{id:p.id,kind:p.kind,scene:'valley',position:point,capacity:cap,quantity:Math.floor(clamp(p.quantity,0,p.kind==='grass'?0:cap)),biomassGrams:clamp(p.biomassGrams,0,p.kind==='grass'?cap:0),moisture:clamp(p.moisture,0,1),stage:['green','dry','bare','flowering','growing','ripe','seedling','juvenile'].includes(p.stage)?p.stage:'bare',growth:clamp(p.growth,0,100),seasonIndex:clamp(Math.floor(p.seasonIndex),0,100000),fallHours:clamp(p.fallHours,0,R.fruitFallDays*24),ageDays:clamp(p.ageDays,0,100000),...(lifecyclePresent?Object.fromEntries(PLANT_FIELDS.map(k=>[k,p[k]])):freshPlantLifecycle())});
   }
   for(const a of (Array.isArray(raw.animals)?raw.animals:[]).slice(0,R.maxAnimals)){
     if(!acceptId(a?.id)||!speciesNames.includes(a.species))continue;
@@ -648,12 +720,16 @@ export function validateEcology(raw,{seed=CONFIG.seed,elapsed=0}={}){
     const def=MATERIALS[m.materialType],cap=m.kind==='carcass'?30000:def.massGrams;
     const mass=clamp(m.massGrams,0,cap),maxEnergy=m.kind==='carcass'?mass*1.5:def.energyKcal*mass/def.massGrams;
     const scene=CAVES.some(c=>c.id===m.scene)?m.scene:'valley';
-    const point=scene==='valley'?position(m):canStandCave(m.position?.x,m.position?.y)?{...m.position}:{...CAVE_SPAWN};
+    // A carcass or detached flesh inherits the actual animal position, which
+    // need not clear the generic placement radius. New-format positions were
+    // checked against the real producer clearances above and remain exact.
+    const point=lifecyclePresent?{x:m.position.x,y:m.position.y}:scene==='valley'?position(m):canStandCave(m.position?.x,m.position?.y)?{...m.position}:{...CAVE_SPAWN};
     if(!point)continue;
-    add(out.materials,{id:m.id,kind:m.kind,materialType:m.materialType,scene,position:point,heldBy:m.kind==='material'&&['aster','mira'].includes(m.heldBy)?m.heldBy:null,massGrams:mass,energyKcal:clamp(m.energyKcal,0,maxEnergy),waterMl:clamp(m.waterMl,0,mass),createdAt:clamp(m.createdAt,0,out.elapsed),ageHours:clamp(m.ageHours,0,100000),spoiled:!!m.spoiled,digestHours:def.digestHours,toxicity:def.toxicity||0});
+    add(out.materials,{id:m.id,kind:m.kind,materialType:m.materialType,scene,position:point,heldBy:m.kind==='material'&&['aster','mira'].includes(m.heldBy)?m.heldBy:null,massGrams:mass,energyKcal:stockClamp(m.energyKcal,0,maxEnergy),waterMl:stockClamp(m.waterMl,0,mass),createdAt:clamp(m.createdAt,0,out.elapsed),ageHours:clamp(m.ageHours,0,100000),spoiled:!!m.spoiled,digestHours:def.digestHours,toxicity:def.toxicity||0,...(lifecyclePresent?Object.fromEntries(MATERIAL_FIELDS.map(k=>[k,m[k]])):freshMaterialLifecycle())});
   }
-  for(const k of Object.keys(out.ledger))out.ledger[k]=clamp(raw.ledger?.[k],0,1e12);
+  for(const k of Object.keys(out.ledger))out.ledger[k]=stockClamp(raw.ledger?.[k],0,1e12);
   out.nextId=Math.max(out.nextId,Math.floor(clamp(raw.nextId,1,1e9)));
   if(out.distributionVersion===3||raw.regionalVersion===1)validateRegions(raw,out);
+  if(lifecyclePresent){const error=lifecycleRestorationError(raw,out);if(error)throw new Error(`Protected lifecycle save: ${error}`);}
   return out;
 }

@@ -212,7 +212,7 @@ export function regionName(x, y, scene) {
 export function freshState({mode='discovery',populateEcology=true}={}) {
   const simulationMode=mode==='legacy'?'legacy':'discovery';
   const agents = [createNpc({id:'aster',mode:simulationMode}), createNpc({id:'mira',mode:simulationMode})];
-  return { version: 6, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode,populate:populateEcology}), cardinal:createCardinal({mode:simulationMode==='discovery'?'adaptive':'observe'}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+  return { version: 8, features: {plantLifecycle:1}, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode,populate:populateEcology}), cardinal:createCardinal({mode:simulationMode==='discovery'?'adaptive':'observe'}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 export function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);

@@ -7,10 +7,19 @@ import { validateCommunity } from './social.js';
 import { ECOLOGY_RULES } from './ecology-config.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { validateCardinal } from './cardinal.js';
-const SAVE_VERSIONS = new Set([1,2,3,4,5,6]);
+import { hasLifecyclePayload, lifecycleError } from './plant-lifecycle-state.js';
+const SAVE_VERSIONS = new Set([1,2,3,4,5,6,8]);
 const AGENT_IDS = ['aster','mira'];
 function unsupportedRules(raw){
   const ecology=raw.environment?.ecology;
+  // v7 contains a separate research learner. Even a mislabeled older envelope
+  // must not silently drop its temporal payload on this stable-world branch.
+  if([...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(n=>n.discovery&&Object.hasOwn(n.discovery,'temporal')))return true;
+  if(raw.version===8){
+    if(!raw.features||raw.features.plantLifecycle!==1||Object.keys(raw.features).some(k=>k!=='plantLifecycle'))return true;
+    if(raw.simulationMode==='discovery'&&(ecology?.distributionVersion!==3||ecology?.regionalVersion!==1||lifecycleError(ecology)))return true;
+    if(raw.simulationMode==='legacy'&&ecology)return true;
+  }else if(Object.hasOwn(raw,'features')||hasLifecyclePayload(ecology))return true;
   if(ecology?.distributionVersion===3&&(ecology.regionalVersion!==1||!Array.isArray(ecology.regions)||ecology.regions.length!==ECOLOGY_RULES.habitatGridSize**2))return true;
   if(ecology&&[['plants',ECOLOGY_RULES.maxPlants],['animals',ECOLOGY_RULES.maxAnimals],['materials',ECOLOGY_RULES.maxMaterials],['regions',ECOLOGY_RULES.habitatGridSize**2]].some(([key,max])=>Array.isArray(ecology[key])&&ecology[key].length>max))return true;
   if(raw?.version>=5&&!['legacy','discovery'].includes(raw.simulationMode))return true;
@@ -39,7 +48,12 @@ export function validateSave(raw, {restoring=true}={}) {
   const supported=raw&&typeof raw==='object'&&SAVE_VERSIONS.has(raw.version)&&!unsupportedRules(raw);
   const mode=supported&&(raw.version<5||raw.simulationMode!=='discovery')?'legacy':'discovery';
   const base = freshState({mode,populateEcology:!supported});
-  if (!supported) return base;
+  if (!supported) {
+    // Direct validation is also a load boundary, never authorization to erase an
+    // unsupported source through a later ordinary autosave.
+    Object.defineProperty(base,'saveBlocked',{value:true,enumerable:false});
+    return base;
+  }
   const ids = new Set(CAVES.map(c => c.id));
   base.scene = ids.has(raw.scene) ? raw.scene : 'valley';
   const p = raw.player;

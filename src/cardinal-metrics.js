@@ -35,7 +35,7 @@ export function measureCardinalWorld(state) {
   const ledger = Object.fromEntries(['initialKcal','photosynthesisKcal','humanRemovedKcal','metabolizedKcal','decomposedKcal','discardedKcal','birthTransferredKcal','externalKcal','waterConsumedMl','animalAbsorbedKcal','animalAbsorbedWaterMl','animalWaterLostMl'].map(key => [key, n(ecology?.ledger?.[key])]));
   const resourceEnergy = sum(plants, plantEnergy) + sum(materials, item => positive(item.energyKcal));
   const biomassGrams=sum(plants,item=>positive(item.biomassGrams)),biomassCapacityGrams=sum(plants.filter(item=>item.kind==='grass'),item=>positive(item.capacity));
-  const remainingKcal = resourceEnergy + sum(animals, actor => positive(actor.structureKcal) + physiologyEnergy(actor.physiology)) + positive(ecology?.detritus?.energyKcal);
+  const remainingKcal = resourceEnergy + sum(plants, plant=>positive(plant.structureKcal)) + sum(animals, actor => positive(actor.structureKcal) + physiologyEnergy(actor.physiology)) + positive(ecology?.detritus?.energyKcal);
   const species = {};
   for (const animal of animals) species[animal.species] = (species[animal.species] || 0) + 1;
   const skills = humans.map(grounded);
