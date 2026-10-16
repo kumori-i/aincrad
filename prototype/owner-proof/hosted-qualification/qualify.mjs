@@ -8,10 +8,16 @@ import { cpus, totalmem, release } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { ownedProcess, checkedCommand, successful } from './supervisor.mjs';
-import { createBudget, hashFile, readBounded, runtimeInventory } from './bounded-io.mjs';
-export { createBudget, hashFile, readBounded, runtimeInventory } from './bounded-io.mjs';
+import { createBudget, hashFile, readBounded, runtimeInventory, signalOptions } from './bounded-io.mjs';
+export { createBudget, hashFile, readBounded, runtimeInventory, signalOptions } from './bounded-io.mjs';
 const p = createRequire(import.meta.url)('./policy.cjs');
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+// The real CLI always uses this adapter. Tests may inject read-only filesystem
+// fixtures through the exported function only; no CLI/env/config selector exists.
+const PREFLIGHT_HOST = Object.freeze({ here: HERE, realpath, readFile, readBounded, hashFile,
+  host: () => ({ uid: process.getuid?.(), platform: process.platform, arch: process.arch, nodeVersion: process.version,
+    execPath: process.execPath, kernel: release(), cpuModel: cpus()[0]?.model || 'unavailable', logicalCpus: cpus().length, memoryBytes: totalmem() }) });
 
 export function parseArguments(args) {
   p.demand(args.length === 3 && ['--preflight', '--qualify'].includes(args[0]), 'explicit-mode-required');
@@ -29,35 +35,51 @@ export function assertNoTcpListener(text4, text6, displayNumber) {
   }
   return { checkedIpv4: true, checkedIpv6: true, port: 6000 + displayNumber, listening: false };
 }
-export async function preflight(options, env = process.env, budget = createBudget()) {
-  p.assertEnvironment(env, process.getuid?.(), process.platform, process.arch); p.assertGithub(env, options.commit); p.assertNode(process.version);
-  const event = p.pushTransition(JSON.parse(await readBounded(env.GITHUB_EVENT_PATH, p.LIMIT.eventBytes, budget)), options.commit);
-  p.assertOs((await readBounded(await budget.wait(realpath('/etc/os-release')), 16384, budget)).toString('utf8'));
-  const root = resolve(HERE, '../../..'); p.demand(HERE === join(root, p.DESTINATION) && await budget.wait(realpath(root)) === root, 'qualified-source-location');
-  const manifestBytes = await readBounded(join(HERE, 'SOURCE-MANIFEST.json'), p.LIMIT.config, budget);
-  p.demand(p.sha256(manifestBytes) === options.manifest, 'source-manifest-hash-mismatch'); const manifest = p.sourceManifest(manifestBytes);
-  for (const file of manifest.files) { const bytes = await readBounded(join(HERE, file.path), p.LIMIT.sourceFile, budget); p.demand(bytes.length === file.bytes && p.sha256(bytes) === file.sha256, 'source-file-mismatch'); }
-  for (const [name, hash] of Object.entries(p.PACKAGES)) p.demand(p.sha256(await readBounded(join(root, name), 1048576, budget)) === hash, 'package-lock-or-metadata-mismatch');
-  const actualWorkflow = await readBounded(join(root, p.WORKFLOW), p.LIMIT.sourceFile, budget), proposedWorkflow = await readBounded(join(HERE, 'workflow.proposed.yml'), p.LIMIT.sourceFile, budget);
-  p.demand(actualWorkflow.equals(proposedWorkflow), 'published-workflow-differs');
-  const tools = [];
-  for (const entry of p.TOOLS) {
-    const resolved = await budget.wait(realpath(entry)), row = await hashFile(resolved, 536870912, budget);
-    p.demand(row.uid === 0 && (row.mode & 0o022) === 0 && (row.mode & 0o111) !== 0, 'preinstalled-display-tool-unavailable');
-    tools.push({ entry, resolved, ...row });
-  }
-  const kernelSettings = {};
-  for (const [name, file] of [['unprivilegedUsernsClone', '/proc/sys/kernel/unprivileged_userns_clone'], ['apparmorRestrictUnprivilegedUserns', '/proc/sys/kernel/apparmor_restrict_unprivileged_userns'], ['maxUserNamespaces', '/proc/sys/user/max_user_namespaces']]) {
-    try { const value = (await budget.wait(readFile(file, { encoding: 'utf8', signal: budget.signal }))).trim(); p.demand(/^\d+$/.test(value), 'kernel-value-unavailable'); kernelSettings[name] = value; }
-    catch (error) { if (error.code === 'ENOENT') kernelSettings[name] = 'absent'; else throw error; }
-  }
-  p.demand(typeof env.RUNNER_TEMP === 'string' && await budget.wait(realpath(env.RUNNER_TEMP)) === env.RUNNER_TEMP, 'runner-temp-unavailable');
-  return { root, manifest, report: { version: 1, status: 'preflight-qualified', sourceCommit: options.commit, sourceManifestSha256: options.manifest,
-    workflowSha256: p.sha256(actualWorkflow), packages: p.PACKAGES, tools, kernelSettings, node: { version: process.version, executable: await budget.wait(realpath(process.execPath)), ...await hashFile(await budget.wait(realpath(process.execPath)), 536870912, budget) },
-    host: { platform: process.platform, arch: process.arch, uid: process.getuid(), kernel: release(), cpuModel: cpus()[0]?.model || 'unavailable', logicalCpus: cpus().length, memoryBytes: totalmem() },
-    github: { transition: event, runnerEnvironment: env.RUNNER_ENVIRONMENT, runnerOS: env.RUNNER_OS, runnerArch: env.RUNNER_ARCH, repository: p.REPO, ref: p.BRANCH, event: 'push', runId: env.GITHUB_RUN_ID, runAttempt: 1, imageOS: env.ImageOS, imageVersion: env.ImageVersion },
-    boundary: { applicationStarted: false, simulationStarted: false, timingStarted: false, artifactUpload: false, osChanges: false } } };
+export async function preflight(options, env = process.env, budget = createBudget(), adapter = PREFLIGHT_HOST) {
+  let operation = 'preflight-host';
+  try {
+    const host = adapter.host(), here = adapter.here;
+    p.assertEnvironment(env, host.uid, host.platform, host.arch); p.assertGithub(env, options.commit); p.assertNode(host.nodeVersion);
+    operation = 'preflight-event';
+    const event = p.pushTransition(JSON.parse(await adapter.readBounded(env.GITHUB_EVENT_PATH, p.LIMIT.eventBytes, budget)), options.commit);
+    operation = 'preflight-os';
+    p.assertOs((await adapter.readBounded(await budget.wait(adapter.realpath('/etc/os-release')), 16384, budget)).toString('utf8'));
+    operation = 'preflight-location';
+    const root = resolve(here, '../../..'); p.demand(here === join(root, p.DESTINATION) && await budget.wait(adapter.realpath(root)) === root, 'qualified-source-location');
+    operation = 'preflight-manifest';
+    const manifestBytes = await adapter.readBounded(join(here, 'SOURCE-MANIFEST.json'), p.LIMIT.config, budget);
+    p.demand(p.sha256(manifestBytes) === options.manifest, 'source-manifest-hash-mismatch'); const manifest = p.sourceManifest(manifestBytes);
+    operation = 'preflight-sources';
+    for (const file of manifest.files) { const bytes = await adapter.readBounded(join(here, file.path), p.LIMIT.sourceFile, budget); p.demand(bytes.length === file.bytes && p.sha256(bytes) === file.sha256, 'source-file-mismatch'); }
+    operation = 'preflight-packages';
+    for (const [name, hash] of Object.entries(p.PACKAGES)) p.demand(p.sha256(await adapter.readBounded(join(root, name), 1048576, budget)) === hash, 'package-lock-or-metadata-mismatch');
+    operation = 'preflight-workflow';
+    const actualWorkflow = await adapter.readBounded(join(root, p.WORKFLOW), p.LIMIT.sourceFile, budget), proposedWorkflow = await adapter.readBounded(join(here, 'workflow.proposed.yml'), p.LIMIT.sourceFile, budget);
+    p.demand(actualWorkflow.equals(proposedWorkflow), 'published-workflow-differs');
+    operation = 'preflight-tools';
+    const tools = [];
+    for (const entry of p.TOOLS) {
+      const resolved = await budget.wait(adapter.realpath(entry)), row = await adapter.hashFile(resolved, 536870912, budget);
+      p.demand(row.uid === 0 && (row.mode & 0o022) === 0 && (row.mode & 0o111) !== 0, 'preinstalled-display-tool-unavailable');
+      tools.push({ entry, resolved, ...row });
+    }
+    operation = 'preflight-kernel-settings';
+    const kernelSettings = {};
+    for (const [name, file] of [['unprivilegedUsernsClone', '/proc/sys/kernel/unprivileged_userns_clone'], ['apparmorRestrictUnprivilegedUserns', '/proc/sys/kernel/apparmor_restrict_unprivileged_userns'], ['maxUserNamespaces', '/proc/sys/user/max_user_namespaces']]) {
+      try { const value = (await budget.wait(adapter.readFile(file, { encoding: 'utf8', ...signalOptions(budget.signal) }))).trim(); p.demand(/^\d+$/.test(value), 'kernel-value-unavailable'); kernelSettings[name] = value; }
+      catch (error) { if (error.code === 'ENOENT') kernelSettings[name] = 'absent'; else throw error; }
+    }
+    operation = 'preflight-runner-temp';
+    p.demand(typeof env.RUNNER_TEMP === 'string' && await budget.wait(adapter.realpath(env.RUNNER_TEMP)) === env.RUNNER_TEMP, 'runner-temp-unavailable');
+    operation = 'preflight-node';
+    return { root, manifest, report: { version: 1, status: 'preflight-qualified', sourceCommit: options.commit, sourceManifestSha256: options.manifest,
+      workflowSha256: p.sha256(actualWorkflow), packages: p.PACKAGES, tools, kernelSettings, node: { version: host.nodeVersion, executable: await budget.wait(adapter.realpath(host.execPath)), ...await adapter.hashFile(await budget.wait(adapter.realpath(host.execPath)), 536870912, budget) },
+      host: { platform: host.platform, arch: host.arch, uid: host.uid, kernel: host.kernel, cpuModel: host.cpuModel, logicalCpus: host.logicalCpus, memoryBytes: host.memoryBytes },
+      github: { transition: event, runnerEnvironment: env.RUNNER_ENVIRONMENT, runnerOS: env.RUNNER_OS, runnerArch: env.RUNNER_ARCH, repository: p.REPO, ref: p.BRANCH, event: 'push', runId: env.GITHUB_RUN_ID, runAttempt: 1, imageOS: env.ImageOS, imageVersion: env.ImageVersion },
+      boundary: { applicationStarted: false, simulationStarted: false, timingStarted: false, artifactUpload: false, osChanges: false } } };
+  } catch (error) { throw p.annotateFailure(error, operation); }
 }
+
 function summary(result) { return { code: result.code, signal: result.signal, reason: result.reason, launchError: result.launchError, exitConfirmed: result.exitConfirmed, closeConfirmed: result.closeConfirmed, outputBytes: result.outputBytes,
   stdoutSha256: p.sha256(Buffer.from(result.stdout)), stderrSha256: p.sha256(Buffer.from(result.stderr)), cleanup: result.cleanup }; }
 async function absent(file) { try { await lstat(file); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }
@@ -72,14 +94,16 @@ export async function qualify(options) {
   const onInt = () => stop('qualification-interrupted'), onTerm = () => stop('qualification-interrupted');
   process.once('SIGINT', onInt); process.once('SIGTERM', onTerm);
   const guard = () => { p.demand(!aborted, aborted || 'qualification-aborted'); budget.check(); };
-  let picture = null;
+  let picture = null, operation = 'qualification-preflight';
   try {
     timer = setTimeout(() => stop('qualification-timeout'), p.LIMIT.totalMs);
     const pre = await preflight(options, process.env, budget); report.preflight = pre.report; guard();
+    operation = 'runtime-inventory';
     runtimeRoot = join(pre.root, 'node_modules/electron/dist'); p.demand(await budget.wait(realpath(runtimeRoot)) === runtimeRoot, 'electron-runtime-alias');
     const executable = join(runtimeRoot, 'electron'); inventoryBefore = await runtimeInventory(runtimeRoot, budget); guard();
     p.demand(inventoryBefore.some(f => f.path === 'electron' && (f.mode & 0o111) !== 0), 'electron-executable-unavailable');
     report.runtime = { expectedElectron: '44.7.0', files: inventoryBefore, inventorySha256: p.sha256(Buffer.from(JSON.stringify(inventoryBefore))) };
+    operation = 'temporary-files';
     dir = await mkdtemp(join(process.env.RUNNER_TEMP, 'aincrad-hosted-qualification-')); await fs.promises.chmod(dir, 0o700);
     const codeRoot = join(dir, 'code'), profile = join(dir, 'profile'), runtimeDir = join(dir, 'runtime');
     for (const file of [codeRoot, profile, runtimeDir]) await mkdir(file, { mode: 0o700 });
@@ -93,12 +117,15 @@ export async function qualify(options) {
     await writeFile(auth, '', { flag: 'wx', mode: 0o600 }); await writeFile(emptyAuth, '', { flag: 'wx', mode: 0o600 });
     const env = { PATH: '/usr/bin:/bin', HOME: dir, TMPDIR: dir, XDG_RUNTIME_DIR: runtimeDir, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', DISPLAY: `:${number}`, XAUTHORITY: auth };
     const cookie = randomBytes(16).toString('hex');
+    operation = 'display-authority';
     const xauth = await checkedCommand('/usr/bin/xauth', ['-q', '-f', auth], { env, input: `add :${number} MIT-MAGIC-COOKIE-1 ${cookie}\n`, deadlineMs: 3000 }, owned);
     p.demand(successful(xauth), 'xauthority-setup-unavailable'); guard();
     const args = [`:${number}`, '-screen', '0', '1440x900x24', '-dpi', '96', '-auth', auth, '-nolisten', 'tcp', '-noreset'];
     guard();
+    operation = 'display-start';
     const display = ownedProcess('/usr/bin/Xvfb', args, { env, deadlineMs: 35000 }); owned.push(display);
     display.child?.once('exit', () => { if (!deliberateCleanup) unexpectedDisplayExit = true; });
+    operation = 'display-admission';
     let info = null, attempts = 0;
     for (; attempts < 10; attempts++) {
       guard(); p.demand(display.isRunning(), 'xvfb-startup-unavailable');
@@ -117,7 +144,9 @@ export async function qualify(options) {
     p.demand(report.display.authMode === 0o600, 'authority-mode-unavailable');
     const config = { version: 1, codeRoot, profile, result: join(dir, 'native-result.json'), capture: join(dir, 'capture.png'), code, expectedElectron: '44.7.0' };
     const configPath = join(dir, 'config.json'); await writeFile(configPath, `${JSON.stringify(config)}\n`, { flag: 'wx', mode: 0o400 });
+    operation = 'native-launch';
     guard(); const electron = await checkedCommand(executable, [join(codeRoot, 'electron-main.cjs'), `--qualification-config=${configPath}`, '--ozone-platform=x11', '--disable-gpu'], { env, deadlineMs: p.LIMIT.electronMs }, owned);
+    operation = 'native-evidence';
     report.electronProcess = summary(electron);
     if (await absent(config.result)) throw new Error('native-result-unavailable');
     const nativeBytes = p.realFile(config.result, p.LIMIT.json); report.native = JSON.parse(nativeBytes); report.nativeSha256 = p.sha256(nativeBytes);
@@ -127,9 +156,10 @@ export async function qualify(options) {
     p.demand(encoded.sha256 === report.native.capture.pngSha256, 'screenshot-hash-mismatch');
     report.screenshot = { bytes: encoded.bytes, sha256: encoded.sha256, width: 1440, height: 900, encoding: 'base64-in-numbered-log-lines' };
     guard(); p.demand(display.isRunning(), 'display-exited-during-qualification');
+    operation = 'post-preflight';
     const post = await preflight(options, process.env, budget); p.demand(JSON.stringify(post.report.tools) === JSON.stringify(pre.report.tools) && post.report.sourceManifestSha256 === pre.report.sourceManifestSha256 && post.report.workflowSha256 === pre.report.workflowSha256 && JSON.stringify(post.report.node) === JSON.stringify(pre.report.node), 'prerequisites-changed-during-qualification');
     p.verifyCode(codeRoot, code); guard(); p.demand(display.isRunning() && !unexpectedDisplayExit, 'display-exited-during-qualification'); report.status = 'qualified';
-  } catch (error) { report.reason = /^[a-z0-9-]{1,100}$/.test(error.message || '') ? error.message : 'qualification-prerequisite-or-evidence-unavailable'; report.status = 'unavailable'; }
+  } catch (error) { report.reason = 'qualification-prerequisite-or-evidence-unavailable'; report.diagnostic = p.diagnostic(error, operation); report.status = 'unavailable'; }
   finally {
     // The original deadline remains active through the post-cleanup runtime inventory.
     // Only owned-group and cookie cleanup get a separate bounded five-second tail.
@@ -139,14 +169,14 @@ export async function qualify(options) {
       report.cleanup = await cleanupBudget.wait(Promise.all([...owned].reverse().map(child => child.close())));
       report.authorityCleanup = await cleanupBudget.wait(Promise.all([removeAuthority(auth), removeAuthority(emptyAuth)]).then(([normal, empty]) => ({ normal, empty })));
       if (report.cleanup.some(c => !c.groupGone || !c.exited) || !report.authorityCleanup.normal.removed || !report.authorityCleanup.empty.removed) throw new Error('owned-cleanup-unavailable');
-    } catch { report.status = 'unavailable'; report.reason ||= 'owned-cleanup-unavailable'; }
+    } catch (error) { report.status = 'unavailable'; report.reason ||= 'owned-cleanup-unavailable'; report.cleanupDiagnostic = p.diagnostic(error, 'owned-cleanup'); }
     if (runtimeRoot && inventoryBefore) {
       try { const after = await runtimeInventory(runtimeRoot, budget); report.runtime.unchangedAfter = JSON.stringify(after) === JSON.stringify(inventoryBefore); if (!report.runtime.unchangedAfter) throw new Error(); }
-      catch { report.status = 'unavailable'; report.reason ||= 'runtime-verification-unavailable'; }
+      catch (error) { report.status = 'unavailable'; report.reason ||= 'runtime-verification-unavailable'; report.postVerificationDiagnostic = p.diagnostic(error, 'runtime-post-verification'); }
     }
     if (unexpectedDisplayExit) { report.status = 'unavailable'; report.reason ||= 'display-exited-during-qualification'; }
     if (aborted) { report.status = 'unavailable'; report.reason ||= aborted; }
-    try { budget.check(); } catch { report.status = 'unavailable'; report.reason ||= 'qualification-deadline-or-budget-unavailable'; }
+    try { budget.check(); } catch (error) { report.status = 'unavailable'; report.reason ||= 'qualification-deadline-or-budget-unavailable'; report.deadlineDiagnostic = p.diagnostic(error, 'qualification-deadline'); }
     clearTimeout(timer); process.off('SIGINT', onInt); process.off('SIGTERM', onTerm);
     report.inventoryBudget = { ...budget.used, maxEntries: 4096, maxBytes: 2147483648, maxDepth: 12, deadlineMs: p.LIMIT.totalMs, cleanupTailMs: p.LIMIT.cleanupMs };
     report.finishedAt = new Date().toISOString();
@@ -162,12 +192,21 @@ export function logResult(report, picture, write = text => process.stdout.write(
     encoded.chunks.forEach((chunk, index) => write(`QUALIFICATION_PNG ${index + 1}/${encoded.chunks.length} ${chunk}\n`)); }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Shared standalone entry path: tests exercise this exact parser, preflight,
+// failure formatting and logging route without launching a child process.
+export async function runEntry(args, { env = process.env, budget, adapter = PREFLIGHT_HOST, write = text => process.stdout.write(text) } = {}) {
   let report, picture = null;
   try {
-    const options = parseArguments(process.argv.slice(2));
-    if (options.mode === '--preflight') report = (await preflight(options)).report;
-    else ({ report, picture } = await qualify(options));
-  } catch (error) { report = { version: 1, status: 'unavailable', reason: /^[a-z0-9-]{1,100}$/.test(error.message || '') ? error.message : 'preflight-unavailable', nativeStarted: false }; }
-  logResult(report, picture); process.exitCode = ['qualified', 'preflight-qualified'].includes(report.status) ? 0 : 1;
+    const options = parseArguments(args);
+    if (options.mode === '--preflight') report = (await preflight(options, env, budget, adapter)).report;
+    else {
+      p.demand(adapter === PREFLIGHT_HOST && env === process.env && budget === undefined, 'fixture-adapter-preflight-only');
+      ({ report, picture } = await qualify(options));
+    }
+  } catch (error) { report = { version: 1, status: 'unavailable', reason: 'preflight-unavailable', diagnostic: p.diagnostic(error, 'entry'), nativeStarted: false }; }
+  logResult(report, picture, write);
+  return { report, exitCode: ['qualified', 'preflight-qualified'].includes(report.status) ? 0 : 1 };
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = (await runEntry(process.argv.slice(2))).exitCode;
 }

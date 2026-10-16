@@ -4,8 +4,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const VERSION = 1;
 const REPO = 'kumori-i/aincrad';
-const EXPECTED_BEFORE = '1f20f401f720b61069dcea06d10cc4e885e0b1f6';
-const BRANCH = 'refs/heads/proof/owner-hosted-qualification';
+const EXPECTED_BEFORE = '184064bb125fc103efe474779bcae949d5ab5d69';
+const BRANCH = 'refs/heads/proof/owner-hosted-qualification-v2';
 const DESTINATION = 'prototype/owner-proof/hosted-qualification';
 const WORKFLOW = '.github/workflows/owner-hosted-qualification.yml';
 const ORIGIN = 'qualification://app';
@@ -20,6 +20,27 @@ const BAD_ENV = Object.freeze(['NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE', 'ELECTRON
 const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 function demand(ok, reason) { if (!ok) throw new Error(reason); }
+// Diagnostics deliberately never copy an error message, stack, path or arbitrary property.
+const DIAGNOSTIC_OPERATIONS = Object.freeze(['entry', 'preflight-host', 'preflight-event', 'preflight-os', 'preflight-location', 'preflight-manifest', 'preflight-sources', 'preflight-packages', 'preflight-workflow', 'preflight-tools', 'preflight-kernel-settings', 'preflight-runner-temp', 'preflight-node', 'qualification-preflight', 'runtime-inventory', 'temporary-files', 'display-authority', 'display-start', 'display-admission', 'native-launch', 'native-evidence', 'post-preflight', 'owned-cleanup', 'runtime-post-verification', 'qualification-deadline']);
+const DIAGNOSTIC_NAMES = Object.freeze(['Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError']);
+const DIAGNOSTIC_CODES = Object.freeze(['ENOENT', 'EACCES', 'EPERM', 'EIO', 'EISDIR', 'ENOTDIR', 'EMFILE', 'ENFILE', 'ELOOP', 'ENOSPC', 'EINVAL', 'ERR_INVALID_ARG_TYPE', 'ERR_OUT_OF_RANGE', 'ABORT_ERR']);
+const annotatedFailures = new WeakMap();
+function diagnosticProperty(error, key) {
+  try { const value = error?.[key]; return typeof value === 'string' || value === undefined ? value : null; }
+  catch { return null; }
+}
+function diagnostic(error, operation = 'entry') {
+  if (error && typeof error === 'object' && annotatedFailures.has(error)) return { ...annotatedFailures.get(error) };
+  // Snapshot each accessor once, guard failures, and retain primitive values only.
+  const name = diagnosticProperty(error, 'name'), code = diagnosticProperty(error, 'code');
+  return { operation: DIAGNOSTIC_OPERATIONS.includes(operation) ? operation : 'entry',
+    errorName: DIAGNOSTIC_NAMES.includes(name) ? name : 'OtherError',
+    errorCode: code === undefined ? 'NONE' : DIAGNOSTIC_CODES.includes(code) ? code : 'OTHER' };
+}
+function annotateFailure(error, operation) {
+  const wrapper = new Error('qualification-operation-failed');
+  annotatedFailures.set(wrapper, Object.freeze(diagnostic(error, operation))); return wrapper;
+}
 function exact(value, names, label) { demand(value && Object.getPrototypeOf(value) === Object.prototype && Object.keys(value).sort().join('|') === [...names].sort().join('|'), `${label}-shape`); }
 function badArg(arg) { return /^--(?:no-sandbox|disable-sandbox|disable-setuid-sandbox|disable-gpu-sandbox|disable-seccomp-filter-sandbox|disable-namespace-sandbox|disable-web-security|no-zygote|single-process|in-process-gpu|allow-file-access-from-files|ignore-certificate-errors|remote-debugging[^=]*|headless)(?:=|$)/.test(arg) || /^--ozone-platform=(?!x11$)/.test(arg) || /^--force-device-scale-factor(?:=|$)/.test(arg); }
 function assertEnvironment(env, uid, platform, arch) {
@@ -140,4 +161,4 @@ function encodeScreenshot(bytes) {
   return { bytes: bytes.length, sha256: sha256(bytes), encoding: 'base64', chunks };
 }
 module.exports = { VERSION, REPO, BRANCH, EXPECTED_BEFORE, DESTINATION, WORKFLOW, ORIGIN, CSP, SOURCE_FILES, RUNTIME_FILES, ASSETS, TOOLS, PACKAGES, LIMIT, BAD_ENV, PIXELS,
-  sha256, digest, demand, exact, badArg, assertEnvironment, assertGithub, pushTransition, namespacePids, assertOs, assertNode, sourceManifest, realFile, verifyCode, parseStatus, validateSandbox, dimensions, cookieDenial, asset, validatePage, analyzeBitmap, validateConfig, encodeScreenshot };
+  DIAGNOSTIC_OPERATIONS, DIAGNOSTIC_NAMES, DIAGNOSTIC_CODES, diagnostic, annotateFailure, sha256, digest, demand, exact, badArg, assertEnvironment, assertGithub, pushTransition, namespacePids, assertOs, assertNode, sourceManifest, realFile, verifyCode, parseStatus, validateSandbox, dimensions, cookieDenial, asset, validatePage, analyzeBitmap, validateConfig, encodeScreenshot };

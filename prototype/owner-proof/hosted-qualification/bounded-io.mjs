@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 const p = createRequire(import.meta.url)('./policy.cjs');
 
+// Node rejects signal:null; omit the key for either absent representation.
+export function signalOptions(signal) { return signal == null ? {} : { signal }; }
+
 export function createBudget({ deadlineAt = Date.now() + p.LIMIT.totalMs, signal = null, now = Date.now,
   maxEntries = 4096, maxBytes = 2147483648, maxDepth = 12 } = {}) {
   p.demand(Number.isFinite(deadlineAt) && [maxEntries, maxBytes, maxDepth].every(n => Number.isSafeInteger(n) && n > 0), 'inventory-budget-invalid');
@@ -34,7 +37,7 @@ async function observe(file, budget, limit) {
 }
 async function consume(file, limit, budget, onBytes, streamFactory = fs.createReadStream) {
   budget.entry(); const before = await observe(file, budget, limit); let count = 0;
-  const stream = streamFactory(file, { flags: fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW, ...(budget.signal ? { signal: budget.signal } : {}) });
+  const stream = streamFactory(file, { flags: fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW, ...signalOptions(budget.signal) });
   try {
     const iterator = stream[Symbol.asyncIterator]();
     for (;;) {

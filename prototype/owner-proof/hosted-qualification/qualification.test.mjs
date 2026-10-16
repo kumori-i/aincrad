@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { readFile, mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile, mkdir, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { ownedProcess, groupGone, successful } from './supervisor.mjs';
-import { parseArguments, assertNoTcpListener, logResult, hashFile, createBudget, runtimeInventory, readBounded } from './qualify.mjs';
+import { parseArguments, assertNoTcpListener, logResult, hashFile, createBudget, runtimeInventory, readBounded, signalOptions, runEntry } from './qualify.mjs';
 const p = createRequire(import.meta.url)('./policy.cjs');
 const hash = 'a'.repeat(64), commit = 'b'.repeat(40);
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -146,7 +147,7 @@ test('launch error and inaccessible group cleanup remain unavailable', async () 
 });
 test('workflow proposal has only literal branch push, read token, no uploads or OS modification', async () => {
   const yaml = await readFile(new URL('./workflow.proposed.yml', import.meta.url), 'utf8');
-  assert.match(yaml, /branches: \['proof\/owner-hosted-qualification'\]/); assert.match(yaml, /contents: read/); assert.match(yaml, /persist-credentials: false/); assert.match(yaml, /runs-on: ubuntu-22\.04/);
+  assert.ok(yaml.includes(`branches: ['${p.BRANCH.slice('refs/heads/'.length)}']`)); assert.match(yaml, /contents: read/); assert.match(yaml, /persist-credentials: false/); assert.match(yaml, /runs-on: ubuntu-22\.04/);
   assert.match(yaml, /github\.run_attempt == 1/); assert.ok(yaml.includes(`github.event.before == '${p.EXPECTED_BEFORE}'`)); assert.match(yaml, /github\.event\.after == github\.sha/); assert.match(yaml, /github\.event\.forced == false/); assert.match(yaml, /npm ci --no-audit --no-fund/);
   assert.doesNotMatch(yaml, /^\s*(pull_request|workflow_dispatch|schedule):/m); assert.doesNotMatch(yaml, /upload-artifact|download-artifact|actions\/cache|apt-get|\bsudo\b|sysctl|chmod|chown|no-sandbox|pull_request_target/);
 });
@@ -243,4 +244,100 @@ test('terminal supervision cannot recreate timers from late error, exit or bytes
   child.emit('error', new Error('launch')); await proc.result; const count = clock.pending.length;
   child.emit('exit', 0, null); child.stderr.write('late'); child.stdin.emit('error', new Error('late'));
   assert.equal(proc.isRunning(), false); assert.equal(clock.pending.length, count); assert.equal(clock.pending.some(t => t.active), false); await proc.close();
+});
+
+
+async function standaloneFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'qualification-preflight-'));
+  const here = join(root, p.DESTINATION), original = dirname(fileURLToPath(import.meta.url)), repository = resolve(original, '../../..');
+  await mkdir(here, { recursive: true }); await mkdir(join(root, '.github/workflows'), { recursive: true }); await mkdir(join(root, 'runner-temp'));
+  const files = [];
+  for (const name of p.SOURCE_FILES) { const bytes = await readFile(join(original, name)); await writeFile(join(here, name), bytes); files.push({ path: name, bytes: bytes.length, sha256: p.sha256(bytes) }); }
+  for (const name of Object.keys(p.PACKAGES)) await writeFile(join(root, name), await readFile(join(repository, name)));
+  const workflow = await readFile(join(original, 'workflow.proposed.yml')); await writeFile(join(here, 'workflow.proposed.yml'), workflow); await writeFile(join(root, p.WORKFLOW), workflow);
+  const manifest = Buffer.from(JSON.stringify({ version: 1, destination: p.DESTINATION, files, packages: p.PACKAGES })); await writeFile(join(here, 'SOURCE-MANIFEST.json'), manifest);
+  await writeFile(join(root, 'os-release'), 'ID=ubuntu\nVERSION_ID="22.04"\n');
+  const mappings = new Map([['/etc/os-release', join(root, 'os-release')]]);
+  const kernels = ['/proc/sys/kernel/unprivileged_userns_clone', '/proc/sys/kernel/apparmor_restrict_unprivileged_userns', '/proc/sys/user/max_user_namespaces'];
+  for (let n = 0; n < kernels.length; n++) { const file = join(root, `kernel-${n}`); await writeFile(file, `${n === 1 ? 0 : 1}\n`); mappings.set(kernels[n], file); }
+  // Synthetic binary metadata belongs only to the injected read-only adapter.
+  // Bytes and hashes use real bounded filesystem reads; no executable is launched
+  // and no file ownership or permissions are changed for this fixture.
+  const binary = join(root, 'binary'); await writeFile(binary, 'fixture binary bytes'); for (const tool of p.TOOLS) mappings.set(tool, binary);
+  const event = join(root, 'event.json'); await writeFile(event, JSON.stringify({ before: p.EXPECTED_BEFORE, after: commit, ref: p.BRANCH, created: false, deleted: false, forced: false, repository: { full_name: p.REPO, private: false }, commits: [{ message: 'do-not-retain-event-details' }] }));
+  const reads = [], env = { ...github(), GITHUB_EVENT_PATH: event, RUNNER_TEMP: join(root, 'runner-temp') };
+  const adapter = { here, host: () => ({ uid: 1001, platform: 'linux', arch: 'x64', nodeVersion: 'v22.12.0', execPath: binary, kernel: 'fixture', cpuModel: 'fixture', logicalCpus: 4, memoryBytes: 17179869184 }),
+    realpath: file => realpath(mappings.get(file) || file), readBounded,
+    hashFile: async (...args) => ({ ...await hashFile(...args), uid: 0, mode: 0o755 }),
+    readFile(file, options) { reads.push({ file, options }); return readFile(mappings.get(file) || file, options); } };
+  return { root, adapter, env, reads, kernels, mappings, args: ['--preflight', `--expected-manifest=${p.sha256(manifest)}`, `--expected-commit=${commit}`] };
+}
+
+test('standalone entry uses real filesystem preflight with omitted and valid abort signals', async () => {
+  const fixture = await standaloneFixture();
+  try {
+    // Reproduce the original Node failure on a harmless fixture, then prove the
+    // same standalone entry path reaches all kernel reads with its default budget.
+    await assert.rejects(readFile(fixture.mappings.get(fixture.kernels[0]), { encoding: 'utf8', signal: null }), { code: 'ERR_INVALID_ARG_TYPE' });
+    assert.deepEqual(signalOptions(null), {}); assert.deepEqual(signalOptions(undefined), {});
+    for (const valid of [false, true]) {
+      fixture.reads.length = 0; const lines = [], controller = new AbortController();
+      const result = await runEntry(fixture.args, { env: fixture.env, adapter: fixture.adapter, ...(valid ? { budget: createBudget({ signal: controller.signal }) } : {}), write: line => lines.push(line) });
+      assert.equal(result.exitCode, 0); assert.equal(result.report.status, 'preflight-qualified'); assert.equal(fixture.reads.length, 3);
+      for (const { options } of fixture.reads) { assert.equal(Object.hasOwn(options, 'signal'), valid); if (valid) assert.equal(options.signal, controller.signal); }
+      assert.deepEqual(result.report.kernelSettings, { unprivilegedUsernsClone: '1', apparmorRestrictUnprivilegedUserns: '0', maxUserNamespaces: '1' });
+      assert.equal(result.report.boundary.applicationStarted, false); assert.equal(result.report.boundary.simulationStarted, false); assert.equal(result.report.boundary.timingStarted, false);
+      assert.equal(lines.length, 1); assert.match(lines[0], /^QUALIFICATION_REPORT /); assert.doesNotMatch(lines[0], /do-not-retain-event-details/);
+    }
+  } finally { await rm(fixture.root, { recursive: true }); }
+});
+test('standalone entry fails closed when its real filesystem kernel read is aborted', async () => {
+  const fixture = await standaloneFixture(), controller = new AbortController(), original = fixture.adapter.readFile;
+  try {
+    fixture.adapter.readFile = (file, options) => { controller.abort(); return original(file, options); };
+    const result = await runEntry(fixture.args, { env: fixture.env, adapter: fixture.adapter, budget: createBudget({ signal: controller.signal }), write() {} });
+    assert.equal(result.exitCode, 1); assert.equal(result.report.status, 'unavailable'); assert.equal(result.report.nativeStarted, false);
+    assert.equal(fixture.reads.length, 1); assert.equal(fixture.reads[0].options.signal, controller.signal);
+    assert.equal(result.report.diagnostic.operation, 'preflight-kernel-settings');
+    assert.ok(['Error', 'AbortError'].includes(result.report.diagnostic.errorName));
+  } finally { await rm(fixture.root, { recursive: true }); }
+});
+test('standalone preflight errors disclose only fixed operation and allowlisted name/code', async () => {
+  const fixture = await standaloneFixture();
+  try {
+    fixture.adapter.readFile = () => { throw Object.assign(new TypeError('secret-token /private/path arbitrary stderr'), { code: 'ERR_INVALID_ARG_TYPE', path: '/private/path', credential: 'secret-token' }); };
+    const lines = [], result = await runEntry(fixture.args, { env: fixture.env, adapter: fixture.adapter, write: line => lines.push(line) });
+    assert.equal(result.exitCode, 1); assert.deepEqual(result.report.diagnostic, { operation: 'preflight-kernel-settings', errorName: 'TypeError', errorCode: 'ERR_INVALID_ARG_TYPE' });
+    assert.doesNotMatch(lines.join(''), /secret-token|private\/path|arbitrary stderr|credential|stack/);
+    assert.ok(Buffer.byteLength(JSON.stringify(result.report.diagnostic)) < 256);
+    assert.deepEqual(p.diagnostic({ name: 'secret-name', code: 'secret-code', message: 'secret-message' }, 'secret-operation'), { operation: 'entry', errorName: 'OtherError', errorCode: 'OTHER' });
+    assert.deepEqual(p.diagnostic(new Error('secret-message')), { operation: 'entry', errorName: 'Error', errorCode: 'NONE' });
+  } finally { await rm(fixture.root, { recursive: true }); }
+});
+test('fixture adapter cannot reach the native mode and CLI has no fixture selector', async () => {
+  const lines = [], result = await runEntry(['--qualify', `--expected-manifest=${hash}`, `--expected-commit=${commit}`], { adapter: {}, write: line => lines.push(line) });
+  assert.equal(result.exitCode, 1); assert.equal(result.report.nativeStarted, false); assert.equal(result.report.diagnostic.operation, 'entry');
+  assert.throws(() => parseArguments(['--preflight', `--expected-manifest=${hash}`, `--expected-commit=${commit}`, '--fixture=/private/path']));
+  const source = await readFile(new URL('./qualify.mjs', import.meta.url), 'utf8');
+  assert.match(source, /process\.exitCode = \(await runEntry\(process\.argv\.slice\(2\)\)\)\.exitCode/);
+  assert.doesNotMatch(source, /process\.env\.(?:TEST|FIXTURE|ADAPTER)|error\.message/);
+});
+
+
+test('diagnostics snapshot changing name/code accessors once before allowlisting', () => {
+  let names = 0, codes = 0;
+  const error = { get name() { return ++names === 1 ? 'TypeError' : 'secret-name'; }, get code() { return ++codes === 1 ? 'EACCES' : 'secret-code'; } };
+  const wrapped = p.annotateFailure(error, 'preflight-kernel-settings');
+  const expected = { operation: 'preflight-kernel-settings', errorName: 'TypeError', errorCode: 'EACCES' };
+  assert.deepEqual(p.diagnostic(wrapped), expected); assert.deepEqual(p.diagnostic(wrapped), expected);
+  assert.equal(names, 1); assert.equal(codes, 1); assert.doesNotMatch(JSON.stringify(p.diagnostic(wrapped)), /secret/);
+});
+test('diagnostics contain throwing accessors and do not coerce object values', () => {
+  let names = 0, codes = 0;
+  const error = { get name() { names++; throw new Error('secret-name'); }, get code() { codes++; throw new Error('secret-code'); } };
+  assert.deepEqual(p.diagnostic(error, 'preflight-tools'), { operation: 'preflight-tools', errorName: 'OtherError', errorCode: 'OTHER' });
+  assert.equal(names, 1); assert.equal(codes, 1);
+  const value = { toString() { throw new Error('must-not-coerce'); } };
+  assert.deepEqual(p.diagnostic({ name: value, code: value }), { operation: 'entry', errorName: 'OtherError', errorCode: 'OTHER' });
+  assert.deepEqual(p.diagnostic({ get name() { throw new Error('secret'); }, code: 'ENOENT' }), { operation: 'entry', errorName: 'OtherError', errorCode: 'ENOENT' });
 });
