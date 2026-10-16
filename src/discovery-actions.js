@@ -4,6 +4,7 @@ import { distance } from './world.js';
 import { lineOfSight } from './perception.js';
 import { lookupEcologyObject,describeEcologyObject,interactEcologyObject,consumeEcologyMaterial } from './ecology.js';
 import { ingestMaterial,exertPhysiology,isSleeping } from './biology.js';
+import { rememberDirectDiscoveryObject } from './discovery.js';
 
 export function primitiveDuration(npc,type){
   const practice=npc.discovery?.practice?.[type]?.successes||0;
@@ -56,7 +57,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     let result;
     if(request.type==='inspect_object'){
       const object=describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id});
-      if(object)npc.discovery.observations[object.id]={...object,observedAt:npc.elapsed};
+      if(object)rememberDirectDiscoveryObject(npc,object);
       result=object?{ok:true,code:'OBJECT_OBSERVED'}:{ok:false,code:'OBJECT_GONE'};
     }else if(request.type==='sample'){
       // A synchronous authoritative transfer commits finite matter only after swallowing succeeds.
@@ -74,7 +75,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{})};
       if(result.ok&&['grasp','pull'].includes(request.type)){
         const id=materialId||request.targetId;if(!npc.inventory.items.includes(id))npc.inventory.items.push(id);
-        const object=describeEcologyObject(environment.ecology,id,{actorId:npc.id});if(object)npc.discovery.observations[id]={...object,observedAt:npc.elapsed};
+        const object=describeEcologyObject(environment.ecology,id,{actorId:npc.id});if(object)rememberDirectDiscoveryObject(npc,object);
       }
       if(result.ok&&request.type==='release')npc.inventory.items=npc.inventory.items.filter(id=>id!==request.targetId);
     }

@@ -276,7 +276,7 @@ function appearance(o){
 }
 function publicObject(o){return{id:o.id,scene:o.scene,position:{...o.position},appearance:appearance(o),
   motion:o.species?(['moving','fleeing','chasing'].includes(o.activity)?'moving':o.activity==='sleeping'?'still with slow breathing':'still'):'still',
-  count:o.species?1:o.kind==='grass'?Math.floor(o.biomassGrams/45):Math.max(1,Math.ceil(o.quantity ?? o.massGrams/100))};}
+  count:o.species?1:o.kind==='grass'?Math.floor(o.biomassGrams/45):o.kind==='apple_tree'||o.kind==='bramble'?Math.max(0,Math.ceil(o.quantity)):Math.max(1,Math.ceil(o.quantity ?? o.massGrams/100))};}
 /** Sensory data contains no diet, food, calorie, species or edibility labels. */
 export function senseEcology(e,position,scene='valley',radius=400) {
   if(!e||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y))return[];

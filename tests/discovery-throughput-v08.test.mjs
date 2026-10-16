@@ -114,14 +114,15 @@ test('a warm ablation suppresses stored food-technique use without erasing learn
 });
 
 
-test('a depleted learned source obeys the same failure cooldown as a generic trial',()=>{
+test('a depleted learned source waits for later firsthand visible stock, not a timer',()=>{
   const {n,e,id,plant}=learnedFixture();finish(n,e,{type:'release',targetId:id});
   while(plant.quantity>=1){assert.equal(finish(n,e,{type:'pull',targetId:plant.id}).ok,true);assert.equal(finish(n,e,{type:'release',targetId:n.inventory.items[0]}).ok,true);}
   hunger(n);n.discovery.run=null;const t=n.discovery.techniques.find(t=>t.sourceId===plant.id);const failures=t.failures;
-  assert.deepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});assert.equal(finish(n,e,{type:'pull',targetId:plant.id}).code,'nothing_detached');assert.equal(t.failures,failures+1);
+  assert.deepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});assert.equal(finish(n,e,{type:'pull',targetId:plant.id}).code,'nothing_detached');assert.equal(t.failures,failures,'depletion does not revise a proven bodily effect');
   for(let i=0;i<8;i++)assert.notDeepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});
-  tick(n,e,61);hunger(n);n.discovery.run=null;
-  assert.deepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});
+  tick(n,e,61);hunger(n);n.discovery.run=null;observeNpc(n,e);
+  assert.equal(n.discovery.observations[plant.id].count,0);
+  assert.notDeepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});
 });
 
 test('a successful learned acquisition is not mistaken for a cooldown after save restoration',()=>{
