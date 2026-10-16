@@ -178,7 +178,7 @@ export function contactEscape(npc){
   return null;
 }
 /** A generic novelty/outcome learner. It never looks up an object's species or nutrients. */
-export function discoveryDecision(npc,{foodLearning=true}={}){
+export function discoveryDecision(npc,{foodLearning=true,ordinaryProposal=false}={}){
   processDiscoveryFeedback(npc,{foodLearning});const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
   // Evaluation can ablate positive food associations without erasing perception,
@@ -224,6 +224,11 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&npc.inventory.items.length<DISCOVERY_RULES.capacity){const technique=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position))[0];if(technique){d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};const action=learnedStep(npc);if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');}}
   const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if((object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
+  // Research-only proposal construction holds opportunity RNG locally until the
+  // evaluator submits a matching authoritative action. Default play stays on its
+  // original path. Proposals are data, never extra observations or submissions.
+  if(ordinaryProposal&&npc.scene==='valley'&&distance(npc.position,d.search.home||npc.position)>DISCOVERY_RULES.searchRadius){const move=routeTarget(npc,d.search.home||npc.position);if(move)return wrap(move,'I am returning along remembered terrain after a bounded investigation.','safety');}
+  const opportunity=ordinaryProposal?{rng:npc.rng}:npc,draw=()=>random(opportunity);
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||lineOfSight(npc.position,o.position,npc.scene))&&(npc.scene!=='valley'||npc.inventory.items.includes(o.id)||distance(o.position,d.search.home||npc.position)<=DISCOVERY_RULES.searchRadius));
   const choices=[];
   for(const object of objects){
@@ -236,19 +241,20 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       if(recentlyFailed(npc,type,object.id))continue;
       if(type==='sample'&&!sampleEligible(npc,object.id,body,foodLearning))continue;
       const novelty=8/(1+trial.attempts);
-      choices.push({action:{type,targetId:object.id},score:novelty-failures*3+(type==='inspect_object'&&!trial.attempts?1:0)+random(npc)*(trial.attempts?.2:2)});
+      choices.push({action:{type,targetId:object.id},score:novelty-failures*3+(type==='inspect_object'&&!trial.attempts?1:0)+draw()*(trial.attempts?.2:2)});
     }
   }
   // Movement competes with object trials. Repeatedly striking/inspecting a familiar
   // patch cannot block an unfamiliar nearby object or a remembered frontier forever.
-  const targets=objects.filter(o=>distance(o.position,npc.position)>DISCOVERY_RULES.reach).map(o=>({o,score:5/(1+Object.entries(d.trials||{}).filter(([key])=>key.startsWith(`${o.id}|`)).reduce((sum,[,t])=>sum+t.attempts,0))-distance(o.position,npc.position)/1500+random(npc)})).sort((a,b)=>b.score-a.score);
-  for(const target of targets.slice(0,4)){const move=routeTarget(npc,target.o.position);if(move)choices.push({action:move,score:target.score,reason:'I can approach an unfamiliar object within my observed map.'});}
+  const targets=objects.filter(o=>distance(o.position,npc.position)>DISCOVERY_RULES.reach).map(o=>({o,score:5/(1+Object.entries(d.trials||{}).filter(([key])=>key.startsWith(`${o.id}|`)).reduce((sum,[,t])=>sum+t.attempts,0))-distance(o.position,npc.position)/1500+draw()})).sort((a,b)=>b.score-a.score);
+  for(const target of targets.slice(0,4)){const move=routeTarget(npc,target.o.position);if(move)choices.push({action:move,...(ordinaryProposal?{bindingId:target.o.id}:{}),score:target.score,reason:'I can approach an unfamiliar object within my observed map.'});}
   if(npc.scene==='valley'){
     const home=d.search.home||npc.position;
     if(distance(npc.position,home)>DISCOVERY_RULES.searchRadius){const move=routeTarget(npc,home);if(move)return wrap(move,'I am returning along remembered terrain after a bounded investigation.','safety');}
-    const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900&&distance(c,home)<DISCOVERY_RULES.searchRadius).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);
-    for(const {c} of candidate.slice(0,8)){const move=routeTarget(npc,c);if(move){choices.push({action:move,score:2.5/(1+(c.visits||0))+random(npc),reason:'I can investigate another locally observed patch of terrain.'});break;}}
+    const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900&&distance(c,home)<DISCOVERY_RULES.searchRadius).map(c=>({c,score:(c.visits||0)*-3+draw()*8})).sort((a,b)=>b.score-a.score);
+    for(const {c} of candidate.slice(0,8)){const move=routeTarget(npc,c);if(move){choices.push({action:move,score:2.5/(1+(c.visits||0))+draw(),reason:'I can investigate another locally observed patch of terrain.'});break;}}
   }
+  if(ordinaryProposal)return {provider:'discovery-learner',need:'understanding',ordinary:{at:npc.elapsed,epoch:npc.epoch,rngBefore:npc.rng,rngAfter:opportunity.rng,choices:[...choices,{action:{type:'wait',seconds:5},score:0}]}};
   if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
 }

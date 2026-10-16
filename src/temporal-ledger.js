@@ -1,6 +1,7 @@
 /** Bounded canonical observations for a scripted temporal-learning feasibility arm.
  * No ecology lookup, private physiology, policy choice, or automatic runtime hook.
  */
+import { applyTemporalCapacity,temporalCapacityFor } from './temporal-capacity.js';
 import { createTemporalReturns,validateTemporalReturns,temporalKey,decodeTemporalKey,temporalDiscount,temporalIntegral,appendTemporalTransition } from './temporal-returns.js';
 import { prepareTemporalStorage,admitTemporalContext,decodeTemporalWire,encodeTemporalWire } from './temporal-storage.js';
 const MAX=256,MAX_RECEIPTS=768;
@@ -13,7 +14,7 @@ const sourceSequence=id=>sequenceId(id,'feedback');
 const workDuration=o=>o.workedSeconds??o.durationSeconds;
 const text=(v,n=60)=>typeof v==='string'?v.slice(0,n):'';
 function cleanAction(a){if(!a||typeof a.type!=='string')return null;try{temporalKey({},a.type);}catch{return null;}return {type:a.type,...(objectId(a.targetId)?{targetId:a.targetId}:{}),...(finite(a.seconds)&&a.seconds<=1200?{seconds:a.seconds}:{}),...(a.target&&Number.isFinite(a.target.x)&&Number.isFinite(a.target.y)&&Math.abs(a.target.x)<=24000&&Math.abs(a.target.y)<=24000?{target:{x:a.target.x,y:a.target.y}}:{})};}
-export function createTemporalLedger(){return prepareTemporalStorage({version:1,model:createTemporalReturns(),nextSeq:1,eventOrder:0,clockAt:0,feedbackCursor:0,creditBlocked:false,open:null,receipts:[],ingestions:[],events:[],totals:[0,0,0],rejectedEvents:0,censoredEvents:0,historyCensored:false});}
+export function createTemporalLedger({capacityProfile}={}){const memory=prepareTemporalStorage({version:1,model:createTemporalReturns(),nextSeq:1,eventOrder:0,clockAt:0,feedbackCursor:0,creditBlocked:false,open:null,receipts:[],ingestions:[],events:[],totals:[0,0,0],rejectedEvents:0,censoredEvents:0,historyCensored:false});return capacityProfile===undefined?memory:applyTemporalCapacity(memory,capacityProfile);}
 function advance(memory,at){if(!finite(at)||at<memory.clockAt)throw new TypeError('Temporal clock cannot reverse');if(!integer(memory.eventOrder)||memory.eventOrder>=1e9)throw new RangeError('Temporal event order exhausted');memory.clockAt=at;memory.eventOrder++;}
 function rewardTime(open,at){if(open.unknownContext){open.accountedUntil=at;return;}open.reward[3]+=temporalIntegral(open.accountedUntil-open.startAt,at-open.startAt);open.accountedUntil=at;}
 function censorOwners(memory,owners){if(!owners.size)return;if(memory.open&&owners.has(memory.open.seq))memory.open=null;memory.model.transitions=memory.model.transitions.filter(t=>!owners.has(t.seq));memory.model.historyCensored=true;memory.historyCensored=true;}
@@ -29,7 +30,7 @@ export function beginTemporalDecision(memory,{at,context,action}){
  }
  memory.open={seq,startAt:at,key,...unknown,request,order:memory.eventOrder,accountedUntil:at,reward:[0,0,0,0,0]};
  memory.receipts.push({seq,at,key,...unknown,request,order:memory.eventOrder});
- while(memory.receipts.length>MAX_RECEIPTS){const lost=memory.receipts.shift();censorOwners(memory,new Set([lost.seq]));const ing=memory.ingestions.filter(x=>x.seq===lost.seq);if(ing.length){const ids=new Set(ing.map(x=>x.id)),owners=new Set(memory.events.filter(e=>ids.has(e.ingestionId)).map(e=>e.owner));censorOwners(memory,owners);memory.events=memory.events.filter(e=>!ids.has(e.ingestionId));memory.ingestions=memory.ingestions.filter(x=>!ids.has(x.id));}}
+ while(memory.receipts.length>(temporalCapacityFor(memory)?.receipts??MAX_RECEIPTS)){const lost=memory.receipts.shift();censorOwners(memory,new Set([lost.seq]));const ing=memory.ingestions.filter(x=>x.seq===lost.seq);if(ing.length){const ids=new Set(ing.map(x=>x.id)),owners=new Set(memory.events.filter(e=>ids.has(e.ingestionId)).map(e=>e.owner));censorOwners(memory,owners);memory.events=memory.events.filter(e=>!ids.has(e.ingestionId));memory.ingestions=memory.ingestions.filter(x=>!ids.has(x.id));}}
  return seq;
 }
 /** Completion copies only the actual bounded public receipt; it never supplies reward for success. */
@@ -39,7 +40,7 @@ export function completeTemporalDecision(memory,{seq,at,actionId,result}){
  receipt.outcome=outcome;receipt.completedAt=at;
  if(receipt.request.type==='sample'&&outcome.ok&&outcome.code==='SWALLOWED'&&outcome.actionId&&outcome.ingestionId&&objectId(receipt.request.targetId)&&!memory.ingestions.some(i=>i.id===outcome.ingestionId)){
   memory.ingestions.push({id:outcome.ingestionId,objectId:receipt.request.targetId,actionId:outcome.actionId,seq,at,channels:0,channelProof:{},creditBlocked:false});
-  if(memory.ingestions.length>MAX){const lost=memory.ingestions.shift(),owners=new Set(memory.events.filter(e=>e.ingestionId===lost.id).map(e=>e.owner));censorOwners(memory,owners);memory.events=memory.events.filter(e=>e.ingestionId!==lost.id);memory.historyCensored=true;}
+  if(memory.ingestions.length>(temporalCapacityFor(memory)?.ingestions??MAX)){const lost=memory.ingestions.shift(),owners=new Set(memory.events.filter(e=>e.ingestionId===lost.id).map(e=>e.owner));censorOwners(memory,owners);memory.events=memory.events.filter(e=>e.ingestionId!==lost.id);memory.historyCensored=true;}
  }
  // A felt label describes only completed real work, never a refusal. In this
  // serial feasibility adapter, the actual work is contained in its open interval.
@@ -63,7 +64,7 @@ export function recordTemporalFeedback(memory,event,{now=memory.clockAt}={}){
  if(ingestion.creditBlocked||!memory.open||memory.open.unknownContext===true||event.at<memory.open.startAt){memory.censoredEvents++;return false;}
  const row={sourceSeq,id:event.id,ingestionId:ingestion.id,objectId:ingestion.objectId,actionId:ingestion.actionId,at:event.at,order:memory.eventOrder,owner:memory.open.seq,channels};memory.events.push(row);
  for(let c=0;c<3;c++)if(channels&(1<<c)){memory.totals[c]++;memory.open.reward[c]+=temporalDiscount(event.at-memory.open.startAt);}
- if(memory.events.length>MAX){const lost=memory.events.shift();censorOwners(memory,new Set([lost.owner]));memory.historyCensored=true;}
+ if(memory.events.length>(temporalCapacityFor(memory)?.events??MAX)){const lost=memory.events.shift();censorOwners(memory,new Set([lost.owner]));memory.historyCensored=true;}
  return true;
 }
 /** Pure bounded restoration; never trains, emits reward, or infers completion. */

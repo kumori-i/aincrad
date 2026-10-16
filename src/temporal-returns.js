@@ -1,4 +1,5 @@
 /** Experimental observed-trajectory prediction. No world/body access or action policy. */
+import { temporalCapacityFor } from './temporal-capacity.js';
 export const TEMPORAL_LIMITS=Object.freeze({rows:4096,transitions:512,forecast:10000,sweeps:8,alpha:.2,halfLifeSeconds:300});
 export const TEMPORAL_CHANNELS=Object.freeze(['food','water','harm','time','work']);
 export const TEMPORAL_OPERATIONS=Object.freeze(['inspect_object','grasp','release','pull','sample','strike','move','wait','rest','sleep','observe','say','ask_human','journal_reply','write_note','read_note','enter_shelter','exit_shelter','fill_flask','drink']);
@@ -53,7 +54,7 @@ export const temporalDiscount=seconds=>finite(seconds)?Math.exp(-BETA*seconds):0
 /** Discounted integral of a public per-minute rate over [from,to] after interval start. */
 export function temporalIntegral(from,to,rate=1){if(!finite(from)||!finite(to)||to<from||!finite(rate))throw new TypeError('Invalid temporal interval');return rate*Math.exp(-BETA*from)*(-Math.expm1(-BETA*(to-from)))/(60*BETA);}
 export function createTemporalReturns(){return {version:1,rows:[],transitions:[],lastClosedSeq:0,updateCount:0,saturated:false,numericalGuard:false,historyCensored:false};}
-function rowFor(model,key,create=false){let r=model.rows.find(r=>r.key===key);if(!r&&create){if(model.rows.length>=TEMPORAL_LIMITS.rows){model.saturated=true;return null;}r={key,q:zero(),visits:0,updates:0,lastAt:0};model.rows.push(r);}return r;}
+function rowFor(model,key,create=false){let r=model.rows.find(r=>r.key===key);if(!r&&create){if(model.rows.length>=(temporalCapacityFor(model)?.rows??TEMPORAL_LIMITS.rows)){model.saturated=true;return null;}r={key,q:zero(),visits:0,updates:0,lastAt:0};model.rows.push(r);}return r;}
 export function temporalPrediction(model,key){const r=rowFor(model,key);return r?{q:[...r.q],visits:r.visits,known:r.visits>0}:{q:zero(),visits:0,known:false};}
 function cleanTransition(t,elapsed=Infinity){
  if(!t||!integer(t.seq)||t.seq<1||t.seq>1e9||!integer(t.nextSeq)||t.nextSeq>1e9||t.nextSeq<=t.seq||!finite(t.startAt)||!finite(t.endAt)||t.endAt<t.startAt||t.endAt>elapsed||!cleanKey(t.key)||!cleanKey(t.nextKey)||!Array.isArray(t.reward)||t.reward.length!==5||Array.from(t.reward).some(v=>!finite(v)||v>TEMPORAL_LIMITS.forecast))return null;
@@ -63,7 +64,7 @@ function cleanTransition(t,elapsed=Infinity){
 export function appendTemporalTransition(model,raw){
  const t=cleanTransition(raw),last=model.transitions.at(-1);if(!t||t.seq<=model.lastClosedSeq||last&&t.startAt<last.endAt)return false;
  model.lastClosedSeq=t.seq;const row=rowFor(model,t.key,true);if(row){row.visits=Math.min(1e9,row.visits+1);row.lastAt=t.endAt;}rowFor(model,t.nextKey,true);
- model.transitions.push(t);if(model.transitions.length>TEMPORAL_LIMITS.transitions){model.transitions.shift();model.historyCensored=true;}return true;
+ model.transitions.push(t);if(model.transitions.length>(temporalCapacityFor(model)?.transitions??TEMPORAL_LIMITS.transitions)){model.transitions.shift();model.historyCensored=true;}return true;
 }
 /** Actual-successor full returns; each sweep reads a frozen table and updates each row once. */
 export function trainTemporalReturns(model,{mode='online',rewardView=null}={}){

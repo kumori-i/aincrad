@@ -1,0 +1,1127 @@
+{
+  "schemaVersion": 1,
+  "protocol": "headless-diagnostic-v1",
+  "sourceCommit": "47cfe096bfdf80076e2f588db222615b2526d3e1",
+  "source": {
+    "runtimeSource": "79ad0454075dbe27a7a138b0dbb89eea876ae36a3f9034f7f0cfc681fe89910f",
+    "evaluatorSource": "d82231969de83c021fb25e723f19d38dd5322f2d1f98dfe60e88acbb3c20b631",
+    "frozenSource": "ee14d48ab66f37d8742e6fc855dfb96913abf275c4a43559c979ce7b07632f68",
+    "files": [
+      {
+        "path": "package-lock.json",
+        "sha256": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+      },
+      {
+        "path": "package.json",
+        "sha256": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757"
+      },
+      {
+        "path": "scripts/lib/finite-temporal-checkpoint.mjs",
+        "sha256": "3dad25df9b326fa2ca5bf6e5269b40f35aaa59636151da060072eca7f0cae39d"
+      },
+      {
+        "path": "scripts/lib/finite-temporal-driver.mjs",
+        "sha256": "d6df6eadbc78010cb35aca28d3b0ec0c8df9454b660ad01de417c840c7c10284"
+      },
+      {
+        "path": "scripts/lib/finite-temporal-policy.mjs",
+        "sha256": "0cad58e6e03aff28cad0648060703e35fdbe8a5332dbd171084e9ff322e5f2c8"
+      },
+      {
+        "path": "src/art.js",
+        "sha256": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911"
+      },
+      {
+        "path": "src/atlas.js",
+        "sha256": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83"
+      },
+      {
+        "path": "src/biology-config.js",
+        "sha256": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184"
+      },
+      {
+        "path": "src/biology.js",
+        "sha256": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3"
+      },
+      {
+        "path": "src/build-info.js",
+        "sha256": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e"
+      },
+      {
+        "path": "src/cardinal-config.js",
+        "sha256": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f"
+      },
+      {
+        "path": "src/cardinal-experiments.js",
+        "sha256": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d"
+      },
+      {
+        "path": "src/cardinal-metrics.js",
+        "sha256": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895"
+      },
+      {
+        "path": "src/cardinal-panel.js",
+        "sha256": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43"
+      },
+      {
+        "path": "src/cardinal-state.js",
+        "sha256": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706"
+      },
+      {
+        "path": "src/cardinal.js",
+        "sha256": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520"
+      },
+      {
+        "path": "src/cognition.js",
+        "sha256": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601"
+      },
+      {
+        "path": "src/config.js",
+        "sha256": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e"
+      },
+      {
+        "path": "src/controller.js",
+        "sha256": "f28cb7323c7a28b0407b9a185804e17e7adec2182893a30bb786b522387ee96e"
+      },
+      {
+        "path": "src/discovery-actions.js",
+        "sha256": "95987fa0df42014aa14595bdc8b2822ec22f309ea94478915925959c258374a8"
+      },
+      {
+        "path": "src/discovery-config.js",
+        "sha256": "ef4ce5deca8baf48a4ea3c804f4dddb22175886fa80a1f1d5e485e254ea34191"
+      },
+      {
+        "path": "src/discovery-state.js",
+        "sha256": "347548cdbd37c7a60dc8978818cdc2e023cbfdb50d15c66e9ea4ee9569a92824"
+      },
+      {
+        "path": "src/discovery.js",
+        "sha256": "a05a14ce041be4c203929fde612579656e199d1a3e21bbca3db929e7103fc9af"
+      },
+      {
+        "path": "src/ecology-config.js",
+        "sha256": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba"
+      },
+      {
+        "path": "src/ecology-corridors.js",
+        "sha256": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c"
+      },
+      {
+        "path": "src/ecology-regions.js",
+        "sha256": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265"
+      },
+      {
+        "path": "src/ecology.js",
+        "sha256": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5"
+      },
+      {
+        "path": "src/environment.js",
+        "sha256": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb"
+      },
+      {
+        "path": "src/interoception.js",
+        "sha256": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb"
+      },
+      {
+        "path": "src/main.js",
+        "sha256": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742"
+      },
+      {
+        "path": "src/navigation.js",
+        "sha256": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2"
+      },
+      {
+        "path": "src/npc-memory.js",
+        "sha256": "c4fe6ced5d7154d3c9156b541089b3be7715f2029e25f67c4672fa0949496851"
+      },
+      {
+        "path": "src/npc-panel.js",
+        "sha256": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7"
+      },
+      {
+        "path": "src/npc-state.js",
+        "sha256": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452"
+      },
+      {
+        "path": "src/npc.js",
+        "sha256": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162"
+      },
+      {
+        "path": "src/perception.js",
+        "sha256": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22"
+      },
+      {
+        "path": "src/population.js",
+        "sha256": "eda9257649c52dcd2751bef3cc0e2324b15fe54bc33a0c5fc8fcd5d6c38ccab6"
+      },
+      {
+        "path": "src/renderer.js",
+        "sha256": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5"
+      },
+      {
+        "path": "src/resources.js",
+        "sha256": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd"
+      },
+      {
+        "path": "src/save.js",
+        "sha256": "62b5d8b9aaaddbcd1125c744fc1e0f011bbffa855b833ffdeb9fb61601a17ad6"
+      },
+      {
+        "path": "src/simulation-clock.js",
+        "sha256": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e"
+      },
+      {
+        "path": "src/social.js",
+        "sha256": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446"
+      },
+      {
+        "path": "src/temporal-capacity.js",
+        "sha256": "8a8340b17442847a6510cc3e11f7125f6f2e069e80a1467b94765cee1ec27f9b"
+      },
+      {
+        "path": "src/temporal-ledger.js",
+        "sha256": "93c6e052961cba14cadd5b7de8ed3e4c1845695dc88db155b303e9c9ce251f7d"
+      },
+      {
+        "path": "src/temporal-returns.js",
+        "sha256": "6ffa62329cef1c983004f2fc167e0ef213a3dfbc36a26f098b63a05fb6f75e28"
+      },
+      {
+        "path": "src/temporal-storage.js",
+        "sha256": "61a75a709fd984cc8f2c108b601190f52824039bb8360dce000caa8299a5a5bf"
+      },
+      {
+        "path": "src/world-rules.js",
+        "sha256": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa"
+      },
+      {
+        "path": "src/world.js",
+        "sha256": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a"
+      }
+    ]
+  },
+  "interpretation": "One development start, three intact control arms. Autonomous acquisition/sample/feedback occurred in every arm. No demonstrated benefit of temporal bootstrapping; no generalization or survival claim. Original interactive gate failed; no cohort or promotion.",
+  "originalInteractiveGate": {
+    "passed": false,
+    "originalGates": {
+      "minimumMeasuredSubmissions": 200,
+      "maxAddedDecisionP95Ms": 5,
+      "maxEncodedActorBytes": 1048576,
+      "passed": false
+    },
+    "originalCaseResults": [
+      {
+        "name": "cold",
+        "arm": "online",
+        "p95Ms": 1.6939029999998638,
+        "encodedActorAndMetadataBytes": 22626,
+        "originalGatePassed": true
+      },
+      {
+        "name": "cold",
+        "arm": "no-bootstrap",
+        "p95Ms": 1.4991579999996247,
+        "encodedActorAndMetadataBytes": 22632,
+        "originalGatePassed": true
+      },
+      {
+        "name": "cold",
+        "arm": "frozen-zero",
+        "p95Ms": 1.0722859999987122,
+        "encodedActorAndMetadataBytes": 22631,
+        "originalGatePassed": true
+      },
+      {
+        "name": "full-cap-known",
+        "arm": "online",
+        "p95Ms": 11.868704000000434,
+        "encodedActorAndMetadataBytes": 343413,
+        "originalGatePassed": false
+      },
+      {
+        "name": "full-cap-known",
+        "arm": "no-bootstrap",
+        "p95Ms": 5.322419999996782,
+        "encodedActorAndMetadataBytes": 339642,
+        "originalGatePassed": false
+      },
+      {
+        "name": "full-cap-known",
+        "arm": "frozen-zero",
+        "p95Ms": 4.409578999999212,
+        "encodedActorAndMetadataBytes": 337913,
+        "originalGatePassed": true
+      },
+      {
+        "name": "full-cap-unknown",
+        "arm": "online",
+        "p95Ms": 18.97016799999983,
+        "encodedActorAndMetadataBytes": 340897,
+        "originalGatePassed": false
+      },
+      {
+        "name": "full-cap-unknown",
+        "arm": "no-bootstrap",
+        "p95Ms": 4.534704999998212,
+        "encodedActorAndMetadataBytes": 338716,
+        "originalGatePassed": true
+      },
+      {
+        "name": "full-cap-unknown",
+        "arm": "frozen-zero",
+        "p95Ms": 2.8022469999996247,
+        "encodedActorAndMetadataBytes": 337014,
+        "originalGatePassed": true
+      }
+    ],
+    "originalBudget": {
+      "path": "/workspace/scratch/9460752329be/evidence/aincrad-finite-temporal/final/budget.json",
+      "sha256": "eabb0c3b890d9c946ce69192cffea9f4adf389bd39c363bafa94c34358efe2e4"
+    },
+    "originalEvaluator": {
+      "path": "/workspace/scratch/9460752329be/evidence/aincrad-finite-temporal/final/evaluate-finite-temporal-interactive.mjs",
+      "sha256": "bb71b76ba84a1522569973284fc816d1c44781ab84c1bd5b217a0d9963fc513e"
+    },
+    "cohortProgressionAllowed": false
+  },
+  "headlessAdmission": {
+    "protocol": "headless-diagnostic-v1",
+    "admitted": true,
+    "admissionP95ExclusiveMs": 50,
+    "originalInteractiveGatePassed": false,
+    "originalGates": {
+      "minimumMeasuredSubmissions": 200,
+      "maxAddedDecisionP95Ms": 5,
+      "maxEncodedActorBytes": 1048576,
+      "passed": false
+    },
+    "originalCaseResults": [
+      {
+        "name": "cold",
+        "arm": "online",
+        "p95Ms": 1.6939029999998638,
+        "encodedActorAndMetadataBytes": 22626,
+        "originalGatePassed": true
+      },
+      {
+        "name": "cold",
+        "arm": "no-bootstrap",
+        "p95Ms": 1.4991579999996247,
+        "encodedActorAndMetadataBytes": 22632,
+        "originalGatePassed": true
+      },
+      {
+        "name": "cold",
+        "arm": "frozen-zero",
+        "p95Ms": 1.0722859999987122,
+        "encodedActorAndMetadataBytes": 22631,
+        "originalGatePassed": true
+      },
+      {
+        "name": "full-cap-known",
+        "arm": "online",
+        "p95Ms": 11.868704000000434,
+        "encodedActorAndMetadataBytes": 343413,
+        "originalGatePassed": false
+      },
+      {
+        "name": "full-cap-known",
+        "arm": "no-bootstrap",
+        "p95Ms": 5.322419999996782,
+        "encodedActorAndMetadataBytes": 339642,
+        "originalGatePassed": false
+      },
+      {
+        "name": "full-cap-known",
+        "arm": "frozen-zero",
+        "p95Ms": 4.409578999999212,
+        "encodedActorAndMetadataBytes": 337913,
+        "originalGatePassed": true
+      },
+      {
+        "name": "full-cap-unknown",
+        "arm": "online",
+        "p95Ms": 18.97016799999983,
+        "encodedActorAndMetadataBytes": 340897,
+        "originalGatePassed": false
+      },
+      {
+        "name": "full-cap-unknown",
+        "arm": "no-bootstrap",
+        "p95Ms": 4.534704999998212,
+        "encodedActorAndMetadataBytes": 338716,
+        "originalGatePassed": true
+      },
+      {
+        "name": "full-cap-unknown",
+        "arm": "frozen-zero",
+        "p95Ms": 2.8022469999996247,
+        "encodedActorAndMetadataBytes": 337014,
+        "originalGatePassed": true
+      }
+    ],
+    "cohortProgressionAllowed": false
+  },
+  "comparison": {
+    "protocol": "headless-diagnostic-v1",
+    "allThreeCompleted": true,
+    "matchingInitialStates": true,
+    "comparisonEligible": true,
+    "originalInteractiveGatePassed": false,
+    "cohortProgressionAllowed": false,
+    "interpretation": "One controlled diagnostic start only. No development-cohort, interactive-responsiveness or efficacy claim follows.",
+    "pairs": [
+      {
+        "control": "no-bootstrap",
+        "primaryCountDifference": -2,
+        "absorbedKcalDifference": -49.45755189504127,
+        "collapseDifference": 0,
+        "discomfortIngestionDifference": 0,
+        "minimumHealthDifference": 0
+      },
+      {
+        "control": "frozen-zero",
+        "primaryCountDifference": 0,
+        "absorbedKcalDifference": 0.22644179894154437,
+        "collapseDifference": 0,
+        "discomfortIngestionDifference": 0,
+        "minimumHealthDifference": 0
+      }
+    ]
+  },
+  "tests": {
+    "full": 541,
+    "failed": 0,
+    "evaluatorSupervisorFocused": 31,
+    "build": true,
+    "defaultNativeEvidence": "Preserved unchanged-runtime 528-test checkpoint: full default parity, actual Electron smoke/reopen."
+  },
+  "supervisor": {
+    "source": "d893107b26ccd40bfd2bf62409ffdc8a4097a4935b3daef5fd4489d47f913e1f",
+    "status": "finished",
+    "trigger": null,
+    "wallMs": 50532.747761,
+    "census": [
+      {
+        "id": "headless-diagnostic-v1-approach1-seed1729-online",
+        "classification": "completed",
+        "stopStateAvailable": true
+      },
+      {
+        "id": "headless-diagnostic-v1-approach1-seed1729-no-bootstrap",
+        "classification": "completed",
+        "stopStateAvailable": true
+      },
+      {
+        "id": "headless-diagnostic-v1-approach1-seed1729-frozen-zero",
+        "classification": "completed",
+        "stopStateAvailable": true
+      }
+    ]
+  },
+  "rows": [
+    {
+      "arm": "online",
+      "status": "completed",
+      "elapsedSeconds": 600,
+      "stopAt": 599.999999999783,
+      "wallSeconds": 16.375809883,
+      "initialStateSha256": "05463f4ffbfc35bce18403edb6310e0ab95d3fb3534af86a0f5c3347f182c46a",
+      "chainOrderScope": "Driver submission/outcome/feedback callback order only, not global owner traceOrder (which includes snapshots).",
+      "primaryDistinctFoodMaterials": 1,
+      "beneficialFoodPortions": 1,
+      "foodChains": [
+        {
+          "materialId": "object:868",
+          "ingestionId": "ingestion:22",
+          "acquisition": {
+            "seq": 135,
+            "at": 516.5999999998588,
+            "actionId": 299,
+            "request": {
+              "type": "grasp",
+              "targetId": "object:868"
+            },
+            "order": 276,
+            "materialId": "object:868"
+          },
+          "firstAcquisition": {
+            "seq": 129,
+            "at": 498.0166666665424,
+            "actionId": 286,
+            "request": {
+              "type": "pull",
+              "targetId": "object:1"
+            },
+            "order": 264,
+            "materialId": "object:868"
+          },
+          "sample": {
+            "seq": 136,
+            "actionId": 302,
+            "at": 520.0166666665224
+          },
+          "feedback": {
+            "eventId": "feedback:23",
+            "at": 565.4999999998143,
+            "order": 303
+          }
+        }
+      ],
+      "distinctWaterBenefitMaterials": 9,
+      "distinctAcquiredMaterials": 12,
+      "distinctSampledMaterials": 10,
+      "successfulSwallows": 15,
+      "repeatedValidSamples": 5,
+      "distinctDiscomfortIngestions": 0,
+      "releasesBeforeAnySample": 4,
+      "choices": {
+        "ordinary": 154,
+        "known": 33,
+        "unknown": 121,
+        "unknownFraction": 0.7857142857142857,
+        "exploring": 122
+      },
+      "submissions": 157,
+      "recordedOutcomes": 157,
+      "energy": {
+        "swallowedKcal": 31.666666666666668,
+        "swallowedWaterMl": 653.6666666666666,
+        "absorbedKcal": 4.825648148148093,
+        "absorbedWaterMl": 573.1006148124683,
+        "spentKcal": 723.0311384750211,
+        "discardedKcal": 0,
+        "pendingOpeningKcal": 0,
+        "pendingClosingKcal": 26.841018518518577,
+        "reserveChangeKcal": -718.2054903314711,
+        "waterDeficitChangeMl": 284.552341811456,
+        "energyResidualKcal": 4.60295268567279e-9,
+        "finiteTransferResidualKcal": 0,
+        "checks": {
+          "energyConservation": true,
+          "finiteTransfer": true,
+          "noAssistance": true
+        }
+      },
+      "safety": {
+        "minimumHealth": 100,
+        "collapses": 0,
+        "totalInjuryAmount": 0,
+        "totalInjuries": [],
+        "contactInjuryEventCount": 0,
+        "injuryInterpretation": "Gross accumulated injury across all physiology damage; CONTACT_INJURY events are counted separately. The engine condition receipt does not expose exact contact-only damage.",
+        "actualRestSeconds": 0,
+        "actualSleepSeconds": 0,
+        "collapsedSeconds": 0
+      },
+      "resources": {
+        "sampledPeakActorBytes": 393444,
+        "firstSaturationAt": null,
+        "rows": 123,
+        "contexts": 123,
+        "replay": 128,
+        "receipts": 157,
+        "saturated": false,
+        "contextOverflows": 0,
+        "unknownContextReceipts": 0,
+        "historyCensored": false,
+        "modelHistoryCensored": true,
+        "addedDecisionMs": {
+          "n": 157,
+          "mean": 2.1708655095541616,
+          "p50": 2.0373609999996916,
+          "p95": 3.4770690000004834,
+          "p99": 7.302122999999483,
+          "max": 8.078619999999773
+        },
+        "headlessLimits": {
+          "stopped": false,
+          "decisionExceeded": false,
+          "wallExceeded": false,
+          "returnedDecisionMs": 8.078619999999773,
+          "wallSeconds": 16.375809883,
+          "maximumReturnedDecisionMs": 1000,
+          "wallBudgetSeconds": 300,
+          "checkedAfterReturn": true
+        }
+      },
+      "checks": {
+        "energyConservation": true,
+        "finiteTransfer": true,
+        "noAssistance": true,
+        "actorCapacity": true,
+        "headlessResourceLimits": true,
+        "noUnexpectedUnsubmitted": true,
+        "noDiagnosticFailure": true,
+        "noNumericalGuard": true,
+        "clockAgreement": true,
+        "singleActor": true,
+        "noModelCalls": true,
+        "noCardinal": true
+      },
+      "trace": {
+        "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-online.owner.jsonl",
+        "sha256": "6b85a5263e19cb3003e19450136960b700e2da50b668ee7168ed2cd152cecb06",
+        "bytes": 1429412
+      },
+      "stopEvidence": {
+        "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-online.stop.json",
+        "sha256": "636721425171389a29e56db8e713ba3c27695f15eddf4a47c8c4de5d38d98400"
+      }
+    },
+    {
+      "arm": "no-bootstrap",
+      "status": "completed",
+      "elapsedSeconds": 600,
+      "stopAt": 599.999999999783,
+      "wallSeconds": 16.029702942,
+      "initialStateSha256": "05463f4ffbfc35bce18403edb6310e0ab95d3fb3534af86a0f5c3347f182c46a",
+      "chainOrderScope": "Driver submission/outcome/feedback callback order only, not global owner traceOrder (which includes snapshots).",
+      "primaryDistinctFoodMaterials": 3,
+      "beneficialFoodPortions": 5,
+      "foodChains": [
+        {
+          "materialId": "object:857",
+          "ingestionId": "ingestion:3",
+          "acquisition": {
+            "seq": 31,
+            "at": 120.79999999999443,
+            "actionId": 66,
+            "request": {
+              "type": "pull",
+              "targetId": "object:3"
+            },
+            "order": 62,
+            "materialId": "object:857"
+          },
+          "firstAcquisition": {
+            "seq": 31,
+            "at": 120.79999999999443,
+            "actionId": 66,
+            "request": {
+              "type": "pull",
+              "targetId": "object:3"
+            },
+            "order": 62,
+            "materialId": "object:857"
+          },
+          "sample": {
+            "seq": 34,
+            "actionId": 72,
+            "at": 132.8166666666645
+          },
+          "feedback": {
+            "eventId": "feedback:5",
+            "at": 165.98333333335756,
+            "order": 84
+          }
+        },
+        {
+          "materialId": "object:858",
+          "ingestionId": "ingestion:7",
+          "acquisition": {
+            "seq": 38,
+            "at": 147.46666666667616,
+            "actionId": 80,
+            "request": {
+              "type": "pull",
+              "targetId": "object:3"
+            },
+            "order": 76,
+            "materialId": "object:858"
+          },
+          "firstAcquisition": {
+            "seq": 38,
+            "at": 147.46666666667616,
+            "actionId": 80,
+            "request": {
+              "type": "pull",
+              "targetId": "object:3"
+            },
+            "order": 76,
+            "materialId": "object:858"
+          },
+          "sample": {
+            "seq": 54,
+            "actionId": 115,
+            "at": 208.91666666672506
+          },
+          "feedback": {
+            "eventId": "feedback:9",
+            "at": 242.08333333341812,
+            "order": 126
+          }
+        },
+        {
+          "materialId": "object:861",
+          "ingestionId": "ingestion:10",
+          "acquisition": {
+            "seq": 59,
+            "at": 232.81666666674408,
+            "actionId": 126,
+            "request": {
+              "type": "pull",
+              "targetId": "object:2"
+            },
+            "order": 120,
+            "materialId": "object:861"
+          },
+          "firstAcquisition": {
+            "seq": 59,
+            "at": 232.81666666674408,
+            "actionId": 126,
+            "request": {
+              "type": "pull",
+              "targetId": "object:2"
+            },
+            "order": 120,
+            "materialId": "object:861"
+          },
+          "sample": {
+            "seq": 62,
+            "actionId": 134,
+            "at": 244.58333333342011
+          },
+          "feedback": {
+            "eventId": "feedback:12",
+            "at": 277.75000000007606,
+            "order": 146
+          }
+        }
+      ],
+      "distinctWaterBenefitMaterials": 6,
+      "distinctAcquiredMaterials": 13,
+      "distinctSampledMaterials": 10,
+      "successfulSwallows": 14,
+      "repeatedValidSamples": 4,
+      "distinctDiscomfortIngestions": 0,
+      "releasesBeforeAnySample": 5,
+      "choices": {
+        "ordinary": 159,
+        "known": 31,
+        "unknown": 128,
+        "unknownFraction": 0.8050314465408805,
+        "exploring": 128
+      },
+      "submissions": 162,
+      "recordedOutcomes": 161,
+      "energy": {
+        "swallowedKcal": 54.285714285714285,
+        "swallowedWaterMl": 654.6666666666667,
+        "absorbedKcal": 54.28320004318936,
+        "absorbedWaterMl": 610.3662985026925,
+        "spentKcal": 745.5885847735638,
+        "discardedKcal": 0.002514242485250875,
+        "pendingOpeningKcal": 0,
+        "pendingClosingKcal": 0,
+        "reserveChangeKcal": -691.3053847355768,
+        "waterDeficitChangeMl": 281.57861024673934,
+        "energyResidualKcal": 5.237932996192407e-9,
+        "finiteTransferResidualKcal": 0,
+        "checks": {
+          "energyConservation": true,
+          "finiteTransfer": true,
+          "noAssistance": true
+        }
+      },
+      "safety": {
+        "minimumHealth": 100,
+        "collapses": 0,
+        "totalInjuryAmount": 0,
+        "totalInjuries": [],
+        "contactInjuryEventCount": 0,
+        "injuryInterpretation": "Gross accumulated injury across all physiology damage; CONTACT_INJURY events are counted separately. The engine condition receipt does not expose exact contact-only damage.",
+        "actualRestSeconds": 0,
+        "actualSleepSeconds": 0,
+        "collapsedSeconds": 0
+      },
+      "resources": {
+        "sampledPeakActorBytes": 393101,
+        "firstSaturationAt": null,
+        "rows": 128,
+        "contexts": 128,
+        "replay": 128,
+        "receipts": 162,
+        "saturated": false,
+        "contextOverflows": 0,
+        "unknownContextReceipts": 0,
+        "historyCensored": false,
+        "modelHistoryCensored": true,
+        "addedDecisionMs": {
+          "n": 162,
+          "mean": 1.89810511728398,
+          "p50": 1.7861770000017714,
+          "p95": 3.049749999998312,
+          "p99": 3.7648650000046473,
+          "max": 4.78457200000048
+        },
+        "headlessLimits": {
+          "stopped": false,
+          "decisionExceeded": false,
+          "wallExceeded": false,
+          "returnedDecisionMs": 4.78457200000048,
+          "wallSeconds": 16.029702942,
+          "maximumReturnedDecisionMs": 1000,
+          "wallBudgetSeconds": 300,
+          "checkedAfterReturn": true
+        }
+      },
+      "checks": {
+        "energyConservation": true,
+        "finiteTransfer": true,
+        "noAssistance": true,
+        "actorCapacity": true,
+        "headlessResourceLimits": true,
+        "noUnexpectedUnsubmitted": true,
+        "noDiagnosticFailure": true,
+        "noNumericalGuard": true,
+        "clockAgreement": true,
+        "singleActor": true,
+        "noModelCalls": true,
+        "noCardinal": true
+      },
+      "trace": {
+        "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-no-bootstrap.owner.jsonl",
+        "sha256": "68c85bf9425a4825d539e9989e32062d78341a582f62f7275b6ae9b083eb290e",
+        "bytes": 1484689
+      },
+      "stopEvidence": {
+        "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-no-bootstrap.stop.json",
+        "sha256": "f537c256133ee858cbab1b9f0fad4355e27c6d5558bd0632aee9616d148036a1"
+      }
+    },
+    {
+      "arm": "frozen-zero",
+      "status": "completed",
+      "elapsedSeconds": 600,
+      "stopAt": 599.999999999783,
+      "wallSeconds": 15.764492758000001,
+      "initialStateSha256": "05463f4ffbfc35bce18403edb6310e0ab95d3fb3534af86a0f5c3347f182c46a",
+      "chainOrderScope": "Driver submission/outcome/feedback callback order only, not global owner traceOrder (which includes snapshots).",
+      "primaryDistinctFoodMaterials": 1,
+      "beneficialFoodPortions": 1,
+      "foodChains": [
+        {
+          "materialId": "object:866",
+          "ingestionId": "ingestion:20",
+          "acquisition": {
+            "seq": 135,
+            "at": 536.0166666665078,
+            "actionId": 303,
+            "request": {
+              "type": "grasp",
+              "targetId": "object:866"
+            },
+            "order": 277,
+            "materialId": "object:866"
+          },
+          "firstAcquisition": {
+            "seq": 129,
+            "at": 517.4833333331914,
+            "actionId": 290,
+            "request": {
+              "type": "pull",
+              "targetId": "object:2"
+            },
+            "order": 265,
+            "materialId": "object:866"
+          },
+          "sample": {
+            "seq": 136,
+            "actionId": 305,
+            "at": 539.5333333331713
+          },
+          "feedback": {
+            "eventId": "feedback:21",
+            "at": 572.6999999998078,
+            "order": 295
+          }
+        }
+      ],
+      "distinctWaterBenefitMaterials": 7,
+      "distinctAcquiredMaterials": 10,
+      "distinctSampledMaterials": 8,
+      "successfulSwallows": 13,
+      "repeatedValidSamples": 5,
+      "distinctDiscomfortIngestions": 0,
+      "releasesBeforeAnySample": 4,
+      "choices": {
+        "ordinary": 150,
+        "known": 37,
+        "unknown": 113,
+        "unknownFraction": 0.7533333333333333,
+        "exploring": 114
+      },
+      "submissions": 153,
+      "recordedOutcomes": 152,
+      "energy": {
+        "swallowedKcal": 19,
+        "swallowedWaterMl": 612,
+        "absorbedKcal": 4.599206349206549,
+        "absorbedWaterMl": 564.5378740729216,
+        "spentKcal": 676.9501708851249,
+        "discardedKcal": 0,
+        "pendingOpeningKcal": 0,
+        "pendingClosingKcal": 14.400793650794316,
+        "reserveChangeKcal": -672.3509645392187,
+        "waterDeficitChangeMl": 221.385857658669,
+        "energyResidualKcal": 3.299533091194462e-9,
+        "finiteTransferResidualKcal": 0,
+        "checks": {
+          "energyConservation": true,
+          "finiteTransfer": true,
+          "noAssistance": true
+        }
+      },
+      "safety": {
+        "minimumHealth": 100,
+        "collapses": 0,
+        "totalInjuryAmount": 0,
+        "totalInjuries": [],
+        "contactInjuryEventCount": 0,
+        "injuryInterpretation": "Gross accumulated injury across all physiology damage; CONTACT_INJURY events are counted separately. The engine condition receipt does not expose exact contact-only damage.",
+        "actualRestSeconds": 0,
+        "actualSleepSeconds": 0,
+        "collapsedSeconds": 0
+      },
+      "resources": {
+        "sampledPeakActorBytes": 361436,
+        "firstSaturationAt": null,
+        "rows": 115,
+        "contexts": 115,
+        "replay": 128,
+        "receipts": 153,
+        "saturated": false,
+        "contextOverflows": 0,
+        "unknownContextReceipts": 0,
+        "historyCensored": false,
+        "modelHistoryCensored": true,
+        "addedDecisionMs": {
+          "n": 153,
+          "mean": 1.4824699869281341,
+          "p50": 1.4273659999962547,
+          "p95": 2.3101370000003953,
+          "p99": 3.6468459999960032,
+          "max": 4.952583999998751
+        },
+        "headlessLimits": {
+          "stopped": false,
+          "decisionExceeded": false,
+          "wallExceeded": false,
+          "returnedDecisionMs": 4.952583999998751,
+          "wallSeconds": 15.764492758000001,
+          "maximumReturnedDecisionMs": 1000,
+          "wallBudgetSeconds": 300,
+          "checkedAfterReturn": true
+        }
+      },
+      "checks": {
+        "energyConservation": true,
+        "finiteTransfer": true,
+        "noAssistance": true,
+        "actorCapacity": true,
+        "headlessResourceLimits": true,
+        "noUnexpectedUnsubmitted": true,
+        "noDiagnosticFailure": true,
+        "noNumericalGuard": true,
+        "clockAgreement": true,
+        "singleActor": true,
+        "noModelCalls": true,
+        "noCardinal": true
+      },
+      "trace": {
+        "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-frozen-zero.owner.jsonl",
+        "sha256": "de9016881a7448b04a18e4af306a9f96125e3853c46d5efe10b8a8aa21becd45",
+        "bytes": 1405617
+      },
+      "stopEvidence": {
+        "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-frozen-zero.stop.json",
+        "sha256": "4e6d8abab251f4db84cf0798070e41644af9a2ebd96eaed4d12b3fa6615c69ef"
+      }
+    }
+  ],
+  "limitations": [
+    "Controlled physical placement 45 units from the first existing fruit source; owner-only source identity is never given to the policy. This is not autonomous source discovery or a survival claim.",
+    "Fresh default discovery body, one cold-start actor, unchanged copied seed-74193 world and resources in every trial. No intervention, handoff, nutrition label, LLM, dialogue or Cardinal.",
+    "Each arm has shared candidate construction, foodLearning:false, care, masks and four selector draws per actual ordinary submission. Frozen-zero omits parameter training work; ordinary harm aversion remains.",
+    "Complete requests, results and biological events retain original IDs and timestamps. Trace order breaks equal-timestamp ties. Owner trajectories and material/source diagnostics never enter policy inputs.",
+    "Observed continuation is not causal credit proof; F does not rule out later harm. W and additional beneficial portions are reported separately.",
+    "Stops are continuing/right-censored. No terminal update, extra completion or physiological rollback occurs. Cleanup happens only after stop evidence has been written.",
+    "Timings are this cloud CPU only; per-tick sensor work and owner trace/measurement overhead are disclosed separately. No desktop responsiveness or laptop performance claim.",
+    "Separate headless diagnostic after the preserved original interactive resource gate failed. All three fixed 600-second trials must complete for any comparison; no cohort progression or interactive/main-enabling claim is permitted.",
+    "Fixed native 1/60-second physics is independent of wall time. Returned added decisions above 1000 ms or 300 seconds total wall per arm stop with censored partial evidence; no retry. An external parent-process watchdog handles non-returning calls and must block remaining arms after hard kill."
+  ],
+  "artifacts": [
+    {
+      "file": "final/aincrad-finite-build-final.log",
+      "bytes": 235,
+      "sha256": "a8ce0d8e9f56031df83a6b1c92ef0780d7a7651f558ac094b13381e29dd96e95"
+    },
+    {
+      "file": "final/aincrad-finite-check-final.log",
+      "bytes": 55513,
+      "sha256": "6f4c00e645f2c73bcc1c9075e1d3beb70a596d899d177c8e8a75dfe4056bde96"
+    },
+    {
+      "file": "final/aincrad-finite-default-parity-final.log",
+      "bytes": 191,
+      "sha256": "f5a0ddbe2c32cd62557cedb9790ed392f1a911cdc5f464e5cb3806513c003071"
+    },
+    {
+      "file": "final/aincrad-finite-default-parity.json",
+      "bytes": 9925,
+      "sha256": "0ebed665ec8c2455f970cb4bde27695e8dfbc283327ed040667806212815d49a"
+    },
+    {
+      "file": "final/aincrad-finite-default-parity.mjs",
+      "bytes": 2346,
+      "sha256": "67206b7024f262628db1006777a26e8e8ceb14bf4b78f50bef7af72602cc3608"
+    },
+    {
+      "file": "final/aincrad-finite-driver-final.log",
+      "bytes": 1703,
+      "sha256": "a0387c41cd6abdfa4d5dbf4f9b358a39c72feaa964cec64e5e97bee6a1dcc321"
+    },
+    {
+      "file": "final/aincrad-finite-native-reopen-final.log",
+      "bytes": 15386,
+      "sha256": "55a358a6becc37025ee545dce559a84a745b6a441005de3b3addfe14d3184c06"
+    },
+    {
+      "file": "final/aincrad-finite-smoke-final.log",
+      "bytes": 7908,
+      "sha256": "1ccd44f4d91bd8f9383ea181230f5b9addffc9b774c6a687367bbc55a013c32d"
+    },
+    {
+      "file": "final/budget.json",
+      "bytes": 1424632,
+      "sha256": "eabb0c3b890d9c946ce69192cffea9f4adf389bd39c363bafa94c34358efe2e4"
+    },
+    {
+      "file": "final/budget.stderr.log",
+      "bytes": 692,
+      "sha256": "ab3e3f03c76fcceb4bd952505b374ff1436af17da58c1c91d6cd63e1e7480868"
+    },
+    {
+      "file": "final/budget.stdout.log",
+      "bytes": 1358,
+      "sha256": "3be0aef30fa16e0bd1ded13768d17e821f8ae2fb279c03ee7c82b5f4a87c6d98"
+    },
+    {
+      "file": "final/evaluate-finite-temporal-interactive.mjs",
+      "bytes": 53762,
+      "sha256": "bb71b76ba84a1522569973284fc816d1c44781ab84c1bd5b217a0d9963fc513e"
+    },
+    {
+      "file": "final/native-reopen.json",
+      "bytes": 1018,
+      "sha256": "e256e4fc8c72eedac3f7c8df59c24dcd3ee0082df34daa6e60d02c845a9a4f25"
+    },
+    {
+      "file": "final/review-clearance.md",
+      "bytes": 1621,
+      "sha256": "60588ea397efa31f90a8a46b9d1838af749491bd6debe31a3aab328b2c654e93"
+    },
+    {
+      "file": "final/source-freeze.json",
+      "bytes": 7774,
+      "sha256": "7e6ccd790b2041a89c9f628f31042d927958147af9084bc1c8974eede98033c1"
+    },
+    {
+      "file": "headless/aincrad-finite-headless-blocked-result.json",
+      "bytes": 24058,
+      "sha256": "e5944eafd4eb536a6f552917814344f9b8ecc46793e3487e1cfe4c80b4979bb6"
+    },
+    {
+      "file": "headless/aincrad-finite-headless-blocked.log",
+      "bytes": 89,
+      "sha256": "bf8bf5e98fc52664b4189b74d328fd0e12a7e2e548daf56e99f6a470f89a96cc"
+    },
+    {
+      "file": "headless/aincrad-finite-headless-build.log",
+      "bytes": 235,
+      "sha256": "a8ce0d8e9f56031df83a6b1c92ef0780d7a7651f558ac094b13381e29dd96e95"
+    },
+    {
+      "file": "headless/aincrad-finite-headless-check.log",
+      "bytes": 56860,
+      "sha256": "f847e40d87cef70062c35b5934a073a2bc0e29cb4ee8a061a79b42d30dbfaa52"
+    },
+    {
+      "file": "headless/aincrad-finite-headless-evaluator.log",
+      "bytes": 3511,
+      "sha256": "856aeb378731bd1f602955694019426e08ecd740b862f4c50dd26c726e7125ad"
+    },
+    {
+      "file": "headless/aincrad-finite-watchdog.log",
+      "bytes": 761,
+      "sha256": "a4fecc22612cc9fbb09fae796ab3d82b11f32f9a8c908d67afac75b5e98fd4c3"
+    },
+    {
+      "file": "headless/preflight.json",
+      "bytes": 5646,
+      "sha256": "840fd7af3b7cde3bb018db11ee3c9cef8563d7fa487efae1c2932a7e79377068"
+    },
+    {
+      "file": "headless/review-clearance.md",
+      "bytes": 1251,
+      "sha256": "53281c40d211483f2a78016fdfaf0c1f1e019d0e103dc92e31915c96f2b002b3"
+    },
+    {
+      "file": "headless/run.log",
+      "bytes": 137,
+      "sha256": "a923652cb504f53f5724457dfae8176c4a6972d00e6578e3c58a97ea658460da"
+    },
+    {
+      "file": "headless/source-freeze.json",
+      "bytes": 6675,
+      "sha256": "2decadbd19c829cd7e2b1f4b8df0dbc96285dd44bdd6d9eef7be48c14706fa21"
+    },
+    {
+      "file": "headless/summarize-finite-headless.mjs",
+      "bytes": 5150,
+      "sha256": "5eb16b3669754be2618f1d190f33a92901f5cd8d34bcc1499749cb5a76018836"
+    },
+    {
+      "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-frozen-zero.owner.jsonl",
+      "bytes": 1405617,
+      "sha256": "de9016881a7448b04a18e4af306a9f96125e3853c46d5efe10b8a8aa21becd45"
+    },
+    {
+      "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-frozen-zero.stop.json",
+      "bytes": 7197744,
+      "sha256": "4e6d8abab251f4db84cf0798070e41644af9a2ebd96eaed4d12b3fa6615c69ef"
+    },
+    {
+      "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-no-bootstrap.owner.jsonl",
+      "bytes": 1484689,
+      "sha256": "68c85bf9425a4825d539e9989e32062d78341a582f62f7275b6ae9b083eb290e"
+    },
+    {
+      "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-no-bootstrap.stop.json",
+      "bytes": 7328642,
+      "sha256": "f537c256133ee858cbab1b9f0fad4355e27c6d5558bd0632aee9616d148036a1"
+    },
+    {
+      "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-online.owner.jsonl",
+      "bytes": 1429412,
+      "sha256": "6b85a5263e19cb3003e19450136960b700e2da50b668ee7168ed2cd152cecb06"
+    },
+    {
+      "file": "headless/trials/headless-diagnostic-v1-approach1-seed1729-online.stop.json",
+      "bytes": 7314233,
+      "sha256": "636721425171389a29e56db8e713ba3c27695f15eddf4a47c8c4de5d38d98400"
+    },
+    {
+      "file": "headless/trials/report.json",
+      "bytes": 685278,
+      "sha256": "b71bfd228e94e98b87cb7042ff24f1acfa9213539abb9708e4c86a433a70366e"
+    },
+    {
+      "file": "headless/trials.supervisor.json",
+      "bytes": 4672,
+      "sha256": "c2ca7e95cee12d2ae2b5e7fc7517aa2f7957ab69893c93832f8c369850262f2c"
+    }
+  ]
+}
