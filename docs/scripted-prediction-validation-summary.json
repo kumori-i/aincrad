@@ -1,0 +1,771 @@
+{
+  "version": 1,
+  "kind": "scripted-prediction-validation-partial-result",
+  "protocol": "scripted-prediction-validation-v1",
+  "protocolSha256": "6932769d221eb7ba33958dee5d48fb9d8cb9294a7f409157824a1cd2de834423",
+  "commit": "726a945dd14206bea776040d74b7828e81b35050",
+  "runtimeSource": "194eae489e8829f03bc183d568d3115404b7cfb80e53f4e444c344029eb230ef",
+  "executionSource": "f29abf66d56fc59aa8a95f34429c5a9ae115ba582719ac859ba58b0c2bbd5a4f",
+  "startedAt": "2026-10-16T04:12:25.846Z",
+  "finishedAt": "2026-10-16T04:13:38.616Z",
+  "status": "stopped-at-first-failure",
+  "census": [
+    {
+      "runId": "T0-common-apple",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 9,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/T0-common-apple/report.json",
+        "sha256": "a1f761a88e62844ba6d019ee6914672ee9e87df304b7866037063486c8e67721",
+        "bytes": 179460
+      },
+      "reasons": [],
+      "stopAt": 76.09999999999697,
+      "wallSeconds": 8.946059372,
+      "sampledPeakActorBytes": 71148,
+      "maximumReturnedDecisionMs": 18.90320800000063,
+      "maximumCombinedDecisionMs": 18.90320800000063,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 308166656,
+      "maximumCheckedReturnedSegmentMs": 233.64923999999883
+    },
+    {
+      "runId": "P1-fresh-prefix",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 1,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/P1-fresh-prefix/report.json",
+        "sha256": "d4ea54b8f3363aa51d4fe67f7d6735ecc16c1aaa7530e4e0e4f5f8256c65a7ef",
+        "bytes": 63491562
+      },
+      "reasons": [],
+      "stopAt": 79.5333333333301,
+      "wallSeconds": 2.948688674,
+      "sampledPeakActorBytes": 76482,
+      "maximumReturnedDecisionMs": 466.2240019999999,
+      "maximumCombinedDecisionMs": 466.2240019999999,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 443387904,
+      "maximumCheckedReturnedSegmentMs": 675.6049870000002
+    },
+    {
+      "runId": "C1-early-inspect",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C1-early-inspect/report.json",
+        "sha256": "f39fc9f1e8e1d58186e291bfe42ca776247d7a42da713855a2cd6cf3be27eba1",
+        "bytes": 423980
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 4.339940864,
+      "sampledPeakActorBytes": 84995,
+      "maximumReturnedDecisionMs": 13.778618000000279,
+      "maximumCombinedDecisionMs": 13.778618000000279,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 318459904,
+      "maximumCheckedReturnedSegmentMs": 170.14644499999986
+    },
+    {
+      "runId": "C2-early-wait",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C2-early-wait/report.json",
+        "sha256": "d7ab4df45efb33893e273f9cc9dc37a818798e0b864e809d4d3d3190675b0dca",
+        "bytes": 424294
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 5.388601826,
+      "sampledPeakActorBytes": 84188,
+      "maximumReturnedDecisionMs": 15.973877999999786,
+      "maximumCombinedDecisionMs": 15.973877999999786,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 323588096,
+      "maximumCheckedReturnedSegmentMs": 201.12121599999955
+    },
+    {
+      "runId": "C3-early-strike",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C3-early-strike/report.json",
+        "sha256": "3e8fa0551e39f5b9f81dc1860704c1059d44fb06f2e439ebdb22d03b3f6a9ddf",
+        "bytes": 425370
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 5.109545167,
+      "sampledPeakActorBytes": 84587,
+      "maximumReturnedDecisionMs": 24.599721000000045,
+      "maximumCombinedDecisionMs": 24.599721000000045,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 332328960,
+      "maximumCheckedReturnedSegmentMs": 176.61162400000012
+    },
+    {
+      "runId": "C4-early-release",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C4-early-release/report.json",
+        "sha256": "08810fb731d8d059f738eab10db7412406f33dad5486eed74f8947fbfa77550d",
+        "bytes": 427434
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 5.050818115999999,
+      "sampledPeakActorBytes": 84979,
+      "maximumReturnedDecisionMs": 14.533472000000074,
+      "maximumCombinedDecisionMs": 14.533472000000074,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 327671808,
+      "maximumCheckedReturnedSegmentMs": 204.91458199999943
+    },
+    {
+      "runId": "C5-late-release",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C5-late-release/report.json",
+        "sha256": "718ced902f5b1e367803d359358eb8a33d7259cb2cd7e54fe7f5407aa835fa9c",
+        "bytes": 426298
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 5.524681428999999,
+      "sampledPeakActorBytes": 84965,
+      "maximumReturnedDecisionMs": 16.142460999999912,
+      "maximumCombinedDecisionMs": 16.142460999999912,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 347140096,
+      "maximumCheckedReturnedSegmentMs": 174.9447399999999
+    },
+    {
+      "runId": "C6-late-strike",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C6-late-strike/report.json",
+        "sha256": "740490366aa215f2f9895722be2eef6e06f6f14b10addb59db642043f9f5d7c6",
+        "bytes": 426896
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 5.417422236,
+      "sampledPeakActorBytes": 84576,
+      "maximumReturnedDecisionMs": 17.604349000000184,
+      "maximumCombinedDecisionMs": 17.604349000000184,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 357629952,
+      "maximumCheckedReturnedSegmentMs": 168.8517440000005
+    },
+    {
+      "runId": "C7-late-wait",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C7-late-wait/report.json",
+        "sha256": "e33d38dbec4102d089fd9829aa4d3182045b0cd5ee492a3216e65026d56da9dc",
+        "bytes": 426947
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 11.256229317999999,
+      "sampledPeakActorBytes": 84178,
+      "maximumReturnedDecisionMs": 32.63905699999941,
+      "maximumCombinedDecisionMs": 32.63905699999941,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 344506368,
+      "maximumCheckedReturnedSegmentMs": 267.1721010000001
+    },
+    {
+      "runId": "C8-late-inspect",
+      "status": "passed",
+      "rawStatus": "passed",
+      "actionsSubmitted": 2,
+      "finalCheckpointAvailable": true,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/C8-late-inspect/report.json",
+        "sha256": "680a8558bb8c56d0cb0d4c945fae081d1b5eba46fa55d44ef521681a52d057d0",
+        "bytes": 434017
+      },
+      "reasons": [],
+      "stopAt": 174.95000000003137,
+      "wallSeconds": 9.742619239000001,
+      "sampledPeakActorBytes": 84983,
+      "maximumReturnedDecisionMs": 25.492173999999068,
+      "maximumCombinedDecisionMs": 25.492173999999068,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 373350400,
+      "maximumCheckedReturnedSegmentMs": 582.1671329999999
+    },
+    {
+      "runId": "H1-chronological",
+      "status": "censored",
+      "rawStatus": "failed",
+      "actionsSubmitted": 5,
+      "finalCheckpointAvailable": false,
+      "biologicallyTerminal": false,
+      "report": {
+        "path": "one-shot-bundle/H1-chronological/report.json",
+        "sha256": "be54a5ae2a3e6e7ac3f63f2832802e0b4211d1e3f808b3cf5302b05be8ef62f0",
+        "bytes": 1033888
+      },
+      "reasons": [
+        "Delayed harm admission/conditioning: Unrelated operation acquired nonzero or unknown D_H.; Unrelated operation acquired nonzero or unknown D_H.; Unrelated operation acquired nonzero or unknown D_H."
+      ],
+      "stopAt": 138.95000000000272,
+      "wallSeconds": 4.7908721299999995,
+      "sampledPeakActorBytes": 95239,
+      "maximumReturnedDecisionMs": 16.10663999999997,
+      "maximumCombinedDecisionMs": 16.10663999999997,
+      "resourceCensored": false,
+      "resourceViolations": [],
+      "sourceMatches": true,
+      "sampledProcessRssBytes": 347828224,
+      "maximumCheckedReturnedSegmentMs": 141.37129499999992
+    },
+    {
+      "runId": "H2-reopen",
+      "status": "blocked",
+      "rawStatus": null,
+      "actionsSubmitted": 0,
+      "finalCheckpointAvailable": false,
+      "biologicallyTerminal": false
+    },
+    {
+      "runId": "H3-operation-at-H",
+      "status": "blocked",
+      "rawStatus": null,
+      "actionsSubmitted": 0,
+      "finalCheckpointAvailable": false,
+      "biologicallyTerminal": false
+    },
+    {
+      "runId": "H4-competing-duplicate",
+      "status": "blocked",
+      "rawStatus": null,
+      "actionsSubmitted": 0,
+      "finalCheckpointAvailable": false,
+      "biologicallyTerminal": false
+    },
+    {
+      "runId": "B1-small-exhausted",
+      "status": "blocked",
+      "rawStatus": null,
+      "actionsSubmitted": 0,
+      "finalCheckpointAvailable": false,
+      "biologicallyTerminal": false
+    },
+    {
+      "runId": "Q1-fresh-followup",
+      "status": "blocked",
+      "rawStatus": null,
+      "actionsSubmitted": 0,
+      "finalCheckpointAvailable": false,
+      "biologicallyTerminal": false
+    }
+  ],
+  "totals": {
+    "scheduledRuns": 16,
+    "startedRuns": 11,
+    "passedRuns": 10,
+    "censoredRuns": 1,
+    "blockedRuns": 5,
+    "actionsSubmitted": 31,
+    "retries": 0
+  },
+  "checks": {
+    "fullTestsPassed": 767,
+    "focusedTestsPassed": 84,
+    "buildPassed": true,
+    "originalScientificFilesUnchanged": 131,
+    "rendererBuildFilesByteIdentical": 50,
+    "newNativeApplicationRun": false
+  },
+  "gate2": {
+    "pureConditions": 24,
+    "pairedEvaluations": 48,
+    "assessment": {
+      "status": "passed",
+      "scope": "Gate 2 pure public projection clauses only; physical conflict clause still pending",
+      "checks": [
+        {
+          "name": "unchanged-native-full-root-order-mask-parity",
+          "passed": true
+        },
+        {
+          "name": "fixed-24-condition-census",
+          "passed": true
+        },
+        {
+          "name": "immutable-input-model-and-rng",
+          "passed": true
+        },
+        {
+          "name": "held-reach-public-mask-distinction",
+          "passed": true
+        },
+        {
+          "name": "free-full-capacity-mask-and-feature-distinction",
+          "passed": true
+        },
+        {
+          "name": "no-sample-removes-associated-exact-support",
+          "passed": true
+        },
+        {
+          "name": "retained-sample-history-is-factual",
+          "passed": true
+        },
+        {
+          "name": "pending-binding-retains-record-time-and-proof",
+          "passed": true
+        },
+        {
+          "name": "different-signature-invalidates-old-exact-support",
+          "passed": true
+        },
+        {
+          "name": "relevant-work-query-keys-stay-distinct",
+          "passed": true
+        },
+        {
+          "name": "other-operation-work-features-held-fixed",
+          "passed": true
+        },
+        {
+          "name": "online-need-weight-only-utility-change",
+          "passed": true
+        },
+        {
+          "name": "frozen-need-weight-only-utility-change",
+          "passed": true
+        },
+        {
+          "name": "fullness-mask-and-digestion-condition-retained",
+          "passed": true
+        },
+        {
+          "name": "exact-eight-fresh-identities",
+          "passed": true
+        },
+        {
+          "name": "fresh-identities-retain-matched-public-physical-features",
+          "passed": true
+        },
+        {
+          "name": "online-fresh-pooled-points-without-firsthand-benefit-or-safety",
+          "passed": true
+        },
+        {
+          "name": "frozen-fresh-pooled-points-without-firsthand-benefit-or-safety",
+          "passed": true
+        }
+      ],
+      "unavailableReasons": [],
+      "physicalConflictStatus": "pending",
+      "pendingMaskAgeSeconds": 46.31666666666405,
+      "pendingMaskActive": false
+    },
+    "immutable": true,
+    "independentPhysicalObservations": 0
+  },
+  "oldMeal": {
+    "cases": [
+      {
+        "runId": "C1-early-inspect",
+        "operation": "inspect_object",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C2-early-wait",
+        "operation": "wait",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C3-early-strike",
+        "operation": "strike",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C4-early-release",
+        "operation": "release",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C5-late-release",
+        "operation": "release",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C6-late-strike",
+        "operation": "strike",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C7-late-wait",
+        "operation": "wait",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      },
+      {
+        "runId": "C8-late-inspect",
+        "operation": "inspect_object",
+        "beforeD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        },
+        "afterD": {
+          "F": 0,
+          "W": 0,
+          "H": 0
+        }
+      }
+    ],
+    "scope": "Eight handling variants of the same two-ingestion apple history; no independent biological examples or autonomous learning claim."
+  },
+  "delayedHarm": {
+    "status": "failed-known-zero-coverage-clause-with-censored-final-checkpoint",
+    "objectId": "object:855",
+    "ingestionId": "ingestion:4",
+    "swallowedAt": 80.54999999999671,
+    "harmAt": 138.883333333336,
+    "benefitEvent": {
+      "id": "feedback:5",
+      "ingestionId": "ingestion:4",
+      "at": 126.03333333332746,
+      "objectId": "object:855",
+      "actionId": 14,
+      "provenance": "sampled",
+      "effect": "sustained",
+      "hunger": "easing",
+      "thirst": "unchanged",
+      "energy": "easing",
+      "pain": "none"
+    },
+    "harmEvent": {
+      "id": "feedback:7",
+      "ingestionId": "ingestion:4",
+      "at": 138.883333333336,
+      "objectId": "object:855",
+      "actionId": 14,
+      "provenance": "sampled",
+      "effect": "discomfort",
+      "hunger": "unchanged",
+      "thirst": "easing",
+      "energy": "unchanged",
+      "pain": "aching"
+    },
+    "singleHAdmission": 1,
+    "fixedQueryHBefore": 0,
+    "fixedQueryHAfter": 0.9977745592859096,
+    "pendingHAfter": 0,
+    "exactMaterialSampleEligibleAfterH": false,
+    "unrelated": [
+      {
+        "operation": "inspect_object",
+        "appearance": {
+          "shape": "small furry body with long ears",
+          "color": "brown-grey",
+          "texture": "fur",
+          "motion": "moving",
+          "size": "unknown",
+          "smell": "unknown"
+        },
+        "relation": "reach",
+        "D_H": null,
+        "usedD_H": 0,
+        "physicalExposureKnown": false
+      },
+      {
+        "operation": "inspect_object",
+        "appearance": {
+          "shape": "tuft of narrow blades",
+          "color": "green",
+          "texture": "fibrous",
+          "motion": "still",
+          "size": "unknown",
+          "smell": "unknown"
+        },
+        "relation": "reach",
+        "D_H": null,
+        "usedD_H": 0,
+        "physicalExposureKnown": false
+      },
+      {
+        "operation": "inspect_object",
+        "appearance": {
+          "shape": "branching trunk with a leafy crown",
+          "color": "brown and green",
+          "texture": "rough bark",
+          "motion": "still",
+          "size": "unknown",
+          "smell": "unknown"
+        },
+        "relation": "reach",
+        "D_H": null,
+        "usedD_H": 0,
+        "physicalExposureKnown": false
+      },
+      {
+        "operation": "inspect_object",
+        "appearance": {
+          "shape": "round",
+          "color": "red-green",
+          "texture": "smooth",
+          "motion": "still",
+          "size": "unknown",
+          "smell": "sharp and unpleasant"
+        },
+        "relation": "held",
+        "D_H": 0,
+        "usedD_H": 0,
+        "physicalExposureKnown": true
+      },
+      {
+        "operation": "wait",
+        "appearance": {
+          "shape": "unknown",
+          "color": "unknown",
+          "texture": "unknown",
+          "motion": "unknown",
+          "size": "unknown",
+          "smell": "unknown"
+        },
+        "relation": "unknown",
+        "D_H": 0,
+        "usedD_H": 0,
+        "physicalExposureKnown": true
+      }
+    ],
+    "interpretation": "Three never-inspected nearby signatures have unknown/null D_H and zero usedD_H. No observed nonzero harm attribution to unrelated actions. The fixed required known-zero gate nevertheless fails; no post hoc eligibility or threshold changes.",
+    "intervention": {
+      "intervention": "remaining-material-age-288h-existing-spoil",
+      "at": 76.09999999999697,
+      "objectId": "object:855",
+      "before": {
+        "id": "object:855",
+        "kind": "material",
+        "materialType": "apple",
+        "scene": "valley",
+        "position": {
+          "x": 405,
+          "y": 1080
+        },
+        "heldBy": "aster",
+        "massGrams": 150,
+        "energyKcal": 79.16666666666667,
+        "waterMl": 127.5,
+        "createdAt": 5,
+        "ageHours": 0.47333333333333444,
+        "spoiled": false,
+        "digestHours": 2,
+        "toxicity": 0
+      },
+      "after": {
+        "id": "object:855",
+        "kind": "material",
+        "materialType": "apple",
+        "scene": "valley",
+        "position": {
+          "x": 405,
+          "y": 1080
+        },
+        "heldBy": "aster",
+        "massGrams": 150,
+        "energyKcal": 79.16666666666667,
+        "waterMl": 127.5,
+        "createdAt": 5,
+        "ageHours": 288,
+        "spoiled": true,
+        "digestHours": 2,
+        "toxicity": 0
+      }
+    },
+    "stopCheckpointError": "Environment is not canonical at ecology.materials.1.energyKcal; original checkpoint must be retained.",
+    "stopCheckpointAvailable": false,
+    "partialStockSnapshot": {
+      "label": "stop",
+      "at": 138.95000000000272,
+      "ref": {
+        "sha256": "9778d43188689549a39e8207179c727e695b457165ee0b50e6adde086cda8902",
+        "kind": "stock-body-accounting",
+        "encoding": "json",
+        "bytes": 19122
+      }
+    },
+    "completeResumableFinalStateAvailable": false,
+    "strictCheckpointRoundoffDiagnosis": {
+      "retainedAppleEnergyKcal": 63.14705045668473,
+      "restoreDensityCapKcal": 63.14705045668465,
+      "excessKcal": 7.815970093361102e-14,
+      "discardedKcal": -1.0842021724855044e-18,
+      "interpretation": "Read-only retained-stock arithmetic explains the strict canonical path as roundoff; no tolerance change, reconstructed final checkpoint, or retry. Full final-world accounting and restorability remain unavailable."
+    },
+    "fixedQueryHUncertainty": {
+      "unsupported": true,
+      "tailUncertain": true,
+      "epistemicRange": [
+        0,
+        1
+      ],
+      "ingestions": 1,
+      "eventCount": 1,
+      "interpretation": "One aged ingestion; model point forecast, not a calibrated empirical harm probability."
+    }
+  },
+  "quality": {
+    "status": "unavailable-blocked",
+    "physicalReceiptDenominatorRequired": 38,
+    "mandatoryPhysicalCellsRequired": 323,
+    "freshBiologicalIngestionsRequired": 1,
+    "biologicalBrier": null,
+    "physicalBrier": null,
+    "reason": "H1 stopped the census before Q1 and the complete physical receipt denominator. No missing outcomes are replaced with zeros."
+  },
+  "resources": {
+    "scope": "Observed scripted-prefix cases on this cloud container; wire-size samples are not whole save/heap bounds, and timings do not establish UI/laptop readiness.",
+    "maximumSampledActorBytes": 95239,
+    "maximumReturnedDecisionMs": 466.2240019999999,
+    "maximumCombinedDecisionMs": 466.2240019999999,
+    "maximumCaseWallSeconds": 11.256229317999999,
+    "maximumSampledProcessRssBytes": 443387904,
+    "originalSaturationGatePassed": false,
+    "originalSaturationReportSha256": "1750246f089497c235f4beb0fc4b9c193fe3db28aba3b43bb2942dc315e5cffd",
+    "originalGate1ReportSha256": "614b3581f164942c9ca3db7e6bbaa98dc2227154aa73cd82b9b5ef69fe5c8fd4",
+    "maximumCheckedReturnedSegmentMs": 675.6049870000002
+  },
+  "limits": {
+    "autonomy": false,
+    "mainPromotion": false,
+    "readiness": false,
+    "continuation": false,
+    "terminal": false,
+    "retry": false,
+    "independentHarmExamplesObserved": 1,
+    "rightCensoredBiology": true
+  },
+  "evidenceExport": {
+    "filename": "aincrad-prediction-validation-evidence.zip",
+    "bytes": 13173907,
+    "sha256": "5b773067c372a8f01139e4220a1934e0cb90ee0ce77faafcf33a7116f5986cdf",
+    "files": 943,
+    "rawArtifacts": 942,
+    "verified": true
+  }
+}
