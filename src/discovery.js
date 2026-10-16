@@ -256,6 +256,7 @@ export function contactEscape(npc){
 export function discoveryDecision(npc,{foodLearning=true}={}){
   processDiscoveryFeedback(npc,{foodLearning});availabilityScans.set(npc,new Map());const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
+  const trialHunger=['hungry','ravenous','faint with hunger'].includes(body.hunger);
   // Evaluation can ablate positive food associations without erasing perception,
   // navigation, practice, novelty, failures, or experienced discomfort.
   if(!foodLearning)d.run=null;
@@ -276,6 +277,7 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     if(depletedAfterRefusal){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I still hold the result of an operation sequence I previously tested; I can cautiously finish its first sampling trial before acquiring more.','food');}
     const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
     if(carried)return wrap({type:'sample',targetId:carried},depletedAfterRefusal?'Rest was refused while I felt depleted; a previous portion of this held material brought relief, so I can test another.':'My hunger is urgent, and a previous portion of this held material brought relief; I can test another before resting.','food');
+    if(trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
     const reason=depletedAfterRefusal?'Rest was refused while I felt depleted; I can try an observed route and operation sequence that previously brought bodily relief.':'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.';
     if(d.run){const action=learnedStep(npc);if(action)return wrap(action,reason,'food');}
     if(!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
@@ -297,6 +299,7 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   const hungry=foodLearning&&body.hunger!=='content'&&!samplingBlocked(npc,body);
   const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
+  if(hungry&&trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
   if(hungry&&!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
     const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
     for(const technique of candidates){
