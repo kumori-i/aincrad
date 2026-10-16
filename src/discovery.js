@@ -297,7 +297,16 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   const hungry=foodLearning&&body.hunger!=='content'&&!samplingBlocked(npc,body);
   const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
-  if(hungry&&npc.inventory.items.length<DISCOVERY_RULES.capacity){const technique=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position))[0];if(technique){d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};const action=learnedStep(npc);if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');}}
+  if(hungry&&!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
+    const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+    for(const technique of candidates){
+      d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
+      const action=learnedStep(npc);
+      if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');
+      // A source without an observed route must not conceal another earned source.
+      if(d.run)break;
+    }
+  }
   const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||lineOfSight(npc.position,o.position,npc.scene)));
   const choices=[];
