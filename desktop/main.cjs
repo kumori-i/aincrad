@@ -1,15 +1,47 @@
 const { app, BrowserWindow, protocol, net, session, Menu, dialog, ipcMain }=require('electron');
 const path=require('node:path');
 const { pathToFileURL }=require('node:url');
+const {createHash}=require('node:crypto');
+const os=require('node:os');
 const { realpath, readFile, writeFile, mkdir, rename }=require('node:fs/promises');
 const { DEFAULTS, ModelService }=require('./model-provider.cjs');
+const { createRawSaveBackupBridge }=require('./raw-save-backup.cjs');
+const {COPY_FLAG,resolveProfileRoute,assertCopyDirectory,createRecoveredProfileManager}=require('./recovered-profile.cjs');
 let modelService;
 const ROOT=path.resolve(__dirname,'..','renderer');
 const DEVELOPMENT=process.argv.includes('--dev')&&!app.isPackaged;
 const SMOKE=process.argv.includes('--smoke-test');
-const testProfile=process.argv.includes('--test')?process.argv.find(arg=>arg.startsWith('--test-profile=')):null;
-if(testProfile){const fs=require('node:fs'),dir=path.resolve(testProfile.slice('--test-profile='.length));fs.mkdirSync(dir,{recursive:true});app.setPath('userData',dir);}
-if(SMOKE){const os=require('node:os'),fs=require('node:fs');app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'aincrad-smoke-')));}
+const nativeQaOptions=process.argv.filter(value=>value.startsWith('--test-native-qa'));
+const nativeQaOption=nativeQaOptions[0];
+let restartFault=null,publicationFault=null,profileOpenFault=null;
+app.setName('Aincrad');
+let profileRoute;
+try{
+  const smokeDirectory=SMOKE?require('node:fs').mkdtempSync(path.join(os.tmpdir(),'aincrad-smoke-')):null;
+  const routeArgs=smokeDirectory?[...process.argv,'--test',`--test-profile=${smokeDirectory}`,
+    `--test-recovered-root=${smokeDirectory}-recovered-proof-v1`]:process.argv;
+  profileRoute=resolveProfileRoute({argv:routeArgs,isPackaged:app.isPackaged,
+    appDataPath:app.getPath('appData'),defaultUserDataPath:app.getPath('userData')});
+  if(nativeQaOptions.length>1||nativeQaOption&&!nativeQaOption.startsWith('--test-native-qa=')||
+     nativeQaOption&&(!profileRoute.isTest||!profileRoute.usesTestPaths||SMOKE||
+       !process.argv.some(value=>value.startsWith('--test-profile='))||
+       !process.argv.some(value=>value.startsWith('--test-recovered-root='))))
+    throw new Error('Native QA requires one unpackaged test launch with two explicit disposable profile roots.');
+  if(SMOKE){
+    app.setPath('userData',smokeDirectory);app.setPath('sessionData',smokeDirectory);
+  }else if(profileRoute.kind==='recovered'){
+    assertCopyDirectory(profileRoute.copyPath);
+    app.setPath('userData',profileRoute.copyPath);app.setPath('sessionData',profileRoute.copyPath);
+  }else if(profileRoute.usesTestPaths){
+    const fs=require('node:fs');fs.mkdirSync(profileRoute.originalPath,{recursive:true});
+    app.setPath('userData',profileRoute.originalPath);app.setPath('sessionData',profileRoute.originalPath);
+  }
+  if(!app.requestSingleInstanceLock())app.exit(0);
+}catch(error){
+  console.error('Aincrad profile routing failed:',error.message);
+  if(!profileRoute?.isTest)dialog.showErrorBox('Aincrad could not open this world',error.message);
+  app.exit(1);
+}
 let ALLOWED=new Set();
 async function readAssets(){
   const manifest=JSON.parse(await readFile(path.join(ROOT,'asset-manifest.json'),'utf8'));
@@ -19,10 +51,12 @@ async function readAssets(){
   ALLOWED=new Set(paths);
 }
 protocol.registerSchemesAsPrivileged([{scheme:'aincrad',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
-app.setName('Aincrad');
 let win;
+let firstRecoveredLoadResolve;
+const firstRecoveredLoad=profileRoute.kind==='recovered'
+  ?new Promise(resolve=>{firstRecoveredLoadResolve=resolve;}):null;
 async function createWindow(){
-  win=new BrowserWindow({width:1440,height:900,minWidth:800,minHeight:600,backgroundColor:'#17352c',title:'Aincrad',show:false,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,spellcheck:false,backgroundThrottling:false}});
+  win=new BrowserWindow({width:1440,height:900,minWidth:800,minHeight:600,backgroundColor:'#17352c',title:profileRoute.kind==='recovered'?'Aincrad — Recovered copy':'Aincrad — Original world',show:false,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,spellcheck:false,backgroundThrottling:false}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   // Native visibility can change without a DOM blur when throttling is disabled.
   // Clear held avatar input, while the independent simulation timer keeps running.
@@ -38,6 +72,41 @@ async function createWindow(){
 }
 app.whenReady().then(async()=>{
   Menu.setApplicationMenu(null);
+  if(profileRoute.kind==='recovered'){
+    const actual=session.defaultSession.storagePath;
+    if(typeof actual!=='string'||!actual)throw new Error('The recovered copy has no separate Electron storage path.');
+    const [storage,copy]=await Promise.all([realpath(actual),realpath(profileRoute.copyPath)]);
+    const relative=path.relative(copy,storage);
+    if(relative==='..'||relative.startsWith(`..${path.sep}`)||path.isAbsolute(relative))
+      throw new Error('Electron storage does not belong to the recovered copy profile.');
+    const original=path.resolve(profileRoute.originalPath);
+    const fromOriginal=path.relative(original,storage);
+    if(fromOriginal===''||fromOriginal!=='..'&&!fromOriginal.startsWith(`..${path.sep}`)&&!path.isAbsolute(fromOriginal))
+      throw new Error('Recovered Electron storage aliases the original profile.');
+  }
+  ipcMain.on('aincrad:profile-kind',event=>{
+    event.returnValue=event.sender===win?.webContents&&event.senderFrame===event.sender.mainFrame
+      ?profileRoute.kind:'invalid';
+  });
+  ipcMain.on('aincrad:profile-first-save',(event,raw)=>{
+    event.returnValue=false;
+    if(profileRoute.kind!=='recovered'||event.sender!==win?.webContents||
+       event.senderFrame!==event.sender.mainFrame||!firstRecoveredLoadResolve)return;
+    let initial=null;
+    if(typeof raw==='string'&&raw.length<=16*1024*1024){
+      const bytes=Buffer.from(raw,'utf8');
+      if(bytes.length<=16*1024*1024&&bytes.toString('utf8')===raw)
+        initial={sha256:createHash('sha256').update(bytes).digest('hex'),byteLength:bytes.length};
+    }
+    firstRecoveredLoadResolve(initial);firstRecoveredLoadResolve=null;
+    event.returnValue=true;
+  });
+  app.on('second-instance',()=>{
+    if(win&&!win.isDestroyed()){
+      if(win.isMinimized())win.restore();
+      win.focus();
+    }
+  });
   await readAssets();
   const configPath=path.join(app.getPath('userData'),'agent-model.json');
   let config=DEFAULTS;
@@ -56,6 +125,66 @@ app.whenReady().then(async()=>{
   });
   handle('aincrad:model-decide',raw=>modelService.decide(raw));
   handle('aincrad:model-cancel',agentId=>modelService.cancel(agentId));
+  const rawSaveBackup=createRawSaveBackupBridge({dialog,getWindow:()=>win,userDataPath:app.getPath('userData'),
+    forbiddenProfilePaths:[profileRoute.kind==='recovered'?profileRoute.originalPath:profileRoute.copyPath],
+    documentsPath:app.getPath('documents'),testMode:profileRoute.isTest&&profileRoute.usesTestPaths});
+  const recoveredProfile=createRecoveredProfileManager({...profileRoute,
+    ...(nativeQaOption?{testPublicationFault:point=>{
+      if(publicationFault===point){app.exit(87);throw new Error('Injected test publication exit.');}
+    }}:{})});
+  handle('aincrad:save-export-raw',(raw,expectedSha256)=>rawSaveBackup.exportRaw(raw,expectedSha256));
+  handle('aincrad:save-restore-raw',()=>rawSaveBackup.restoreRaw());
+  handle('aincrad:profile-status',()=>recoveredProfile.status());
+  handle('aincrad:profile-create',async(raw,sha256)=>{
+    const verified=await rawSaveBackup.reverifyTicket(raw,sha256);
+    return recoveredProfile.create(verified.raw,verified.sha256);
+  });
+  function relaunchRecovered(){
+    const args=process.argv.slice(1).filter(value=>value!==COPY_FLAG);
+    app.relaunch({args:[...args,COPY_FLAG]});
+    setTimeout(()=>app.quit(),100);
+    return {ok:true};
+  }
+  handle('aincrad:profile-open',async()=>{
+    if(profileRoute.kind!=='original')throw new Error('The recovered copy is already open.');
+    const status=await recoveredProfile.status();
+    if(!status.available)throw new Error(status.reason||'No verified recovered copy is available to open.');
+    if(nativeQaOption&&profileOpenFault==='reject')throw new Error('Injected test profile-open failure.');
+    if(nativeQaOption&&profileOpenFault==='delay')await new Promise(resolve=>setTimeout(resolve,1500));
+    // The original may be an active, writable world. Its explicit save must
+    // reach Electron storage before this process quits for the copy.
+    await session.defaultSession.flushStorageData();
+    return relaunchRecovered();
+  });
+  handle('aincrad:profile-staged',()=>recoveredProfile.stagedRaw());
+  handle('aincrad:profile-ready',async()=>{
+    const first=firstRecoveredLoad&&await Promise.race([firstRecoveredLoad,new Promise(resolve=>setTimeout(()=>resolve(null),3000))]);
+    if(!first)
+      throw new Error('A recovered import must be verified after a closed-process restart.');
+    const staged=await recoveredProfile.stagedRaw();
+    const {prepareLegacyPendingMigration}=await import(pathToFileURL(path.join(ROOT,'src','save.js')).href);
+    const migration=prepareLegacyPendingMigration(staged.raw);
+    if(!migration.ok)throw new Error('The staged source no longer passes the migration proof audit.');
+    const candidate=Buffer.from(migration.candidate,'utf8');
+    const candidateSha256=createHash('sha256').update(candidate).digest('hex');
+    if(candidate.length!==first.byteLength||candidateSha256!==first.sha256)
+      throw new Error('The recovered candidate did not survive a closed-process restart.');
+    const current=await win.webContents.executeJavaScript("window.localStorage.getItem('aincrad.save.v1')");
+    if(current!==migration.candidate)throw new Error('The recovered copy differs from the verified migration candidate.');
+    await session.defaultSession.flushStorageData();
+    return recoveredProfile.markReady({sourceSha256:staged.sha256,candidateSha256,
+      candidateByteLength:candidate.length,bootSaveSha256:first.sha256,
+      bootSaveByteLength:first.byteLength});
+  });
+  handle('aincrad:profile-restart',async()=>{
+    if(profileRoute.kind!=='recovered')throw new Error('Restart into a recovered copy only from that copy.');
+    const status=await recoveredProfile.status();
+    if(!status.available)throw new Error(status.reason||'The recovered copy cannot be reopened.');
+    if(nativeQaOption&&restartFault==='reject')throw new Error('Injected test restart failure.');
+    if(nativeQaOption&&restartFault==='exit'){app.exit(86);throw new Error('Injected test restart exit.');}
+    await session.defaultSession.flushStorageData();
+    return relaunchRecovered();
+  });
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);
   protocol.handle('aincrad',async request=>{
@@ -69,6 +198,24 @@ app.whenReady().then(async()=>{
     }catch{return new Response('Not found',{status:404});}
   });
   await createWindow();
+  if(nativeQaOption){
+    const {runNativeProfileQa}=require(path.resolve(__dirname,'..','..','tests','native-profile-qa-driver.cjs'));
+    await runNativeProfileQa({app,win,session,profileRoute,rawSaveBackup,recoveredProfile,
+      configPath:nativeQaOption.slice('--test-native-qa='.length),
+      setRestartFault:value=>{
+        if(!['reject','exit',null].includes(value))throw new Error('Unknown native restart fault.');
+        restartFault=value;
+      },
+      setPublicationFault:value=>{
+        if(!['after-slot-mkdir','before-manifest',null].includes(value))throw new Error('Unknown native publication fault.');
+        publicationFault=value;
+      },
+      setProfileOpenFault:value=>{
+        if(!['delay','reject',null].includes(value))throw new Error('Unknown native profile-open fault.');
+        profileOpenFault=value;
+      }});
+    return;
+  }
   if(DEVELOPMENT){
     const fs=require('node:fs');let reloadTimer;
     const watcher=fs.watch(ROOT,(_event,name)=>{
@@ -79,7 +226,7 @@ app.whenReady().then(async()=>{
   }
   if(SMOKE){await runSmoke();return;}
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
-}).catch(e=>{if(SMOKE){console.error(e);app.exit(1);}else{dialog.showErrorBox('Aincrad could not start',e.message);app.quit();}});
+}).catch(e=>{if(SMOKE||profileRoute?.isTest){console.error(e);app.exit(1);}else{dialog.showErrorBox('Aincrad could not start',e.message);app.quit();}});
 // Commit pending localStorage writes after renderer unload and before quitting.
 app.on('window-all-closed',()=>{modelService?.cancel();session.defaultSession.flushStorageData();if(process.platform!=='darwin')app.quit();});
 app.on('will-quit',()=>{if(app.isReady())session.defaultSession.flushStorageData();});

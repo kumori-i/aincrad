@@ -1,7 +1,7 @@
 import { CAVES, NPC_RULES } from './config.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { cleanSensoryObject, objectId } from './discovery-state.js';
+import { cleanSensoryObject, deriveDiscoveryPractice, objectId } from './discovery-state.js';
 
 // These are derived obligations, not additional persisted buffers. A biological
 // feedback append must finish its own FIFO trim before entering this module.
@@ -23,6 +23,7 @@ if (PROOF_RETENTION_BOUNDS.stagedExperiments > DISCOVERY_RULES.maxExperiments ||
 
 const positiveId = value => Number.isInteger(value) && value > 0;
 const ingestionId = value => typeof value === 'string' && /^ingestion:\d+$/.test(value);
+export const LEGACY_PHYSICAL_PROVENANCE = 'legacy-sampled-unproven';
 const effectsAllowed = new Set(['sustained', 'water relief', 'discomfort', 'no noticeable change']);
 const time = value => Number.isFinite(value) && value >= 0;
 const array = value => Array.isArray(value) ? value : [];
@@ -75,7 +76,54 @@ function indexes(npc) {
   const events = uniqueIndex(experience, 'id'), byId = uniqueIndex(experiments, 'id'), byAction = uniqueIndex(experiments, 'actionId');
   if (!events || !byId || !byAction) return null;
   const valid = new Map(experiments.filter(e => validExperiment(e, events.get(e.actionId))).map(e => [e.id, e]));
-  return { events, valid, samples: new Map([...valid.values()].map(e => [e.actionId, e])) };
+  return { events, experimentsByAction: byAction, valid, samples: new Map([...valid.values()].map(e => [e.actionId, e])) };
+}
+
+function legacyPhysicalReceipt(row, id, receipt, index, npc, stomach) {
+  return objectId(row?.objectId) && ingestionId(id) && positiveId(row?.actionId) && time(row.at) &&
+    receipt?.id === row.actionId && receipt.type === 'action' && time(receipt.at) &&
+    receipt.details?.action?.type === 'sample' && receipt.details.action.targetId === row.objectId &&
+    receipt.details?.result?.ok === true && receipt.details.result.code === 'SWALLOWED' &&
+    receipt.details.result.ingestionId === id && (stomach ? receipt.at === row.at : receipt.at <= row.at) &&
+    !index.experimentsByAction.has(row.actionId) &&
+    !array(npc.discovery?.experiments).some(experiment => experiment?.ingestionId === id) &&
+    !array(npc.discovery?.effects).some(effect => effect?.ingestionId === id || effect?.actionId === row.actionId);
+}
+
+// A migrated stomach may retain previously seen, original "sampled" feedback.
+// Every related row still has to describe that same physical action. Unseen
+// feedback must carry the non-learning marker; a seen row never reopens.
+function legacyFeedbackError(npc, index) {
+  const stomach = array(npc.physiology?.stomach).filter(row => row?.provenance === LEGACY_PHYSICAL_PROVENANCE);
+  const feedback = array(npc.physiology?.feedback), seen = new Set(array(npc.discovery?.seenFeedback));
+  const unseenMarked = feedback.filter(row => row?.provenance === LEGACY_PHYSICAL_PROVENANCE && !seen.has(row?.id));
+  if (!stomach.length && !unseenMarked.length) return null;
+  const ids = new Set();
+  for (const row of feedback) {
+    if (typeof row?.id !== 'string' || !/^feedback:\d+$/.test(row.id) || ids.has(row.id)) return 'malformed-proof-input';
+    ids.add(row.id);
+  }
+  const ingestions = new Set();
+  for (const portion of stomach) {
+    if (ingestions.has(portion.id)) return 'malformed-proof-input';
+    ingestions.add(portion.id);
+  }
+  // After digestion removes the stomach row, its unseen feedback remains a
+  // pending physical owner. It must still agree with every related seen row.
+  const anchors = [
+    ...stomach.map(row => ({ id: row.id, actionId: row.actionId, objectId: row.objectId, firstAt: row.at })),
+    ...unseenMarked.map(row => ({ id: row.ingestionId, actionId: row.actionId,
+      objectId: row.objectId, firstAt: index.events.get(row.actionId)?.at })),
+  ];
+  for (const anchor of anchors) {
+    for (const row of feedback.filter(f => f?.ingestionId === anchor.id || f?.actionId === anchor.actionId)) {
+      if (row.ingestionId !== anchor.id || row.actionId !== anchor.actionId ||
+          row.objectId !== anchor.objectId || !time(row.at) || !time(anchor.firstAt) || row.at < anchor.firstAt ||
+          (seen.has(row.id) ? !['sampled', LEGACY_PHYSICAL_PROVENANCE].includes(row.provenance) :
+            row.provenance !== LEGACY_PHYSICAL_PROVENANCE)) return 'incomplete-pending-provenance';
+    }
+  }
+  return null;
 }
 
 /** Read-only durability inspection; never treats the separate physiology queue
@@ -122,13 +170,15 @@ export function retainedProofIntegrityError(npc) {
     return 'uncommitted-proof-retirement';
   const index = indexes(npc);
   if (!index) return 'malformed-proof-input';
+  const feedbackError = legacyFeedbackError(npc, index);
+  if (feedbackError) return feedbackError;
   const seen = new Set(array(npc.discovery?.seenFeedback));
   const pending = [...array(npc.physiology?.stomach).map(row => ({ row, stomach: true })),
     ...array(npc.physiology?.feedback).filter(row => !seen.has(row?.id)).map(row => ({ row, stomach: false }))];
   if (pending.length > pendingLimit) return 'malformed-proof-input';
   const identities = new Map();
   for (const { row, stomach } of pending) {
-    if (!positiveId(row?.actionId) && row?.provenance !== 'sampled') continue;
+    if (!positiveId(row?.actionId) && !['sampled', LEGACY_PHYSICAL_PROVENANCE].includes(row?.provenance)) continue;
     const id = stomach ? row?.id : row?.ingestionId;
     if (!ingestionId(id) || !positiveId(row?.actionId) || !time(row.at)) return 'incomplete-pending-provenance';
     const receipt = index.events.get(row.actionId);
@@ -138,6 +188,8 @@ export function retainedProofIntegrityError(npc) {
     const identity = `${row.actionId}|${row.objectId ?? ''}|${row.provenance ?? ''}`;
     if (identities.has(id) && identities.get(id) !== identity) return 'malformed-proof-input';
     identities.set(id, identity);
+    if (row.provenance === LEGACY_PHYSICAL_PROVENANCE &&
+        !legacyPhysicalReceipt(row, id, receipt, index, npc, stomach)) return 'incomplete-pending-provenance';
     if (row.provenance === 'sampled') {
       const sample = index.samples.get(row.actionId);
       if (!sample || sample.primitive !== 'sample' || !sample.ok ||
@@ -211,6 +263,8 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
     return fail('malformed-proof-input');
   const index = indexes(npc);
   if (!index) return fail('malformed-proof-input');
+  const feedbackError = legacyFeedbackError(npc, index);
+  if (feedbackError) return fail(feedbackError);
   const { events, valid, samples } = index;
   const retainedEffects = source.effects.slice(-DISCOVERY_RULES.maxEffects), effectsBySample = new Map();
   const effectIds = new Set();
@@ -239,7 +293,7 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
   for (const { row, stomach } of pendingInputs) {
     const id = stomach ? row?.id : row?.ingestionId;
     // Historic non-action inputs do not manufacture a memory obligation.
-    if (!positiveId(row?.actionId) && row?.provenance !== 'sampled') continue;
+    if (!positiveId(row?.actionId) && !['sampled', LEGACY_PHYSICAL_PROVENANCE].includes(row?.provenance)) continue;
     if (!ingestionId(id) || !positiveId(row?.actionId)) return fail('incomplete-pending-provenance');
     const receipt = events.get(row.actionId), result = receipt?.details?.result;
     if (receipt?.type !== 'action' || result?.ok !== true || result.ingestionId !== id ||
@@ -247,6 +301,8 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
     const identity = `${id}|${row.actionId}|${row.objectId ?? ''}|${row.provenance ?? ''}`;
     if (pending.has(id) && pending.get(id) !== identity) return fail('malformed-proof-input');
     pending.set(id, identity); hardEvents.add(receipt.id);
+    if (row.provenance === LEGACY_PHYSICAL_PROVENANCE &&
+        !legacyPhysicalReceipt(row, id, receipt, index, npc, stomach)) return fail('incomplete-pending-provenance');
     if (row.provenance === 'sampled') {
       const sample = samples.get(row.actionId);
       if (!sample || sample.primitive !== 'sample' || !sample.ok || sample.targetId !== row.objectId || sample.ingestionId !== id)
@@ -387,15 +443,30 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
 }
 
 /** One synchronous commit. Does not allocate an event ID, change physical state,
- * normalize counters, create observations, or cancel an already-started action. */
+ * create observations, or cancel an already-started action. */
 export function applyProofRetention(npc, plan) {
   if (!plan?.ok) return false;
   const original = originalPlans.get(plan);
   if (original?.npc !== npc || npc.memory.experience !== original.source.experience || npc.discovery.experiments !== original.source.experiments)
     return false;
   const { kept } = plan;
+  // Trials are optional summaries. Once both their observation and last
+  // matching experiment have retired, drop them in this same proof commit.
+  // Prepare the entire derived update before changing any retained array.
+  const retainedTrials = new Set(kept.experiments.map(e => `${e.targetId}|${e.primitive}`));
+  const trials = npc.discovery.trials || {};
+  let nextTrials = null;
+  for (const key of Object.keys(trials)) {
+    const [id, type] = key.split('|');
+    if (key !== `${id}|${type}` || !objectId(id) || !DISCOVERY_RULES.primitives.includes(type) ||
+        kept.observations[id] || retainedTrials.has(key)) continue;
+    nextTrials ??= { ...trials };
+    delete nextTrials[key];
+  }
+  const nextPractice = nextTrials && deriveDiscoveryPractice(kept.experiments, nextTrials);
   npc.memory.experience = kept.experience; npc.memory.skills = kept.skills;
   for (const key of ['experiments','effects','reports','techniques','observations']) npc.discovery[key] = kept[key];
+  if (nextTrials) { npc.discovery.trials = nextTrials; npc.discovery.practice = nextPractice; }
   if (npc.discovery.run && !kept.techniques.some(t => t.id === npc.discovery.run.techniqueId)) npc.discovery.run = null;
   originalPlans.delete(plan);
   return true;

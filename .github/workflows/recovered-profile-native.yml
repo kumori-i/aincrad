@@ -1,0 +1,55 @@
+name: Recovered profile native QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/recovered-profile-native.yml'
+      - 'desktop/**'
+      - 'src/**'
+      - 'scripts/build.mjs'
+      - 'scripts/bundle.mjs'
+      - 'scripts/verify-recovered-native.mjs'
+      - 'tests/native-profile-qa-driver.cjs'
+      - 'tests/native-synthetic-fixture.mjs'
+      - 'index.html'
+      - 'style.css'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copied-profile:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # The generated fixture contains no archived world or real profile bytes.
+      - name: Exercise Windows copied-profile import and reopen
+        if: runner.os == 'Windows'
+        run: node scripts/verify-recovered-native.mjs --ci-synthetic
+      - name: Exercise Linux copied-profile import and reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-recovered-native.mjs --ci-synthetic
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovered-profile-native-${{ runner.os }}
+          path: |
+            test-results/recovered-native-synthetic-summary.json
+            test-results/recovered-native-synthetic-*.png
+            test-results/recovered-native-failure.png
+          if-no-files-found: warn
+          retention-days: 7

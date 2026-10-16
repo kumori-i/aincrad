@@ -1,6 +1,6 @@
 import { CONFIG, SPAWN, CAVES, CAVE_SPAWN, LANDMARKS } from './config.js';
 import { clamp, freshState, moveActor, nearestInteraction, clockTime, regionName, distance, canStand } from './world.js';
-import { loadSave, writeSave, validateSave, saveProtectionReason } from './save.js';
+import { loadSave, writeSave, validateSave, saveProtectionReason, prepareLegacyPendingMigration } from './save.js';
 import { Renderer } from './renderer.js';
 import { PopulationRuntime } from './population.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
@@ -10,28 +10,232 @@ import { observeNpc } from './npc.js';
 import { recordEvent } from './npc-memory.js';
 import { tickEnvironment, environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
+import { inspectProfileBoot, validateProfileStatus, commitPendingCopy } from './recovered-profile-boot.js';
 
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries(['world','welcome','hud','begin','clock','day','region','location-detail','minimap','nav-label','interaction','toast','save-status','map-panel','atlas-map','map-title','map-hint','pause-panel','help-panel','waypoint-hud'].map(id=>[id,$(id)]));
-let storage;
-try { storage = window.localStorage; } catch { storage = { getItem(){return null;}, setItem(){throw new Error('Storage disabled');} }; }
-const loaded = loadSave(storage);
+const boot=await inspectProfileBoot({
+  profileApi:window.aincradProfile,getStorage:()=>window.localStorage,
+  loadSave,prepareMigration:prepareLegacyPendingMigration,hashRaw:rawSha256,saveKey:CONFIG.saveKey,
+});
+const profileStatus=boot.status;
+const storage=boot.storage;
+const loaded=boot.loaded||{state:freshState(),exists:false,error:boot.reason||'The saved world is paused.',blocked:true};
 let state = loaded.state;
+// A pending or unverified profile never constructs a PopulationRuntime.
+const recoveryRequired=boot.gate!=='play';
+const originalRaw=boot.originalRaw||null,migrationPlan=boot.plan||null;
+let verifiedBackupRaw=null,verifiedBackupHash=null,bootIssue=boot.reason||null;
+if(boot.gate==='pending-written'){
+  try{
+    const result=await window.aincradProfile.markReady();
+    if(result?.ok!==true)throw new Error(result?.reason||'The recovered copy could not be marked ready.');
+    const next=await window.aincradProfile.status();
+    const issue=validateProfileStatus(next);
+    if(issue||next.kind!=='recovered'||next.phase!=='ready'||
+        next.sourceSha256!==profileStatus.sourceSha256||next.createdAt!==profileStatus.createdAt)
+      throw new Error(issue||'The ready record did not match the verified source.');
+    const restart=await window.aincradProfile.restartRecoveredCopy();
+    if(restart?.ok!==true)throw new Error(restart?.reason||'The recovered copy could not restart.');
+    bootIssue='The imported copy is verified. Restarting in its ready profile…';
+  }catch(error){bootIssue=error?.message||'The recovered copy could not finish verification.';}
+}
 const renderer = new Renderer(ui.world,state);
-let population=new PopulationRuntime(state);
+let population=recoveryRequired?null:new PopulationRuntime(state);
 const selectedAgent=()=>population.getAgent(state.selectedAgentId)||state.npc;
-const npcPanel=createNpcPanel({getNpc:selectedAgent,getAgents:()=>state.agents,getController:()=>population.controller(selectedAgent().id),getRuntime:()=>population,getCommunity:()=>state.community,selectAgent:id=>{if(!population.getAgent(id))return;state.selectedAgentId=id;renderer.followId=id;if(renderer.followNpc)renderer.snap(selectedAgent().position);save();},renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
-const cardinalPanel=createCardinalPanel({getState:()=>state,getRuntime:()=>population.cardinal,save:()=>save(),notify,onVisibilityChange:visible=>{if(visible){closePanels(true);npcPanel.close();}}});
-let started=false, paused=false, simulationSpeed=1, windowFocused=true, panel=null, pendingToast=null, saveBlocked=Boolean(loaded.error);
+const npcPanel=recoveryRequired?null:createNpcPanel({getNpc:selectedAgent,getAgents:()=>state.agents,getController:()=>population.controller(selectedAgent().id),getRuntime:()=>population,getCommunity:()=>state.community,selectAgent:id=>{if(!population.getAgent(id))return;state.selectedAgentId=id;renderer.followId=id;if(renderer.followNpc)renderer.snap(selectedAgent().position);save();},renderer,getEnvironment:()=>state.environment,save:()=>save(),notify});
+const cardinalPanel=recoveryRequired?null:createCardinalPanel({getState:()=>state,getRuntime:()=>population.cardinal,save:()=>save(),notify,onVisibilityChange:visible=>{if(visible){closePanels(true);npcPanel.close();}}});
+let started=false, paused=false, openingRecoveredCopy=false, simulationSpeed=1, windowFocused=true, panel=null, pendingToast=null, saveBlocked=recoveryRequired;
 const keys=new Set(), anim={time:0,moving:false,facing:{x:0,y:1}};
 let lastTime=performance.now()/1000, lastAutosave=0, lastHud=0, toastUntil=0, fps=60;
 const simulationClock=new SimulationClock({step:CONFIG.fixedStep,onStep:fixedUpdate});
 simulationClock.reset(lastTime);
 if(loaded.exists)ui.begin.innerHTML='Continue your expedition <span>↗</span>';
-if(loaded.error){pendingToast=loaded.error;ui['save-status'].textContent='Save protected';}
+if(recoveryRequired){pendingToast=bootIssue;ui['save-status'].textContent='Save protected';}
+const recovered=profileStatus?.kind==='recovered';
+const profileLabel=recovered
+  ? (boot.gate==='blocked'&&validateProfileStatus(profileStatus)
+      ? 'Recovered copy · profile verification failed'
+      : `Recovered copy · ${new Date(profileStatus.createdAt).toLocaleString()} · source ${profileStatus.sourceSha256.slice(0,12)}… · progress is separate; no merge`)
+  : profileStatus?.kind==='original'?'Original world':'Profile unavailable · world paused';
+$('welcome-profile-label').textContent=profileLabel;
+$('active-profile-label').textContent=profileLabel;
+$('recovery-profile-label').textContent=profileLabel;
+document.title=`Aincrad — ${recovered?'Recovered copy':'Original world'}`;
+if(profileStatus?.kind==='original'&&profileStatus.available){
+  $('welcome-open-copy').classList.remove('hidden');
+  $('welcome-open-status').textContent='A recovered copy is available. Its progress is separate from this original world; there is no merge or automatic copy-back.';
+  $('welcome-open-status').classList.remove('hidden');
+  $('recovery-open').classList.remove('hidden');
+  $('pause-open-copy').classList.remove('hidden');
+  $('pause-copy-note').classList.remove('hidden');
+}
+if(recoveryRequired){
+  ui.begin.disabled=true;$('watch-aster').disabled=true;
+  $('recovery-panel').classList.remove('hidden');
+  $('recovery-diagnosis').textContent=bootIssue||loaded.error||'The saved world is paused.';
+  if(boot.gate==='original-protected'){
+    $('recovery-title').textContent='Your original world needs recovery.';
+    $('recovery-migration').textContent=migrationPlan?.ok
+      ? `${migrationPlan.report.migrations.length} pending ingestion record(s) have exact sample-action receipts. Their delayed feedback will remain physical only in a separate recovered copy.`
+      : 'This save does not meet the strict physical-only migration contract. Its original bytes remain untouched.';
+    $('recovery-note').textContent=profileStatus.phase==='invalid'
+      ? 'The recovered copy slot is incomplete or invalid. After an exact matching backup is verified, a safe staged retry may complete it. Unknown, corrupt, or different slots are refused and never replaced.'
+      : 'Export the exact raw save, or select an existing matching backup. Creating a recovered copy never changes this original world. Later progress in either world may diverge; there is no merge or automatic copy-back.';
+    $('recovery-backup').classList.remove('hidden');
+    $('recovery-verify').classList.remove('hidden');
+    $('recovery-backup').disabled=!originalRaw||!window.aincradSave?.exportRaw;
+    $('recovery-verify').disabled=!originalRaw||!window.aincradSave?.restoreRaw;
+    if(migrationPlan?.ok&&['none','invalid'].includes(profileStatus.phase)&&window.aincradProfile?.createRecoveredCopy){
+      $('recovery-create').classList.remove('hidden');
+      if(profileStatus.phase==='invalid')$('recovery-create').textContent='Retry safe recovered copy staging';
+    }
+  }else if(boot.gate==='pending-empty'||boot.gate==='pending-written'){
+    $('recovery-title').textContent='Recovered copy import';
+    $('recovery-migration').textContent=`${migrationPlan.report.migrations.length} pending ingestion record(s) will keep physical digestion and delayed feedback without teaching a bodily effect.`;
+    $('recovery-note').textContent='This copy is separate from the original world. The import is checked on disk after a restart before play begins. Progress in either world may diverge; there is no merge or automatic copy-back.';
+    for(const row of migrationPlan.report.migrations){
+      const item=document.createElement('li');
+      item.textContent=`${row.actorId}: ${row.ingestionId} · action ${row.actionId} · ${row.objectId}`;
+      $('recovery-rows').append(item);
+    }
+    $('recovery-rows').classList.remove('hidden');
+    if(boot.gate==='pending-empty'&&window.aincradProfile?.restartRecoveredCopy)
+      $('recovery-import').classList.remove('hidden');
+    if(boot.gate==='pending-empty')$('recovery-status').textContent='The recovered copy save key is empty. Import has not started.';
+    if(boot.gate==='pending-written')$('recovery-status').textContent=bootIssue||'Verifying the imported candidate and restarting…';
+  }else{
+    $('recovery-migration').textContent='The saved world is paused. No simulation or save writes will run.';
+    $('recovery-note').textContent=recovered
+      ? 'This recovered copy cannot safely start. The original world and external backup are separate and remain available.'
+      : 'The original world remains protected. Profile verification must succeed before this screen can offer import actions.';
+    $('recovery-status').textContent=bootIssue||'Profile verification failed.';
+  }
+}
+
+async function rawSha256(raw){
+  const bytes=new TextEncoder().encode(raw);
+  if(new TextDecoder('utf-8',{fatal:true}).decode(bytes)!==raw)throw new Error('The save contains text that cannot be exported byte-for-byte as UTF-8.');
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+async function exportProtectedSave(){
+  const status=$('recovery-status');status.textContent='Choosing a location for the raw save backup…';
+  $('recovery-backup').disabled=true;
+  verifiedBackupRaw=null;verifiedBackupHash=null;$('recovery-create').disabled=true;
+  try{
+    if(boot.gate!=='original-protected'||!originalRaw)throw new Error('The original raw save is unavailable.');
+    const current=storage.getItem(CONFIG.saveKey);
+    if(current!==originalRaw)throw new Error('The local save changed. Restart Aincrad before exporting a new backup.');
+    const hash=await rawSha256(originalRaw);
+    const result=await window.aincradSave.exportRaw(originalRaw,hash);
+    if(result?.canceled){status.textContent='Backup canceled. The original save remains untouched.';return;}
+    if(!result?.ok||result.sha256!==hash||storage.getItem(CONFIG.saveKey)!==originalRaw)throw new Error('The backup could not be verified against the current local save. Restart before trying again.');
+    verifiedBackupRaw=originalRaw;verifiedBackupHash=hash;
+    $('recovery-create').disabled=false;
+    status.textContent=`Verified raw backup: ${result.path} · checked ${new Date().toLocaleString()} · SHA-256 ${hash}. The original world is unchanged; a different process may later advance it.`;
+  }catch(error){status.textContent=error?.message||'Backup failed. The original save remains untouched.';}
+  finally{$('recovery-backup').disabled=false;}
+}
+async function verifyRawBackup(){
+  const status=$('recovery-status');status.textContent='Choosing a backup to verify…';
+  $('recovery-verify').disabled=true;
+  verifiedBackupRaw=null;verifiedBackupHash=null;$('recovery-create').disabled=true;
+  try{
+    if(boot.gate!=='original-protected'||!originalRaw)throw new Error('The original raw save is unavailable.');
+    const result=await window.aincradSave.restoreRaw();
+    if(result?.canceled){status.textContent='Backup check canceled.';return;}
+    if(!result?.ok||result.raw!==originalRaw||storage.getItem(CONFIG.saveKey)!==originalRaw||
+        await rawSha256(result.raw)!==result.sha256)
+      throw new Error('The selected backup is not an exact match for the current original raw save.');
+    verifiedBackupRaw=originalRaw;verifiedBackupHash=result.sha256;
+    $('recovery-create').disabled=false;
+    status.textContent=`Verified matching backup: ${result.path} · checked ${new Date().toLocaleString()} · SHA-256 ${result.sha256}. The original world is unchanged; a different process may later advance it.`;
+  }catch(error){status.textContent=error?.message||'Backup verification failed.';}
+  finally{$('recovery-verify').disabled=false;}
+}
+async function openRecoveredCopy(){
+  if(openingRecoveredCopy)return;
+  const status=$('recovery-status');
+  const welcomeStatus=$('welcome-open-status');
+  const pauseStatus=$('pause-copy-status');
+  const wasPaused=paused;
+  let quiesced=false;
+  for(const id of ['recovery-open','welcome-open-copy','pause-open-copy'])$(id).disabled=true;
+  try{
+    if(profileStatus?.kind!=='original'||!window.aincradProfile?.openRecoveredCopy)
+      throw new Error('The recovered copy route is unavailable.');
+    if(started&&!save(true))
+      throw new Error('The current original world could not be saved. The recovered copy was not opened.');
+    openingRecoveredCopy=true;quiesced=true;paused=true;keys.clear();anim.moving=false;
+    simulationClock.reset(performance.now()/1000);
+    const result=await window.aincradProfile.openRecoveredCopy();
+    if(result?.ok!==true)throw new Error(result?.reason||'The recovered copy could not open.');
+    status.textContent='Opening the separate recovered copy…';
+    welcomeStatus.textContent=status.textContent;welcomeStatus.classList.remove('hidden');
+    pauseStatus.textContent=status.textContent;pauseStatus.classList.remove('hidden');
+  }catch(error){
+    if(quiesced){openingRecoveredCopy=false;paused=wasPaused;simulationClock.reset(performance.now()/1000);}
+    status.textContent=error?.message||'The recovered copy could not open.';
+    welcomeStatus.textContent=status.textContent;welcomeStatus.classList.remove('hidden');
+    pauseStatus.textContent=status.textContent;pauseStatus.classList.remove('hidden');
+    for(const id of ['recovery-open','welcome-open-copy','pause-open-copy'])$(id).disabled=false;
+  }
+}
+async function createRecoveredCopy(){
+  const status=$('recovery-status');
+  $('recovery-create').disabled=true;
+  try{
+    if(boot.gate!=='original-protected'||!migrationPlan?.ok||profileStatus?.kind!=='original'||
+        !['none','invalid'].includes(profileStatus.phase)||verifiedBackupRaw!==originalRaw||!verifiedBackupHash||
+        storage.getItem(CONFIG.saveKey)!==originalRaw||await rawSha256(originalRaw)!==verifiedBackupHash)
+      throw new Error('The matching backup or original raw save changed. Verify the backup again before creating a copy.');
+    const result=await window.aincradProfile.createRecoveredCopy(originalRaw,verifiedBackupHash);
+    if(result?.ok!==true||result.phase!=='pending'||result.sourceSha256!==verifiedBackupHash)
+      throw new Error(result?.reason||'The separate recovered copy could not be staged.');
+    verifiedBackupRaw=null;verifiedBackupHash=null;
+    $('recovery-open').classList.remove('hidden');
+    status.textContent='Recovered copy staged from the verified backup. Opening its paused import screen…';
+    await openRecoveredCopy();
+  }catch(error){status.textContent=error?.message||'The recovered copy could not be created.';verifiedBackupRaw=null;verifiedBackupHash=null;}
+  finally{$('recovery-create').disabled=!verifiedBackupRaw;}
+}
+async function importRecoveredCopy(){
+  const status=$('recovery-status');
+  $('recovery-import').disabled=true;
+  try{
+    if(boot.gate!=='pending-empty'||!storage||!window.aincradProfile?.restartRecoveredCopy)
+      throw new Error('The recovered copy is not ready for explicit import.');
+    const again=await inspectProfileBoot({profileApi:window.aincradProfile,
+      getStorage:()=>storage,loadSave,prepareMigration:prepareLegacyPendingMigration,
+      hashRaw:rawSha256,saveKey:CONFIG.saveKey});
+    if(again.gate!=='pending-empty'||again.status.sourceSha256!==profileStatus.sourceSha256||
+        again.status.createdAt!==profileStatus.createdAt||again.stage.raw!==boot.stage.raw||
+        again.plan.candidate!==migrationPlan.candidate)
+      throw new Error('The staged source or copy save changed. Restart before importing.');
+    status.textContent='Writing the verified candidate into the empty recovered copy…';
+    await commitPendingCopy({storage,saveKey:CONFIG.saveKey,candidate:migrationPlan.candidate,
+      loadSave,restartRecoveredCopy:()=>{
+        status.textContent='Candidate stored in the recovered copy. Restarting for disk verification…';
+        return window.aincradProfile.restartRecoveredCopy();
+      }});
+  }catch(error){status.textContent=(error?.message||'Import failed.')+' The recovered copy remains paused; reopen it to verify any candidate already stored.';}
+  finally{
+    try{$('recovery-import').disabled=storage.getItem(CONFIG.saveKey)!==null;}
+    catch{$('recovery-import').disabled=true;}
+  }
+}
+$('recovery-backup').addEventListener('click',exportProtectedSave);
+$('recovery-verify').addEventListener('click',verifyRawBackup);
+$('recovery-create').addEventListener('click',createRecoveredCopy);
+$('recovery-open').addEventListener('click',openRecoveredCopy);
+$('welcome-open-copy').addEventListener('click',openRecoveredCopy);
+$('pause-open-copy').addEventListener('click',openRecoveredCopy);
+$('recovery-import').addEventListener('click',importRecoveredCopy);
 
 function notify(message,seconds=5){ui.toast.textContent=message;ui.toast.classList.remove('hidden');toastUntil=performance.now()/1000+seconds;}
 function save(explicit=false){
+  if(recoveryRequired||openingRecoveredCopy)return false;
   const protection=saveProtectionReason(state);
   if(protection){saveBlocked=true;ui['save-status'].textContent='Save protected';if(explicit)notify(protection,9);return false;}
   if(saveBlocked&&!explicit)return false;
@@ -40,7 +244,7 @@ function save(explicit=false){
   else {ui['save-status'].textContent='Save unavailable';if(explicit)notify('Local saving is unavailable. Your current session is still running.',7);}
   return ok;
 }
-function closePanels(keepCardinal=false){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');if(keepCardinal!==true)cardinalPanel.close();panel=null;keys.clear();ui.world.focus({preventScroll:true});}
+function closePanels(keepCardinal=false){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');if(keepCardinal!==true)cardinalPanel?.close();panel=null;keys.clear();ui.world.focus({preventScroll:true});}
 function updateAtlas(){renderer.drawAtlas(ui['atlas-map'],state);const status=renderer.atlasStatus();$('atlas-zoom-label').textContent=`${status.zoom.toFixed(1)}×`;}
 function openPanel(name){
   if(!started)return;
@@ -53,13 +257,15 @@ function openPanel(name){
   const dialog=ui[name+'-panel'];dialog.querySelector('button')?.focus();save();
 }
 function togglePanel(name){if(panel===name)closePanels();else openPanel(name);}
-function togglePause(){paused=!paused;simulationClock.reset(performance.now()/1000);keys.clear();anim.moving=false;if(paused)openPanel('pause');else closePanels();}
+function togglePause(){if(openingRecoveredCopy)return;paused=!paused;simulationClock.reset(performance.now()/1000);keys.clear();anim.moving=false;if(paused)openPanel('pause');else closePanels();}
 function begin(){
+  if(recoveryRequired||openingRecoveredCopy)return;
   started=true;ui.welcome.classList.add('hidden');ui.hud.classList.remove('hidden');keys.clear();ui.world.focus();lastTime=performance.now()/1000;simulationClock.reset(lastTime);
   if(pendingToast){notify(pendingToast,9);pendingToast=null;}
   else if(!loaded.exists)notify('Welcome to the Trailhead. Press M for your field map, or H for controls.',6);
 }
 function interact(){
+  if(openingRecoveredCopy)return;
   const action=nearestInteraction(state.player,state.scene);if(!action)return;
   if(action.type==='enter'){
     state.scene=action.id;state.player={...CAVE_SPAWN};state.visitedCaves=[...new Set([...state.visitedCaves,action.id])];state.discoveries=[...new Set([...state.discoveries,action.id])];
@@ -70,31 +276,34 @@ function interact(){
   }else notify('The central trail runs east–west. Follow the river north to Stillwater Lake. Marked caverns lie beneath Crown Ridge, and Willow Refuge offers shelter near the starting pond. Press M to plan your route.',10);
 }
 function returnToCamp(){
+  if(openingRecoveredCopy)return;
   if(!window.confirm('Return to the Trailhead? Your discoveries and world time will be kept.'))return;
   state.scene='valley';state.player={...SPAWN};renderer.snap(state.player);closePanels();save();notify('Returned to the Trailhead.');
 }
 function newExpedition(){
+  if(recoveryRequired||recovered||openingRecoveredCopy)return;
   if(!window.confirm('Start a new expedition? This replaces your saved world, both characters’ memories, and conversations.'))return;
   const providerFactory=population.providerFactory;population.dispose();state=freshState();population=new PopulationRuntime(state,{providerFactory});renderer.followId=state.selectedAgentId;saveBlocked=false;paused=false;simulationClock.reset(performance.now()/1000);renderer.snap(state.player);closePanels();save();notify('A fresh discovery expedition. The valley awaits.');
 }
 ui.begin.addEventListener('click',begin);
-$('watch-aster').addEventListener('click',()=>{begin();npcPanel.follow(true);npcPanel.toggle();});
+$('watch-aster').addEventListener('click',()=>{if(recoveryRequired||openingRecoveredCopy)return;begin();npcPanel.follow(true);npcPanel.toggle();});
 $('open-npc').addEventListener('click',()=>cardinalPanel.close());
 $('open-map').addEventListener('click',()=>togglePanel('map'));
 $('close-map').addEventListener('click',closePanels);
 $('help-button').addEventListener('click',()=>togglePanel('help'));
 $('close-help').addEventListener('click',closePanels);
-$('resume').addEventListener('click',()=>{paused=false;simulationClock.reset(performance.now()/1000);closePanels();});
+$('resume').addEventListener('click',()=>{if(openingRecoveredCopy)return;paused=false;simulationClock.reset(performance.now()/1000);closePanels();});
 const speedControl=$('simulation-speed');if(speedControl)speedControl.addEventListener('change',()=>{const speed=Number(speedControl.value);if([1,4,16,60].includes(speed)){simulationSpeed=speed;simulationClock.reset(performance.now()/1000);keys.clear();}});
 $('save-button').addEventListener('click',()=>save(true));
 $('return-camp').addEventListener('click',returnToCamp);
 $('new-expedition').addEventListener('click',newExpedition);
+if(recovered)$('new-expedition').classList.add('hidden');
 const movementCodes=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
 window.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.code==='KeyS'){e.preventDefault();if(started)save(true);return;}
   if(e.code==='Tab'&&panel){
     // Keep keyboard focus inside an open dialog.
-    const buttons=[...ui[panel+'-panel'].querySelectorAll('button')];
+    const buttons=[...ui[panel+'-panel'].querySelectorAll('button')].filter(button=>!button.disabled&&button.getClientRects().length);
     if(buttons.length){const index=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(index+(e.shiftKey?-1:1)+buttons.length)%buttons.length].focus();}return;
   }
   if(!started)return;
@@ -142,6 +351,7 @@ atlasCanvas.addEventListener('click',e=>{
 });
 ui['atlas-map'].addEventListener('contextmenu',e=>{e.preventDefault();state.waypoint=null;renderer.drawAtlas(ui['atlas-map'],state);save();});
 function fixedUpdate(dt){
+  if(openingRecoveredCopy)return;
   let dx=panel||cardinalPanel.visible||!windowFocused?0:(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
   let dy=panel||cardinalPanel.visible||!windowFocused?0:(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
   const travelled=moveActor(state.player,dx,dy,dt,keys.has('ShiftLeft')||keys.has('ShiftRight'),state.scene);
@@ -184,21 +394,21 @@ function loop(ms){
   if(started&&!paused)anim.time+=dt;
   else{anim.moving=false;if(!started)anim.time+=dt;}
   renderer.render(state,anim,dt,started);
-  if(started){npcPanel.update(now);cardinalPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(panel==='map'&&now-(loop.lastAtlas||0)>.1){loop.lastAtlas=now;updateAtlas();}if(now-lastAutosave>10){lastAutosave=now;save();}}
+  if(started&&!openingRecoveredCopy){npcPanel.update(now);cardinalPanel.update(now);renderer.drawMini(ui.minimap,state,now);updateHud(now);if(panel==='map'&&now-(loop.lastAtlas||0)>.1){loop.lastAtlas=now;updateAtlas();}if(now-lastAutosave>10){lastAutosave=now;save();}}
   requestAnimationFrame(loop);
 }
 window.addEventListener('error',e=>{ $('fatal-message').textContent=e.message||'An unexpected runtime error occurred.';$('fatal').classList.remove('hidden'); });
 window.addEventListener('unhandledrejection',e=>{ $('fatal-message').textContent=String(e.reason?.message||e.reason||'An unexpected error occurred.');$('fatal').classList.remove('hidden'); });
 requestAnimationFrame(loop);
-setInterval(()=>{simulationClock.advance(performance.now()/1000,{running:started&&!paused,speed:simulationSpeed});if(started&&!paused)population.workCardinal(8);if(started&&performance.now()/1000-lastAutosave>10){lastAutosave=performance.now()/1000;save();}},1000/60);
+setInterval(()=>{simulationClock.advance(performance.now()/1000,{running:started&&!paused&&!openingRecoveredCopy,speed:simulationSpeed});if(started&&!paused&&!openingRecoveredCopy)population.workCardinal(8);if(started&&!openingRecoveredCopy&&performance.now()/1000-lastAutosave>10){lastAutosave=performance.now()/1000;save();}},1000/60);
 // Local test hooks are absent in normal play. They expose game state only, never OS access.
-if(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ === true){
+if(!recoveryRequired&&(new URLSearchParams(location.search).has('test') || window.__AINCRAD_TEST__ === true)){
   window.__aincrad={
     snapshot:()=>structuredClone(state),
     metrics:()=>({fps,cache:renderer.chunks.size,zoom:renderer.zoom,panel,started,paused,simulationSpeed,windowFocused,interaction:nearestInteraction(state.player,state.scene)}),
     teleport:(x,y,scene='valley')=>{if(scene!=='valley'&&!CAVES.some(c=>c.id===scene))return false;if(!canStand(x,y,scene))return false;state.scene=scene;state.player={x,y};renderer.snap(state.player);return true;},
     step:(seconds,dx=0,dy=0)=>{for(let t=0;t<seconds;t+=CONFIG.fixedStep){const dt=Math.min(CONFIG.fixedStep,seconds-t);state.distance+=moveActor(state.player,dx,dy,dt,false,state.scene);state.elapsed+=dt;population.tick(dt);}},
-    start:begin,interact,save:()=>save(true),reset:()=>{population.dispose();state=freshState();population=new PopulationRuntime(state);renderer.followId=state.selectedAgentId;renderer.snap(state.player);},
+    start:begin,interact,save:()=>save(true),reset:()=>{if(recovered)return false;population.dispose();state=freshState();population=new PopulationRuntime(state);renderer.followId=state.selectedAgentId;renderer.snap(state.player);return true;},
     npc:(id=state.selectedAgentId)=>structuredClone(population.getAgent(id)),
     agents:()=>structuredClone(state.agents),conversation:()=>structuredClone(state.community),
     cardinal:()=>structuredClone(state.cardinal),

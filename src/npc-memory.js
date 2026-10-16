@@ -15,6 +15,34 @@ export { recordEvent } from './npc-events.js';
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
 const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
 const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
+const FEATURE_NAMES=new Set(['thirst','hunger','thermal','injured','water','food','sheltered','knownWater','knownFood','knownShelter']);
+const featureBatches=new WeakMap();
+function validFeatureEntry([key,value]){
+  const parts=key.split(':');
+  return parts.length===2&&CATEGORIES.has(parts[0])&&FEATURE_NAMES.has(parts[1])&&Number.isFinite(value)&&value>=-8&&value<=8;
+}
+function withFeatureBatch(npc,operation){
+  if(!npc.learning||featureBatches.has(npc))return operation();
+  const original=Object.entries(npc.memory.features||{});
+  const invalid=original.filter(entry=>!validFeatureEntry(entry));
+  const batch={weights:Object.fromEntries(original),touched:false,
+    eligible:invalid.length===0};
+  featureBatches.set(npc,batch);
+  let completed=false;
+  try{const result=operation();completed=true;return result;}
+  finally{
+    featureBatches.delete(npc);
+    if(completed&&batch.touched){
+      for(const [key,value] of invalid)batch.weights[key]=value;
+      const entries=Object.entries(batch.weights);
+      // Invalid pre-existing weights remain visible to the save guard. Never
+      // turn malformed learned state into an apparently valid marked save.
+      npc.memory.features=batch.eligible&&entries.every(validFeatureEntry)
+        ?Object.fromEntries(entries.filter(([,value])=>value!==0).slice(-144))
+        :batch.weights;
+    }
+  }
+}
 const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwise;
 const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
 const cellsFor=(npc,scene=npc.scene)=>scene==='valley'?npc.memory.cells:(npc.memory.caveCells[scene]||={});
@@ -53,10 +81,12 @@ export function actionCategory(action){return action?.type==='move'?(action.sour
 function boundedValues(npc){const entries=Object.entries(npc.memory.values);if(entries.length>384)npc.memory.values=Object.fromEntries(entries.slice(-384));}
 function credit(npc,context,category,reward,alpha,attempt=false,features=bodyFeatures(npc)){
   if(!npc.learning||!CATEGORIES.has(category)||typeof context!=='string')return;
+  const batch=featureBatches.get(npc);
+  if(!batch)return withFeatureBatch(npc,()=>credit(npc,context,category,reward,alpha,attempt,features));
   const key=`${context}::${category}`,v=npc.memory.values[key]||{attempts:0,value:0};
   if(attempt)v.attempts++;v.value=clamp(v.value+alpha*(clamp(reward,-12,12)-v.value),-12,12);npc.memory.values[key]=v;boundedValues(npc);
-  npc.memory.features||={};
-  for(const [feature,amount] of Object.entries(features)){const k=`${category}:${feature}`,old=npc.memory.features[k]||0;npc.memory.features[k]=clamp(old+alpha*.25*amount*(reward-old),-8,8);}
+  for(const [feature,amount] of Object.entries(features)){const k=`${category}:${feature}`,old=batch.weights[k]||0;batch.weights[k]=clamp(old+alpha*.25*amount*(reward-old),-8,8);}
+  batch.touched=true;
 }
 export function updateValue(npc,context,category,reward){credit(npc,context,category,reward,.25,true);}
 export function learnedValue(npc,action){
@@ -69,6 +99,9 @@ export function learnedValue(npc,action){
  * The recent action window is a supplied eligibility-trace mechanism, not invented reasoning. */
 export function learningCostTick(npc,dt,intervalCost,{thermalRelief=0}={}){
   if(!npc.learning||npc.lifecycle!=='AWAKE'||!Number.isFinite(dt)||dt<=0)return;
+  return withFeatureBatch(npc,()=>learningCostTickBatch(npc,dt,intervalCost,{thermalRelief}));
+}
+function learningCostTickBatch(npc,dt,intervalCost,{thermalRelief=0}={}){
   const cost=Math.max(0,Number.isFinite(intervalCost)?intervalCost:0),recent=npc.memory.experience.filter(e=>e.type==='action'&&e.at>=npc.elapsed-20&&e.details.action).slice(-6);
   const targets=[];
   if(npc.active)targets.push({context:npc.active.context||policyContext(npc),category:actionCategory(npc.active.request),weight:1});
@@ -112,7 +145,7 @@ function candidateFromRelief(npc,event,id){
   makeSkill(npc,{id:`shelter-${move?'approach-enter-rest':'enter-rest'}`,signature:move?'approach-enter-rest':'enter-rest',name:move?'Approach shelter and rest':'Enter shelter and rest',need:'thermal',parameter:'shelterId',steps,inRange:!move},event,id,move?.details.startPosition||enter.details.startPosition,[...(move?[move.id]:[]),enter.id,event.id]);
 }
 export function learnOutcome(npc,action,result,context,startPosition){
-  return withProofTransaction(npc,()=>learnOutcomeLinked(npc,action,result,context,startPosition));
+  return withFeatureBatch(npc,()=>withProofTransaction(npc,()=>learnOutcomeLinked(npc,action,result,context,startPosition)));
 }
 function learnOutcomeLinked(npc,action,result,context,startPosition){
   const previous=npc.memory.experience.filter(e=>e.type==='action').at(-1);
@@ -149,6 +182,9 @@ function learnOutcomeLinked(npc,action,result,context,startPosition){
   return event;
 }
 export function recoveryLesson(npc){
+  return withFeatureBatch(npc,()=>recoveryLessonBatch(npc));
+}
+function recoveryLessonBatch(npc){
   const cause=npc.collapseCause||'critical deprivation or exposure';
   const verified=`Verified: ${cause} caused consciousness to be lost. Rescue relief was not an independent food, water, or shelter success.`;
   const hypothesis='Hypothesis: acting before warning becomes critical may reduce harm; reuse procedures supported by ordinary relief.';

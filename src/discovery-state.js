@@ -22,6 +22,16 @@ function techniqueProof(raw,d){
   }
   if(!chains.length)return null;return {evidence,successes:new Set(chains).size};
 }
+// The persisted practice aggregate is derived first from retained experiments,
+// then from retained per-object trials. Keep this reduction shared with live
+// optional-trial retirement so a save never invents a different aggregate.
+export function deriveDiscoveryPractice(experiments,trialsByObject){
+  const practice={};
+  for(const type of DISCOVERY_RULES.primitives){const trials=experiments.filter(e=>e.primitive===type),successful=trials.filter(e=>e.ok&&e.durationSeconds>0);if(trials.length)practice[type]={successes:successful.length,failures:trials.filter(e=>!e.ok).length,seconds:successful.reduce((sum,e)=>sum+e.durationSeconds,0)};}
+  const entries=Object.entries(trialsByObject);
+  for(const type of DISCOVERY_RULES.primitives){const trials=entries.filter(([key])=>key.endsWith(`|${type}`));if(trials.length)practice[type]={successes:trials.reduce((sum,[,v])=>sum+v.successes,0),failures:trials.reduce((sum,[,v])=>sum+v.failures,0),seconds:trials.reduce((sum,[,v])=>sum+v.seconds,0)};}
+  return practice;
+}
 /** Persistence restores data only. A forged routine cannot outlive its executed evidence. */
 export function validateDiscoveryMemory(raw,npc=null){
   const d=createDiscoveryMemory();if(!raw||raw.version!==1)return d;d.nextId=Math.max(1,Math.floor(num(raw.nextId,1e9)));
@@ -31,7 +41,6 @@ export function validateDiscoveryMemory(raw,npc=null){
   const ids=new Set(d.experiments.map(e=>e.id));d.nextId=Math.max(d.nextId,1+Math.max(0,...ids));
   d.effects=(Array.isArray(raw.effects)?raw.effects:[]).slice(-DISCOVERY_RULES.maxEffects).filter(e=>objectId(e?.objectId)&&Number.isInteger(e.actionId)&&e.actionId>0&&typeof e.ingestionId==='string'&&/^ingestion:\d+$/.test(e.ingestionId)&&['sustained','water relief','discomfort','no noticeable change'].includes(e.effect)&&d.experiments.some(x=>x.primitive==='sample'&&x.ok&&x.targetId===e.objectId&&x.actionId===e.actionId&&x.ingestionId===e.ingestionId&&e.at>=x.at)&&(!npc||npc.physiology?.feedback?.some(f=>f.id===e.id&&f.ingestionId===e.ingestionId&&f.actionId===e.actionId&&f.effect===e.effect&&f.objectId===e.objectId&&f.provenance==='sampled'&&f.at===e.at)||npc.memory.experience.some(x=>x.id===e.proofEventId&&x.type==='condition'&&x.at>=e.at&&x.details.code==='DISCOVERY_EFFECT'&&x.details.feedback?.id===e.id&&x.details.feedback?.ingestionId===e.ingestionId&&x.details.feedback?.actionId===e.actionId&&x.details.feedback?.effect===e.effect&&x.details.feedback?.objectId===e.objectId&&x.details.feedback?.source==='experienced'&&x.details.feedback?.at===e.at))).map(e=>({id:text(e.id,80),at:num(e.at),objectId:e.objectId,actionId:num(e.actionId),ingestionId:text(e.ingestionId,80),effect:e.effect,hunger:e.hunger==='easing'?'easing':'unchanged',thirst:e.thirst==='easing'?'easing':'unchanged',energy:e.energy==='easing'?'easing':'unchanged',pain:['none','aching','hurting'].includes(e.pain)?e.pain:'none',source:'experienced',...(Number.isInteger(e.proofEventId)&&e.proofEventId>0?{proofEventId:e.proofEventId}:{})}));
   d.reports=(Array.isArray(raw.reports)?raw.reports:[]).slice(-DISCOVERY_RULES.maxReports).filter(r=>typeof r?.text==='string'&&['human','aster','mira'].includes(r.sourceId)).map(r=>({id:text(r.id,80),text:text(r.text,600),sourceId:r.sourceId,channel:text(r.channel,20),messageId:text(r.messageId,80),at:num(r.at),...(objectId(r.objectId)?{objectId:r.objectId}:{}),status:['unverified','supported','contradicted'].includes(r.status)?r.status:'unverified',proposed:(Array.isArray(r.proposed)?r.proposed:[]).slice(0,6).filter(p=>DISCOVERY_RULES.primitives.includes(p?.type)&&objectId(p.targetId)&&d.observations[p.targetId]).map(p=>({type:p.type,targetId:p.targetId})),cursor:Math.floor(num(r.cursor,6)),evidence:(Array.isArray(r.evidence)?r.evidence:[]).filter(id=>ids.has(id)).slice(-12)}));
-  for(const type of DISCOVERY_RULES.primitives){const trials=d.experiments.filter(e=>e.primitive===type),successful=trials.filter(e=>e.ok&&e.durationSeconds>0);if(trials.length)d.practice[type]={successes:successful.length,failures:trials.filter(e=>!e.ok).length,seconds:successful.reduce((sum,e)=>sum+e.durationSeconds,0)};}
   for(const [key,value] of Object.entries(raw.trials||{}).slice(-768)){
     const [id,type]=key.split('|');if(!objectId(id)||!DISCOVERY_RULES.primitives.includes(type)||!d.observations[id])continue;
     const tail=d.experiments.filter(e=>e.targetId===id&&e.primitive===type),latest=tail.at(-1);
@@ -51,7 +60,7 @@ export function validateDiscoveryMemory(raw,npc=null){
     if(!d.trials[key]){const tail=d.experiments.filter(x=>x.targetId===e.targetId&&x.primitive===e.primitive),latest=tail.at(-1);d.trials[key]={attempts:tail.length,successes:tail.filter(x=>x.ok).length,failures:tail.filter(x=>!x.ok).length,seconds:tail.filter(x=>x.ok).reduce((sum,x)=>sum+x.durationSeconds,0),lastAt:latest.at,lastCode:latest.code,lastOk:latest.ok};}
   }
   for(const trial of Object.values(d.trials)){trial.successes=Math.min(trial.attempts,trial.successes);trial.failures=Math.min(trial.attempts-trial.successes,trial.failures);trial.seconds=Math.min(trial.seconds,trial.successes*30);}
-  for(const type of DISCOVERY_RULES.primitives){const trials=Object.entries(d.trials).filter(([key])=>key.endsWith(`|${type}`));if(trials.length)d.practice[type]={successes:trials.reduce((sum,[,v])=>sum+v.successes,0),failures:trials.reduce((sum,[,v])=>sum+v.failures,0),seconds:trials.reduce((sum,[,v])=>sum+v.seconds,0)};}
+  d.practice=deriveDiscoveryPractice(d.experiments,d.trials);
   for(const r of d.reports){const attempted=d.experiments.filter(e=>r.evidence.includes(e.id));r.cursor=Math.min(r.cursor,attempted.length,r.proposed.length);r.status=d.effects.some(e=>e.effect==='sustained'&&attempted.some(x=>x.ingestionId===e.ingestionId))?'supported':attempted.some(e=>!e.ok)||d.effects.some(e=>e.effect==='discomfort'&&attempted.some(x=>x.ingestionId===e.ingestionId))?'contradicted':'unverified';}
   for(const t of (Array.isArray(raw.techniques)?raw.techniques:[]).slice(-DISCOVERY_RULES.maxTechniques)){
     const proof=techniqueProof(t,d);if(!proof)continue;
