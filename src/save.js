@@ -5,15 +5,36 @@ import { validateEnvironment } from './environment.js';
 import { createNpc } from './npc-state.js';
 import { validateCommunity } from './social.js';
 import { ECOLOGY_RULES } from './ecology-config.js';
-import { BIOLOGY_RULES } from './biology-config.js';
+import { BIOLOGY_RULES, BIOLOGY_PROFILES } from './biology-config.js';
 import { validateCardinal } from './cardinal.js';
 import { hasLifecyclePayload, lifecycleError } from './plant-lifecycle-state.js';
 import { objectId } from './discovery-state.js';
-import { LEGACY_PHYSICAL_PROVENANCE, planProofRetention, retainedEffectProofError, retainedProofIntegrityError } from './proof-retention.js';
+import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, planProofRetention, retainedEffectProofError, retainedProofIntegrityError } from './proof-retention.js';
 const SAVE_VERSIONS = new Set([1,2,3,4,5,6,8]);
 const AGENT_IDS = ['aster','mira'];
 const PROOF_WARNING='Learned evidence in this expedition is incomplete or depends on an older feedback queue. The original save has been preserved. Export a raw backup from this recovery screen before considering recovery.';
 const MARKED_WARNING='A migrated expedition has incomplete physical or learned evidence. Its saved bytes have been preserved.';
+function canonicalNumberId(value,prefix){
+  if(typeof value!=='string')return null;
+  const match=value.match(new RegExp(`^${prefix}:([1-9]\\d*)$`));
+  if(!match)return null;
+  const id=Number(match[1]);return Number.isSafeInteger(id)&&id>0?id:null;
+}
+function receiptlessWorldIdentityError(state,actors){
+  const rows=actors.flatMap(actor=>[
+    ...(Array.isArray(actor.physiology?.stomach)?actor.physiology.stomach:[]),
+    ...(Array.isArray(actor.physiology?.feedback)?actor.physiology.feedback:[]),
+  ].filter(row=>row?.provenance===LEGACY_UNKNOWN_PHYSICAL_PROVENANCE)
+    .map(row=>({actor,row})));
+  if(!rows.length)return false;
+  const high=state.environment?.ecology?.nextId;
+  return !Number.isSafeInteger(high)||high<=1||!finiteTime(state.elapsed)||
+    rows.some(({actor,row})=>{
+      const id=canonicalNumberId(row.objectId,'object');
+      return id===null||id>=high||!finiteTime(actor.elapsed)||
+        actor.elapsed>state.elapsed||!finiteTime(row.at)||row.at>state.elapsed;
+    });
+}
 export function saveProtectionReason(state){
   if(state?.saveBlocked)return state.saveBlockedReason||'The original save is protected and has not been overwritten.';
   if(state?.simulationMode!=='discovery')return null;
@@ -21,8 +42,10 @@ export function saveProtectionReason(state){
   const actors=[...(Array.isArray(state.agents)?state.agents:[]),state.npc].filter(Boolean);
   const hasLegacyPhysicalRow=actors.some(n=>
     [...(Array.isArray(n.physiology?.stomach)?n.physiology.stomach:[]),
-      ...(Array.isArray(n.physiology?.feedback)?n.physiology.feedback:[])].some(row=>row?.provenance===LEGACY_PHYSICAL_PROVENANCE));
+      ...(Array.isArray(n.physiology?.feedback)?n.physiology.feedback:[])].some(row=>
+      row?.provenance===LEGACY_PHYSICAL_PROVENANCE||row?.provenance===LEGACY_UNKNOWN_PHYSICAL_PROVENANCE));
   if(hasLegacyPhysicalRow&&state.features?.legacyPendingPhysicalOnly!==1)return PROOF_WARNING;
+  if(receiptlessWorldIdentityError(state,actors))return MARKED_WARNING;
   // The envelope selects discovery rules on restore. A serialized actor cannot
   // opt out of the raw proof check by claiming legacy mode inside that world.
   return actors.some(n=>n.mode!=='discovery'||n.proofRetentionError||retainedProofIntegrityError(n))?
@@ -171,6 +194,44 @@ const MEMORY_WRITE_FIELDS=['nextId','experience','skills','values','features','e
 const positiveId=value=>Number.isInteger(value)&&value>0;
 const ingestionId=value=>typeof value==='string'&&/^ingestion:\d+$/.test(value);
 const finiteTime=value=>Number.isFinite(value)&&value>=0;
+const finiteRange=(value,min,max)=>Number.isFinite(value)&&value>=min&&value<=max;
+const bodyEpsilon=1e-8;
+function receiptlessPreflightError(world,actor,row,receipts){
+  const f=actor.physiology,profile=BIOLOGY_PROFILES[f.profile];
+  const actionId=row.actionId,ingestion=canonicalNumberId(row.id,'ingestion');
+  const object=canonicalNumberId(row.objectId,'object');
+  const worldObjectHigh=world.environment?.ecology?.nextId;
+  if(!profile||!Number.isSafeInteger(actionId)||actionId<=0||
+      !Number.isSafeInteger(actor.memory?.nextId)||actionId>=actor.memory.nextId||
+      ingestion===null||!Number.isSafeInteger(f.nextId)||ingestion>=f.nextId||
+      object===null||!Number.isSafeInteger(worldObjectHigh)||object>=worldObjectHigh||
+      !finiteTime(row.at)||row.at>actor.elapsed||row.at>world.elapsed||
+      receipts.has(actionId)||
+      actor.discovery.experiments.some(experiment=>experiment?.actionId===actionId||experiment?.ingestionId===row.id)||
+      actor.discovery.effects.some(effect=>effect?.actionId===actionId||effect?.ingestionId===row.id))
+    return 'The pending ingestion has a conflicting or invalid historical identity.';
+  if(!finiteRange(row.originalMassGrams,0,profile.stomachCapacityGrams)||row.originalMassGrams<=0||
+      !finiteRange(row.remainingMassGrams,0,row.originalMassGrams)||row.remainingMassGrams<=0||
+      !finiteRange(row.originalKcal,0,50000)||!finiteRange(row.remainingKcal,0,row.originalKcal)||
+      !finiteRange(row.absorbedKcal,0,50000)||row.remainingKcal+row.absorbedKcal>row.originalKcal+bodyEpsilon||
+      !finiteRange(row.originalWaterMl,0,20000)||!finiteRange(row.remainingWaterMl,0,row.originalWaterMl)||
+      !finiteRange(row.absorbedWaterMl,0,20000)||
+      row.remainingWaterMl+row.absorbedWaterMl>row.originalWaterMl+bodyEpsilon||
+      !finiteRange(row.harm,0,100)||!finiteRange(row.digestHours,.05,24)||
+      !finiteRange(row.elapsedHours,0,24)||!finiteRange(row.toxicity,0,1)||
+      ['feedbackSent','waterFeedbackSent','sustenanceFeedbackSent'].some(key=>typeof row[key]!=='boolean'))
+    return 'The pending ingestion has invalid finite physical quantities.';
+  const feedback=actor.physiology.feedback;
+  for(const event of feedback.filter(item=>item?.ingestionId===row.id||item?.actionId===actionId)){
+    const feedbackId=canonicalNumberId(event.id,'feedback');
+    if(feedbackId===null||feedbackId>=f.nextId||
+        event.ingestionId!==row.id||event.actionId!==actionId||event.objectId!==row.objectId||
+        event.provenance!=='sampled'||!finiteTime(event.at)||
+        event.at<row.at||event.at>actor.elapsed||event.at>world.elapsed)
+      return 'Related feedback does not match the pending ingestion.';
+  }
+  return null;
+}
 function sameExact(a,b){
   if(a===b)return true;
   if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
@@ -311,6 +372,21 @@ export function prepareLegacyPendingMigration(rawString){
           !Array.isArray(actor.discovery.effects)||!Array.isArray(actor.discovery.seenFeedback)||
           !Array.isArray(actor.memory?.experience)||retainedEffectProofError(actor))
         return failedMigration('A learned effect or actor record has incomplete evidence.');
+      const profile=BIOLOGY_PROFILES[actor.physiology.profile];
+      if(!profile||actor.physiology.stomach.length>BIOLOGY_RULES.maxDigestiveInputs||
+          actor.physiology.feedback.length>BIOLOGY_RULES.maxFeedback||
+          !finiteTime(actor.elapsed)||!finiteTime(migrated.elapsed)||
+          actor.physiology.stomach.some(row=>!Number.isFinite(row?.remainingMassGrams)||row.remainingMassGrams<0)||
+          actor.physiology.stomach.reduce((mass,row)=>mass+row.remainingMassGrams,0)>profile.stomachCapacityGrams+bodyEpsilon)
+        return failedMigration('The saved digestive state exceeds its finite physical bounds.');
+      const stomachIds=new Set(),stomachActions=new Set();
+      for(const row of actor.physiology.stomach){
+        if(typeof row?.id!=='string'||stomachIds.has(row.id)||
+            positiveId(row.actionId)&&stomachActions.has(row.actionId))
+          return failedMigration('Pending ingestion identities are not unique.');
+        stomachIds.add(row.id);
+        if(positiveId(row.actionId))stomachActions.add(row.actionId);
+      }
       const receipts=new Map();
       for(const event of actor.memory.experience){
         if(!positiveId(event?.id)||receipts.has(event.id))return failedMigration('Action receipt identities are not unique.');
@@ -327,15 +403,29 @@ export function prepareLegacyPendingMigration(rawString){
         if(typeof feedback?.id!=='string'||!/^feedback:\d+$/.test(feedback.id)||feedbackIds.has(feedback.id))
           return failedMigration('Feedback identities are not unique.');
         feedbackIds.add(feedback.id);
-        if(feedback.provenance===LEGACY_PHYSICAL_PROVENANCE)
+        if(feedback.provenance===LEGACY_PHYSICAL_PROVENANCE||
+            feedback.provenance===LEGACY_UNKNOWN_PHYSICAL_PROVENANCE)
           return failedMigration('The save already contains a migration marker.');
       }
       const seen=new Set(actor.discovery.seenFeedback);
       for(const row of actor.physiology.stomach){
         if(row?.provenance===LEGACY_PHYSICAL_PROVENANCE)
           return failedMigration('The save already contains a migration marker.');
+        if(row?.provenance===LEGACY_UNKNOWN_PHYSICAL_PROVENANCE)
+          return failedMigration('The save already contains a migration marker.');
         if(row?.provenance!=='sampled'||experimentActions.has(row.actionId))continue;
         const receipt=receipts.get(row.actionId),result=receipt?.details?.result;
+        if(!receipt){
+          const error=receiptlessPreflightError(migrated,actor,row,receipts);
+          if(error)return failedMigration(error);
+          const related=actor.physiology.feedback.filter(feedback=>
+            feedback.ingestionId===row.id||feedback.actionId===row.actionId);
+          row.provenance=LEGACY_UNKNOWN_PHYSICAL_PROVENANCE;
+          for(const feedback of related)feedback.provenance=LEGACY_UNKNOWN_PHYSICAL_PROVENANCE;
+          migrations.push({actorId:actor.id,ingestionId:row.id,actionId:row.actionId,
+            objectId:row.objectId,proof:'receiptless-unknown'});
+          continue;
+        }
         if(!ingestionId(row.id)||!objectId(row.objectId)||!positiveId(row.actionId)||!finiteTime(row.at)||
             receipt?.type!=='action'||receipt.at!==row.at||
             receipt.details?.action?.type!=='sample'||receipt.details.action.targetId!==row.objectId||
@@ -351,7 +441,8 @@ export function prepareLegacyPendingMigration(rawString){
           return failedMigration('Related feedback does not match the pending ingestion.');
         row.provenance=LEGACY_PHYSICAL_PROVENANCE;
         for(const feedback of related)if(!seen.has(feedback.id))feedback.provenance=LEGACY_PHYSICAL_PROVENANCE;
-        migrations.push({actorId:actor.id,ingestionId:row.id,actionId:row.actionId,objectId:row.objectId});
+        migrations.push({actorId:actor.id,ingestionId:row.id,actionId:row.actionId,
+          objectId:row.objectId,proof:'receipt-backed'});
       }
     }
     if(!migrations.length)return failedMigration('There is no eligible stomach-backed missing experiment.');

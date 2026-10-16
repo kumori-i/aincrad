@@ -1,6 +1,7 @@
 /** Native recovered-copy QA on disposable Electron profiles.
  * Usage: node scripts/verify-recovered-native.mjs --ci-synthetic [--keep]
  *   or: node scripts/verify-recovered-native.mjs --historical-config=<absolute JSON> [--faults] [--keep]
+ *   or: node scripts/verify-recovered-native.mjs --receiptless-current [--keep]
  * Historical mode reads only the copied, hash-verified evidence named by the
  * ignored local config. The test-only Electron main probe has finite actions. */
 import assert from 'node:assert/strict';
@@ -17,8 +18,12 @@ import { prepareLegacyPendingMigration } from '../src/save.js';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const syntheticMode=process.argv.includes('--ci-synthetic');
+const receiptlessMode=process.argv.includes('--receiptless-current');
 const historicalOptions=process.argv.filter(arg=>arg.startsWith('--historical-config='));
 let historicalSource=null;
+const currentCopyPath=resolve(root,'../evidence/live-original-save-20261016-1343.json');
+const currentCopySha256='c93c68e8777de00be6fd302f1a188fe693cccc3245befd24503056883295eae5';
+const currentCopyBytes=4624240;
 const saveKey='aincrad.save.v1';
 const electron=createRequire(import.meta.url)('electron');
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -96,6 +101,16 @@ async function copiedRaw(){
     const {syntheticProtectedRaw}=await import('../tests/native-synthetic-fixture.mjs');
     return syntheticProtectedRaw();
   }
+  if(receiptlessMode){
+    const entry=await lstat(currentCopyPath);
+    if(!entry.isFile()||entry.isSymbolicLink()||entry.size!==currentCopyBytes)
+      throw new Error('The preserved current raw copy is unavailable or changed.');
+    const bytes=await readFile(currentCopyPath);
+    assert.equal(sha256(bytes),currentCopySha256,'read-only current raw copy SHA-256');
+    const raw=bytes.toString('utf8');
+    assert.deepEqual(Buffer.from(raw,'utf8'),bytes,'current raw copy is exact UTF-8');
+    return raw;
+  }
   historicalSource ||= await loadHistoricalSource();
   const bytes=await readFile(historicalSource.fixturePath);
   assert.equal(sha256(bytes),historicalSource.walSha256,'read-only copied WAL hash');
@@ -160,20 +175,25 @@ async function waitOutput(file,child,limitMs=30000,{acrossRelaunch=false}={}){
 }
 
 async function main(){
-  const output=resolve(root,syntheticMode?'test-results/recovered-native-synthetic-summary.json':
-    'test-results/recovered-native-summary.json');
+  const output=resolve(root,receiptlessMode?'test-results/recovered-native-receiptless-current-summary.json':
+    syntheticMode?'test-results/recovered-native-synthetic-summary.json':
+      'test-results/recovered-native-summary.json');
   await rm(output,{force:true}); // A failed early setup cannot leave a stale PASS artifact.
-  if(!syntheticMode)historicalSource=await loadHistoricalSource();
+  if(!syntheticMode&&!receiptlessMode)historicalSource=await loadHistoricalSource();
   const keep=process.argv.includes('--keep');
   const scratch=await mkdtemp(join(tmpdir(),'aincrad-recovered-native-'));
   const original=join(scratch,'original'),copy=join(scratch,'recovered');
-  const pendingScreenshot=resolve(root,syntheticMode?'test-results/recovered-native-synthetic-pending.png':
-    'test-results/recovered-native-pending.png');
-  const readyScreenshot=resolve(root,syntheticMode?'test-results/recovered-native-synthetic-ready.png':
-    'test-results/recovered-native-ready.png');
+  const pendingScreenshot=resolve(root,receiptlessMode?'test-results/recovered-native-receiptless-current-pending.png':
+    syntheticMode?'test-results/recovered-native-synthetic-pending.png':
+      'test-results/recovered-native-pending.png');
+  const readyScreenshot=resolve(root,receiptlessMode?'test-results/recovered-native-receiptless-current-ready.png':
+    syntheticMode?'test-results/recovered-native-synthetic-ready.png':
+      'test-results/recovered-native-ready.png');
   const running=new Set();let probeNumber=0;
-  const summary={fixture:syntheticMode?'generated-synthetic-protected':'historical-copied-WAL',
-    fixtureSha256:syntheticMode?null:historicalSource.walSha256,checks:[]};
+  const summary={fixture:receiptlessMode?'current-copied-raw':
+    syntheticMode?'generated-synthetic-protected':'historical-copied-WAL',
+    fixtureSha256:receiptlessMode?currentCopySha256:
+      syntheticMode?null:historicalSource.walSha256,checks:[]};
   const check=(name,value=true)=>{assert.ok(value,name);summary.checks.push(name);};
   const argsFor=(mode,config)=>['--test',`--test-profile=${original}`,`--test-recovered-root=${copy}`,
     ...(mode==='recovered'?['--recovered-proof-v1']:[]),`--test-native-qa=${config}`];
@@ -209,20 +229,31 @@ async function main(){
     if(syntheticMode)summary.fixtureSha256=rawHash;
     const plan=prepareLegacyPendingMigration(raw);
     assert.equal(plan.ok,true,plan.reason);
-    if(syntheticMode)assert.equal(plan.report.migrations.length,1);
+    if(receiptlessMode)assert.deepEqual(plan.report.migrations.map(row=>
+      [row.actorId,row.ingestionId,row.actionId,row.proof]),
+      [['mira','ingestion:4861',42855,'receiptless-unknown']]);
+    else if(syntheticMode)assert.equal(plan.report.migrations.length,1);
     else assert.deepEqual(plan.report.migrations.map(row=>[row.actorId,row.ingestionId]),
       [['mira','ingestion:4690']]);
     const expected=JSON.parse(plan.candidate);
+    if(receiptlessMode){
+      check('current copy has exactly 89 retained learned effects',
+        expected.agents.reduce((count,actor)=>count+actor.discovery.effects.length,0)===89);
+      check('Mira pending portion remains unknown historical physical provenance',
+        expected.agents.find(actor=>actor.id==='mira')?.physiology.stomach.some(row=>
+          row.id==='ingestion:4861'&&row.provenance==='legacy-physical-unknown'));
+    }
     if(syntheticMode)check('synthetic fixture carries a genuinely learned effect with retained proof',
       expected.agents.some(actor=>actor.discovery?.effects?.length>0));
-    const rawFile=join(scratch,syntheticMode?'generated-synthetic-raw.json':'historical-copied-raw.json'),
+    const rawFile=join(scratch,syntheticMode?'generated-synthetic-raw.json':
+      receiptlessMode?'current-copied-raw.json':'historical-copied-raw.json'),
       backupFile=join(scratch,'verified-raw-backup.json');
     await writeFile(rawFile,raw,{mode:0o600});
     check('backup is outside both disposable profiles',!within(original,backupFile)&&!within(copy,backupFile));
     await buildApplication();
     const seed=await probe('original','seed',{rawFile,expectedSha256:rawHash});
     profilePaths(seed,original);
-    check(`${syntheticMode?'generated synthetic':'copied historical'} raw bytes seeded into original disposable profile`,
+    check(`${receiptlessMode?'current copied':syntheticMode?'generated synthetic':'copied historical'} raw bytes seeded into original disposable profile`,
       seed.save?.sha256===rawHash);
     const originalGate=await probe('original','inspect',{waitMs:11000});
     profilePaths(originalGate,original);
@@ -255,6 +286,7 @@ async function main(){
       pending.save?.sha256===pending.afterWait?.save?.sha256);
     await mkdir(dirname(pendingScreenshot),{recursive:true});
     await copyFile(pending.screenshotFile,pendingScreenshot);
+    if(!receiptlessMode){
     const sameProcess=await probe('recovered','same-process-reload');
     check('same-process renderer reload cannot mark a newly written candidate ready',
       sameProcess.sameProcessReload?.rejected===true&&sameProcess.status?.phase==='pending'&&
@@ -285,9 +317,10 @@ async function main(){
       within(original,oldResult.storagePath)&&!within(original,copyHoldResult.paths.storagePath));
     assert.equal(await waitExit(old,20000),0,failText(old));
     assert.equal(await waitExit(copyHold.child,20000),0,failText(copyHold.child));
+    }
 
     const committed=await probe('recovered','commit');
-    check(`explicit ${syntheticMode?'synthetic':'copied-world'} import reached ready state`,
+    check(`explicit ${receiptlessMode?'current copied-world':syntheticMode?'synthetic':'copied-world'} import reached ready state`,
       committed.commit?.ok===true&&
       committed.status?.kind==='recovered'&&committed.status?.phase==='ready');
     const reopened=await probe('recovered','inspect',{
@@ -303,11 +336,20 @@ async function main(){
       assert.deepEqual(actor.effects,reference.discovery.effects,`${id} exact learned effects after native reopen`);
     }
     check('exact physical bodies and learned effects survive native full close/reopen');
+    if(receiptlessMode){
+      check('ready recovered copy stores the exact preflight candidate',
+        reopened.save?.sha256===sha256(Buffer.from(plan.candidate,'utf8')));
+      check('native reopened copy retains all 89 learned effects',
+        reopened.actors.reduce((count,actor)=>count+actor.effects.length,0)===89);
+    }
     await copyFile(reopened.screenshotFile,readyScreenshot);
     const originalAfter=await probe('original','inspect');
     profilePaths(originalAfter,original);
     check('original raw save is byte-identical after separate-profile import',originalAfter.save?.sha256===rawHash&&
       originalAfter.save?.byteLength===rawBytes.length);
+    if(receiptlessMode)
+      check('preserved current raw fixture remains byte-identical on disk',
+        sha256(await readFile(currentCopyPath))===currentCopySha256);
     summary.originalRawSha256=rawHash;
     summary.copyRawSha256=reopened.save?.sha256||null;
     summary.pendingScreenshot=pendingScreenshot;
@@ -323,7 +365,9 @@ async function main(){
         if(result.ok===false)summary.nativeFailureDiagnostic=result;
       }catch{}
       if(/^result-\d+\.json\.failure\.png$/.test(name)){
-        const failureScreenshot=resolve(root,'test-results/recovered-native-failure.png');
+        const failureScreenshot=resolve(root,receiptlessMode?
+          'test-results/recovered-native-receiptless-current-failure.png':
+          'test-results/recovered-native-failure.png');
         await mkdir(dirname(failureScreenshot),{recursive:true});
         await copyFile(join(scratch,name),failureScreenshot);
         summary.failureScreenshot=failureScreenshot;
@@ -613,8 +657,9 @@ async function runFaultMatrix(){
   console.log(`Native fault matrix: ${summary.scenarios.filter(row=>row.ok).length}/${kinds.length} passed. ${output}`);
 }
 
-if(syntheticMode&&historicalOptions.length||!syntheticMode&&historicalOptions.length!==1){
-  console.error('Choose --ci-synthetic or one local --historical-config=<absolute JSON>.');
+if((syntheticMode?1:0)+(receiptlessMode?1:0)+historicalOptions.length!==1||
+    receiptlessMode&&(process.argv.includes('--faults')||process.argv.includes('--open-routes'))){
+  console.error('Choose --ci-synthetic, --receiptless-current, or one local --historical-config=<absolute JSON>.');
   process.exitCode=1;
 }
 else if(process.argv.includes('--faults'))await runFaultMatrix();

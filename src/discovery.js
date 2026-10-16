@@ -7,7 +7,7 @@ import { rememberedCells,rememberedEdges,lineOfSight } from './perception.js';
 import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { recordEvent, withProofTransaction } from './npc-events.js';
-import { LEGACY_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
+import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
 const random=n=>{n.rng=(Math.imul(n.rng,1664525)+1013904223)>>>0;return n.rng/4294967296;};
@@ -52,7 +52,8 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
     const key=event.id;if(d.seenFeedback.includes(key))continue;
     // Migration preserves this portion for digestion only. Even a later
     // matching-looking experiment cannot turn its feedback into knowledge.
-    if(event.provenance===LEGACY_PHYSICAL_PROVENANCE){seenFeedback(d,key);continue;}
+    if(event.provenance===LEGACY_PHYSICAL_PROVENANCE||
+       event.provenance===LEGACY_UNKNOWN_PHYSICAL_PROVENANCE){seenFeedback(d,key);continue;}
     const sample=d.experiments.find(e=>e.primitive==='sample'&&e.ok&&e.targetId===event.objectId&&e.actionId===event.actionId&&e.ingestionId===event.ingestionId&&event.provenance==='sampled'&&event.at>=e.at);
     if(!sample||sample.ingestionId&&d.effects.some(e=>e.ingestionId===sample.ingestionId&&e.effect===event.effect)){seenFeedback(d,key);continue;}
     withProofTransaction(npc,()=>{
