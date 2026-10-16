@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "destination": "prototype/owner-proof/hosted-qualification",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 11221,
+      "sha256": "f4914bd8e92b076172a9707feae62e82e3b799e9090085d02f603080660de43a"
+    },
+    {
+      "path": "policy.cjs",
+      "bytes": 14831,
+      "sha256": "eb4b5e95e552188b26b953a877237702189512238d84ecd9889aa48f8fd268a7"
+    },
+    {
+      "path": "supervisor.mjs",
+      "bytes": 5411,
+      "sha256": "c0fd4c8d3eaad95d2e9db092eb918dac1efd9318c597f498d9f5e86105dcbed4"
+    },
+    {
+      "path": "bounded-io.mjs",
+      "bytes": 5209,
+      "sha256": "2017ac894823a4d32d8ecec4262840e103a678329f5941b190f03166fc140b92"
+    },
+    {
+      "path": "qualify.mjs",
+      "bytes": 17748,
+      "sha256": "fd580787a657e44d8599b0e2ec316785a7bc4ca24bd92821251fbe5d2ae7026b"
+    },
+    {
+      "path": "electron-main.cjs",
+      "bytes": 10166,
+      "sha256": "2be4c031db4c3ad74ce927e719d888529d097b93f57e9403a2155c63a9adfc3b"
+    },
+    {
+      "path": "preload.cjs",
+      "bytes": 678,
+      "sha256": "84aa7bbcee4b2929239ae89d1a0eec9e2f0936afda37c375c04d1fcc531aefcd"
+    },
+    {
+      "path": "page.html",
+      "bytes": 317,
+      "sha256": "809f1c61b91fb62e61858351fcd3b100f07116d9419356ed746e25cccaca9ff9"
+    },
+    {
+      "path": "page.js",
+      "bytes": 3079,
+      "sha256": "3f0f57198a5272a08f5bc2f4bb8a17132be7f54326261569edc680f3481571b7"
+    },
+    {
+      "path": "page.css",
+      "bytes": 135,
+      "sha256": "343045032fcc749e5ece1a7877661c77aa91bfaa2d6599368b96287186847021"
+    },
+    {
+      "path": "qualification.test.mjs",
+      "bytes": 25297,
+      "sha256": "c86de186c153a34228dc30a1c45df2c87da34a73f2e926d1a647311a832fd048"
+    }
+  ],
+  "packages": {
+    "package.json": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757",
+    "package-lock.json": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+  }
+}
