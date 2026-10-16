@@ -14,6 +14,11 @@ const SAVE_VERSIONS = new Set([1,2,3,4,5,6,8]);
 const AGENT_IDS = ['aster','mira'];
 const PROOF_WARNING='Learned evidence in this expedition is incomplete or depends on an older feedback queue. The original save has been preserved. Export a raw backup from this recovery screen before considering recovery.';
 const MARKED_WARNING='A migrated expedition has incomplete physical or learned evidence. Its saved bytes have been preserved.';
+// A future map must never be restored under legacy terrain and then autosaved
+// without its identity. Other unknown envelope fields retain historical
+// normalization behavior; only these reserved geometry selectors are guarded.
+const unsupportedGeometryIdentity=state=>state!=null&&
+  (Object.hasOwn(state,'geometryProfile')||Object.hasOwn(state,'geometryIdentity'));
 const CONNECTED_REGION_FIELDS=['soilWaterMl','soilWaterCapacityMl','initialWaterMl','rainMl','seepageMl',
   'runoffInMl','runoffOutMl','evaporationMl','uptakeMl'];
 function canonicalNumberId(value,prefix){
@@ -39,6 +44,8 @@ function receiptlessWorldIdentityError(state,actors){
 }
 export function saveProtectionReason(state){
   if(state?.saveBlocked)return state.saveBlockedReason||'The original save is protected and has not been overwritten.';
+  if(unsupportedGeometryIdentity(state))
+    return 'This expedition names an unsupported geometry identity. The original save has been preserved; no new geometry was loaded.';
   if(state?.simulationMode!=='discovery')return null;
   if(state.features?.legacyPendingPhysicalOnly===1&&markedEnvelopeError(state))return MARKED_WARNING;
   const actors=[...(Array.isArray(state.agents)?state.agents:[]),state.npc].filter(Boolean);
@@ -55,6 +62,7 @@ export function saveProtectionReason(state){
 }
 
 function unsupportedRules(raw){
+  if(unsupportedGeometryIdentity(raw))return true;
   const ecology=raw.environment?.ecology;
   const connectedFeature=Object.hasOwn(raw.features||{},'connectedEcology');
   const connectedModel=ecology!=null&&Object.hasOwn(ecology,'ecosystemModelVersion');

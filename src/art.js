@@ -2,6 +2,7 @@
 import { hash, noise, terrain, waterDistance, ridgeValue, clamp } from './world.js';
 import { bodySignals } from './interoception.js';
 import { habitatConditions } from './ecology-regions.js';
+import { previewGroundColor } from './preview-ground-dispatch.js';
 
 export const ART_PIXEL = 2;
 export function canvas(w, h) { const c=document.createElement('canvas');c.width=Math.ceil(w);c.height=Math.ceil(h);return c; }
@@ -82,14 +83,32 @@ function atlasMark(x,y,kind){
   if(kind==='woodland'&&(dx/34)**2+(dy/18)**2<1)return '#2d5933';
   return null;
 }
-export function groundColor(x,y,map=false,model=0){
+export function groundColor(x,y,map=false,model=0,groundSource=null){
+  if(groundSource)return previewGroundColor(groundSource.sample(x,y).paint);
   const type=terrain(x,y),site=landType(type)?habitatConditions({x,y},model):null;
   const colors=site?landPalette(type,site.kind):RGB_PALETTES[type],shade=paletteIndex(x,y);
   if(map&&type==='mountain'&&Math.sin(ridgeValue(x,y)*34+noise(x,y,850,993)*5)>.72)return RGB_PALETTES.mountain[3];
   if(map&&site){const mark=atlasMark(x,y,site.kind);if(mark)return rgb(mark);}
   return colors[shade];
 }
-export function makeGroundChunk(cx,cy,size,model=0){
+export function makeGroundChunk(cx,cy,size,model=0,groundSource=null){
+  if(groundSource){
+    // Isolated terrain-only fixture. No legacy river, objects, caves, or
+    // movement rule is layered onto this preview tile.
+    const out=canvas(size/ART_PIXEL,size/ART_PIXEL),g=out.getContext('2d'),s=out.width;
+    const image=g.createImageData(s,s),originX=cx*size,originY=cy*size;
+    for(let py=0;py<s;py+=2)for(let px=0;px<s;px+=2){
+      const color=groundColor(originX+px*ART_PIXEL+2,originY+py*ART_PIXEL+2,
+        false,model,groundSource);
+      for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
+        if(px+dx>=s||py+dy>=s)continue;
+        const i=((py+dy)*s+px+dx)*4;
+        image.data[i]=color[0];image.data[i+1]=color[1];image.data[i+2]=color[2];image.data[i+3]=255;
+      }
+    }
+    g.putImageData(image,0,0);
+    return out;
+  }
   const out=canvas(size/ART_PIXEL,size/ART_PIXEL),g=out.getContext('2d'),s=out.width,image=g.createImageData(s,s),originX=cx*size,originY=cy*size,sites=new Map();
   // Sample the physical terrain at four world units; a small stepped edge follows the same collision boundary.
   for(let py=0;py<s;py+=2)for(let px=0;px<s;px+=2){
