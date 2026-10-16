@@ -1,7 +1,7 @@
-// A fresh, unsaved walking experiment over the approved Ozark landform. The
-// sampler is constructed here, never supplied by a caller. Drawn water is a
-// temporary walking barrier; this policy makes no claim about later swimming,
-// wetness, current, or real-world slope measurements.
+// A fresh, unsaved walking and shallow-wading experiment over the approved
+// Ozark landform. The sampler is constructed here, never supplied by a caller.
+// Depth is a short signed-distance proxy and current is an authored path cue;
+// neither is surveyed bathymetry or a hydrodynamics model.
 import { CONFIG, SPAWN } from './config.js';
 import { OZARK_WALKING_PILOT_PROFILE } from './geometry-profile.js';
 import { generateOzarkPreview } from './ozark-preview-model.js';
@@ -16,6 +16,11 @@ const PILOT_BOUNDS = Object.freeze({
   minY: PROFILE.minY, maxY: PROFILE.maxY,
 });
 const PILOT_SPAWN = Object.freeze({ x: -680, y: 380 });
+const WADE_BOUNDS = Object.freeze({
+  minX: PROFILE.wadeMinX, maxX: PROFILE.wadeMaxX,
+  minY: PROFILE.wadeMinY, maxY: PROFILE.wadeMaxY,
+});
+const MOTION_STEP = 1 / 120;
 const DIRECTIONS = Object.freeze([
   ['north', 0, -1], ['northeast', Math.SQRT1_2, -Math.SQRT1_2],
   ['east', 1, 0], ['southeast', Math.SQRT1_2, Math.SQRT1_2],
@@ -68,6 +73,21 @@ export function createOzarkWalkingPilot(profile) {
     throw new Error('Walking pilot descriptor dimensions changed');
   }
   const sampler = createOzarkPreviewSampler(descriptor);
+  // The selected reach lies beside these two consecutive main-channel cells.
+  // Bind the cue to the validated downhill path rather than inventing an
+  // arbitrary screen direction. A changed path fails closed until reviewed.
+  const from = descriptor.cells[descriptor.mainChannel[PROFILE.currentFromMainIndex]];
+  const to = descriptor.cells[descriptor.mainChannel[PROFILE.currentToMainIndex]];
+  if (PROFILE.currentToMainIndex !== PROFILE.currentFromMainIndex + 1 ||
+      from?.x !== 44 || from.y !== 36 || to?.x !== 45 || to.y !== 35 ||
+      from.flowTo !== descriptor.mainChannel[PROFILE.currentToMainIndex]) {
+    throw new Error('Wading current no longer follows the reviewed main-channel reach');
+  }
+  const flowLength = Math.hypot(to.x - from.x, to.y - from.y);
+  const currentDirection = Object.freeze({
+    x: (to.x - from.x) / flowLength,
+    y: (to.y - from.y) / flowLength,
+  });
 
   function raw(x, y) {
     if (!inside({ x, y }, SAMPLE_BOUNDS)) {
@@ -86,11 +106,30 @@ export function createOzarkWalkingPilot(profile) {
     return site.habitat;
   }
 
+  function footprintDepth(site, radius) {
+    return Math.max(0,
+      (radius - site.surfaceWaterDistance * PROFILE.cellPixels) / PROFILE.wadeDepthSpan);
+  }
+
+  function selectedReach(x, y, radius, site) {
+    return inside({ x, y }, WADE_BOUNDS, radius) &&
+      site.nearestChannel.kind === 'main';
+  }
+
   function sample(x, y) {
     const site = raw(x, y);
+    const paintedWater = site.surfaceWaterDistance <= 0;
+    const inReach = paintedWater &&
+      selectedReach(x, y, CONFIG.playerRadius, site);
+    const waterBand = paintedWater ? !inReach ? 'unassessed-water' :
+      footprintDepth(site, CONFIG.playerRadius) <= PROFILE.wadeMaxDepthProxy ?
+        'shallow-water' : 'deep-water' : null;
     return Object.freeze({
       ...site, nearestChannel: Object.freeze({ ...site.nearestChannel }),
       paint: paintFor(site),
+      waterBand,
+      currentCue: waterBand === 'shallow-water' ? 'downstream' : null,
+      currentDirection: waterBand === 'shallow-water' ? currentDirection : null,
     });
   }
 
@@ -115,10 +154,13 @@ export function createOzarkWalkingPilot(profile) {
       return Object.freeze({ walkable: false, reason: 'outside-approved-bounds' });
     }
     const site = raw(x, y);
-    // Hazard inspection precedes the smaller walking bound. This lets tests
-    // identify the genuine remote sinkhole pond without allowing travel there.
-    if (site.surfaceWaterDistance * PROFILE.cellPixels <= r)
+    // Hazard inspection precedes the smaller walking bound. The sole wade
+    // exception is a radius-aware, shallow part of the reviewed main reach.
+    const waterContact = site.surfaceWaterDistance * PROFILE.cellPixels <= r;
+    if (waterContact && (!selectedReach(x, y, r, site) ||
+        footprintDepth(site, r) > PROFILE.wadeMaxDepthProxy)) {
       return Object.freeze({ walkable: false, reason: 'surface-water' });
+    }
     if (site.sinkholePondDistance !== null &&
         site.sinkholePondDistance * PROFILE.cellPixels <= r)
       return Object.freeze({ walkable: false, reason: 'internal-pond' });
@@ -127,6 +169,10 @@ export function createOzarkWalkingPilot(profile) {
     const grade = localGrade(x, y, r, site);
     if (grade > PROFILE.maxGrade)
       return Object.freeze({ walkable: false, reason: 'excessive-grade', grade });
+    if (waterContact) {
+      return Object.freeze({ walkable: true, reason: 'shallow-water', grade,
+        depthProxy: footprintDepth(site, r), currentCue: 'downstream' });
+    }
     return Object.freeze({ walkable: true, reason: 'dry-ground', grade });
   }
 
@@ -146,17 +192,10 @@ export function createOzarkWalkingPilot(profile) {
        Math.abs(heights[2] - heights[1]) / half <= PROFILE.maxGrade);
   }
 
-  function move(actor, dx, dy, dt, sprint = false) {
-    if (!finitePoint(actor) || !Number.isFinite(dx) || !Number.isFinite(dy) ||
-        !Number.isFinite(dt) || dt <= 0 ||
-        !classify(actor.x, actor.y, CONFIG.playerRadius).walkable) return 0;
-    const length = Math.hypot(dx, dy);
-    if (!length) return 0;
-    const speed = CONFIG.walkSpeed * (sprint ? CONFIG.sprintMultiplier : 1);
-    const travel = speed * Math.min(dt, 0.25);
-    const vx = dx / length * travel, vy = dy / length * travel;
-    const steps = Math.max(1, Math.ceil(travel / (CONFIG.playerRadius * 0.5)));
+  function sweptAxes(actor, vx, vy) {
     const start = { x: actor.x, y: actor.y };
+    const distance = Math.hypot(vx, vy);
+    const steps = Math.max(1, Math.ceil(distance / (CONFIG.playerRadius * .5)));
     for (let index = 0; index < steps; index += 1) {
       const nextX = { x: actor.x + vx / steps, y: actor.y };
       if (clearSweep(actor, nextX, CONFIG.playerRadius)) actor.x = nextX.x;
@@ -164,6 +203,59 @@ export function createOzarkWalkingPilot(profile) {
       if (clearSweep(actor, nextY, CONFIG.playerRadius)) actor.y = nextY.y;
     }
     return Math.hypot(actor.x - start.x, actor.y - start.y);
+  }
+
+  // Fixed internal time slices keep the speed/current integration close when
+  // callers partition the same elapsed time differently. The authored current
+  // is only a small push along the selected downhill channel segment. Both
+  // intentional motion and drift go through the same swept collision checks.
+  function advance(actor, dx, dy, dt, sprint = false) {
+    const zero = Object.freeze({ distance: 0, driftDistance: 0, waterSeconds: 0,
+      depthProxy: null, footing: null, currentCue: null });
+    if (!finitePoint(actor) || !Number.isFinite(dx) || !Number.isFinite(dy) ||
+        !Number.isFinite(dt) || dt <= 0 ||
+        !classify(actor.x, actor.y, CONFIG.playerRadius).walkable) return zero;
+    const duration = Math.min(dt, .25);
+    const slices = Math.max(1, Math.ceil(duration / MOTION_STEP));
+    const seconds = duration / slices;
+    const inputLength = Math.hypot(dx, dy);
+    const inputX = inputLength > 0 ? dx / inputLength : 0;
+    const inputY = inputLength > 0 ? dy / inputLength : 0;
+    const start = { x: actor.x, y: actor.y };
+    let driftDistance = 0;
+    let waterSeconds = 0;
+    for (let index = 0; index < slices; index += 1) {
+      const before = classify(actor.x, actor.y, CONFIG.playerRadius);
+      if (inputLength > 0) {
+        const speed = CONFIG.walkSpeed * (sprint ? CONFIG.sprintMultiplier : 1) *
+          (before.reason === 'shallow-water' ? PROFILE.wadeWalkMultiplier : 1);
+        sweptAxes(actor, inputX * speed * seconds, inputY * speed * seconds);
+      }
+      const afterInput = classify(actor.x, actor.y, CONFIG.playerRadius);
+      if (afterInput.reason === 'shallow-water') {
+        const currentSpeed = PROFILE.wadeCurrentMaxSpeed *
+          afterInput.depthProxy / PROFILE.wadeMaxDepthProxy;
+        driftDistance += sweptAxes(actor,
+          currentDirection.x * currentSpeed * seconds,
+          currentDirection.y * currentSpeed * seconds);
+      }
+      const after = classify(actor.x, actor.y, CONFIG.playerRadius);
+      if (before.reason === 'shallow-water' ||
+          afterInput.reason === 'shallow-water' ||
+          after.reason === 'shallow-water') waterSeconds += seconds;
+    }
+    const footing = classify(actor.x, actor.y, CONFIG.playerRadius);
+    return Object.freeze({
+      distance: Math.hypot(actor.x - start.x, actor.y - start.y),
+      driftDistance, waterSeconds,
+      depthProxy: footing.depthProxy ?? 0,
+      footing: footing.reason,
+      currentCue: footing.currentCue ?? null,
+    });
+  }
+
+  function move(actor, dx, dy, dt, sprint = false) {
+    return advance(actor, dx, dy, dt, sprint).distance;
   }
 
   function lineOfSight(from, to) {
@@ -184,10 +276,11 @@ export function createOzarkWalkingPilot(profile) {
   }
 
   function groundName(point, site) {
-    if (site.surfaceWaterDistance <= 0) return 'surface-water';
     if (site.sinkholePondDistance !== null && site.sinkholePondDistance <= 0)
       return 'internal-pond';
     const standing = classify(point.x, point.y, CONFIG.playerRadius);
+    if (standing.reason === 'shallow-water') return 'shallow-water';
+    if (site.surfaceWaterDistance <= 0) return 'surface-water';
     if (standing.reason === 'surface-water') return 'water-edge';
     if (standing.reason === 'internal-pond') return 'pond-edge';
     return standing.reason === 'excessive-grade' ? 'steep-ground' : 'dry-land';
@@ -211,6 +304,7 @@ export function createOzarkWalkingPilot(profile) {
     }
     return Object.freeze({
       habitat: site.habitat, ground: groundName(point, site),
+      currentCue: classify(point.x, point.y, CONFIG.playerRadius).currentCue ?? null,
       nearby: Object.freeze(nearby),
     });
   }
@@ -228,6 +322,6 @@ export function createOzarkWalkingPilot(profile) {
   }
   return Object.freeze({
     profile: PROFILE, spawn: PILOT_SPAWN, bounds: PILOT_BOUNDS,
-    sample, classify, move, lineOfSight, observe,
+    sample, classify, move, advance, lineOfSight, observe,
   });
 }

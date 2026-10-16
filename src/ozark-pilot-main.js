@@ -5,11 +5,11 @@ import { PilotRenderer } from './ozark-pilot-renderer.js';
 import { SimulationClock } from './simulation-clock.js';
 
 // This module is entered only through the exact disposable-profile test URL.
-// It constructs a fresh walking session without loading the normal game boot,
+// It constructs a fresh walking and wading session without loading the normal game boot,
 // saved worlds, NPC runtime, ecology, or persistence code.
 const $ = id => document.getElementById(id);
 const geometry = createOzarkWalkingPilot(OZARK_WALKING_PILOT_PROFILE);
-const state = { player: { ...geometry.spawn }, elapsed: 0 };
+const state = { player: { ...geometry.spawn }, elapsed: 0, wetness: 0, effort: 0 };
 const renderer = new PilotRenderer($('world'), geometry);
 const anim = { time: 0, moving: false, facing: { x: 0, y: 1 } };
 const keys = new Set();
@@ -34,37 +34,37 @@ function notify(message, seconds = 5) {
   toastUntil = performance.now() + seconds * 1000;
 }
 
-document.title = 'Aincrad — Unsaved Ozark walking pilot';
-text('welcome-profile-label', 'Isolated walking pilot · no progress is saved');
-text('active-profile-label', 'Fresh Ozark walking pilot · unsaved');
-text('begin', 'Walk the Ozark pilot ↗');
-text('save-status', 'Unsaved walking pilot');
-text('expedition-mode', 'WALKING PILOT');
+document.title = 'Aincrad — Unsaved Ozark wading pilot';
+text('welcome-profile-label', 'Isolated wading pilot · no progress is saved');
+text('active-profile-label', 'Fresh Ozark wading pilot · unsaved');
+text('begin', 'Explore the Ozark pilot ↗');
+text('save-status', 'Unsaved wading pilot');
+text('expedition-mode', 'WADING PILOT');
 text('location-kicker', 'ONE BOUNDED OZARK CORRIDOR');
 text('nav-label', 'OZARK PILOT');
 text('pause-title', 'Pilot paused');
-text('resume', 'Resume walking ↗');
+text('resume', 'Resume exploring ↗');
 const buildLabel = document.querySelector('.welcome .build');
-if (buildLabel) buildLabel.textContent = 'OZARK WALKING PILOT';
+if (buildLabel) buildLabel.textContent = 'OZARK WADING PILOT';
 const welcomeCopy = $('welcome')?.querySelector('.welcome-copy > p:nth-of-type(2)');
 if (welcomeCopy) welcomeCopy.textContent =
-  'Explore a small dry corridor of the approved Ozark map. Water and steep ground block this first walking trial.';
+  'Walk a bounded Ozark corridor and test one shallow river edge. Deeper water and steep ground still block movement.';
 const welcomeMode = $('welcome')?.querySelector('.welcome-mode');
 if (welcomeMode) welcomeMode.textContent =
   'This is an isolated, fresh session. Closing it discards all pilot progress.';
 const welcomeControls = $('welcome')?.querySelector('.welcome-controls');
 if (welcomeControls) welcomeControls.textContent =
-  'WASD or arrow keys to walk · hold Shift to run · Esc to pause';
+  'WASD or arrow keys to move · shallow water slows and pushes · Esc to pause';
 const welcomeDetail = $('welcome')?.querySelector('.welcome-detail');
-if (welcomeDetail) welcomeDetail.textContent = 'OZARK · WALKING ONLY · UNSAVED';
+if (welcomeDetail) welcomeDetail.textContent = 'OZARK · SHALLOW WADING · UNSAVED';
 const welcomeFoot = $('welcome')?.querySelector('.welcome-foot span:last-child');
-if (welcomeFoot) welcomeFoot.textContent = 'Disposable test session · walking only';
+if (welcomeFoot) welcomeFoot.textContent = 'Disposable test session · walking and shallow wading';
 const pauseIntro = $('pause-panel')?.querySelector('.menu-card > p:first-of-type');
 if (pauseIntro) pauseIntro.textContent =
-  'Escape pauses this walking session. Movement stops when the window loses focus.';
+  'Escape pauses this wading session. Movement stops when the window loses focus.';
 const pauseCopy = $('pause-panel')?.querySelector('.menu-card > p:last-child');
 if (pauseCopy) pauseCopy.textContent =
-  'The walking pilot cannot be saved. Closing this session discards its progress.';
+  'The wading pilot cannot be saved. Closing this session discards its progress.';
 const fatalCopy = $('fatal')?.querySelector('.menu-card > p');
 if (fatalCopy) fatalCopy.textContent =
   'This pilot is unsaved. Close and restart the isolated test session.';
@@ -85,8 +85,11 @@ renderer.snap(state.player);
 function updateHud() {
   observation = geometry.observe(state.player);
   text('region', title(observation.habitat));
-  text('location-detail', `${title(observation.ground)} · ${observation.nearby.length} local sight lines`);
-  text('world-weather', `Ground: ${title(observation.ground)}`);
+  const current = observation.currentCue ? ` · Modeled flow cue: ${title(observation.currentCue)}` : '';
+  text('location-detail', `${title(observation.ground)}${current} · ${observation.nearby.length} local sight lines`);
+  const wetness = state.wetness >= .5 ? 'Soaked' : state.wetness >= .02 ? 'Wet boots' : 'Dry';
+  const effort = state.effort >= .55 ? 'Heavy effort' : state.effort >= .12 ? 'Working harder' : 'Easy pace';
+  text('world-weather', `${wetness} · ${effort}`);
   const seconds = Math.floor(state.elapsed);
   text('clock', `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`);
   text('day', 'UNSAVED');
@@ -101,7 +104,7 @@ function begin() {
   keys.clear();
   $('world').focus({ preventScroll: true });
   clock.reset(performance.now() / 1000);
-  notify('Unsaved walking pilot. Stay within the dry corridor.');
+  notify('Unsaved wading pilot. Try the shallow river edge; deeper water remains blocked.');
   return true;
 }
 
@@ -122,9 +125,16 @@ function fixedStep(dt) {
   const dy = !windowFocused ? 0 :
     Number(keys.has('KeyS') || keys.has('ArrowDown')) -
     Number(keys.has('KeyW') || keys.has('ArrowUp'));
-  const travelled = geometry.move(state.player, dx, dy, dt,
+  const result = geometry.advance(state.player, dx, dy, dt,
     keys.has('ShiftLeft') || keys.has('ShiftRight'));
-  anim.moving = travelled > .01;
+  anim.moving = result.distance > .01;
+  const waterSeconds = Math.max(0, Math.min(dt, result.waterSeconds));
+  const drySeconds = dt - waterSeconds;
+  state.wetness = Math.max(0, Math.min(1,
+    state.wetness + waterSeconds * .18 - drySeconds * .02));
+  state.effort = Math.max(0, Math.min(1,
+    state.effort + waterSeconds * (.09 + .06 * (result.depthProxy ?? 0)) -
+    drySeconds * (dx || dy ? .01 : .035)));
   if (dx || dy) {
     const length = Math.hypot(dx, dy);
     anim.facing = { x: dx / length, y: dy / length };
@@ -135,7 +145,7 @@ function fixedStep(dt) {
 const clock = new SimulationClock({ step: CONFIG.fixedStep, onStep: fixedStep });
 clock.reset(performance.now() / 1000);
 setInterval(() => clock.advance(performance.now() / 1000, {
-  running: started && !paused, speed: 1,
+  running: started && !paused && windowFocused && !document.hidden, speed: 1,
 }), 1000 / 60);
 
 function frame(now) {
@@ -157,7 +167,7 @@ $('resume').addEventListener('click', () => setPause(false));
 window.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.code === 'KeyS') {
     event.preventDefault();
-    if (started) notify('Unsaved walking pilot. Closing this session discards its progress.');
+    if (started) notify('Unsaved wading pilot. Closing this session discards its progress.');
     return;
   }
   if (!started) return;
@@ -187,6 +197,7 @@ window.addEventListener('resize', () => renderer.resize());
 window.__ozarkPilot = Object.freeze({
   snapshot: () => ({
     player: { ...state.player }, observation: geometry.observe(state.player),
+    wetness: state.wetness, effort: state.effort,
     profileIdentity: geometry.profile.identity, started, paused,
   }),
   start: begin,

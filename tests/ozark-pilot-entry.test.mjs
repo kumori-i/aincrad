@@ -96,7 +96,7 @@ test('pilot starts fresh and walks without touching profile or storage APIs', as
     assert.equal(before.paused, false);
     assert.equal(before.observation.ground, 'dry-land');
     assert.match(before.profileIdentity, /^sha256:[a-f0-9]{64}$/);
-    assert.equal(element('save-status').textContent, 'Unsaved walking pilot');
+    assert.equal(element('save-status').textContent, 'Unsaved wading pilot');
     browser.__ozarkPilot.start();
     assert.equal(browser.__ozarkPilot.snapshot().started, true);
     events.get('keydown')({ code: 'KeyD', preventDefault() {},
@@ -104,8 +104,46 @@ test('pilot starts fresh and walks without touching profile or storage APIs', as
     now += 1000 / 60; tick();
     now += 1000 / 60; tick();
     assert.ok(browser.__ozarkPilot.snapshot().player.x > before.player.x);
+    const press = code => events.get('keydown')({ code, preventDefault() {},
+      ctrlKey: false, metaKey: false, altKey: false });
+    const release = code => events.get('keyup')({ code });
+    const advance = () => { now += 1000 / 60; tick(); };
+    release('KeyD');
+    press('KeyA');
+    for (let index = 0; index < 300 &&
+        browser.__ozarkPilot.snapshot().player.x > -1195; index += 1) advance();
+    release('KeyA');
+    assert.ok(browser.__ozarkPilot.snapshot().player.x <= -1195,
+      'the dry route should reach the main-channel bank');
+    press('KeyW');
+    for (let index = 0; index < 120 &&
+        browser.__ozarkPilot.snapshot().observation.ground !== 'shallow-water'; index += 1) {
+      advance();
+    }
+    release('KeyW');
+    const wading = browser.__ozarkPilot.snapshot();
+    assert.equal(wading.observation.ground, 'shallow-water');
+    assert.equal(wading.observation.currentCue, 'downstream');
+    assert.ok(wading.wetness > 0 && wading.effort > 0);
+    events.get('blur')();
+    for (let index = 0; index < 30; index += 1) advance();
+    const unfocused = browser.__ozarkPilot.snapshot();
+    assert.deepEqual(unfocused.player, wading.player,
+      'focus loss should pause input and modeled current together');
+    assert.equal(unfocused.wetness, wading.wetness);
+    assert.equal(unfocused.effort, wading.effort);
+    events.get('focus')();
+    press('KeyS');
+    for (let index = 0; index < 120 &&
+        browser.__ozarkPilot.snapshot().observation.ground !== 'dry-land'; index += 1) {
+      advance();
+    }
+    release('KeyS');
+    const ashore = browser.__ozarkPilot.snapshot();
+    assert.equal(ashore.observation.ground, 'dry-land');
+    assert.ok(ashore.wetness > 0, 'wetness should remain after leaving water');
     events.get('keydown')({ code: 'KeyS', ctrlKey: true, preventDefault() {} });
-    assert.equal(element('save-status').textContent, 'Unsaved walking pilot');
+    assert.equal(element('save-status').textContent, 'Unsaved wading pilot');
     events.get('keydown')({ code: 'Escape', repeat: false,
       preventDefault() {} });
     assert.equal(browser.__ozarkPilot.snapshot().paused, true);
