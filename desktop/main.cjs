@@ -12,6 +12,8 @@ let modelService;
 const ROOT=path.resolve(__dirname,'..','renderer');
 const DEVELOPMENT=process.argv.includes('--dev')&&!app.isPackaged;
 const SMOKE=process.argv.includes('--smoke-test');
+const pilotOptions=process.argv.filter(value=>value.startsWith('--test-ozark-pilot'));
+const PILOT_REQUESTED=pilotOptions.includes('--test-ozark-pilot');
 const nativeQaOptions=process.argv.filter(value=>value.startsWith('--test-native-qa'));
 const nativeQaOption=nativeQaOptions[0];
 let restartFault=null,publicationFault=null,profileOpenFault=null;
@@ -21,11 +23,20 @@ let profileRoute;
 // diagnosis. No environment value or path is printed by the product.
 const nativeQaRouteTemp=process.platform==='win32'&&nativeQaOption?os.tmpdir():null;
 try{
+  if(pilotOptions.length>1||pilotOptions.some(value=>value!=='--test-ozark-pilot')||
+      PILOT_REQUESTED&&(SMOKE||app.isPackaged||
+        !process.argv.includes('--test')||
+        !process.argv.some(value=>value.startsWith('--test-profile='))||
+        process.argv.includes(COPY_FLAG)))
+    throw new Error('The Ozark walking pilot requires an unpackaged, isolated original test profile.');
   const smokeDirectory=SMOKE?require('node:fs').mkdtempSync(path.join(os.tmpdir(),'aincrad-smoke-')):null;
   const routeArgs=smokeDirectory?[...process.argv,'--test',`--test-profile=${smokeDirectory}`,
     `--test-recovered-root=${smokeDirectory}-recovered-proof-v1`]:process.argv;
   profileRoute=resolveProfileRoute({argv:routeArgs,isPackaged:app.isPackaged,
     appDataPath:app.getPath('appData'),defaultUserDataPath:app.getPath('userData')});
+  if(PILOT_REQUESTED&&(!profileRoute.isTest||!profileRoute.usesTestPaths||
+      profileRoute.kind!=='original'))
+    throw new Error('The Ozark walking pilot requires an unpackaged, isolated original test profile.');
   if(nativeQaOptions.length>1||nativeQaOption&&!nativeQaOption.startsWith('--test-native-qa=')||
      nativeQaOption&&(!profileRoute.isTest||!profileRoute.usesTestPaths||SMOKE||
        !process.argv.some(value=>value.startsWith('--test-profile='))||
@@ -72,7 +83,9 @@ async function createWindow(){
   win.webContents.on('before-input-event',(_e,input)=>{if(input.type==='keyDown'&&input.key==='F11')win.setFullScreen(!win.isFullScreen());});
   win.once('ready-to-show',()=>win.show());
   win.webContents.on('render-process-gone',()=>dialog.showErrorBox('Aincrad','The renderer stopped. Your last local save is retained. Please restart the application.'));
-  await win.loadURL('aincrad://app/index.html'+(process.argv.includes('--test')||SMOKE?'?test=1':''));
+  const query=PILOT_REQUESTED?'?test=1&ozarkPilot=1':
+    process.argv.includes('--test')||SMOKE?'?test=1':'';
+  await win.loadURL('aincrad://app/index.html'+query);
 }
 app.whenReady().then(async()=>{
   Menu.setApplicationMenu(null);
