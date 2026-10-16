@@ -24,8 +24,11 @@ jobs:
   copied-profile:
     strategy:
       fail-fast: false
+      # Bounded sandbox-preserving pilot: ubuntu-22.04 is deprecated and retires
+      # 2027-04-17. Prior ubuntu-24.04 failure: actions/runs/38935216638.
+      # https://github.com/actions/runner-images/issues/14254
       matrix:
-        os: [windows-latest, ubuntu-24.04]
+        os: [windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
