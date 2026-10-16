@@ -213,6 +213,67 @@ test('ordinary hunger tries a second earned source when the first has no observe
   assert.deepEqual({apple:apple.quantity,bramble:bramble.quantity,failures:failures()},before);
 });
 
+test('full hands resume a proved acquisition with one unproved first bite after run loss',()=>{
+  const f=fixture(true),source=f.plant;
+  assert.equal(act(f,{type:'release',targetId:f.id}).ok,true);
+  assert.ok(source.quantity>=4,'seeded existing plant has finite stock for four physical acquisitions');
+  const held=[];
+  for(let i=0;i<4;i++){
+    const before=new Set(f.n.inventory.items);
+    assert.equal(act(f,{type:'pull',targetId:source.id}).code,'piece_detached');
+    const item=f.n.inventory.items.find(id=>!before.has(id));assert.ok(item);held.push(item);
+  }
+  assert.equal(f.n.inventory.items.length,4);
+  assert.equal(new Set(held).size,4);
+  assert.ok(held.every(id=>f.n.discovery.experiments.some(e=>e.ok&&e.targetId===source.id&&e.primitive==='pull'&&e.materialId===id)));
+  assert.ok(held.every(id=>!f.n.discovery.effects.some(e=>e.objectId===id)),'none of these physical pieces is already known food');
+  f.n.physiology.hoursSinceMeal=17;f.n.physiology.waterDeficitMl=250;projectPhysiology(f.n);
+  const started=discoveryDecision(f.n);
+  assert.deepEqual(started.action,{type:'sample',targetId:held[0]});
+  assert.equal(started.need,'food');
+  assert.equal(f.n.discovery.run?.awaiting,true);
+  const raw=JSON.parse(JSON.stringify(f.n));f.n=validateNpc(raw);
+  assert.equal(f.n.discovery.run,null,'save-like validation clears the transient sequence');
+  const clone=()=>validateNpc(JSON.parse(JSON.stringify(raw)));
+  const ordinary=clone();ordinary.physiology.hoursSinceMeal=8;projectPhysiology(ordinary);
+  assert.deepEqual(discoveryDecision(ordinary).action,{type:'sample',targetId:held[0]},'ordinary hunger also finishes the acquired held trial');
+
+  const noReceipt=clone();noReceipt.discovery.experiments=noReceipt.discovery.experiments.filter(e=>!held.includes(e.materialId));
+  assert.notEqual(discoveryDecision(noReceipt).need,'food','a held object without its acquisition is not an earned first trial');
+  const forgedRaw=JSON.parse(JSON.stringify(raw));
+  forgedRaw.discovery.experiments=forgedRaw.discovery.experiments.filter(e=>!held.includes(e.materialId));
+  forgedRaw.discovery.experiments.push({...raw.discovery.experiments.find(e=>e.materialId===held[0]),id:forgedRaw.discovery.nextId+1,actionId:999999999});
+  const forged=validateNpc(forgedRaw);
+  assert.equal(forged.discovery.experiments.some(e=>e.materialId===held[0]),false,'unlinked acquisition is discarded at validation');
+  const forgedDecision=discoveryDecision(forged);
+  assert.notDeepEqual(forgedDecision.action,{type:'sample',targetId:held[0]},'a forged receipt cannot authorize the first taste');
+  const pending=clone();for(const id of held)pending.discovery.samplesPending[id]=pending.elapsed;
+  assert.notEqual(discoveryDecision(pending).need,'food','pending first feedback is not bypassed');
+  const revised=clone();revised.discovery.techniques.forEach(t=>t.confidence='revised');
+  assert.notEqual(discoveryDecision(revised).need,'food','adverse technique revision keeps its gate');
+  const overFailed=clone();overFailed.discovery.techniques.forEach(t=>t.failures=t.successes+3);
+  assert.notEqual(discoveryDecision(overFailed).need,'food','retained failures keep their gate');
+  const peckish=clone();peckish.physiology.hoursSinceMeal=5;projectPhysiology(peckish);
+  assert.notEqual(discoveryDecision(peckish).need,'food','peckish does not promote an untried piece');
+  const thirsty=clone();thirsty.physiology.waterDeficitMl=1000;thirsty.flask.water=200;projectPhysiology(thirsty);
+  assert.equal(discoveryDecision(thirsty).action.type,'drink','observed body thirst remains higher priority');
+
+  const full=clone();full.physiology.sleepPressure=90;full.physiology.fatigue=80;projectPhysiology(full);
+  while(full.physiology.stomach.length<24)assert.equal(ingestMaterial(full,{massGrams:1,energyKcal:0,waterMl:0,digestHours:24},{provenance:'test fixture'}).ok,true);
+  assert.equal(act({n:full,e:f.e},{type:'sample',targetId:held[0]}).code,'TOO_FULL');
+  assert.equal(discoveryDecision(full).action.type,'sleep','physical fullness refusal permits needed sleep');
+
+  const before={count:source.quantity,ingested:f.n.physiology.totals.ingestedKcal,effects:f.n.discovery.effects.length};
+  const choice=discoveryDecision(f.n);
+  assert.deepEqual(choice.action,{type:'sample',targetId:held[0]});
+  assert.equal(choice.need,'food');
+  assert.equal(source.quantity,before.count,'choosing a first taste does not reacquire stock');
+  assert.equal(act(f,choice.action).code,'SWALLOWED');
+  assert.ok(f.n.physiology.totals.ingestedKcal>before.ingested,'authoritative swallow transfers finite nutrition');
+  assert.ok(f.n.discovery.samplesPending[held[0]]!==undefined);
+  assert.equal(f.n.discovery.effects.length,before.effects,'positive knowledge waits for delayed bodily feedback');
+});
+
 
 test('severe pain with depletion and no observed relief does not authorize costly novelty',()=>{
   const f=fixture();depleted(f);f.n.physiology.health=20;projectPhysiology(f.n);assert.equal(bodySignals(f.n).pain,'severe');refuse(f);
