@@ -1,5 +1,5 @@
 import { CAVES, NPC_RULES } from './config.js';
-import { BIOLOGY_RULES } from './biology-config.js';
+import { BIOLOGY_PROFILES, BIOLOGY_RULES } from './biology-config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { cleanSensoryObject, deriveDiscoveryPractice, objectId } from './discovery-state.js';
 
@@ -24,10 +24,20 @@ if (PROOF_RETENTION_BOUNDS.stagedExperiments > DISCOVERY_RULES.maxExperiments ||
 const positiveId = value => Number.isInteger(value) && value > 0;
 const ingestionId = value => typeof value === 'string' && /^ingestion:\d+$/.test(value);
 export const LEGACY_PHYSICAL_PROVENANCE = 'legacy-sampled-unproven';
+export const LEGACY_UNKNOWN_PHYSICAL_PROVENANCE = 'legacy-physical-unknown';
 const effectsAllowed = new Set(['sustained', 'water relief', 'discomfort', 'no noticeable change']);
 const time = value => Number.isFinite(value) && value >= 0;
 const array = value => Array.isArray(value) ? value : [];
 const numericId = value => typeof value === 'number' ? value : Number(String(value ?? '').match(/(\d+)$/)?.[1] || 0);
+const canonicalSuffix = (value, prefix) => {
+  if (typeof value !== 'string' || !value.startsWith(`${prefix}:`)) return null;
+  const suffix = value.slice(prefix.length + 1);
+  if (!/^[1-9]\d*$/.test(suffix)) return null;
+  const id = Number(suffix);
+  return Number.isSafeInteger(id) ? id : null;
+};
+const bounded = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
+const ordinaryTime = value => bounded(value, 0, 3600 * 100000);
 const originalPlans = new WeakMap();
 
 function uniqueIndex(rows, key) {
@@ -126,6 +136,134 @@ function legacyFeedbackError(npc, index) {
   return null;
 }
 
+// The explicit legacy recovery preflight may mark an old digestive portion
+// whose action and experiment have both rotated out. That marker is an inert
+// physical owner, never a substitute for an action receipt. Check all marked
+// feedback, including seen rows, so a later seen-cursor rollover cannot turn
+// an old sampled label back into a learning input.
+function unknownPhysicalError(npc, index) {
+  const physiology = npc.physiology;
+  const stomach = array(physiology?.stomach), feedback = array(physiology?.feedback);
+  const markedStomach = stomach.filter(row => row?.provenance === LEGACY_UNKNOWN_PHYSICAL_PROVENANCE);
+  const markedFeedback = feedback.filter(row => row?.provenance === LEGACY_UNKNOWN_PHYSICAL_PROVENANCE);
+  if (!markedStomach.length && !markedFeedback.length) return null;
+  const profile = Object.hasOwn(BIOLOGY_PROFILES, physiology?.profile) ?
+    BIOLOGY_PROFILES[physiology.profile] : null;
+  if (!profile || !Number.isSafeInteger(physiology?.nextId) || physiology.nextId < 1 ||
+      physiology.nextId > 1e9 || !Number.isSafeInteger(npc.memory?.nextId) ||
+      npc.memory.nextId < 1 || !ordinaryTime(npc.elapsed) ||
+      stomach.length > BIOLOGY_RULES.maxDigestiveInputs || feedback.length > BIOLOGY_RULES.maxFeedback)
+    return 'malformed-proof-input';
+  const bodyRanges = {
+    availableEnergyKcal: profile.availableCapacityKcal, storedEnergyKcal: profile.storedCapacityKcal,
+    waterDeficitMl: profile.bodyWaterMl, health: 100, condition: 100, stamina: 100,
+    fatigue: 100, sleepPressure: 100, hoursSinceMeal: 24 * 100000,
+    awakeHours: 24 * 100000, starvationHours: 24 * 100000,
+  };
+  if (!bounded(physiology.clockHours, 0, 24 * 100000) ||
+      !Object.entries(bodyRanges).every(([key, max]) => bounded(physiology[key], 0, max)) ||
+      !bounded(physiology.circadianAlertness, -1, 1) ||
+      !['awake', 'onset', 'sleeping'].includes(physiology.sleep?.state) ||
+      !bounded(physiology.sleep?.hours, 0, BIOLOGY_RULES.maximumSleepHours) ||
+      !bounded(physiology.sleep?.remainingHours, 0, BIOLOGY_RULES.maximumSleepHours) ||
+      !bounded(physiology.sleep?.depth, 0, 1) ||
+      !bounded(physiology.sleep?.inertiaHours, 0, 2) ||
+      !['ingestedKcal', 'ingestedWaterMl', 'absorbedKcal', 'absorbedWaterMl',
+        'metabolizedKcal', 'waterLostMl', 'discardedKcal', 'discardedWaterMl']
+        .every(key => bounded(physiology.totals?.[key], 0, 1e12)) ||
+      !bounded(physiology.outsideAssistance?.energyKcal, 0, 1e12) ||
+      !bounded(physiology.outsideAssistance?.waterMl, 0, 1e12) ||
+      !Number.isSafeInteger(physiology.outsideAssistance?.count) ||
+      !bounded(physiology.outsideAssistance.count, 0, 1e9)) return 'malformed-proof-input';
+  const mass = stomach.reduce((sum, row) => sum + row?.remainingMassGrams, 0);
+  if (!Number.isFinite(mass) || mass > profile.stomachCapacityGrams + 1e-8)
+    return 'malformed-proof-input';
+  const stomachIds = new Set(), stomachActions = new Set(), feedbackIds = new Set();
+  for (const row of stomach) {
+    const number = canonicalSuffix(row?.id, 'ingestion');
+    if (number === null || number >= physiology.nextId || stomachIds.has(number) ||
+        Number.isSafeInteger(row?.actionId) && stomachActions.has(row.actionId))
+      return 'malformed-proof-input';
+    stomachIds.add(number);
+    if (Number.isSafeInteger(row?.actionId)) stomachActions.add(row.actionId);
+  }
+  for (const row of feedback) {
+    const number = canonicalSuffix(row?.id, 'feedback');
+    const source = canonicalSuffix(row?.ingestionId, 'ingestion');
+    if (number === null || number >= physiology.nextId || feedbackIds.has(number) ||
+        source === null || source >= physiology.nextId)
+      return 'malformed-proof-input';
+    feedbackIds.add(number);
+  }
+  const identities = new Map(), actions = new Map();
+  const effects = array(npc.discovery?.effects), experiments = array(npc.discovery?.experiments);
+  const conflict = (id, actionId) =>
+    index.events.has(actionId) || array(npc.memory?.experience).some(event =>
+      event?.details?.result?.ingestionId === id) ||
+    experiments.some(experiment => experiment?.actionId === actionId || experiment?.ingestionId === id) ||
+    effects.some(effect => effect?.actionId === actionId || effect?.ingestionId === id);
+  const identify = (id, actionId, object) => {
+    const ingestion = canonicalSuffix(id, 'ingestion');
+    const objectNumber = canonicalSuffix(object, 'object');
+    if (ingestion === null || ingestion >= physiology.nextId || objectNumber === null ||
+        !objectId(object) || !Number.isSafeInteger(actionId) || actionId < 1 ||
+        actionId >= npc.memory.nextId || conflict(id, actionId)) return false;
+    const prior = identities.get(id), actionOwner = actions.get(actionId);
+    if (prior && (prior.actionId !== actionId || prior.objectId !== object) ||
+        actionOwner && actionOwner !== id) return false;
+    identities.set(id, { actionId, objectId: object });
+    actions.set(actionId, id);
+    return true;
+  };
+  for (const row of markedStomach) {
+    if (!identify(row.id, row.actionId, row.objectId) || !ordinaryTime(row.at) || row.at > npc.elapsed ||
+        !bounded(row.originalMassGrams, 0, profile.stomachCapacityGrams) ||
+        !bounded(row.remainingMassGrams, 0, row.originalMassGrams) || row.remainingMassGrams <= 0 ||
+        !bounded(row.originalKcal, 0, 50000) || !bounded(row.remainingKcal, 0, row.originalKcal) ||
+        !bounded(row.absorbedKcal, 0, row.originalKcal) ||
+        row.remainingKcal + row.absorbedKcal > row.originalKcal + 1e-8 ||
+        !bounded(row.originalWaterMl, 0, 20000) ||
+        !bounded(row.remainingWaterMl, 0, row.originalWaterMl) ||
+        !bounded(row.absorbedWaterMl, 0, row.originalWaterMl) ||
+        row.remainingWaterMl + row.absorbedWaterMl > row.originalWaterMl + 1e-8 ||
+        !bounded(row.harm, 0, 100) || !bounded(row.toxicity, 0, 1) ||
+        !bounded(row.digestHours, .05, 24) || !bounded(row.elapsedHours, 0, 24) ||
+        !['feedbackSent', 'waterFeedbackSent', 'sustenanceFeedbackSent'].every(key => typeof row[key] === 'boolean'))
+      return 'incomplete-pending-provenance';
+  }
+  // Once a portion has finished, an unseen feedback item may be its only
+  // persisted owner. Its action time is no longer known, so check chronology
+  // from the available anchor and between feedback rows without inventing it.
+  const lastFeedbackAt = new Map();
+  for (const row of markedFeedback) {
+    const feedbackNumber = canonicalSuffix(row?.id, 'feedback');
+    if (feedbackNumber === null || feedbackNumber >= physiology.nextId ||
+        effects.some(effect => effect?.id === row.id) ||
+        !identify(row.ingestionId, row.actionId, row.objectId) ||
+        !ordinaryTime(row.at) || row.at > npc.elapsed || !effectsAllowed.has(row.effect) ||
+        !['easing', 'unchanged'].includes(row.hunger) ||
+        !['easing', 'unchanged'].includes(row.thirst) ||
+        !['easing', 'unchanged'].includes(row.energy) ||
+        !['none', 'aching', 'hurting'].includes(row.pain))
+      return 'incomplete-pending-provenance';
+    const anchor = markedStomach.find(portion => portion.id === row.ingestionId);
+    if (anchor && row.at < anchor.at || row.at < (lastFeedbackAt.get(row.ingestionId) ?? 0))
+      return 'incomplete-pending-provenance';
+    lastFeedbackAt.set(row.ingestionId, row.at);
+  }
+  for (const [id, { actionId, objectId: object }] of identities) {
+    // Any other physical owner sharing either identity must be the same
+    // marked row; aliases and stale sampled feedback are not admissible.
+    if (stomach.some(row => row?.provenance !== LEGACY_UNKNOWN_PHYSICAL_PROVENANCE &&
+        (row?.id === id || row?.actionId === actionId)) ||
+        feedback.some(row => (row?.ingestionId === id || row?.actionId === actionId) &&
+          (row.provenance !== LEGACY_UNKNOWN_PHYSICAL_PROVENANCE ||
+           row.ingestionId !== id || row.actionId !== actionId || row.objectId !== object)))
+      return 'incomplete-pending-provenance';
+  }
+  return null;
+}
+
 /** Read-only durability inspection; never treats the separate physiology queue
  * as a replacement for an original recognition receipt. The receipt's outer
  * time may be later than the embedded feedback time (e.g. recognition on wake). */
@@ -172,12 +310,15 @@ export function retainedProofIntegrityError(npc) {
   if (!index) return 'malformed-proof-input';
   const feedbackError = legacyFeedbackError(npc, index);
   if (feedbackError) return feedbackError;
+  const unknownError = unknownPhysicalError(npc, index);
+  if (unknownError) return unknownError;
   const seen = new Set(array(npc.discovery?.seenFeedback));
   const pending = [...array(npc.physiology?.stomach).map(row => ({ row, stomach: true })),
     ...array(npc.physiology?.feedback).filter(row => !seen.has(row?.id)).map(row => ({ row, stomach: false }))];
   if (pending.length > pendingLimit) return 'malformed-proof-input';
   const identities = new Map();
   for (const { row, stomach } of pending) {
+    if (row?.provenance === LEGACY_UNKNOWN_PHYSICAL_PROVENANCE) continue;
     if (!positiveId(row?.actionId) && !['sampled', LEGACY_PHYSICAL_PROVENANCE].includes(row?.provenance)) continue;
     const id = stomach ? row?.id : row?.ingestionId;
     if (!ingestionId(id) || !positiveId(row?.actionId) || !time(row.at)) return 'incomplete-pending-provenance';
@@ -265,6 +406,8 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
   if (!index) return fail('malformed-proof-input');
   const feedbackError = legacyFeedbackError(npc, index);
   if (feedbackError) return fail(feedbackError);
+  const unknownError = unknownPhysicalError(npc, index);
+  if (unknownError) return fail(unknownError);
   const { events, valid, samples } = index;
   const retainedEffects = source.effects.slice(-DISCOVERY_RULES.maxEffects), effectsBySample = new Map();
   const effectIds = new Set();
@@ -292,6 +435,12 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
     ...array(npc.physiology?.feedback).filter(row => !seen.has(row?.id)).map(row => ({ row, stomach: false }))];
   for (const { row, stomach } of pendingInputs) {
     const id = stomach ? row?.id : row?.ingestionId;
+    if (row?.provenance === LEGACY_UNKNOWN_PHYSICAL_PROVENANCE) {
+      const identity = `${id}|${row.actionId}|${row.objectId}|${row.provenance}`;
+      if (pending.has(id) && pending.get(id) !== identity) return fail('malformed-proof-input');
+      pending.set(id, identity);
+      continue;
+    }
     // Historic non-action inputs do not manufacture a memory obligation.
     if (!positiveId(row?.actionId) && !['sampled', LEGACY_PHYSICAL_PROVENANCE].includes(row?.provenance)) continue;
     if (!ingestionId(id) || !positiveId(row?.actionId)) return fail('incomplete-pending-provenance');

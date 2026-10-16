@@ -55,6 +55,12 @@ if(recoveryRequired){pendingToast=bootIssue;ui['save-status'].textContent='Save 
 const recovered=profileStatus?.kind==='recovered';
 const recoveredCopySupported=profileStatus?.recoveredCopySupported===true;
 const recoveredCopyUnavailable='Recovered-copy creation and opening are unavailable on Windows in this build. Your original save stays protected; you can still export or verify its exact raw backup.';
+const migrationRows=migrationPlan?.ok?migrationPlan.report.migrations:[];
+const receiptlessRows=migrationRows.filter(row=>row.proof==='receiptless-unknown');
+const receiptBackedRows=migrationRows.length-receiptlessRows.length;
+const migrationSummary=migrationRows.length
+  ? `${receiptlessRows.length} pending ingestion record(s) have no surviving sample-action receipt and will continue as unknown historical physical state. ${receiptBackedRows} have verified action receipts. Feedback from migrated records cannot teach a bodily effect.`
+  : '';
 const profileLabel=recovered
   ? (boot.gate==='blocked'&&validateProfileStatus(profileStatus)
       ? 'Recovered copy · profile verification failed'
@@ -84,8 +90,8 @@ if(recoveryRequired){
     $('recovery-title').textContent='Your original world needs recovery.';
     $('recovery-migration').textContent=migrationPlan?.ok
       ? recoveredCopySupported
-        ? `${migrationPlan.report.migrations.length} pending ingestion record(s) have exact sample-action receipts. Their delayed feedback will remain physical only in a separate recovered copy.`
-        : `${migrationPlan.report.migrations.length} pending ingestion record(s) have exact sample-action receipts. The original save remains protected while recovered-copy import is unavailable.`
+        ? `${migrationSummary} A separate recovered copy can be created after an exact backup.`
+        : `${migrationSummary} The original save remains protected while recovered-copy import is unavailable.`
       : 'This save does not meet the strict physical-only migration contract. Its original bytes remain untouched.';
     $('recovery-note').textContent=!recoveredCopySupported?recoveredCopyUnavailable
       : profileStatus.phase==='invalid'
@@ -102,11 +108,11 @@ if(recoveryRequired){
     }
   }else if(boot.gate==='pending-empty'||boot.gate==='pending-written'){
     $('recovery-title').textContent='Recovered copy import';
-    $('recovery-migration').textContent=`${migrationPlan.report.migrations.length} pending ingestion record(s) will keep physical digestion and delayed feedback without teaching a bodily effect.`;
+    $('recovery-migration').textContent=migrationSummary;
     $('recovery-note').textContent='This copy is separate from the original world. The import is checked on disk after a restart before play begins. Progress in either world may diverge; there is no merge or automatic copy-back.';
     for(const row of migrationPlan.report.migrations){
       const item=document.createElement('li');
-      item.textContent=`${row.actorId}: ${row.ingestionId} · action ${row.actionId} · ${row.objectId}`;
+      item.textContent=`${row.actorId}: ${row.ingestionId} · historical action ID ${row.actionId} · ${row.objectId} · ${row.proof==='receiptless-unknown'?'receipt missing; physical only':'receipt verified; physical only'}`;
       $('recovery-rows').append(item);
     }
     $('recovery-rows').classList.remove('hidden');
