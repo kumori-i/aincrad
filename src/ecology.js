@@ -60,16 +60,19 @@ function safePoint(x,y,radius=10) {
   // starting village was the cause of the old clustering defect.
   return null;
 }
-function plant(e,kind,p,index) {
-  if(e.plants.length>=R.maxPlants||!p)return null;
-  const point=safePoint(p.x,p.y);if(!point||!plantSuitability(kind,point))return null;
+function plantRecord(e,kind,point,index,id) {
   const capacity=kind==='grass'?R.grassCapacityGrams:kind==='apple_tree'?10:28;
   const absoluteSeason=R.startSeasonDay+e.elapsed/CONFIG.dayRealSeconds,seasonDay=absoluteSeason%R.yearDays,start=kind==='apple_tree'?65:40,end=kind==='apple_tree'?85:95;
   const ripe=seasonDay>=start&&seasonDay<end;
   const count=kind==='grass'||!ripe?0:Math.round(capacity*(.55+hash(index,8,e.seed)*.35));
-  const out={id:nextId(e),kind,scene:'valley',position:point,capacity,quantity:count,
+  return {id,kind,scene:'valley',position:point,capacity,quantity:count,
     biomassGrams:kind==='grass'?capacity*(.7+hash(index,9,e.seed)*.2):0,moisture:habitatConditions(point).moisture,
     stage:kind==='grass'?'green':ripe?'ripe':seasonDay>=start-12&&seasonDay<start?seasonDay<start-8?'flowering':'growing':'bare',growth:0,seasonIndex:Math.floor(absoluteSeason/R.yearDays),fallHours:0,ageDays:kind==='apple_tree'?2000:400,...freshPlantLifecycle()};
+}
+function plant(e,kind,p,index) {
+  if(e.plants.length>=R.maxPlants||!p)return null;
+  const point=safePoint(p.x,p.y);if(!point||!plantSuitability(kind,point))return null;
+  const out=plantRecord(e,kind,point,index,nextId(e));
   e.plants.push(out);invalidateIndex(e);return out;
 }
 function animal(e,species,p,elapsed=0,{juvenile=false,energyKcal,structureKcal}={}){
@@ -156,13 +159,32 @@ function seedRegionalWorld(e){
     plant(e,site.kind==='woodland'||site.kind==='riparian'?'bramble':'grass',{x:p.x+120,y:p.y+90},1100+index);
     if(site.kind==='woodland'&&site.moisture>.42)plant(e,'apple_tree',{x:p.x-110,y:p.y+80},1200+index);
   }
-  const corridors=buildHabitatCorridors(anchors);
+  const corridors=buildHabitatCorridors(anchors),corridorGrass=[];
   for(const [index,route]of corridors.entries())for(const [step,p]of sampleCorridor(route.points,300).entries()){
     if(e.plants.some(o=>distance(o.position,p)<130))continue;
-    plant(e,'grass',p,2000+index*200+step);
+    const seedIndex=2000+index*200+step,grass=plant(e,'grass',p,seedIndex);
+    if(grass)corridorGrass.push({grass,seedIndex});
     const site=habitatConditions(p);
     if(step%4===0&&site.moisture>.38)plant(e,'bramble',{x:p.x+45,y:p.y+35},5000+index*200+step);
   }
+  // Exchange a few corridor grasses for fruiting plants at physically suitable
+  // remote sites. The existing corridor stays vegetated, counts and IDs stay
+  // fixed, and none of the hydric grasses that budget initial prey are touched.
+  const fruit=e.plants.filter(p=>p.kind==='bramble'||p.kind==='apple_tree').map(p=>p.position),chosen=[];
+  for(let n=0;n<3;n++){
+    let best=null,bestGap=600;
+    for(const candidate of corridorGrass){
+      const p=candidate.grass.position;
+      if(chosen.some(point=>distance(point,p)<700)||anchors.some(anchor=>distance(anchor,p)<450)||!plantSuitability('bramble',p))continue;
+      const gap=Math.min(...fruit.map(point=>distance(point,p)));
+      if(gap>bestGap){best=candidate;bestGap=gap;}
+    }
+    if(!best)break;
+    const old=best.grass,replacement=plantRecord(e,'bramble',old.position,best.seedIndex,old.id);
+    e.plants[e.plants.indexOf(old)]=replacement;fruit.push(replacement.position);chosen.push(replacement.position);
+    corridorGrass.splice(corridorGrass.indexOf(best),1);
+  }
+  if(chosen.length)invalidateIndex(e);
   // Reserve the reachable birth-energy budget once across carnivores. This is
   // a conservative placement screen, not evidence of realized reproduction.
   const lake=anchors.find(a=>a.key==='lake:west:2');

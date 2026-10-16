@@ -1,6 +1,7 @@
 /** Original palette-limited pixel artwork. Two world units are one art pixel. */
 import { hash, noise, terrain, waterDistance, ridgeValue, clamp } from './world.js';
 import { bodySignals } from './interoception.js';
+import { habitatConditions } from './ecology-regions.js';
 
 export const ART_PIXEL = 2;
 export function canvas(w, h) { const c=document.createElement('canvas');c.width=Math.ceil(w);c.height=Math.ceil(h);return c; }
@@ -41,6 +42,12 @@ export function line(g,pts,stroke,width=1){pixelLine(g,pts,stroke,width,ART_PIXE
 const PALETTES={
   meadow:['#78a743','#80ae49','#89b651','#73a03e','#92bb57'],
   forest:['#568439','#5f8f3e','#659545','#4f7d35','#6c9a47'],
+  meadow_dry_meadow:['#929d57','#9ca562','#a8ad6c','#86944e','#b1b576'],
+  meadow_cool_upland:['#718d78','#799581','#849e88','#698571','#8fa78e'],
+  meadow_riparian:['#63a36b','#70ae75','#7bb87c','#5a9963','#86bf86'],
+  forest_cool_upland:['#436c63','#4c776b','#568173','#3e665d','#638d7b'],
+  forest_riparian:['#407b5c','#4b8864','#55926a','#377352','#629b73'],
+  forest_woodland:['#3e6c38','#487940','#518347','#376334','#5b8c4b'],
   trail:['#d3ab70','#d9b57b','#cda36a','#dfbd86','#c79b62'],
   shore:['#d9bc7c','#e0c68e','#cfb16e','#e6cd97','#d4b676'],
   water:['#378cab','#3b93b1','#3485a5','#4299b4','#30809e'],
@@ -52,17 +59,43 @@ const PALETTES={
 function rgb(hex){return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];}
 const RGB_PALETTES=Object.fromEntries(Object.entries(PALETTES).map(([key,colors])=>[key,colors.map(rgb)]));
 function paletteIndex(x,y){return Math.floor(clamp(noise(x,y,96,571)*4+noise(x,y,670,339)*2-1,0,4));}
+const landType=type=>type==='meadow'||type==='forest';
+const landPalette=(type,kind)=>RGB_PALETTES[`${type}_${kind}`]||RGB_PALETTES[type];
+function chunkHabitat(x,y,cache){
+  // Chunk art samples 32-unit cells; physical terrain and collision still use exact coordinates.
+  const gx=Math.floor(x/32),gy=Math.floor(y/32),key=`${gx},${gy}`;
+  if(!cache.has(key))cache.set(key,habitatConditions({x:(gx+.5)*32,y:(gy+.5)*32}));
+  return cache.get(key);
+}
+function atlasMark(x,y,kind){
+  // Place a small mark within each cell, rather than recoloring the entire
+  // cell into a square that dominates the atlas when zoomed in.
+  if(kind==='meadow')return null;
+  const unit=240,gx=Math.floor(x/unit),gy=Math.floor(y/unit),h=hash(gx,gy,7761);
+  if(kind==='dry_meadow'&&h<=.3||kind==='cool_upland'&&h<=.4||
+    kind==='riparian'&&h<=.35||kind==='woodland'&&h<=.25)return null;
+  const dx=x-gx*unit-52-hash(gx,gy,7762)*136;
+  const dy=y-gy*unit-52-hash(gx,gy,7763)*136;
+  if(kind==='dry_meadow'&&Math.abs(dx)<46&&Math.abs(dy)<7)return '#c5be81';
+  if(kind==='cool_upland'&&Math.abs(dx)<42&&Math.abs(dy+dx*.33)<7)return '#a2aea0';
+  if(kind==='riparian'&&Math.abs(dx)<8&&Math.abs(dy)<38)return '#9ac893';
+  if(kind==='woodland'&&(dx/34)**2+(dy/18)**2<1)return '#2d5933';
+  return null;
+}
 export function groundColor(x,y,map=false){
-  const type=terrain(x,y),colors=RGB_PALETTES[type],shade=paletteIndex(x,y);
+  const type=terrain(x,y),site=landType(type)?habitatConditions({x,y}):null;
+  const colors=site?landPalette(type,site.kind):RGB_PALETTES[type],shade=paletteIndex(x,y);
   if(map&&type==='mountain'&&Math.sin(ridgeValue(x,y)*34+noise(x,y,850,993)*5)>.72)return RGB_PALETTES.mountain[3];
+  if(map&&site){const mark=atlasMark(x,y,site.kind);if(mark)return rgb(mark);}
   return colors[shade];
 }
 export function makeGroundChunk(cx,cy,size){
-  const out=canvas(size/ART_PIXEL,size/ART_PIXEL),g=out.getContext('2d'),s=out.width,image=g.createImageData(s,s),originX=cx*size,originY=cy*size;
+  const out=canvas(size/ART_PIXEL,size/ART_PIXEL),g=out.getContext('2d'),s=out.width,image=g.createImageData(s,s),originX=cx*size,originY=cy*size,sites=new Map();
   // Sample the physical terrain at four world units; a small stepped edge follows the same collision boundary.
   for(let py=0;py<s;py+=2)for(let px=0;px<s;px+=2){
     const x=originX+px*ART_PIXEL+2,y=originY+py*ART_PIXEL+2,type=terrain(x,y),d=waterDistance(x,y);
-    let color=RGB_PALETTES[type][paletteIndex(x,y)];
+    const site=landType(type)?chunkHabitat(x,y,sites):null;
+    let color=(site?landPalette(type,site.kind):RGB_PALETTES[type])[paletteIndex(x,y)];
     if(type==='shore'&&d<8)color=rgb('#a48954');
     else if(type==='shallows'&&d>-9)color=rgb('#c2dbba');
     else if(type==='water'&&d>-57)color=rgb('#85cfca');
@@ -77,12 +110,36 @@ export function makeGroundChunk(cx,cy,size){
   const spacing=32;
   for(let ty=Math.floor(originY/spacing);ty<=Math.ceil((originY+size)/spacing);ty++)for(let tx=Math.floor(originX/spacing);tx<=Math.ceil((originX+size)/spacing);tx++){
     const h=hash(tx,ty,705),wx=tx*spacing+4+Math.floor(hash(tx,ty,791)*23),wy=ty*spacing+4+Math.floor(hash(tx,ty,845)*23),x=Math.floor((wx-originX)/ART_PIXEL),y=Math.floor((wy-originY)/ART_PIXEL),type=terrain(wx,wy);
-    if(type==='meadow'||type==='forest'){
-      const dark=type==='forest'?'#3e692f':'#5b8a35',light=type==='forest'?'#87aa50':'#b1cc64';
-      rect(g,x-2,y,4,1,dark);rect(g,x-2,y-2,1,2,dark);rect(g,x,y-3,1,3,light);rect(g,x+2,y-1,1,2,light);
-      if(h>.54){rect(g,x+5,y+4,3,1,light);rect(g,x+6,y+2,1,2,dark);}
-      if(h>.943){rect(g,x,y-3,1,4,'#4e8038');const petal=h>.982?'#d587a7':h>.966?'#faf0b6':'#f6d36b';rect(g,x-1,y-4,3,1,petal);rect(g,x,y-5,1,3,petal);rect(g,x,y-4,1,1,'#b78c45');}
-      if(h<.026){pixelOval(g,x,y,3,2,'#59864c');rect(g,x-2,y-1,3,1,'#b1bd79');}
+    if(landType(type)){
+      // Ground details are decorative, never resource or forage markers.
+      // Keep their few pixels inside the sampled terrain class at boundaries.
+      if(terrain(wx-24,wy-14)!==type||terrain(wx+24,wy-14)!==type||
+        terrain(wx-24,wy+12)!==type||terrain(wx+24,wy+12)!==type)continue;
+      const kind=chunkHabitat(wx,wy,sites).kind;
+      if(kind==='dry_meadow'){
+        rect(g,x-3,y+1,4,1,'#bdb77b');
+        if(h>.34){rect(g,x-1,y-2,1,3,'#777d45');rect(g,x+2,y-1,1,2,'#d2c487');}
+        if(h>.78){rect(g,x+5,y+3,3,1,'#786f58');rect(g,x+6,y+2,1,1,'#ccc096');}
+      }else if(kind==='cool_upland'){
+        rect(g,x-3,y+1,5,1,'#526f68');
+        if(h>.23){rect(g,x-1,y-3,1,3,'#a3b29a');rect(g,x+2,y-2,1,2,'#5a7f71');}
+        if(h>.66){rect(g,x+5,y+3,4,1,'#a7a99a');rect(g,x+6,y+2,2,1,'#5f7774');}
+      }else if(kind==='riparian'){
+        rect(g,x-2,y+1,5,1,'#3f8055');
+        rect(g,x-2,y-3,1,4,'#a3c67d');rect(g,x+1,y-5,1,6,'#568f5d');
+        if(h>.38){rect(g,x+4,y-4,1,5,'#bfce88');rect(g,x+5,y-5,1,2,'#826e4d');}
+        if(h>.79)rect(g,x-5,y+3,7,1,'#97bc81');
+      }else if(kind==='woodland'){
+        rect(g,x-5,y+3,9,2,'#345c32');
+        rect(g,x-2,y-2,1,4,'#729b54');rect(g,x-4,y-3,3,1,'#7daa61');rect(g,x,y-4,3,1,'#6b9651');
+        if(h>.32){rect(g,x+4,y+4,7,1,'#284f30');rect(g,x+5,y+2,2,1,'#a2a46c');}
+      }else{
+        const dark=type==='forest'?'#3e692f':'#5b8a35',light=type==='forest'?'#87aa50':'#b1cc64';
+        rect(g,x-2,y,4,1,dark);rect(g,x-2,y-2,1,2,dark);rect(g,x,y-3,1,3,light);rect(g,x+2,y-1,1,2,light);
+        if(h>.54){rect(g,x+5,y+4,3,1,light);rect(g,x+6,y+2,1,2,dark);}
+        if(h>.943){rect(g,x,y-3,1,4,'#4e8038');const petal=h>.982?'#d587a7':h>.966?'#faf0b6':'#f6d36b';rect(g,x-1,y-4,3,1,petal);rect(g,x,y-5,1,3,petal);rect(g,x,y-4,1,1,'#b78c45');}
+        if(h<.026){pixelOval(g,x,y,3,2,'#59864c');rect(g,x-2,y-1,3,1,'#b1bd79');}
+      }
     }else if(type==='trail'||type==='shore'||type==='scree'){
       rect(g,x,y,2+(h>.6?1:0),1,type==='scree'?'#747d6f':'#b69059');if(h>.75)rect(g,x-1,y-1,2,1,type==='scree'?'#c5b99b':'#ecd3a0');
       if(type==='shore'&&h>.67&&waterDistance(wx,wy)<46){rect(g,x,y-5,1,6,'#577d43');rect(g,x+2,y-7,1,8,'#6a8b42');rect(g,x+2,y-8,1,3,'#866941');}
