@@ -24,15 +24,17 @@ export const OZARK_PREVIEW_GEOMETRY = Object.freeze({
   playable: false,
 });
 
-// A distinct, bounded walking experiment. This identity is session-only and
+// A distinct, bounded wading experiment. This identity is session-only and
 // deliberately remains unsupported by freshState and the version 8 save path.
 // Its height units are relative: maxGrade is rise in those units per logical
-// world pixel, calibrated only to the chosen pilot corridor.
+// world pixel, calibrated only to the chosen pilot corridor. The water depth
+// proxy is derived from the sampled signed channel distance, not surveyed
+// bathymetry, and the current is an authored downstream cue, not hydrodynamics.
 export const OZARK_WALKING_PILOT_PROFILE = Object.freeze({
-  kind: 'ozark-walking-pilot-v1',
+  kind: 'ozark-wading-pilot-v2',
   scope: 'fresh-session-unsaved',
   samplerContract: 'ozark-continuous-sampler-v2',
-  policyContract: 'bounded-dry-grade-sight-v1',
+  policyContract: 'bounded-shallow-wading-v1',
   seed: 74193,
   centerX: 0,
   centerY: 0,
@@ -45,7 +47,17 @@ export const OZARK_WALKING_PILOT_PROFILE = Object.freeze({
   maxGrade: 0.03,
   eyeHeight: 3,
   sightRange: 400,
-  identity: 'sha256:7533feaeb5079e9f2c3ad4d53e708ecef2e8182b697b028fa6e529cda50a828b',
+  wadeMinX: -1280,
+  wadeMaxX: -1120,
+  wadeMinY: 180,
+  wadeMaxY: 390,
+  wadeDepthSpan: 100,
+  wadeMaxDepthProxy: 0.5,
+  wadeWalkMultiplier: 0.65,
+  wadeCurrentMaxSpeed: 18,
+  currentFromMainIndex: 44,
+  currentToMainIndex: 45,
+  identity: 'sha256:c66f06db089776c00c363e8f76d43ca50560ab739760cb7a510ad3422b3c0cfe',
 });
 
 /** Explicit fresh-world request; absence always selects the existing world. */

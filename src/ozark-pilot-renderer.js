@@ -10,6 +10,10 @@ const OUTSIDE_COLOR = Object.freeze([28, 43, 43]);
 const STEEP_COLORS = Object.freeze([
   Object.freeze([169, 97, 86]), Object.freeze([200, 136, 99]),
 ]);
+const SHALLOW_COLORS = Object.freeze([
+  Object.freeze([80, 158, 171]), Object.freeze([99, 177, 184]),
+]);
+const FLOW_MARK = Object.freeze([187, 229, 211]);
 const DEFAULT_ANIM = Object.freeze({
   time: 0, moving: false, facing: Object.freeze({ x: 0, y: 1 }),
 });
@@ -28,6 +32,25 @@ function validBounds(bounds) {
 function within(bounds, x, y) {
   return x >= bounds.minX && x <= bounds.maxX &&
     y >= bounds.minY && y <= bounds.maxY;
+}
+
+function shallowColor(x, y, direction) {
+  // A short pixel arrow sits in each 32-unit cell and follows the authored
+  // channel tangent. This is a visible current cue, not a fluid simulation.
+  if (direction && Number.isFinite(direction.x) &&
+      Number.isFinite(direction.y)) {
+    const dx = direction.x, dy = direction.y;
+    const ax = (Math.floor(x / 32) + .5) * 32;
+    const ay = (Math.floor(y / 32) + .5) * 32;
+    const rx = x - ax, ry = y - ay;
+    const along = rx * dx + ry * dy;
+    const across = rx * -dy + ry * dx;
+    const shaft = along >= -9 && along <= 3 && Math.abs(across) <= 2.5;
+    const head = along > 3 && along <= 10 &&
+      Math.abs(Math.abs(across) - (10 - along) * .7) <= 2.5;
+    if (shaft || head) return FLOW_MARK;
+  }
+  return SHALLOW_COLORS[(Math.floor((x + y) / 8) & 1)];
 }
 
 /** Terrain and actor only, in the same logical pixel coordinates as geometry. */
@@ -77,10 +100,15 @@ export class PilotRenderer {
 
   terrainColor(x, y) {
     if (!within(this.bounds, x, y)) return OUTSIDE_COLOR;
-    const paint = this.geometry.sample(x, y).paint;
+    const site = this.geometry.sample(x, y);
+    const paint = site.paint;
     const color = previewGroundColor(paint);
-    // The water and pond pixels retain their approved palette. Dry pixels
-    // blocked by the pilot's grade policy get a visible, striped rock cue.
+    // Only the explicitly assessed shallow reach gets the wading palette and
+    // channel-tangent marks. Deep and unassessed water, and the separate pond,
+    // keep their original colors. Dry grade marks remain unchanged.
+    if (paint === 'surface-water' && site.waterBand === 'shallow-water') {
+      return shallowColor(x, y, site.currentDirection);
+    }
     if (paint === 'surface-water' || paint === 'internal-pond') return color;
     const footing = this.geometry.classify(x, y, CONFIG.playerRadius);
     if (footing.reason === 'outside-pilot-bounds' ||
@@ -164,6 +192,13 @@ export class PilotRenderer {
       }
     }
     drawAvatar(g, player, anim.facing, anim.time, anim.moving, 'valley');
+    // The actor's disc may touch shallow water before its center enters a
+    // painted water pixel. Small foot splashes make that contact visible.
+    if (this.geometry.classify(player.x, player.y, CONFIG.playerRadius).reason === 'shallow-water') {
+      g.fillStyle = '#bde6d3';
+      g.fillRect(player.x - 15, player.y + 6, 7, 2);
+      g.fillRect(player.x + 8, player.y + 6, 7, 2);
+    }
     g.restore();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.imageSmoothingEnabled = false;

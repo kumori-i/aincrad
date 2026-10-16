@@ -80,7 +80,7 @@ test('real dry spawn and eastward route clear radius and pilot relative grade', 
   assert.equal(geometry.lineOfSight(geometry.spawn, actor), true);
 });
 
-test('disc and swept movement stop at actual drawn water, pond and pilot bounds', () => {
+test('disc and swept movement honor the bounded shallow reach, pond and pilot bounds', () => {
   assert.equal(geometry.classify(-1200, 0).reason, 'surface-water');
   assert.equal(geometry.classify(-11800, 11800).reason, 'internal-pond');
   // Hazard classification is available over approved samples even though the
@@ -94,8 +94,10 @@ test('disc and swept movement stop at actual drawn water, pond and pilot bounds'
   const bank = { x: -1200, y: 600 };
   assert.equal(geometry.classify(bank.x, bank.y).walkable, true);
   for (let index = 0; index < 100; index += 1) geometry.move(bank, 0, -1, .25);
-  assert.equal(geometry.classify(bank.x, bank.y).walkable, true);
-  assert.ok(geometry.sample(bank.x, bank.y).surfaceWaterDistance * profile.cellPixels >
+  const shallow = geometry.classify(bank.x, bank.y);
+  assert.equal(shallow.reason, 'shallow-water');
+  assert.ok(shallow.depthProxy <= profile.wadeMaxDepthProxy);
+  assert.ok(geometry.sample(bank.x, bank.y).surfaceWaterDistance * profile.cellPixels <
     CONFIG.playerRadius);
   assert.ok(bank.y > 0, 'the actual surface-water footprint stops this route');
   const stoppedAtBank = { ...bank };

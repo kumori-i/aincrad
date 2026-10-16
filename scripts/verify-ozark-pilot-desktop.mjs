@@ -28,6 +28,22 @@ const timeout = setTimeout(() => { console.error('Ozark pilot native QA timed ou
 const digest = raw => createHash('sha256').update(raw).digest('hex');
 const page = (win, fn) => win.webContents.executeJavaScript('(' + fn.toString() + ')()');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const snapshot = win => win.webContents.executeJavaScript('window.__ozarkPilot.snapshot()');
+async function holdUntil(win, keyCode, predicate, label, timeoutMs = 9000) {
+  const deadline = Date.now() + timeoutMs;
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode });
+  try {
+    while (Date.now() < deadline) {
+      await delay(80);
+      const current = await snapshot(win);
+      if (predicate(current)) return current;
+    }
+    throw new Error('Native pilot input did not reach ' + label + ': ' +
+      JSON.stringify(await snapshot(win)));
+  } finally {
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode });
+  }
+}
 
 app.on('browser-window-created', (_event, win) => {
   win.webContents.on('did-finish-load', async () => {
@@ -79,25 +95,49 @@ app.on('browser-window-created', (_event, win) => {
           win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'D' });
           await delay(700);
           win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'D' });
-          const moved = await win.webContents.executeJavaScript('window.__ozarkPilot.snapshot()');
+          const moved = await snapshot(win);
           assert.ok(moved.player.x > started.player.x + 10, 'native right input did not move the player');
+          await fs.writeFile(path.join(context.output, 'walking-corridor.png'),
+            (await win.webContents.capturePage()).toPNG());
+          const bank = await holdUntil(win, 'A', current =>
+            current.player.x <= -1220, 'the main-channel bank');
+          assert.equal(bank.observation.ground, 'dry-land');
+          const shallow = await holdUntil(win, 'W', current =>
+            current.observation.ground === 'shallow-water' &&
+            current.player.y <= 270, 'shallow main-channel water');
+          assert.equal(shallow.observation.currentCue, 'downstream');
+          assert.ok(shallow.wetness > 0, 'wading did not make the player wet');
+          assert.ok(shallow.effort > 0, 'wading did not add effort');
+          await delay(120);
+          await fs.writeFile(path.join(context.output, 'wading-shallow-channel.png'),
+            (await win.webContents.capturePage()).toPNG());
+          const exited = await holdUntil(win, 'S', current =>
+            current.observation.ground === 'dry-land' &&
+            current.player.y >= 340, 'dry ground after leaving the channel');
+          assert.ok(exited.player.y > shallow.player.y + 40,
+            'native south input did not leave shallow water');
+          assert.ok(exited.wetness > 0, 'wetness did not persist immediately after exit');
+          assert.ok(exited.effort > 0, 'wading effort did not persist immediately after exit');
           await win.webContents.executeJavaScript("window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyW',key:'w'}));window.dispatchEvent(new Event('blur')); ");
-          const stopped = await win.webContents.executeJavaScript('window.__ozarkPilot.snapshot()');
+          const stopped = await snapshot(win);
           await delay(250);
-          const afterBlur = await win.webContents.executeJavaScript('window.__ozarkPilot.snapshot()');
+          const afterBlur = await snapshot(win);
           assert.deepEqual(afterBlur.player, stopped.player, 'blur did not clear held pilot input');
           assert.equal(afterBlur.started, true);
           assert.equal(await win.webContents.executeJavaScript('window.__pilotStorageCalls.length'), 0,
             'pilot used browser storage after startup');
-          await fs.writeFile(path.join(context.output, 'walking-corridor.png'),
-            (await win.webContents.capturePage()).toPNG());
           await fs.writeFile(path.join(context.output, 'result.json'), JSON.stringify({
             passed: true, isolatedProfile: true, nativeInput: true, inputClearedOnBlur: true,
-            zeroPilotStorageCalls: true, exactLegacySaveBytesPreserved: true,
+            shallowWaterEnteredAndExited: true, wetnessAndEffortObserved: true,
+            qualitativeCurrentObserved: true, zeroPilotStorageCalls: true,
+            exactLegacySaveBytesPreserved: true,
             profileIdentity: afterBlur.profileIdentity, start: started.player,
-            afterInput: moved.player, observation: afterBlur.observation,
+            afterInput: moved.player, bank: bank.player, shallow: shallow.player,
+            afterExit: exited.player, shallowObservation: shallow.observation,
+            shallowWetness: shallow.wetness, shallowEffort: shallow.effort,
+            afterExitWetness: exited.wetness, afterExitEffort: exited.effort,
           }, null, 2) + '\\n');
-          console.log('PASS: native pilot input, rendered screenshot, and zero storage calls.');
+          console.log('PASS: native walking, shallow-water entry and exit, wetness/effort, current cue, screenshots, and zero storage calls.');
         }
         const after = await page(win, async function readSaveAgain() {
           const { CONFIG } = await import('./src/config.js');
@@ -137,4 +177,7 @@ for (const phase of ['seed', 'walk', 'reopen']) {
 }
 const result = JSON.parse(await readFile(join(output, 'result.json'), 'utf8'));
 assert.equal(result.passed, true);
-console.log(JSON.stringify({ ...result, screenshot: join(output, 'walking-corridor.png') }, null, 2));
+console.log(JSON.stringify({ ...result,
+  walkingScreenshot: join(output, 'walking-corridor.png'),
+  wadingScreenshot: join(output, 'wading-shallow-channel.png'),
+}, null, 2));
