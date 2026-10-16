@@ -1,0 +1,35 @@
+# SOURCE PREPARATION ONLY. Not installed in .github/workflows.
+# Exact-source publication and execution need separate authorization.
+# Create the dedicated branch at 7451d71 first, then push the reviewed diagnostic
+# commit once. Both pushes trigger existing Verify world checks. No PR is needed.
+name: Hosted prerequisite metadata only
+on:
+  push:
+    branches: ['diagnostic/hosted-display-prerequisites']
+permissions:
+  contents: read
+concurrency:
+  group: aincrad-hosted-prerequisite-metadata
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.repository == 'kumori-i/aincrad' && github.ref == 'refs/heads/diagnostic/hosted-display-prerequisites' && github.run_attempt == 1 && github.event.before == '7451d71fc78505da38229e2c1e3ff8d139aed809' && github.event.after == github.sha && github.event.created == false && github.event.deleted == false && github.event.forced == false && github.event.repository.full_name == 'kumori-i/aincrad' && github.event.repository.private == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - name: Check out the reviewed triggering commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Run deterministic metadata boundary tests
+        run: node --test prototype/hosted-prerequisites/diagnose.test.mjs
+      - name: Read bounded prerequisite metadata
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: >-
+          node prototype/hosted-prerequisites/diagnose.mjs
+          --diagnose
+          --expected-script=edae1719305dfabb162620436aa44efb23eea1a1d3269439af263e7cacb09830
+          --expected-commit="$EXPECTED_COMMIT"
