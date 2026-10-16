@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 1,
+  "kind": "reusable-outcome-prediction-increment-a-checkpoint",
+  "sourceCommit": "6bbc6cc",
+  "scientificImplementationCommit": "5f70479",
+  "scope": {
+    "scriptedOnly": true,
+    "independentEarnedMaterialExamples": 1,
+    "sensitivityQueries": 16,
+    "autonomy": false,
+    "mainPromotion": false,
+    "remainingGates": "not-run"
+  },
+  "originalResource": {
+    "status": "failed",
+    "reportSha256": "1750246f089497c235f4beb0fc4b9c193fe3db28aba3b43bb2942dc315e5cffd",
+    "runtimeSource": "371350b4145da83296b0b672a1e5420b0f92202efa4b05c2c72bf8c5408ceb88",
+    "cases": [
+      {
+        "name": "cold",
+        "samples": 240,
+        "addedDecisionMs": {
+          "p50": 0.8355430000000297,
+          "p95": 1.8450980000000072,
+          "p99": 4.437836000000061,
+          "max": 5.020670000000109
+        },
+        "encodedActorBytes": 8931
+      },
+      {
+        "name": "full-cap-known",
+        "samples": 240,
+        "addedDecisionMs": {
+          "p50": 54.79018199998973,
+          "p95": 77.0730629999889,
+          "p99": 129.98588400000153,
+          "max": 169.0519170000116
+        },
+        "encodedActorBytes": 728683
+      }
+    ],
+    "unrun": [
+      "full-cap-unknown"
+    ],
+    "p95LimitMs": 50,
+    "sourceUnchanged": true
+  },
+  "scriptedDiagnostic": {
+    "protocol": "scripted-prediction-use-v1",
+    "status": "passed",
+    "resourceCensored": false,
+    "continuingAllowed": false,
+    "source": "57a0c7aec8a2889636f332f1cd93de89fd8a95bc6794e6ed23c09c5fa67acad1",
+    "evaluatorSha256": "9e153715457406e40b9883154e562dcd60e1b7e69d52c73c4ec117dc7f42be74",
+    "proof": {
+      "channel": "F",
+      "materialId": "object:855",
+      "ingestionId": "ingestion:1",
+      "actionId": 4,
+      "swallowedAt": 11.616666666666823,
+      "feedbackAt": 57.09999999999804,
+      "sourceSeq": 2,
+      "receiptSeq": 3,
+      "sensorEvent": {
+        "sourceSeq": 2,
+        "at": 57.09999999999804,
+        "ingestionId": "ingestion:1",
+        "objectId": "object:855",
+        "actionId": 4,
+        "channels": 1,
+        "rewardOwned": true
+      },
+      "channelProof": {
+        "sourceSeq": 2,
+        "at": 57.09999999999804
+      },
+      "ingestion": {
+        "id": "ingestion:1",
+        "objectId": "object:855",
+        "actionId": 4,
+        "seq": 3,
+        "at": 11.616666666666823,
+        "channels": 1,
+        "channelProof": {
+          "0": {
+            "sourceSeq": 2,
+            "at": 57.09999999999804
+          }
+        },
+        "creditBlocked": false
+      }
+    },
+    "sampleDurationSeconds": 3.500000000000174,
+    "frozenAt": 22.949999999999978,
+    "snapshotAt": 57.799999999998,
+    "physicalMass": [
+      {
+        "phase": "before-sample",
+        "at": 4.999999999999988,
+        "objectId": "object:855",
+        "exists": true,
+        "massGrams": 180,
+        "heldBy": "aster",
+        "held": true
+      },
+      {
+        "phase": "after-sample",
+        "at": 11.616666666666823,
+        "objectId": "object:855",
+        "exists": true,
+        "massGrams": 150,
+        "heldBy": "aster",
+        "held": true
+      },
+      {
+        "phase": "post-feedback",
+        "at": 57.799999999998,
+        "objectId": "object:855",
+        "exists": true,
+        "massGrams": 150,
+        "heldBy": "aster",
+        "held": true
+      }
+    ],
+    "gate": {
+      "status": "passed",
+      "passed": true,
+      "failures": [],
+      "unavailable": [],
+      "independentEarnedExamples": 1,
+      "sensitivityQueries": 16,
+      "forecastIncreases": [
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246,
+        0.8929944543782246
+      ],
+      "utilityMargins": [
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743,
+        0.4457471283345743
+      ]
+    },
+    "firstQuery": {
+      "beforeFood": 0,
+      "afterFood": 0.8929944543782246,
+      "frozenBeforeFood": 0,
+      "frozenAfterFood": 0,
+      "beforeSelected": {
+        "type": "inspect_object",
+        "targetId": "object:855"
+      },
+      "afterSelected": {
+        "type": "sample",
+        "targetId": "object:855"
+      },
+      "frozenSelectedBefore": {
+        "type": "inspect_object",
+        "targetId": "object:855"
+      },
+      "frozenSelectedAfter": {
+        "type": "inspect_object",
+        "targetId": "object:855"
+      },
+      "beforeSampleUtility": -0.0017640431108521203,
+      "afterSampleUtility": 0.4447331840782601,
+      "beforeComparisonUtility": -0.0010139442563141987,
+      "afterComparisonUtility": -0.0010139442563141987
+    },
+    "resources": {
+      "sampledPeakActorBytes": 53178,
+      "maxReturnedDecisionMs": 22.248484000000644,
+      "returnedWorkSegments": {
+        "maxMs": 50.50014999999985,
+        "from": "prediction-after",
+        "to": "prediction-before",
+        "checked": 7079
+      },
+      "timingScope": "Conservative whole returned work segments plus producer construction+forecast; callback persistence excluded from segments but included in total wall",
+      "violations": []
+    },
+    "wallSeconds": 6.367763545999999,
+    "stop": {
+      "path": "stop.json",
+      "bytes": 1075703,
+      "sha256": "0974652719a0fa5d963bbaab214eed4883553d4f2511bc82c42dcb9ae554afa5",
+      "at": 57.799999999998,
+      "active": null,
+      "pending": null,
+      "terminal": false
+    },
+    "supervisor": {
+      "status": "finished",
+      "outcome": {
+        "code": 0,
+        "signal": null
+      },
+      "trigger": null,
+      "retries": 0
+    },
+    "allOriginal131FilesUnchanged": true,
+    "sourcesAfterMatch": true,
+    "executionSourcesAfterMatch": true
+  },
+  "checks": {
+    "fullSuitePassed": 682,
+    "fullSuiteFailed": 0,
+    "finalProtocolChecksPassed": 24,
+    "workerFocusedChecksPassed": 28,
+    "buildPassed": true,
+    "nativeSmokeAndReopenPassed": true,
+    "nativeScope": "Frozen production renderer and save workflow; scripted research model is not activated in gameplay"
+  },
+  "limits": [
+    "Original saturated resource admission failed; unknown-cap case unrun",
+    "Scripted pull-inspect-sample-waits sequence was supplied by owner test, not learned",
+    "Sixteen invariant queries concern one physically earned example",
+    "Forecast0.893 is an engineered discounted channel forecast, not calibrated probability or proof of safety",
+    "No second sample was executed after query; no autonomous intake/survival improvement established",
+    "Later causal-state, old-meal, delayed-harm and forecast-quality gates not run",
+    "Sampled actor wire bytes exclude full world checkpoint and do not establish JS heap",
+    "No laptop/GPU/Ollama/interactive-readiness claim",
+    "World and biological state continue; stop terminal=false"
+  ],
+  "artifacts": [
+    {
+      "path": "build.log",
+      "bytes": 239,
+      "sha256": "1d2483d162ca72a3926a9c4b1dae43a77e0479e8a65362ed1f99ba9b5845ad77"
+    },
+    {
+      "path": "check-reusable-optimization-parity.mjs",
+      "bytes": 2421,
+      "sha256": "b95b18131451dd0e2eb6656fc6065e7aa8d9ebcfdaefcf3f253e325d21b211a0"
+    },
+    {
+      "path": "desktop-smoke.json",
+      "bytes": 1780,
+      "sha256": "9b610565c5a1d66a454d2c2fafbd6141ee7f889227750cae055a8a94ef3eac82"
+    },
+    {
+      "path": "desktop-smoke.png",
+      "bytes": 42204,
+      "sha256": "07b2351346e5de0613f1a78f3ff7355b14032e918839d74442f7f1c14d75ef2c"
+    },
+    {
+      "path": "full-check.log",
+      "bytes": 69295,
+      "sha256": "2850831e87559aff06be6c527469bf6dc6294a4eb882b02c7d1ba39fb2efc2c6"
+    },
+    {
+      "path": "native-reopen.json",
+      "bytes": 1017,
+      "sha256": "0269e7c1fb6b7467cb19c8490f0448230f35a94db14d5a9d0298f0acd196f376"
+    },
+    {
+      "path": "native-reopen.log",
+      "bytes": 15361,
+      "sha256": "f35a336753aa552a4c0500eb52a8da9b935810f3420af44c5105db762bf9e33a"
+    },
+    {
+      "path": "native-smoke.log",
+      "bytes": 7875,
+      "sha256": "e0434f8093a135d8831a2c4af0aef188955a3c4e3893525a925e432ba7bc0433"
+    },
+    {
+      "path": "optimization-parity.log",
+      "bytes": 162,
+      "sha256": "f11f1f90c15d82a476a59209da7a48ec362a3b323cd940127842d2b8f5c2b8bf"
+    },
+    {
+      "path": "resource-admission.json",
+      "bytes": 601023,
+      "sha256": "1750246f089497c235f4beb0fc4b9c193fe3db28aba3b43bb2942dc315e5cffd"
+    },
+    {
+      "path": "resource-admission.log",
+      "bytes": 915,
+      "sha256": "763debaab8d4df6e709432f0122e0c6aa674339d577c9b3a0f73d49ba999b49a"
+    },
+    {
+      "path": "reusable-model-preoptimization.mjs",
+      "bytes": 35345,
+      "sha256": "c50f61b9cc1e679c6e91159c9054f118613db47563211b6b7eac68bd6f2290d6"
+    },
+    {
+      "path": "reusable-prediction-preflight-diagnostic-20261016T0209Z.json",
+      "bytes": 1305,
+      "sha256": "d521519fb818b3b57eaee4d68f3fab2ae599f942cd67f93c27592f703bbdc516"
+    },
+    {
+      "path": "scripted-build.log",
+      "bytes": 239,
+      "sha256": "1d2483d162ca72a3926a9c4b1dae43a77e0479e8a65362ed1f99ba9b5845ad77"
+    },
+    {
+      "path": "scripted-diagnostic/report.json",
+      "bytes": 75884953,
+      "sha256": "614b3581f164942c9ca3db7e6bbaa98dc2227154aa73cd82b9b5ef69fe5c8fd4"
+    },
+    {
+      "path": "scripted-diagnostic/stop.json",
+      "bytes": 1075703,
+      "sha256": "0974652719a0fa5d963bbaab214eed4883553d4f2511bc82c42dcb9ae554afa5"
+    },
+    {
+      "path": "scripted-diagnostic/trace.jsonl",
+      "bytes": 55134,
+      "sha256": "befd7efcab5ad857b9b285008df98eb4d6cec39c56c47c4ff28eef71320b800e"
+    },
+    {
+      "path": "scripted-diagnostic.log",
+      "bytes": 1337,
+      "sha256": "23367e118813e976d1ec936d0357cfe67cea6ea738871323ce4472c5af55374b"
+    },
+    {
+      "path": "scripted-diagnostic.supervisor.json",
+      "bytes": 11390,
+      "sha256": "3994773f45225a8e62249e26736d70818d09cd40d67f06791aa2beb9a3c9d14d"
+    },
+    {
+      "path": "scripted-evaluator-tests.log",
+      "bytes": 880,
+      "sha256": "52d0134f0f705b27c108bf5ade4108e8516494d604abb2c9b5ba0848d327d797"
+    },
+    {
+      "path": "scripted-full-check.log",
+      "bytes": 71138,
+      "sha256": "029d39fffdc69e9f1b8fb395ba088e0e175100f0f3b3c19797fcf0f200885876"
+    },
+    {
+      "path": "scripted-preflight.json",
+      "bytes": 23758,
+      "sha256": "5e8bd901ccd60f9331ce1b5ca4fe48d6355daf8f9fbbc278377377408cd0e948"
+    },
+    {
+      "path": "scripted-protocol-tests.log",
+      "bytes": 2465,
+      "sha256": "645a6d7051e9063b96afb2a63708111eb7b9e29c0adeb331eca0b051559789f6"
+    },
+    {
+      "path": "scripted-review.json",
+      "bytes": 1132,
+      "sha256": "eee3db5ccdb0012e80e219556aa9af6baf92da6f22c498daaf43abf53e1c105f"
+    },
+    {
+      "path": "scripted-source-freeze.json",
+      "bytes": 19348,
+      "sha256": "ad356cff6f376e8e4b529a7654edc6495c5044e207c560dbed9b402e5ad08768"
+    },
+    {
+      "path": "scripted-worker-tests.log",
+      "bytes": 2833,
+      "sha256": "98766038548c6b99057fd00cc421c10d89183f3886663d3096ccae9ac3ec5dab"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 19034,
+      "sha256": "dcbb532f7f344ff643a5437f067ef1f71bae44e218db066d4d5a018fe8401c26"
+    }
+  ],
+  "export": {
+    "file": "aincrad-reusable-prediction-evidence.zip",
+    "bytes": 8526049,
+    "sha256": "4e73350e3be140e8087711b8747419e0899fbe723130014a55978612bfbbd798"
+  }
+}

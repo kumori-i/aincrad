@@ -171,3 +171,10 @@ Read [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), [roadmap](doc
 Motivation draws conceptual inspiration from [AgentCiv's Maslow Machines](https://github.com/agentciv/agentciv/blob/main/paper/maslow_machines.md), knowledge artifacts from [TerraLingua](https://github.com/cognizant-ai-lab/terralingua), and embodied motivation from [MicroPsi](https://github.com/joschabach/micropsi2). The implementation is original; their source and results are not included or assumed to transfer.
 
 Human construction, reproduction, professions, larger societies, multiplayer and sound remain later work. A project license has not been selected; dependencies retain their own licenses.
+
+### Reusable outcome prediction research
+
+The research branch includes a factorized, observation-only outcome predictor and
+scripted native fixtures. Its saturated resource gate failed; a separately bounded
+one-material prediction-use diagnostic passed its first gate. It is not enabled in
+gameplay. See [the scoped results and remaining limits](docs/reusable-prediction/TESTING.md).
