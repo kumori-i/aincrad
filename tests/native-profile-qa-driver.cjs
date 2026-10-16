@@ -34,6 +34,12 @@ function ordinaryRealpath(location, platform) {
   if (/^\\\\\?\\[a-z]:\\/i.test(location)) return location.slice(4);
   return location;
 }
+function canonicalQaPath(location, platform, resolve = realpathSync) {
+  // Test profile routing uses realpathSync for the trusted temp root. Keep
+  // its spelling through the QA parent and file checks on Windows, where the
+  // asynchronous implementation can expand an 8.3 component differently.
+  return ordinaryRealpath(resolve(location), platform);
+}
 function samePath(pathApi, first, second) {
   return pathApi.relative(first, second) === '';
 }
@@ -113,6 +119,7 @@ async function resolveQaFile(location, scratch, operation, options = {}) {
   const platform = options.platform || process.platform;
   const pathApi = platform === 'win32' ? path.win32 : path.posix;
   const fileSystem = options.fileSystem || fs;
+  const canonical = value => canonicalQaPath(value, platform, options.syncRealpath || realpathSync);
   const temporary = pathApi.resolve(options.tempDirectory || os.tmpdir());
   if (typeof location !== 'string' || !pathApi.isAbsolute(location))
     throw qaPathError(operation, 'relative', 'lexical');
@@ -135,7 +142,7 @@ async function resolveQaFile(location, scratch, operation, options = {}) {
        /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(basename)))
     throw qaPathError(operation, 'special-name', 'lexical');
   let physicalTemp;
-  try { physicalTemp = ordinaryRealpath(await fileSystem.realpath(temporary), platform); }
+  try { physicalTemp = canonical(temporary); }
   catch { throw qaPathError(operation, 'trusted-temp', 'root'); }
   const relative = lexicalTemp ? pathApi.relative(temporary, candidate) :
     pathApi.relative(trustedScratch, candidate);
@@ -150,11 +157,11 @@ async function resolveQaFile(location, scratch, operation, options = {}) {
       // Only the fixed OS temp root is read for this diagnostic. Failures here
       // cannot change the existing path rejection or reveal raw filesystem errors.
       try {
-        let syncTemp = null;
-        try { syncTemp = ordinaryRealpath(
-          (options.syncRealpath || realpathSync)(temporary), platform); } catch {}
+        let asyncTemp = null;
+        try { asyncTemp = ordinaryRealpath(await fileSystem.realpath(temporary), platform); } catch {}
         const line = JSON.stringify(windowsQaParentDiagnostic({ candidate, temporary,
-          syncTemp, physicalTemp, scratch: trustedScratch, rebasedParent: parent,
+          syncTemp: physicalTemp, physicalTemp: asyncTemp, scratch: trustedScratch,
+          rebasedParent: parent,
           routeTempRoot: options.routeTempRoot }, options.diagnosticKey || randomBytes(32)));
         (options.diagnosticSink || console.error)(`Native QA scratch diagnostic: ${line}`);
       } catch {}
@@ -173,9 +180,10 @@ async function resolveQaFile(location, scratch, operation, options = {}) {
       if ((await fileSystem.lstat(cursor)).isSymbolicLink())
         throw qaPathError(operation, 'symlink-parent', 'physical');
     }
-    const physicalParent = ordinaryRealpath(await fileSystem.realpath(parent), platform);
-    const physicalScratch = ordinaryRealpath(await fileSystem.realpath(scratch), platform);
-    if (pathApi.normalize(physicalParent) !== pathApi.normalize(physicalScratch))
+    const physicalParent = canonical(parent);
+    const physicalScratch = canonical(scratch);
+    if (pathApi.normalize(pathApi.dirname(physicalParent)) !== pathApi.normalize(physicalTemp) ||
+        pathApi.normalize(physicalParent) !== pathApi.normalize(physicalScratch))
       throw qaPathError(operation, 'parent-mismatch', 'physical');
   } catch (error) {
     if (error?.qaPathRejection) throw error;
@@ -189,12 +197,22 @@ async function readFixedFile(location, root, limit, operation = 'input') {
     throw qaPathError(operation, 'parent-mismatch', 'read');
   let handle;
   try {
+    // The scratch parent can change after resolveQaFile. Recheck it before
+    // opening a child, and again after reading, against the same canonical
+    // temp spelling used by profile routing and resolveQaFile.
+    const expectedRoot = path.join(canonicalQaPath(os.tmpdir(), process.platform),
+      path.basename(root));
+    const rootBefore = await fs.lstat(root);
+    if (!rootBefore.isDirectory() || rootBefore.isSymbolicLink() ||
+        path.normalize(canonicalQaPath(root, process.platform)) !== path.normalize(expectedRoot))
+      throw qaPathError(operation, 'changed-or-alias', 'read');
     const entry = await fs.lstat(location);
     if (!entry.isFile() || entry.isSymbolicLink() || entry.size < 1 || entry.size > limit)
       throw qaPathError(operation, 'unbounded-or-alias', 'read');
     handle = await fs.open(location, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     const original = await handle.stat();
-    if (!original.isFile() || original.size < 1 || original.size > limit)
+    if (!original.isFile() || original.size < 1 || original.size > limit ||
+        original.dev !== entry.dev || original.ino !== entry.ino)
       throw qaPathError(operation, 'unbounded-or-alias', 'read');
     const bytes = Buffer.alloc(original.size);
     let offset = 0;
@@ -205,12 +223,19 @@ async function readFixedFile(location, root, limit, operation = 'input') {
     }
     const extra = await handle.read(Buffer.alloc(1), 0, 1, bytes.length);
     const after = await handle.stat();
-    const physicalFile = ordinaryRealpath(await fs.realpath(location), process.platform);
-    const physicalParent = ordinaryRealpath(await fs.realpath(path.dirname(location)), process.platform);
+    const physicalFile = canonicalQaPath(location, process.platform);
+    const physicalParent = canonicalQaPath(path.dirname(location), process.platform);
+    const current = await fs.stat(location);
+    const rootAfter = await fs.lstat(root);
     const expectedFile = path.join(physicalParent, path.basename(location));
     const exactParent = path.normalize(path.dirname(physicalFile)) === path.normalize(physicalParent);
     if (offset !== bytes.length || extra.bytesRead !== 0 || after.size !== original.size ||
-        !after.isFile() || !exactParent ||
+        !after.isFile() || !current.isFile() || !rootAfter.isDirectory() ||
+        rootAfter.isSymbolicLink() || rootAfter.dev !== rootBefore.dev ||
+        rootAfter.ino !== rootBefore.ino ||
+        after.dev !== original.dev || after.ino !== original.ino ||
+        current.dev !== original.dev || current.ino !== original.ino || !exactParent ||
+        path.normalize(physicalParent) !== path.normalize(expectedRoot) ||
         path.normalize(physicalFile) !== path.normalize(expectedFile))
       throw qaPathError(operation, 'changed-or-alias', 'read');
     return bytes;

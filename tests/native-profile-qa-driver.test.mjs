@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path, { join } from 'node:path';
 
@@ -85,6 +86,12 @@ test('native QA Windows path normalization accepts ordinary spelling variants on
     },
   };
   const options = { platform: 'win32', tempDirectory: temp, fileSystem,
+    syncRealpath: target => {
+      calls.push(['syncRealpath', target]);
+      if (target === temp) return `\\\\?\\${temp}`;
+      if (win.relative(scratch, target) === '') return `\\\\?\\${scratch}`;
+      throw new Error(`private fs error: ${target}`);
+    },
     diagnosticSink: line => diagnostics.push(line) };
   for (const operation of ['config', 'output', 'rawFile', 'backupFile', 'screenshotFile', 'progressFile']) {
     const candidate = `c:/users/RUNNER/appdata/local/temp/aincrad-qa/${operation}.json`;
@@ -96,7 +103,48 @@ test('native QA Windows path normalization accepts ordinary spelling variants on
   assert.deepEqual(diagnostics, [], 'ordinary case and separator variants need no diagnostic');
 });
 
-test('native QA Windows mismatch diagnostic distinguishes temp-root drift and short-name spelling', async () => {
+test('native QA Windows short-name temp alias retains the routed scratch identity', async () => {
+  const win = path.win32;
+  const temp = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp';
+  const expandedTemp = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp';
+  const scratch = win.join(temp, 'aincrad-recovered-native-ABC123');
+  const candidate = win.join(scratch, 'config-1.json');
+  const calls = [];
+  const lines = [];
+  const options = { platform: 'win32', tempDirectory: temp,
+    routeTempRoot: temp, diagnosticSink: line => lines.push(line),
+    syncRealpath: target => {
+      calls.push(['syncRealpath', target]);
+      if (target === temp || target === scratch) return target;
+      throw new Error(`private fs error: ${target}`);
+    },
+    fileSystem: {
+      async realpath(target) {
+        calls.push(['asyncRealpath', target]);
+        if (target === temp) return expandedTemp;
+        if (target === scratch) return win.join(expandedTemp, win.basename(scratch));
+        throw new Error(`private fs error: ${target}`);
+      },
+      async lstat(target) {
+        calls.push(['lstat', target]);
+        if (target === scratch) return { isSymbolicLink: () => false };
+        throw new Error(`private fs error: ${target}`);
+      },
+    },
+  };
+  assert.equal(await options.fileSystem.realpath(temp), expandedTemp,
+    'the injected async path expands the short component as on CI');
+  calls.length = 0;
+  assert.equal(await resolveQaFile(candidate, scratch, 'config', options), candidate);
+  assert.deepEqual(lines, []);
+  assert.deepEqual(calls.map(([operation]) => operation),
+    ['syncRealpath', 'lstat', 'syncRealpath', 'syncRealpath']);
+  await assert.rejects(resolveQaFile(win.join(temp, 'other', win.basename(scratch),
+    'config-1.json'), scratch, 'config', options),
+  /class=parent-mismatch; stage=lexical/);
+});
+
+test('native QA Windows mismatch diagnostic records only an allowlisted true parent mismatch', async () => {
   const win = path.win32;
   const temp = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp';
   const scratch = win.join(temp, 'aincrad-recovered-native-ABC123');
@@ -106,39 +154,25 @@ test('native QA Windows mismatch diagnostic distinguishes temp-root drift and sh
   const diagnosticSink = line => lines.push(line);
   const common = { platform: 'win32', tempDirectory: temp, diagnosticKey,
     diagnosticSink, syncRealpath: () => temp };
-  const shortTemp = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp';
-  await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
-    ...common, routeTempRoot: temp,
-    fileSystem: { realpath: async () => shortTemp },
-  }), /class=parent-mismatch; stage=lexical/);
-  assert.equal(lines.length, 1);
-  assert.match(lines[0], /^Native QA scratch diagnostic: \{/);
-  assert.ok(lines[0].length < 6000, 'one diagnostic fits in the bounded child stderr capture');
-  const first = JSON.parse(lines[0].slice('Native QA scratch diagnostic: '.length));
-  assert.equal(first.event, 'native-qa-scratch-parent');
-  assert.equal(first.relations.routeToDriverTemp.exact, true);
-  assert.equal(first.relations.hostHintToDriverTemp.exact, true);
-  assert.equal(first.relations.suppliedToExpectedScratch.exact, true);
-  assert.equal(first.relations.syncToAsyncTemp.foldedEqual, false);
-  assert.equal(first.relations.rebasedToExpectedScratch.foldedEqual, false);
-  assert.ok(first.paths.asyncTemp.components.some(component => component[4] === 1),
-    '8.3-style component has a marker without printing its name');
-  for (const secret of [temp, scratch, candidate, 'C:', 'runneradmin', 'RUNNER~1', 'config-1.json'])
-    assert.ok(!lines[0].includes(secret), 'diagnostic contains no raw path component');
-
-  lines.length = 0;
   const oldTemp = 'C:\\OldTemp';
   const oldScratch = win.join(oldTemp, 'aincrad-recovered-native-ABC123');
   await assert.rejects(resolveQaFile(candidate, oldScratch, 'config', {
     ...common, routeTempRoot: oldTemp,
     fileSystem: { realpath: async () => temp },
   }), /class=parent-mismatch; stage=lexical/);
-  const second = JSON.parse(lines[0].slice('Native QA scratch diagnostic: '.length));
-  assert.equal(second.relations.routeToDriverTemp.foldedEqual, false);
-  assert.equal(second.relations.hostHintToDriverTemp.exact, true);
-  assert.equal(second.relations.syncToAsyncTemp.exact, true);
-  assert.equal(second.relations.rebasedToExpectedScratch.foldedEqual, false);
-  assert.ok(!lines[0].includes(oldTemp));
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^Native QA scratch diagnostic: \{/);
+  assert.ok(lines[0].length < 6000, 'one diagnostic fits in the bounded child stderr capture');
+  const first = JSON.parse(lines[0].slice('Native QA scratch diagnostic: '.length));
+  assert.equal(first.event, 'native-qa-scratch-parent');
+  assert.equal(first.relations.routeToDriverTemp.exact, false);
+  assert.equal(first.relations.hostHintToDriverTemp.exact, true);
+  assert.equal(first.relations.suppliedToExpectedScratch.exact, false);
+  assert.equal(first.relations.syncToAsyncTemp.foldedEqual, true);
+  assert.equal(first.relations.rebasedToExpectedScratch.foldedEqual, false);
+  for (const secret of [temp, oldScratch, candidate, 'C:', 'runneradmin', 'config-1.json'])
+    assert.ok(!lines[0].includes(secret), 'diagnostic contains no raw path component');
+
   lines.length = 0;
   await assert.rejects(resolveQaFile(candidate, oldScratch, 'output', {
     ...common, routeTempRoot: oldTemp,
@@ -170,6 +204,12 @@ test('native QA Windows path rejections give finite classes without exposing pat
     },
   };
   const options = { platform: 'win32', tempDirectory: temp, fileSystem };
+  options.syncRealpath = target => {
+    calls.push(['syncRealpath', target]);
+    if (target === temp) return temp;
+    if (win.relative(scratch, target) === '') return scratch;
+    throw new Error(`private fs error: ${target}`);
+  };
   const rejected = [
     [win.join(scratch, 'nested', 'file.json'), 'parent-mismatch'],
     [win.join(temp, 'sibling', 'file.json'), 'parent-mismatch'],
@@ -199,21 +239,26 @@ test('native QA Windows physical parent identity and symlinks remain enforced', 
   const scratch = win.join(temp, 'Aincrad-QA');
   const candidate = 'c:/users/runner/appdata/local/temp/aincrad-qa/config.json';
   const options = { platform: 'win32', tempDirectory: temp };
-  const realpath = async target => {
+  const syncRealpath = target => {
     if (target === temp) return temp;
     if (target === scratch) return scratch;
     if (win.relative(scratch, target) === '') return win.join(temp, 'other-scratch');
     throw new Error(`private fs error: ${target}`);
   };
   await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
-    ...options, fileSystem: { realpath, lstat: async () => ({ isSymbolicLink: () => false }) },
+    ...options, syncRealpath,
+    fileSystem: { lstat: async () => ({ isSymbolicLink: () => false }) },
   }), /class=parent-mismatch; stage=physical/);
   await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
-    ...options, fileSystem: {
-      realpath: async target => target === temp ? temp : scratch,
-      lstat: async () => ({ isSymbolicLink: () => true }),
-    },
+    ...options, syncRealpath,
+    fileSystem: { lstat: async () => ({ isSymbolicLink: () => true }) },
   }), /class=symlink-parent; stage=physical/);
+  await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
+    ...options,
+    // Model a reparse escape even if lstat does not report a symbolic link.
+    syncRealpath: target => target === temp ? temp : win.join('C:\\private', 'Aincrad-QA'),
+    fileSystem: { lstat: async () => ({ isSymbolicLink: () => false }) },
+  }), /class=parent-mismatch; stage=physical/);
 });
 
 test('native QA rebases a trusted POSIX temp-root alias before checking scratch', async () => {
@@ -232,9 +277,11 @@ test('native QA rebases a trusted POSIX temp-root alias before checking scratch'
     },
   };
   assert.equal(await resolveQaFile(`${temporary}/aincrad-qa/config.json`, scratch, 'config',
-    { platform: 'darwin', tempDirectory: temporary, fileSystem }), `${scratch}/config.json`);
+    { platform: 'darwin', tempDirectory: temporary, fileSystem,
+      syncRealpath: target => target === temporary ? physicalTemp : scratch }), `${scratch}/config.json`);
   assert.equal(await resolveQaFile(`${scratch}/config.json`, scratch, 'config',
-    { platform: 'darwin', tempDirectory: temporary, fileSystem }), `${scratch}/config.json`);
+    { platform: 'darwin', tempDirectory: temporary, fileSystem,
+      syncRealpath: target => target === temporary ? physicalTemp : scratch }), `${scratch}/config.json`);
 });
 
 test('native QA bounded file read rejects symlinks and oversized files without raw paths', async () => {
@@ -256,6 +303,49 @@ test('native QA bounded file read rejects symlinks and oversized files without r
     assert.equal((await readFixedFile(join(scratch, 'valid.json'), scratch, 2, 'rawFile')).toString(), '{}');
   } finally {
     await rm(scratch, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test('native QA rejects a path replaced after opening even when the replacement has the same size', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'aincrad-qa-identity-'));
+  const location = join(scratch, 'config.json');
+  const originalOpen = promises.open;
+  try {
+    await writeFile(location, '{}');
+    promises.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (args[0] === location) {
+        await rename(location, join(scratch, 'previous.json'));
+        await writeFile(location, '{}');
+      }
+      return handle;
+    };
+    await assert.rejects(readFixedFile(location, scratch, 2, 'config'),
+      /class=changed-or-alias; stage=read/);
+  } finally {
+    promises.open = originalOpen;
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('native QA rejects a scratch parent replaced after path resolution', async () => {
+  const scratch = realpathSync(await mkdtemp(join(tmpdir(), 'aincrad-qa-swap-')));
+  const outside = realpathSync(await mkdtemp(join(tmpdir(), 'aincrad-qa-outside-')));
+  const previous = `${scratch}-previous`;
+  const file = join(scratch, 'config.json');
+  try {
+    await writeFile(file, '{}');
+    await writeFile(join(outside, 'config.json'), '[]');
+    assert.equal(await resolveQaFile(file, scratch, 'config'), file);
+    await rename(scratch, previous);
+    await symlink(outside, scratch, 'dir');
+    await assert.rejects(readFixedFile(file, scratch, 2, 'config'),
+      /class=changed-or-alias; stage=read/);
+    assert.equal(await readFile(join(outside, 'config.json'), 'utf8'), '[]');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+    await rm(previous, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
   }
 });
