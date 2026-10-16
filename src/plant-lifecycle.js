@@ -56,3 +56,21 @@ export function juvenileLoss(current, {days, moisture} = {}) {
   const lost = Object.fromEntries(Object.keys(zero()).map(key => [key, current[key] * (terminal ? 1 : f)]));
   return {lost, remaining: Object.fromEntries(Object.keys(lost).map(key => [key, current[key] - lost[key]])), terminal};
 }
+
+/** Simplified physical strike, not a biomechanical model: ten grams per unit
+ * finite nonnegative power, capped at four. Never invent stock or a soil refund.
+ * A positive loss that crosses the existing terminal threshold transfers the
+ * exact remaining stock, including auxiliary water, without a fractional tail.
+ */
+export function juvenileStrikeLoss(current, {power = 1} = {}) {
+  if (!stock(current) || !valid(power)) return null;
+  const mass = Math.min(current.massGrams, 10 * Math.min(power, 4));
+  const terminal = mass > 0 && current.massGrams - mass < JUVENILE_RULES.terminalMassGrams;
+  const f = current.massGrams > 0 ? mass / current.massGrams : 0;
+  const lost = terminal ? {...current} : {massGrams: mass,
+    energyKcal: current.energyKcal * f, waterMl: current.waterMl * f};
+  // The plan only contains the three structural stocks, even if callers supply
+  // a richer object; it never carries arbitrary fields into physical accounting.
+  return {lost: Object.fromEntries(Object.keys(zero()).map(key => [key, lost[key]])),
+    remaining: Object.fromEntries(Object.keys(zero()).map(key => [key, current[key] - lost[key]])), terminal};
+}

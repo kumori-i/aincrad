@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "scope": "finite juvenile strike interactions; deterministic tests only",
+  "baseCommit": "1f20f401f720b61069dcea06d10cc4e885e0b1f6",
+  "behaviorContractSha256": "11b9966151c5458707fd8eaa2c3198ff21a7b45926481fa44684732f92a91a80",
+  "preImplementationContractSha256": "75e1d5f1ab02e2756d279fed8d6eb28a36b03eab8178ad59b7e70328c3af0168",
+  "buildFingerprint": "ff4539ef8b61075785d1831239c6cf30d104a562c3991f07be8b1a9f05b68fe1",
+  "node": "v24.19.0",
+  "checks": {
+    "ordinaryTests": {
+      "passed": 433,
+      "failed": 0
+    },
+    "build": "passed",
+    "independentFocusedTests": {
+      "passed": 60,
+      "failed": 0
+    },
+    "sourceHashesUnchangedAfterChecks": true
+  },
+  "runtimeFiles": [
+    "src/plant-lifecycle.js",
+    "src/ecology.js",
+    "src/discovery-actions.js"
+  ],
+  "savedSchemaChange": false,
+  "rendererChange": false,
+  "nativeLaunches": 0,
+  "examples": [
+    {
+      "name": "fresh-terminal-seedling",
+      "before": {
+        "id": "object:855",
+        "massGrams": 2,
+        "energyKcal": 1.0555555555555556,
+        "waterMl": 1.7,
+        "stage": "seedling"
+      },
+      "after": null,
+      "changes": {
+        "litterMassGrams": 2,
+        "litterKcal": 1.0555555555555556,
+        "localMassGrams": 2,
+        "localKcal": 1.0555555555555556,
+        "localSoil": 0,
+        "releasedWaterMl": 1.7,
+        "deadJuveniles": 1,
+        "ecologyKcal": 0
+      },
+      "workSeconds": 3.9999999999999907,
+      "save": {
+        "accepted": true,
+        "reopenedExactEcology": true,
+        "bytes": 35028,
+        "sha256": "f22959b3da5e8920ddd0878a284caa385da894db66a10a64a9ca952e865f2a14"
+      },
+      "intervention": {
+        "copiedFiniteSource": true,
+        "seed": 74193,
+        "retainedEstablishedPlants": 1,
+        "retainedAnimals": 0,
+        "clockSetSeconds": 14400,
+        "sourceAgeSetHours": 96,
+        "sourceAction": "pull then release",
+        "openingFruitQuantity": 6,
+        "hourOverride": 12,
+        "weatherOverride": "rainy",
+        "recruitmentStepSeconds": 0.5,
+        "growthDays": 0,
+        "growthStepSeconds": 3600,
+        "structuralStocksManuallyAssigned": false
+      }
+    },
+    {
+      "name": "grown-surviving-juvenile",
+      "before": {
+        "id": "object:855",
+        "massGrams": 50.63751662303633,
+        "energyKcal": 25.374313867073838,
+        "waterMl": 35.746261636120984,
+        "stage": "juvenile"
+      },
+      "after": {
+        "id": "object:855",
+        "massGrams": 40.63751662303633,
+        "energyKcal": 20.363342642720706,
+        "waterMl": 28.68701702461508,
+        "stage": "juvenile"
+      },
+      "changes": {
+        "litterMassGrams": 10,
+        "litterKcal": 5.010971224353131,
+        "localMassGrams": 10,
+        "localKcal": 5.010971224353131,
+        "localSoil": 0,
+        "releasedWaterMl": 7.059244611505903,
+        "deadJuveniles": 0,
+        "ecologyKcal": -1.1368683772161603e-13
+      },
+      "workSeconds": 3.9999999999999907,
+      "save": {
+        "accepted": true,
+        "reopenedExactEcology": true,
+        "bytes": 37841,
+        "sha256": "2456da6124e4f5947354a35b14a2127b9e882935dbebfef8a1ffa601687c384a"
+      },
+      "intervention": {
+        "copiedFiniteSource": true,
+        "seed": 74193,
+        "retainedEstablishedPlants": 1,
+        "retainedAnimals": 0,
+        "clockSetSeconds": 14400,
+        "sourceAgeSetHours": 96,
+        "sourceAction": "pull then release",
+        "openingFruitQuantity": 6,
+        "hourOverride": 12,
+        "weatherOverride": "rainy",
+        "recruitmentStepSeconds": 0.5,
+        "growthDays": 8,
+        "growthStepSeconds": 3600,
+        "structuralStocksManuallyAssigned": false
+      }
+    }
+  ],
+  "limitations": [
+    "Simplified 10 g per unit power rule, capped at power 4; terminal remainder below 0.1 g also exits.",
+    "Copied finite fixtures with explicit population/clock/age/weather setup and actual soil-funded growth; no autonomous ecological result.",
+    "Action/body unit tests use a fixed environment snapshot; no natural eight-day survival claim.",
+    "Private same-reference settlement is not a transport request nonce; a new identical request is a new paid action.",
+    "In-memory writeSave/loadSave is tested; native appearance, two-process disk persistence and responsiveness remain unqualified.",
+    "No old-client future-behavior parity claim; existing v8 physical fields preserve damaged stock."
+  ],
+  "sources": [
+    {
+      "path": "src/discovery-actions.js",
+      "bytes": 6791,
+      "sha256": "13b1d3a8e59cf78e832b4c59d6904f95a98da21182c04bbd4cd041c535e668ac"
+    },
+    {
+      "path": "src/ecology.js",
+      "bytes": 61683,
+      "sha256": "e91f393593fcff863f0fd4068bbc253e6b2682899c7f597df6af06d037109496"
+    },
+    {
+      "path": "src/plant-lifecycle.js",
+      "bytes": 4567,
+      "sha256": "982c5aaf79dc7b9443cbeee506064dceb3384cede16eae1bab3cd997436f63b3"
+    },
+    {
+      "path": "tests/plant-lifecycle.test.mjs",
+      "bytes": 7883,
+      "sha256": "85e15d7e890d97e00efc5f134ef45630e210642d37de070cb24ecec780644560"
+    },
+    {
+      "path": "tests/juvenile-action-lifecycle.test.mjs",
+      "bytes": 11561,
+      "sha256": "a31dae156a506bb6cb45465f59677b5610fc93da8fff2b3a7cb82dabf404438d"
+    },
+    {
+      "path": "tests/juvenile-strike-accounting.test.mjs",
+      "bytes": 19329,
+      "sha256": "4493f9b604030962963109eed987cb55c26802e7c9f6a36eb104877e635bb9a4"
+    },
+    {
+      "path": "tests/fixtures/juvenile-interactions.mjs",
+      "bytes": 3574,
+      "sha256": "e992653abd81aecd2341c93ca201ae6983e8f477becfab7e69bfd20fbb01bca9"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "test-results/juvenile-strikes/frozen-source.json",
+      "bytes": 1292,
+      "sha256": "c5bceea51e979266fe6cbac674302d0b383990f40fbeebc6a73109c669605a4a"
+    },
+    {
+      "path": "test-results/juvenile-strikes/source-check-after.json",
+      "bytes": 1201,
+      "sha256": "673ee7b3a127a8e633d6081dac9c93cc590675207e7a960da920dc6c2434d0d9"
+    },
+    {
+      "path": "test-results/juvenile-strikes/action-tests.log",
+      "bytes": 1209,
+      "sha256": "8d46c6ce60a20808084157d99a56be9d85d64a96d7eeb7300402e646f4dbc921"
+    },
+    {
+      "path": "test-results/juvenile-strikes/check.log",
+      "bytes": 44991,
+      "sha256": "af50fef0e6e921ccf74a813c5efc28b9e23b96811a5be046974e1b0464436062"
+    },
+    {
+      "path": "test-results/juvenile-strikes/build.log",
+      "bytes": 250,
+      "sha256": "3f0d8ca9043e1db2fb428b7c50c4d52cce22a934a07c15d994ca058d46479b0f"
+    },
+    {
+      "path": "test-results/juvenile-strikes/capture-example.mjs",
+      "bytes": 3364,
+      "sha256": "818cb868f68bf04eb337f2623cad4c909b33d1aecf17102e2fb535706d5d0de0"
+    },
+    {
+      "path": "test-results/juvenile-strikes/physical-examples.json",
+      "bytes": 6542,
+      "sha256": "60b2eacd857caa8d09ab0522e43f13b78c848802b2ae3cb35a3a2ba924ce585e"
+    },
+    {
+      "path": "test-results/juvenile-strikes/examples.log",
+      "bytes": 1658,
+      "sha256": "3bcbd959714eb1218e923dac8dd18ce10e06febcf4e3e21f57d40e1a81a5dffc"
+    }
+  ]
+}
