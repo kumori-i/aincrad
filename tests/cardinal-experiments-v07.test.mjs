@@ -10,7 +10,7 @@ import {measureCardinalWorld,compareCardinalMetrics,createCardinalMetricTracker,
 
 const proposal=(to=2.5)=>({id:'growth:fixture',parameter:'plantGrowthMultiplier',from:1,to,reason:'Test whether depleted grass production improves without unaccounted resources.',context:'controlled grass fixture',at:0});
 function fixture({humans=false}={}) {
-  const state=freshState();
+  const state=freshState({connectedEcology:false});
   if(!humans){state.agents=[];state.npc=null;}
   const ecology=state.environment.ecology,grass=ecology.plants.find(plant=>plant.kind==='grass');
   grass.biomassGrams=1200;grass.moisture=.9;ecology.plants=[grass];ecology.animals=[];ecology.materials=[];ecology.detritus.nutrients=10000;
@@ -116,7 +116,7 @@ test('paired resource measurements retain actual soil moisture and grass capacit
 });
 
 test('fertility control permits fewer real births but rejects additional animal mortality',()=>{
-  const state=freshState();state.agents=[];state.npc=null;
+  const state=freshState({connectedEcology:false});state.agents=[];state.npc=null;
   const ecology=state.environment.ecology;ecology.animals=ecology.animals.filter(animal=>animal.species==='rabbit').slice(0,2);ecology.plants=ecology.plants.filter(plant=>plant.kind==='grass').slice(0,8);ecology.materials=[];
   ecology.plants.forEach((plant,index)=>{plant.position={x:240+(index%4)*30,y:470+Math.floor(index/4)*40};});
   ecology.animals.forEach((animal,index)=>{animal.position={x:276+index*40,y:470};animal.homePosition={...animal.position};animal.physiology.availableEnergyKcal=70;animal.physiology.storedEnergyKcal=600;animal.physiology.hoursSinceMeal=0;animal.energy=100;animal.lastBirthHours=-1000;});

@@ -27,9 +27,10 @@ export class Renderer {
   conditions(state,scene=this.viewScene(state)){return environmentConditions(state.environment,{position:this.viewSubject(state),scene,wetness:this.followNpc?(this.selectedAgent(state)?.thermal?.wetness||0):0});}
   notes(state,scene){return (state.community?.notes||[]).filter(note=>(note.scene||'valley')===scene&&Number.isFinite(note.position?.x)&&Number.isFinite(note.position?.y));}
   ecosystem(state,scene){return state.simulationMode==='discovery'?renderEcology(state.environment?.ecology,scene):[];}
-  chunk(cx,cy){
-    const key=`${cx},${cy}`;if(this.chunks.has(key)){const c=this.chunks.get(key);this.chunks.delete(key);this.chunks.set(key,c);return c;}
-    const c=makeGroundChunk(cx,cy,CONFIG.chunkSize);this.chunks.set(key,c);if(this.chunks.size>CONFIG.maxCachedChunks)this.chunks.delete(this.chunks.keys().next().value);return c;
+  ecologyModel(state){return state.environment?.ecology?.ecosystemModelVersion===1?1:0;}
+  chunk(cx,cy,model=0){
+    const key=`${model}:${cx},${cy}`;if(this.chunks.has(key)){const c=this.chunks.get(key);this.chunks.delete(key);this.chunks.set(key,c);return c;}
+    const c=makeGroundChunk(cx,cy,CONFIG.chunkSize,model);this.chunks.set(key,c);if(this.chunks.size>CONFIG.maxCachedChunks)this.chunks.delete(this.chunks.keys().next().value);return c;
   }
   screenPoint(x,y){
     const camera=this.drawCamera||this.camera,scale=(this.pixelScale||3)/this.dpr;
@@ -54,8 +55,8 @@ export class Renderer {
     this.ctx.setTransform(1,0,0,1,0,0);this.ctx.imageSmoothingEnabled=false;this.ctx.drawImage(this.pixels,0,0,w*this.pixelScale,h*this.pixelScale);
   }
   drawValley(g,state,anim,v){
-    const size=CONFIG.chunkSize,time=state.environment?.elapsed??state.elapsed;
-    for(let cy=Math.floor(v.y/size);cy<=Math.floor((v.y+v.h)/size);cy++)for(let cx=Math.floor(v.x/size);cx<=Math.floor((v.x+v.w)/size);cx++)g.drawImage(this.chunk(cx,cy),cx*size,cy*size,size,size);
+    const size=CONFIG.chunkSize,time=state.environment?.elapsed??state.elapsed,model=this.ecologyModel(state);
+    for(let cy=Math.floor(v.y/size);cy<=Math.floor((v.y+v.h)/size);cy++)for(let cx=Math.floor(v.x/size);cx<=Math.floor((v.x+v.w)/size);cx++)g.drawImage(this.chunk(cx,cy,model),cx*size,cy*size,size,size);
     // Two discrete ripple frames keep the river alive without moving its collision boundary.
     const waterFrame=Math.floor(time*2)%4;
     for(let cy=Math.floor(v.y/62);cy<=Math.floor((v.y+v.h)/62);cy++)for(let cx=Math.floor(v.x/72);cx<=Math.floor((v.x+v.w)/72);cx++){
@@ -148,13 +149,13 @@ export class Renderer {
     const gradient=g.createRadialGradient(p.x,p.y,40,p.x,p.y,200);gradient.addColorStop(0,'#29251b00');gradient.addColorStop(.6,'#24292518');gradient.addColorStop(1,'#17262d80');g.fillStyle=gradient;g.fillRect(0,0,this.pixels.width,this.pixels.height);
   }
   drawMini(target,state,now) {
-    const follow=this.followNpc&&!!this.selectedAgent(state),subject=this.viewSubject(state),scene=this.viewScene(state);
-    if(this.lastMiniScene===scene&&this.lastMiniFollow===follow&&this.lastMiniFollowId===this.followId&&now-this.lastMini<.7)return;this.lastMini=now;this.lastMiniScene=scene;this.lastMiniFollow=follow;this.lastMiniFollowId=this.followId;
+    const follow=this.followNpc&&!!this.selectedAgent(state),subject=this.viewSubject(state),scene=this.viewScene(state),model=this.ecologyModel(state);
+    if(this.lastMiniScene===scene&&this.lastMiniFollow===follow&&this.lastMiniFollowId===this.followId&&this.lastMiniModel===model&&now-this.lastMini<.7)return;this.lastMini=now;this.lastMiniScene=scene;this.lastMiniFollow=follow;this.lastMiniFollowId=this.followId;this.lastMiniModel=model;
     const g=target.getContext('2d'),w=target.width,h=target.height,scale=scene==='valley'?16:4;g.imageSmoothingEnabled=false;
     const sw=70,small=canvas(sw,sw),sg=small.getContext('2d'),img=sg.createImageData(sw,sw);
     for(let y=0;y<sw;y++)for(let x=0;x<sw;x++){
       const wx=subject.x+(x/sw-.5)*w*scale,wy=subject.y+(y/sw-.5)*h*scale;
-      const col=scene==='valley'?groundColor(wx,wy):caveDistance(wx,wy)<0?[99,121,118]:[36,53,53];
+      const col=scene==='valley'?groundColor(wx,wy,false,model):caveDistance(wx,wy)<0?[99,121,118]:[36,53,53];
       const i=(y*sw+x)*4;img.data[i]=col[0];img.data[i+1]=col[1];img.data[i+2]=col[2];img.data[i+3]=255;
     }sg.putImageData(img,0,0);g.drawImage(small,0,0,w,h);
     g.fillStyle='#17382d33';g.fillRect(0,0,w,h);
@@ -180,19 +181,19 @@ export class Renderer {
   }
   atlasMarkerAt(x,y){return [...this.atlasMarkers].reverse().find(marker=>Math.hypot(marker.x-x,marker.y-y)<11||x>=marker.label.x&&x<=marker.label.x+marker.label.w&&y>=marker.label.y&&y<=marker.label.y+marker.label.h)?.id||null;}
   atlasPoint(x,y){return this.atlasView.toWorld(x,y);}
-  atlasTerrain(g,w,h){
+  atlasTerrain(g,w,h,model=0){
     const view=this.atlasView,b=view.bounds,scale=view.scale;
-    if(!this.mapCanvas){
+    if(!this.mapCanvas||this.mapModel!==model){
       this.mapCanvas=canvas(420,420);const m=this.mapCanvas.getContext('2d'),img=m.createImageData(420,420);
-      for(let y=0;y<420;y++)for(let x=0;x<420;x++){const col=groundColor((x/420-.5)*CONFIG.halfSize*2,(y/420-.5)*CONFIG.halfSize*2,true),i=(y*420+x)*4;img.data[i]=col[0];img.data[i+1]=col[1];img.data[i+2]=col[2];img.data[i+3]=255;}m.putImageData(img,0,0);
+      for(let y=0;y<420;y++)for(let x=0;x<420;x++){const col=groundColor((x/420-.5)*CONFIG.halfSize*2,(y/420-.5)*CONFIG.halfSize*2,true,model),i=(y*420+x)*4;img.data[i]=col[0];img.data[i+1]=col[1];img.data[i+2]=col[2];img.data[i+3]=255;}m.putImageData(img,0,0);this.mapModel=model;
     }
     const corner=view.toCanvas(b.x,b.y);g.drawImage(this.mapCanvas,corner.x,corner.y,b.width*scale,b.height*scale);
     if(view.zoom<=2)return;
     // Sample visible terrain at higher zoom; this is artwork, never a world-rule tick.
-    const quantum=32/scale,key=`${Math.round(view.center.x/quantum)},${Math.round(view.center.y/quantum)},${view.zoom},${w},${h}`;
+    const quantum=32/scale,key=`${model}:${Math.round(view.center.x/quantum)},${Math.round(view.center.y/quantum)},${view.zoom},${w},${h}`;
     if(this.atlasDetail?.key!==key){
       const pw=Math.min(500,Math.ceil(w*.6)),ph=Math.min(400,Math.ceil(h*.6)),image=canvas(pw,ph),ig=image.getContext('2d'),pixels=ig.createImageData(pw,ph),ww=w*1.25/scale,wh=h*1.25/scale,ox=view.center.x-ww/2,oy=view.center.y-wh/2;
-      for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const col=groundColor(ox+x/pw*ww,oy+y/ph*wh,true),i=(y*pw+x)*4;pixels.data[i]=col[0];pixels.data[i+1]=col[1];pixels.data[i+2]=col[2];pixels.data[i+3]=255;}ig.putImageData(pixels,0,0);this.atlasDetail={key,image,ox,oy,ww,wh};
+      for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const col=groundColor(ox+x/pw*ww,oy+y/ph*wh,true,model),i=(y*pw+x)*4;pixels.data[i]=col[0];pixels.data[i+1]=col[1];pixels.data[i+2]=col[2];pixels.data[i+3]=255;}ig.putImageData(pixels,0,0);this.atlasDetail={key,image,ox,oy,ww,wh};
     }
     const detail=this.atlasDetail,p=view.toCanvas(detail.ox,detail.oy);g.drawImage(detail.image,p.x,p.y,detail.ww*scale,detail.wh*scale);
   }
@@ -202,7 +203,7 @@ export class Renderer {
     if(this.atlasScene!==scene){this.atlasScene=scene;this.atlasView.setBounds(isValley?{x:-CONFIG.halfSize,y:-CONFIG.halfSize,width:CONFIG.halfSize*2,height:CONFIG.halfSize*2}:{x:0,y:0,width:2700,height:1900});}
     this.atlasView.resize(w,h);const view=this.atlasView,b=view.bounds,scale=view.scale,toMap=(x,y)=>view.toCanvas(x,y),corner=toMap(b.x,b.y),mx=corner.x,my=corner.y,worldW=b.width,worldH=b.height;
     g.fillStyle='#1a332d';g.fillRect(0,0,w,h);g.save();g.beginPath();g.rect(Math.max(0,mx),Math.max(0,my),Math.min(w,mx+worldW*scale)-Math.max(0,mx),Math.min(h,my+worldH*scale)-Math.max(0,my));g.clip();
-    if(isValley)this.atlasTerrain(g,w,h);
+    if(isValley)this.atlasTerrain(g,w,h,this.ecologyModel(state));
     else{if(!this.caveCanvas)this.buildCave();g.drawImage(this.caveCanvas,mx,my,worldW*scale,worldH*scale);for(const o of CAVE_OBJECTS){const p=toMap(o.x,o.y);ellipse(g,p.x,p.y,2,2,o.kind==='crystal'?(CAVES.find(c=>c.id===scene)?.tint??'#bdf'):'#bec5ad');}}
     g.fillStyle='#12362618';g.fillRect(mx,my,worldW*scale,worldH*scale);
     for(let i=0;i<=6;i++){line(g,[[mx+worldW*scale*i/6,my],[mx+worldW*scale*i/6,my+worldH*scale]],'#efedc416',1);line(g,[[mx,my+worldH*scale*i/6],[mx+worldW*scale,my+worldH*scale*i/6]],'#efedc416',1);}

@@ -159,7 +159,7 @@ test('depletion spends finite stock and clear weather does not instantly refill 
 });
 
 test('an existing depleted world keeps exact stock, body, notes and time through two disk reopenings',()=>{
-  const state=freshState(),e=state.environment.ecology,removed=POCKETS.map(entry=>pocket(e,entry));
+  const state=freshState({connectedEcology:false}),e=state.environment.ecology,removed=POCKETS.map(entry=>pocket(e,entry));
   e.plants=e.plants.filter(p=>!removed.includes(p));
   state.elapsed=state.environment.elapsed=e.elapsed=123.5;
   for(const agent of state.agents)agent.elapsed=123.5;

@@ -61,10 +61,10 @@ const RGB_PALETTES=Object.fromEntries(Object.entries(PALETTES).map(([key,colors]
 function paletteIndex(x,y){return Math.floor(clamp(noise(x,y,96,571)*4+noise(x,y,670,339)*2-1,0,4));}
 const landType=type=>type==='meadow'||type==='forest';
 const landPalette=(type,kind)=>RGB_PALETTES[`${type}_${kind}`]||RGB_PALETTES[type];
-function chunkHabitat(x,y,cache){
+function chunkHabitat(x,y,cache,model){
   // Chunk art samples 32-unit cells; physical terrain and collision still use exact coordinates.
   const gx=Math.floor(x/32),gy=Math.floor(y/32),key=`${gx},${gy}`;
-  if(!cache.has(key))cache.set(key,habitatConditions({x:(gx+.5)*32,y:(gy+.5)*32}));
+  if(!cache.has(key))cache.set(key,habitatConditions({x:(gx+.5)*32,y:(gy+.5)*32},model));
   return cache.get(key);
 }
 function atlasMark(x,y,kind){
@@ -82,19 +82,19 @@ function atlasMark(x,y,kind){
   if(kind==='woodland'&&(dx/34)**2+(dy/18)**2<1)return '#2d5933';
   return null;
 }
-export function groundColor(x,y,map=false){
-  const type=terrain(x,y),site=landType(type)?habitatConditions({x,y}):null;
+export function groundColor(x,y,map=false,model=0){
+  const type=terrain(x,y),site=landType(type)?habitatConditions({x,y},model):null;
   const colors=site?landPalette(type,site.kind):RGB_PALETTES[type],shade=paletteIndex(x,y);
   if(map&&type==='mountain'&&Math.sin(ridgeValue(x,y)*34+noise(x,y,850,993)*5)>.72)return RGB_PALETTES.mountain[3];
   if(map&&site){const mark=atlasMark(x,y,site.kind);if(mark)return rgb(mark);}
   return colors[shade];
 }
-export function makeGroundChunk(cx,cy,size){
+export function makeGroundChunk(cx,cy,size,model=0){
   const out=canvas(size/ART_PIXEL,size/ART_PIXEL),g=out.getContext('2d'),s=out.width,image=g.createImageData(s,s),originX=cx*size,originY=cy*size,sites=new Map();
   // Sample the physical terrain at four world units; a small stepped edge follows the same collision boundary.
   for(let py=0;py<s;py+=2)for(let px=0;px<s;px+=2){
     const x=originX+px*ART_PIXEL+2,y=originY+py*ART_PIXEL+2,type=terrain(x,y),d=waterDistance(x,y);
-    const site=landType(type)?chunkHabitat(x,y,sites):null;
+    const site=landType(type)?chunkHabitat(x,y,sites,model):null;
     let color=(site?landPalette(type,site.kind):RGB_PALETTES[type])[paletteIndex(x,y)];
     if(type==='shore'&&d<8)color=rgb('#a48954');
     else if(type==='shallows'&&d>-9)color=rgb('#c2dbba');
@@ -115,7 +115,7 @@ export function makeGroundChunk(cx,cy,size){
       // Keep their few pixels inside the sampled terrain class at boundaries.
       if(terrain(wx-24,wy-14)!==type||terrain(wx+24,wy-14)!==type||
         terrain(wx-24,wy+12)!==type||terrain(wx+24,wy+12)!==type)continue;
-      const kind=chunkHabitat(wx,wy,sites).kind;
+      const kind=chunkHabitat(wx,wy,sites,model).kind;
       if(kind==='dry_meadow'){
         rect(g,x-3,y+1,4,1,'#bdb77b');
         if(h>.34){rect(g,x-1,y-2,1,3,'#777d45');rect(g,x+2,y-1,1,2,'#d2c487');}
@@ -339,19 +339,20 @@ export function drawFauna(g,animal,time){
 }
 /** Ecology sprites reflect persisted visual state. Drawing never advances a body or resource. */
 export function drawEcologyObject(g,object,time,subject=null){
-  const kind=object.kind,quantity=Math.max(0,Math.floor(object.quantity||0)),stage=object.stage||'growing';
+  const kind=object.kind,quantity=Math.max(0,Math.floor(object.quantity||0)),stage=object.stage||'growing',dry=Number.isFinite(object.moistureRatio)&&object.moistureRatio<.3;
   if(kind==='apple_tree'&&['seedling','juvenile'].includes(stage)){
     g.save();g.translate(snap(object.x),snap(object.y));g.scale(ART_PIXEL,ART_PIXEL);
     const ratio=Math.max(0,Math.min(1,object.structureRatio||0)),height=Math.round(9+ratio*25),young=stage==='seedling';
     pixelOval(g,0,1,young?5:10,2,'#243c2b44');rect(g,-1,-height,2,height,young?'#719047':'#8e6942');
-    pixelPoly(g,[[-1,-height+2],[-7,-height-1],[-7,-height+3],[-2,-height+5]],'#77a94c');
-    pixelPoly(g,[[0,-height+3],[7,-height-3],[8,-height+1],[2,-height+6]],'#9abd5d');
-    if(!young){pixelLine(g,[[0,-height*.45],[-7,-height*.65]],'#8e6942',1);pixelOval(g,-8,-height*.68,5,3,'#658f43');pixelOval(g,4,-height-3,4,3,'#aecb6f');}
+    pixelPoly(g,[[-1,-height+2],[-7,-height-1],[-7,-height+3],[-2,-height+5]],dry?'#a49b62':'#77a94c');
+    pixelPoly(g,[[0,-height+3],[7,-height-3],[8,-height+1],[2,-height+6]],dry?'#c4b87b':'#9abd5d');
+    if(!young){pixelLine(g,[[0,-height*.45],[-7,-height*.65]],'#8e6942',1);pixelOval(g,-8,-height*.68,5,3,dry?'#8b8156':'#658f43');pixelOval(g,4,-height-3,4,3,dry?'#c3b576':'#aecb6f');}
     g.restore();return;
   }
   if(kind==='apple_tree'&&stage!=='bare'){
     drawObject(g,{kind:'oak',x:object.x,y:object.y,variant:stage==='ripe'?4:1,scale:.82},subject);
     g.save();g.translate(snap(object.x),snap(object.y));g.scale(ART_PIXEL,ART_PIXEL);
+    if(dry)for(const [x,y] of [[-22,-47],[20,-52],[-7,-63],[11,-70]])pixelOval(g,x,y,7,3,'#a79d5c');
     const count=Math.min(24,quantity),flower=stage==='flowering';
     for(let i=0;i<(flower?14:count);i++){
       const x=-19+Math.floor(hash(i,0,618)*38),y=-47+Math.floor(hash(i,1,946)*22),color=flower?'#f3d9cc':stage==='ripe'?'#c36b43':'#8cad43';
@@ -367,10 +368,10 @@ export function drawEcologyObject(g,object,time,subject=null){
     rect(g,-4,-1,9,2,'#70553a');
   }else if(kind==='grass'){
     const mass=Math.max(0,Math.min(1,object.biomassRatio??0));pixelOval(g,0,1,17,4,'#3a603444');
-    for(let i=0;i<12;i++){const x=-16+i*3,y=Math.floor(hash(i,0,432)*5),height=Math.max(1,Math.floor(2+mass*(4+hash(i,1,983)*6)));rect(g,x,y-height,1,height,i%3?'#85af4b':'#bad270');if(mass>.3)rect(g,x-1,y-height+2,1,2,'#588637');}
+    for(let i=0;i<12;i++){const x=-16+i*3,y=Math.floor(hash(i,0,432)*5),height=Math.max(1,Math.floor(2+mass*(4+hash(i,1,983)*6)));rect(g,x,y-height,1,height,dry?(i%3?'#a69e58':'#d1c281'):(i%3?'#85af4b':'#bad270'));if(mass>.3)rect(g,x-1,y-height+2,1,2,dry?'#807b4b':'#588637');}
   }else if(kind==='bramble'){
     pixelOval(g,0,2,21,6,'#233c2c55');
-    for(const [x,y] of [[-12,-4],[12,-3],[0,-11]]){pixelOval(g,x,y,11,7,'#355738');pixelOval(g,x-2,y-2,8,5,stage==='bare'?'#707c43':'#638a3c');rect(g,x-6,y-5,5,1,'#94b450');}
+    for(const [x,y] of [[-12,-4],[12,-3],[0,-11]]){pixelOval(g,x,y,11,7,dry?'#666342':'#355738');pixelOval(g,x-2,y-2,8,5,dry?'#8e8955':stage==='bare'?'#707c43':'#638a3c');rect(g,x-6,y-5,5,1,dry?'#b3a970':'#94b450');}
     pixelLine(g,[[-18,0],[-9,-10],[0,-1],[9,-13],[18,0]],'#7b6440',1);
     for(let i=0;i<Math.min(12,quantity);i++){const x=-15+Math.floor(hash(i,0,769)*30),y=-13+Math.floor(hash(i,1,314)*11);rect(g,x,y,2,2,stage==='ripe'?'#7b4060':'#809246');rect(g,x,y,1,1,stage==='ripe'?'#be7292':'#adba66');}
   }else if(['rabbit','fox','bobcat'].includes(kind)){

@@ -252,7 +252,7 @@ test('fresh JSON write/reopen preserves empty knowledge, next decision/RNG and f
 });
 
 test('actual depleted ecology and outward next decision/RNG survive JSON disk reopen without refilling',()=>{
-  const state=freshState(),n=state.agents[0],e=state.environment;
+  const state=freshState({connectedEcology:false}),n=state.agents[0],e=state.environment;
   const {object}=remoteObjectFixture({n,e}),beforeQuantity=object.quantity;
   finish(n,e,{type:'pull',targetId:object.id});assert.equal(object.quantity,beforeQuantity-1);
   const materialId=n.inventory.items[0];assert.ok(lookupEcologyObject(e.ecology,materialId));

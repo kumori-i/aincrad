@@ -19,7 +19,7 @@ test('new worlds save one canonical supervisor and validated world rules without
 });
 
 test('old discovery worlds gain regional stocks without replacing materials, identities or evidence',()=>{
-  const raw=freshState();legacySave(raw,5);delete raw.cardinal;delete raw.environment.worldRules;raw.environment.schemaVersion=2;raw.environment.ecology.distributionVersion=1;
+  const raw=freshState({connectedEcology:false});legacySave(raw,5);delete raw.cardinal;delete raw.environment.worldRules;raw.environment.schemaVersion=2;raw.environment.ecology.distributionVersion=1;
   const ecology=raw.environment.ecology;
   ecology.plants=ecology.plants.filter(p=>Math.hypot(p.position.x-276,p.position.y-760)<5000);
   ecology.animals=ecology.animals.filter(a=>Math.hypot(a.position.x-276,a.position.y-760)<5000);

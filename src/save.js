@@ -14,6 +14,8 @@ const SAVE_VERSIONS = new Set([1,2,3,4,5,6,8]);
 const AGENT_IDS = ['aster','mira'];
 const PROOF_WARNING='Learned evidence in this expedition is incomplete or depends on an older feedback queue. The original save has been preserved. Export a raw backup from this recovery screen before considering recovery.';
 const MARKED_WARNING='A migrated expedition has incomplete physical or learned evidence. Its saved bytes have been preserved.';
+const CONNECTED_REGION_FIELDS=['soilWaterMl','soilWaterCapacityMl','initialWaterMl','rainMl','seepageMl',
+  'runoffInMl','runoffOutMl','evaporationMl','uptakeMl'];
 function canonicalNumberId(value,prefix){
   if(typeof value!=='string')return null;
   const match=value.match(new RegExp(`^${prefix}:([1-9]\\d*)$`));
@@ -54,17 +56,24 @@ export function saveProtectionReason(state){
 
 function unsupportedRules(raw){
   const ecology=raw.environment?.ecology;
+  const connectedFeature=Object.hasOwn(raw.features||{},'connectedEcology');
+  const connectedModel=ecology!=null&&Object.hasOwn(ecology,'ecosystemModelVersion');
+  if(!connectedModel&&Array.isArray(ecology?.regions)&&ecology.regions.some(region=>
+    region&&CONNECTED_REGION_FIELDS.some(field=>Object.hasOwn(region,field))))return true;
   // v7 contains a separate research learner. Even a mislabeled older envelope
   // must not silently drop its temporal payload on this stable-world branch.
   if([...(Array.isArray(raw.agents)?raw.agents:[]),raw.npc].filter(Boolean).some(n=>n.discovery&&Object.hasOwn(n.discovery,'temporal')))return true;
   if(raw.version===8){
     if(!raw.features||raw.features.plantLifecycle!==1||
-        Object.keys(raw.features).some(k=>k!=='plantLifecycle'&&k!=='legacyPendingPhysicalOnly')||
+        Object.keys(raw.features).some(k=>k!=='plantLifecycle'&&k!=='legacyPendingPhysicalOnly'&&k!=='connectedEcology')||
         (Object.hasOwn(raw.features,'legacyPendingPhysicalOnly')&&
-          (raw.features.legacyPendingPhysicalOnly!==1||raw.simulationMode!=='discovery')))return true;
+          (raw.features.legacyPendingPhysicalOnly!==1||raw.simulationMode!=='discovery'))||
+        (connectedFeature&&(raw.features.connectedEcology!==1||raw.simulationMode!=='discovery'))||
+        connectedFeature!==connectedModel||
+        (connectedModel&&ecology.ecosystemModelVersion!==1))return true;
     if(raw.simulationMode==='discovery'&&(ecology?.distributionVersion!==3||ecology?.regionalVersion!==1||lifecycleError(ecology)))return true;
     if(raw.simulationMode==='legacy'&&ecology)return true;
-  }else if(Object.hasOwn(raw,'features')||hasLifecyclePayload(ecology))return true;
+  }else if(Object.hasOwn(raw,'features')||hasLifecyclePayload(ecology)||connectedModel)return true;
   if(ecology?.distributionVersion===3&&(ecology.regionalVersion!==1||!Array.isArray(ecology.regions)||ecology.regions.length!==ECOLOGY_RULES.habitatGridSize**2))return true;
   if(ecology&&[['plants',ECOLOGY_RULES.maxPlants],['animals',ECOLOGY_RULES.maxAnimals],['materials',ECOLOGY_RULES.maxMaterials],['regions',ECOLOGY_RULES.habitatGridSize**2]].some(([key,max])=>Array.isArray(ecology[key])&&ecology[key].length>max))return true;
   if(raw?.version>=5&&!['legacy','discovery'].includes(raw.simulationMode))return true;
@@ -93,7 +102,10 @@ export function validateSave(raw, {restoring=true}={}) {
   const protection=saveProtectionReason(raw);
   const supported=raw&&typeof raw==='object'&&SAVE_VERSIONS.has(raw.version)&&!unsupportedRules(raw)&&!protection;
   const mode=supported&&(raw.version<5||raw.simulationMode!=='discovery')?'legacy':'discovery';
-  const base = freshState({mode,populateEcology:!supported});
+  // A fresh expedition opts into the connected model. Restore instead starts
+  // with an unmarked shell, so historical saves cannot inherit that marker.
+  const connectedEcology=supported&&raw.features?.connectedEcology===1;
+  const base = freshState({mode,populateEcology:!supported,connectedEcology});
   if (!supported) {
     // Direct validation is also a load boundary, never authorization to erase an
     // unsupported source through a later ordinary autosave.
@@ -115,7 +127,7 @@ export function validateSave(raw, {restoring=true}={}) {
   base.visitedCaves = [...new Set((Array.isArray(raw.visitedCaves) ? raw.visitedCaves : []).filter(v => ids.has(v)))];
   const wp = raw.waypoint;
   if (wp && Number.isFinite(wp.x) && Number.isFinite(wp.y) && Math.abs(wp.x) < CONFIG.halfSize && Math.abs(wp.y) < CONFIG.halfSize) base.waypoint = { x: wp.x, y: wp.y };
-  base.environment=validateEnvironment(raw.environment,{elapsed:base.elapsed,mode});
+  base.environment=validateEnvironment(raw.environment,{elapsed:base.elapsed,mode,connectedEcology});
   base.cardinal=validateCardinal(raw.cardinal??base.cardinal,{restoring});
   // Historical worlds retain their former simulation rules. Cardinal can
   // diagnose them, but automatic rule experiments require discovery physics.
@@ -165,7 +177,7 @@ export function loadSave(storage) {
     if(parsed.features?.legacyPendingPhysicalOnly===1&&markedContinuityError(parsed,state,{fromDisk:true}))
       return protectedFresh(MARKED_WARNING);
     return { state, exists: true, error: null, blocked:false };
-  } catch { return protectedFresh('The local save could not be read. Your previous data has not been overwritten.'); }
+  } catch { return protectedFresh('The local save could not be read or safely validated. Your previous data has not been overwritten.'); }
 }
 export function writeSave(storage, state) {
   if(saveProtectionReason(state)||!SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))return false;

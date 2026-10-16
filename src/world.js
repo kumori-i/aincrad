@@ -209,10 +209,11 @@ export function regionName(x, y, scene) {
   if (forestAmount(x, y) > .54) return 'The Oldwood';
   return y > 0 ? 'Sunfall Meadows' : 'The High Meadows';
 }
-export function freshState({mode='discovery',populateEcology=true}={}) {
+export function freshState({mode='discovery',populateEcology=true,connectedEcology=mode==='discovery'}={}) {
   const simulationMode=mode==='legacy'?'legacy':'discovery';
+  const connected=simulationMode==='discovery'&&connectedEcology===true;
   const agents = [createNpc({id:'aster',mode:simulationMode}), createNpc({id:'mira',mode:simulationMode})];
-  return { version: 8, features: {plantLifecycle:1}, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode,populate:populateEcology}), cardinal:createCardinal({mode:simulationMode==='discovery'?'adaptive':'observe'}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
+  return { version: 8, features: {plantLifecycle:1,...(connected?{connectedEcology:1}:{})}, simulationMode, environment: createEnvironment(CONFIG.seed,{mode:simulationMode,populate:populateEcology,connectedEcology:connected}), cardinal:createCardinal({mode:simulationMode==='discovery'?'adaptive':'observe'}), agents, npc: agents[0], community: createCommunity(), selectedAgentId:'aster', scene: 'valley', player: { ...SPAWN }, elapsed: 0, distance: 0, discoveries: ['trailhead'], visitedCaves: [], waypoint: null };
 }
 export function clockTime(elapsed) {
   const seconds = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);
