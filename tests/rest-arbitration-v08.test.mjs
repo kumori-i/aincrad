@@ -175,6 +175,44 @@ test('nearby learned source wins over an older remote source even when navigatio
   assert.deepEqual(discoveryDecision(f.n).action,{type:'pull',targetId:bramble.id});
 });
 
+test('ordinary hunger tries a second earned source when the first has no observed route',()=>{
+  const f=fixture(true),apple=f.plant;
+  assert.equal(act(f,{type:'release',targetId:f.id}).ok,true);
+  assert.equal(act(f,{type:'move',target:{x:515,y:1150}}).ok,true);observeNpc(f.n,f.e);
+  const bramble=f.e.ecology.plants.find(p=>p.id==='object:2');assert.ok(bramble);
+  assert.equal(act(f,{type:'pull',targetId:bramble.id}).ok,true);
+  const firstBerry=f.n.inventory.items[0];assert.equal(act(f,{type:'sample',targetId:firstBerry}).ok,true);
+  for(let i=0;i<24000&&!f.n.discovery.techniques.some(t=>t.sourceId===bramble.id);i++)tick(f);
+  assert.ok(f.n.discovery.techniques.some(t=>t.sourceId===bramble.id));
+  if(f.n.inventory.items.includes(firstBerry))assert.equal(act(f,{type:'release',targetId:firstBerry}).ok,true);
+  f.n.physiology.hoursSinceMeal=8;projectPhysiology(f.n);
+  // A real failed continuation gives the nearby source one failure. The remote
+  // earned source then ranks first, even though it has no observed route.
+  assert.deepEqual(discoveryDecision(f.n).action,{type:'pull',targetId:bramble.id});
+  assert.equal(act(f,{type:'pull',targetId:bramble.id}).ok,true);
+  const portion=f.n.inventory.items[0],next=discoveryDecision(f.n);
+  assert.deepEqual(next.action,{type:'sample',targetId:portion});
+  assert.equal(act(f,{type:'release',targetId:portion}).ok,true);
+  assert.equal(act(f,next.action).code,'NOT_HELD');
+  const learned=f.n.discovery.techniques.find(t=>t.sourceId===bramble.id);
+  assert.equal(learned.failures,1);
+  const raw=JSON.parse(JSON.stringify(f.n));raw.memory.cells={};f.n=validateNpc(raw);
+  assert.ok(distance(f.n.position,bramble.position)<=80);
+  assert.ok(distance(f.n.position,apple.position)>80);
+  const urgent=validateNpc(raw);urgent.physiology.hoursSinceMeal=17;projectPhysiology(urgent);
+  assert.deepEqual(discoveryDecision(urgent).action,{type:'pull',targetId:bramble.id},'urgent nearby learned care retains its existing priority');
+  const noAlternative=validateNpc(raw);delete noAlternative.discovery.observations[bramble.id];
+  const withoutSource=discoveryDecision(noAlternative);
+  assert.notEqual(withoutSource.need,'food','no observed viable alternative does not invent learned care');
+  assert.notDeepEqual(withoutSource.action,{type:'pull',targetId:apple.id},'an unobserved route cannot acquire remote food');
+  const failures=()=>f.n.discovery.techniques.find(t=>t.sourceId===bramble.id).failures;
+  const before={apple:apple.quantity,bramble:bramble.quantity,failures:failures()};
+  const chosen=discoveryDecision(f.n);
+  assert.deepEqual(chosen.action,{type:'pull',targetId:bramble.id});
+  assert.equal(chosen.need,'food');
+  assert.deepEqual({apple:apple.quantity,bramble:bramble.quantity,failures:failures()},before);
+});
+
 
 test('severe pain with depletion and no observed relief does not authorize costly novelty',()=>{
   const f=fixture();depleted(f);f.n.physiology.health=20;projectPhysiology(f.n);assert.equal(bodySignals(f.n).pain,'severe');refuse(f);
