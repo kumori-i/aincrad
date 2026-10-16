@@ -36,7 +36,9 @@ test('raw backup exports exact UTF-8 bytes and verifies them before restore',asy
   assert.equal(container.format,'aincrad.raw-save-backup.v1');
   assert.equal(container.sha256,digest(raw));
   assert(Buffer.from(container.rawUtf8Base64,'base64').equals(Buffer.from(raw,'utf8')));
-  assert.equal((await fs.stat(f.selected)).mode&0o777,0o600);
+  await t.test('backup file has owner-only Unix permission bits',{
+    skip:process.platform==='win32'?'Windows does not expose Unix 0600 permission bits for this backup.':false,
+  },async()=>assert.equal((await fs.stat(f.selected)).mode&0o777,0o600));
   const restored=await api.restoreRaw();
   assert.equal(restored.ok,true);assert.equal(restored.raw,raw);assert.equal(restored.sha256,digest(raw));
 });

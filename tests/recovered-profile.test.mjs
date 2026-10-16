@@ -8,10 +8,12 @@ import {runInNewContext} from 'node:vm';
 import profile from '../desktop/recovered-profile.cjs';
 
 const {COPY_FLAG,STAGE,RESERVATION,MANIFEST,assertCopyDirectory}=profile;
-// These tests exercise the supported copy flow on every CI host. The separate
-// Windows capability tests exercise refusal with platform:'win32'.
+// Windows capability tests exercise refusal with platform:'win32'. The six
+// filesystem copy cases below run only where that flow is supported.
 const resolveProfileRoute=inputs=>profile.resolveProfileRoute({...inputs,platform:'linux'});
 const createRecoveredProfileManager=inputs=>profile.createRecoveredProfileManager({...inputs,platform:'linux'});
+const supportedCopyOnly={skip:process.platform==='win32'&&
+  'Recovered-copy creation and opening are unavailable on Windows; this filesystem flow is tested on macOS/Linux.'};
 const raw=JSON.stringify({version:8,features:{plantLifecycle:1},world:'archived 🫧'});
 const hash=value=>createHash('sha256').update(Buffer.from(value,'utf8')).digest('hex');
 
@@ -31,13 +33,17 @@ test('fixed production route keeps default unchanged and test flags never route 
   const testOriginal=path.join(f.root,'test-original');
   const isolated=resolveProfileRoute({argv:['electron','app','--test',`--test-profile=${testOriginal}`],isPackaged:false,
     appDataPath:f.appData,defaultUserDataPath:f.original});
-  const canonicalTestOriginal=await fs.realpath(f.root).then(parent=>path.join(parent,'test-original'));
-  assert.equal(isolated.copyPath,canonicalTestOriginal+'-recovered-proof-v1');
+  // Windows may spell the same temp parent using an 8.3 alias or its long name.
+  // Check the parent's real identity and the exact sibling route relationship.
+  assert.equal(await fs.realpath(path.dirname(isolated.originalPath)),await fs.realpath(f.root));
+  assert.equal(path.basename(isolated.originalPath),'test-original');
+  assert.equal(isolated.copyPath,path.join(path.dirname(isolated.originalPath),'test-original-recovered-proof-v1'));
   assert(!isolated.copyPath.startsWith(f.appData+path.sep));
   const testCopy=path.join(f.root,'test-recovered');
   const selected=resolveProfileRoute({argv:['electron','app','--test',`--test-profile=${testOriginal}`,
     `--test-recovered-root=${testCopy}`,COPY_FLAG],isPackaged:false,appDataPath:f.appData,defaultUserDataPath:f.original});
-  assert.equal(selected.kind,'recovered');assert.equal(selected.userDataPath,path.join(path.dirname(canonicalTestOriginal),'test-recovered'));
+  assert.equal(selected.kind,'recovered');assert.equal(selected.originalPath,isolated.originalPath);
+  assert.equal(selected.userDataPath,path.join(path.dirname(isolated.originalPath),'test-recovered'));
   assert.equal(selected.sessionDataPath,selected.userDataPath);
   assert.throws(()=>resolveProfileRoute({argv:['electron','app','--test',`--test-profile=${f.original}`],isPackaged:false,
     appDataPath:f.appData,defaultUserDataPath:f.original}),/separate from product/);
@@ -63,7 +69,7 @@ test('fixed production route keeps default unchanged and test flags never route 
     appDataPath:f.appData,defaultUserDataPath:f.original}),/Smoke/);
 });
 
-test('verified source creates a pending copy once; same hash reopens and divergent backup cannot replace it',async t=>{
+test('verified source creates a pending copy once; same hash reopens and divergent backup cannot replace it',supportedCopyOnly,async t=>{
   const f=await roots(t),initial=await f.originalManager.status();
   assert.deepEqual({phase:initial.phase,available:initial.available},{phase:'none',available:false});
   const made=await f.originalManager.create(raw,hash(raw));
@@ -79,7 +85,7 @@ test('verified source creates a pending copy once; same hash reopens and diverge
   assert.equal(await fs.readFile(path.join(f.copy,STAGE),'utf8'),raw);
 });
 
-test('empty occupied slot is unknown; only a valid in-slot reservation permits same-source resume',async t=>{
+test('empty occupied slot is unknown; only a valid in-slot reservation permits same-source resume',supportedCopyOnly,async t=>{
   const f=await roots(t);
   await fs.mkdir(f.copy);
   await assert.rejects(f.originalManager.create(raw,hash(raw)),/incomplete or ambiguous/);
@@ -94,7 +100,7 @@ test('empty occupied slot is unknown; only a valid in-slot reservation permits s
   assert.equal(await fs.readFile(path.join(f.copy,STAGE),'utf8'),raw);
 });
 
-test('interrupted publication refuses an unidentified slot and resumes only a verified in-slot source',async t=>{
+test('interrupted publication refuses an unidentified slot and resumes only a verified in-slot source',supportedCopyOnly,async t=>{
   const f=await roots(t);
   const interruptedAtMkdir=createRecoveredProfileManager({kind:'original',originalPath:f.original,copyPath:f.copy,
     testPublicationFault:point=>{if(point==='after-slot-mkdir')throw new Error('test stop after slot mkdir');}});
@@ -114,7 +120,7 @@ test('interrupted publication refuses an unidentified slot and resumes only a ve
   assert.equal(await fs.readFile(path.join(second.copy,STAGE),'utf8'),raw);
 });
 
-test('temporary stage write failure never reserves the one recovered slot',async t=>{
+test('temporary stage write failure never reserves the one recovered slot',supportedCopyOnly,async t=>{
   const f=await roots(t),fileSystem=Object.create(fs);
   fileSystem.open=(location,...args)=>{
     if(path.basename(location)===STAGE&&args[0]==='wx')throw new Error('test stage write failure');
@@ -127,7 +133,7 @@ test('temporary stage write failure never reserves the one recovered slot',async
   assert.equal((await f.originalManager.create(raw,hash(raw))).phase,'pending');
 });
 
-test('corrupt stage, symlinked slot and symlinked stage fail closed without replacement',async t=>{
+test('corrupt stage, symlinked slot and symlinked stage fail closed without replacement',supportedCopyOnly,async t=>{
   const f=await roots(t);
   await f.originalManager.create(raw,hash(raw));
   await fs.writeFile(path.join(f.copy,STAGE),'forged');
@@ -145,7 +151,7 @@ test('corrupt stage, symlinked slot and symlinked stage fail closed without repl
   assert.equal((await f.originalManager.status()).phase,'invalid');
 });
 
-test('ready transition persists and copy reopens independently of original directory',async t=>{
+test('ready transition persists and copy reopens independently of original directory',supportedCopyOnly,async t=>{
   const f=await roots(t);await f.originalManager.create(raw,hash(raw));
   const copyManager=createRecoveredProfileManager({kind:'recovered',originalPath:f.original,copyPath:f.copy});
   await assert.rejects(copyManager.markReady(),/closed-process save attestation/);
