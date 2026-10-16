@@ -36,7 +36,7 @@ function serialized(state) {
 // A real digestive transfer paired with a genuine-shaped sample action but no
 // experiment. Only the explicit migration path may reinterpret this history.
 function orphanFixture() {
-  const state = freshState(), actor = state.agents[0], objectId = 'object:900001';
+  const state = freshState({connectedEcology:false}), actor = state.agents[0], objectId = 'object:900001';
   const actionId = actor.memory.nextId++;
   const result = ingestMaterial(actor,
     { massGrams: 30, energyKcal: 16, waterMl: 24, digestHours: 2 },
@@ -294,7 +294,7 @@ test('the exact-base older reader rejects the permanent migrated-world feature',
     extractSourceArchive(archive, scratch);
     writeFileSync(resolve(scratch, 'package.json'), '{"type":"module"}');
     const old = await import(pathToFileURL(resolve(scratch, 'src/save.js')).href);
-    const flagged = JSON.parse(serialized(freshState()));
+    const flagged = JSON.parse(serialized(freshState({connectedEcology:false})));
     flagged.features.legacyPendingPhysicalOnly = 1;
     const bytes = JSON.stringify(flagged), disk = storage(bytes);
     const refused = old.loadSave(disk);

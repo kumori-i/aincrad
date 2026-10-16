@@ -21,7 +21,7 @@ function fixture(){
 function start(f,helper=false){assert.equal((helper?requestDiscoveryAction:requestNpcAction)(f.n,f.request,f.env).code,'ACTION_STARTED');return f.n.active;}
 function finish(f){for(let i=0;f.n.active&&i<200;i++)tickNpc(f.n,.05,f.env);assert.equal(f.n.active,null);return f.n.lastResult;}
 function disk(){let text=null;return {getItem:()=>text,setItem:(_,value)=>{text=value;},get text(){return text;}};}
-function saveState(f){const s=freshState();s.environment=f.env;s.elapsed=Math.max(f.env.elapsed,f.n.elapsed);s.agents[0]=f.n;s.npc=f.n;return s;}
+function saveState(f){const s=freshState({connectedEcology:false});s.environment=f.env;s.elapsed=Math.max(f.env.elapsed,f.n.elapsed);s.agents[0]=f.n;s.npc=f.n;return s;}
 
 // The copied ecology grows before this fresh body joins. These tests isolate the
 // action/body clock against its fixed environment, as ordinary NPC unit fixtures do.

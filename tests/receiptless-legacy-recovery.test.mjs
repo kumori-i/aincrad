@@ -35,7 +35,7 @@ function protectedBytes(text, state = JSON.parse(text)) {
 }
 
 function synthetic(count, { feedback = false, energyKcal = 0, waterMl = 1 } = {}) {
-  const state = freshState(), actor = state.agents[0], rows = [];
+  const state = freshState({connectedEcology:false}), actor = state.agents[0], rows = [];
   for (let i = 0; i < count; i++) {
     const actionId = actor.memory.nextId++;
     const result = ingestMaterial(actor,

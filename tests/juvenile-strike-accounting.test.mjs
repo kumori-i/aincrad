@@ -28,7 +28,7 @@ function audit(e){
   return regional;
 }
 function asState(f){
-  const state=freshState({populateEcology:false});state.environment=f.env;state.elapsed=f.e.elapsed;
+  const state=freshState({populateEcology:false,connectedEcology:false});state.environment=f.env;state.elapsed=f.e.elapsed;
   const actor=state.agents[0];actor.position={...f.juvenile.position};actor.elapsed=f.e.elapsed;
   observeNpc(actor,f.env);return state;
 }

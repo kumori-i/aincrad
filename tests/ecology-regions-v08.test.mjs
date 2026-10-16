@@ -155,7 +155,7 @@ test('carcass energy stays finite and its decay fertilizes only the actual death
 });
 
 function migrationFixture(version,{empty=false}={}){
-  const state=freshState(),original=freshEcology(),fruit=original.plants.find(p=>p.kind==='apple_tree');
+  const state=freshState({connectedEcology:false}),original=freshEcology(),fruit=original.plants.find(p=>p.kind==='apple_tree');
   const grass=original.plants.find(p=>p.kind==='grass'),rabbit=original.animals.find(a=>a.species==='rabbit');
   state.environment.ecology=fixture({plants:[fruit,grass],animals:[rabbit]});
   const e=state.environment.ecology,[aster,mira]=state.agents;state.elapsed=state.environment.elapsed=e.elapsed=123.5;

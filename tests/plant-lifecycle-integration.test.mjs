@@ -25,7 +25,7 @@ function fixture(){
 function aged(f){f.e.elapsed=f.env.elapsed=CONFIG.dayRealSeconds*4;f.material.ageHours=96;return f;}
 function step(f,dt=.5){tickEnvironment(f.env,dt);tickEcology(f.e,dt,f.env,[]);}
 function balances(e){const a=ecologyLifecycleAudit(e);for(const k of ['massErrorGrams','energyErrorKcal','waterErrorMl'])near(a[k],0);near(e.ledger.initialKcal+e.ledger.photosynthesisKcal+e.ledger.externalKcal-ecologyEnergy(e)-e.ledger.humanRemovedKcal-e.ledger.metabolizedKcal-e.ledger.decomposedKcal-e.ledger.discardedKcal,0);assert.equal(lifecycleError(e),null);}
-function asState(f){const state=freshState();state.environment=f.env;state.elapsed=f.e.elapsed;return state;}
+function asState(f){const state=freshState({connectedEcology:false});state.environment=f.env;state.elapsed=f.e.elapsed;return state;}
 function legacy(raw){raw.version=6;delete raw.features;delete raw.environment.ecology.lifecycle;for(const p of raw.environment.ecology.plants)for(const k of PLANT_FIELDS)delete p[k];for(const m of raw.environment.ecology.materials)for(const k of MATERIAL_FIELDS)delete m[k];return raw;}
 
 test('a real finite apple detachment transfers two grams into one fruitless juvenile locally',()=>{
