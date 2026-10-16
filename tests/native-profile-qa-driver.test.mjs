@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import path, { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { runNativeProfileQa } = require('./native-profile-qa-driver.cjs');
+const { runNativeProfileQa, resolveQaFile, readFixedFile } = require('./native-profile-qa-driver.cjs');
 const promises = require('node:fs/promises');
 
 test('native QA rejects symlinked parents before any renderer or profile action', async () => {
@@ -63,4 +63,140 @@ test('native QA rejects symlinked parents before any renderer or profile action'
       promises.lstat = originalLstat;
     }
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('native QA Windows path normalization accepts ordinary spelling variants only', async () => {
+  const win = path.win32;
+  const temp = 'C:\\Users\\runner\\AppData\\Local\\Temp';
+  const scratch = win.join(temp, 'Aincrad-QA');
+  const calls = [];
+  const fileSystem = {
+    async realpath(target) {
+      calls.push(['realpath', target]);
+      if (target === temp) return `\\\\?\\${temp}`;
+      if (win.relative(scratch, target) === '') return `\\\\?\\${scratch}`;
+      throw new Error(`private fs error: ${target}`);
+    },
+    async lstat(target) {
+      calls.push(['lstat', target]);
+      if (win.relative(scratch, target) === '') return { isSymbolicLink: () => false };
+      throw new Error(`private fs error: ${target}`);
+    },
+  };
+  const options = { platform: 'win32', tempDirectory: temp, fileSystem };
+  for (const operation of ['config', 'output', 'rawFile', 'backupFile', 'screenshotFile', 'progressFile']) {
+    const candidate = `c:/users/RUNNER/appdata/local/temp/aincrad-qa/${operation}.json`;
+    assert.equal(await resolveQaFile(candidate, scratch, operation, options),
+      win.join(scratch, `${operation}.json`));
+  }
+  assert.ok(calls.some(([operation, target]) => operation === 'lstat' &&
+    win.relative(scratch, target) === ''));
+});
+
+test('native QA Windows path rejections give finite classes without exposing paths', async () => {
+  const win = path.win32;
+  const temp = 'C:\\Users\\runner\\AppData\\Local\\Temp';
+  const scratch = win.join(temp, 'Aincrad-QA');
+  const calls = [];
+  const fileSystem = {
+    async realpath(target) {
+      calls.push(['realpath', target]);
+      if (target === temp) return temp;
+      if (win.relative(scratch, target) === '') return scratch;
+      throw new Error(`private fs error: ${target}`);
+    },
+    async lstat(target) {
+      calls.push(['lstat', target]);
+      return { isSymbolicLink: () => false };
+    },
+  };
+  const options = { platform: 'win32', tempDirectory: temp, fileSystem };
+  const rejected = [
+    [win.join(scratch, 'nested', 'file.json'), 'parent-mismatch'],
+    [win.join(temp, 'sibling', 'file.json'), 'parent-mismatch'],
+    ['D:\\private\\file.json', 'other-drive'],
+    ['\\\\server\\share\\file.json', 'unc'],
+    ['\\\\?\\C:\\Users\\runner\\AppData\\Local\\Temp\\Aincrad-QA\\file.json', 'namespace'],
+    ['\\\\.\\C:\\Users\\runner\\AppData\\Local\\Temp\\Aincrad-QA\\file.json', 'namespace'],
+    [win.join(scratch, 'file.json:alternate'), 'special-name'],
+    [win.join(scratch, 'CON.txt'), 'special-name'],
+  ];
+  for (const [candidate, pathClass] of rejected) {
+    calls.length = 0;
+    await assert.rejects(resolveQaFile(candidate, scratch, 'config', options), error => {
+      assert.match(error.message, new RegExp(`Native QA config path rejected \\(class=${pathClass}; stage=`));
+      for (const secret of [candidate, temp, scratch, 'C:', 'D:', 'file.json', 'private fs error'])
+        assert.ok(!error.message.includes(secret), 'diagnostic omitted private spelling');
+      return true;
+    });
+    if (['other-drive', 'unc', 'namespace', 'special-name'].includes(pathClass))
+      assert.deepEqual(calls, [], 'unsafe lexical classes require no filesystem access');
+  }
+});
+
+test('native QA Windows physical parent identity and symlinks remain enforced', async () => {
+  const win = path.win32;
+  const temp = 'C:\\Users\\runner\\AppData\\Local\\Temp';
+  const scratch = win.join(temp, 'Aincrad-QA');
+  const candidate = 'c:/users/runner/appdata/local/temp/aincrad-qa/config.json';
+  const options = { platform: 'win32', tempDirectory: temp };
+  const realpath = async target => {
+    if (target === temp) return temp;
+    if (target === scratch) return scratch;
+    if (win.relative(scratch, target) === '') return win.join(temp, 'other-scratch');
+    throw new Error(`private fs error: ${target}`);
+  };
+  await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
+    ...options, fileSystem: { realpath, lstat: async () => ({ isSymbolicLink: () => false }) },
+  }), /class=parent-mismatch; stage=physical/);
+  await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
+    ...options, fileSystem: {
+      realpath: async target => target === temp ? temp : scratch,
+      lstat: async () => ({ isSymbolicLink: () => true }),
+    },
+  }), /class=symlink-parent; stage=physical/);
+});
+
+test('native QA rebases a trusted POSIX temp-root alias before checking scratch', async () => {
+  const temporary = '/var/folders/qa-temp';
+  const physicalTemp = '/private/var/folders/qa-temp';
+  const scratch = `${physicalTemp}/aincrad-qa`;
+  const fileSystem = {
+    async realpath(target) {
+      if (target === temporary) return physicalTemp;
+      if (target === scratch) return scratch;
+      throw new Error(`private fs error: ${target}`);
+    },
+    async lstat(target) {
+      assert.equal(target, scratch);
+      return { isSymbolicLink: () => false };
+    },
+  };
+  assert.equal(await resolveQaFile(`${temporary}/aincrad-qa/config.json`, scratch, 'config',
+    { platform: 'darwin', tempDirectory: temporary, fileSystem }), `${scratch}/config.json`);
+  assert.equal(await resolveQaFile(`${scratch}/config.json`, scratch, 'config',
+    { platform: 'darwin', tempDirectory: temporary, fileSystem }), `${scratch}/config.json`);
+});
+
+test('native QA bounded file read rejects symlinks and oversized files without raw paths', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'aincrad-qa-read-'));
+  const outside = await mkdtemp(join(tmpdir(), 'aincrad-qa-outside-'));
+  try {
+    await writeFile(join(outside, 'private.json'), '{}');
+    await symlink(join(outside, 'private.json'), join(scratch, 'link.json'));
+    await writeFile(join(scratch, 'large.json'), 'oversized');
+    for (const file of ['link.json', 'large.json']) {
+      await assert.rejects(readFixedFile(join(scratch, file), scratch, 2, 'rawFile'), error => {
+        assert.match(error.message, /Native QA rawFile path rejected \(class=unbounded-or-alias; stage=read\)/);
+        assert.ok(!error.message.includes(scratch));
+        assert.ok(!error.message.includes(outside));
+        return true;
+      });
+    }
+    await writeFile(join(scratch, 'valid.json'), '{}');
+    assert.equal((await readFixedFile(join(scratch, 'valid.json'), scratch, 2, 'rawFile')).toString(), '{}');
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
 });

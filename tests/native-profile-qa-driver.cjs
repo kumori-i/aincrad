@@ -13,34 +13,128 @@ const MAX_INPUT = 16 * 1024 * 1024;
 const MAX_BACKUP = 24 * 1024 * 1024;
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-function inside(directory, location) {
-  const suffix = path.relative(directory, location);
-  return suffix === '' || suffix !== '..' && !suffix.startsWith(`..${path.sep}`) &&
-    !path.isAbsolute(suffix);
+function inside(pathApi, directory, location) {
+  const suffix = pathApi.relative(directory, location);
+  return suffix === '' || suffix !== '..' && !suffix.startsWith(`..${pathApi.sep}`) &&
+    !pathApi.isAbsolute(suffix);
 }
-async function normalizeTempSpelling(location) {
-  const lexical = path.resolve(location);
-  const temp = path.resolve(os.tmpdir());
-  if (!inside(temp, lexical)) return lexical;
-  // Only the fixed OS temp root is resolved. Caller paths remain untouched
-  // until a lexical direct-child check has accepted them.
-  return path.join(await fs.realpath(temp), path.relative(temp, lexical));
+function qaPathError(operation, pathClass, stage) {
+  // These values are fixed call-site labels. Never include a path, basename,
+  // drive, or raw filesystem error in public CI diagnostics.
+  const error = new Error(`Native QA ${operation} path rejected (class=${pathClass}; stage=${stage}); ` +
+    'a direct disposable scratch file is required.');
+  error.qaPathRejection = true;
+  return error;
 }
-async function readFixedFile(location, root, limit) {
-  if (typeof location !== 'string' || !path.isAbsolute(location) ||
-      path.dirname(location) !== root) throw new Error('QA input is not a direct disposable scratch file.');
-  const entry = await fs.lstat(location);
-  if (!entry.isFile() || entry.isSymbolicLink() || entry.size < 1 || entry.size > limit)
-    throw new Error('QA input is not a bounded regular file.');
-  const handle = await fs.open(location, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+function ordinaryRealpath(location, platform) {
+  if (platform !== 'win32') return location;
+  // Trusted realpath implementations may return a Windows namespace spelling.
+  // Caller-supplied namespace paths are rejected below, before any metadata.
+  if (/^\\\\\?\\UNC\\/i.test(location)) return `\\\\${location.slice(8)}`;
+  if (/^\\\\\?\\[a-z]:\\/i.test(location)) return location.slice(4);
+  return location;
+}
+function samePath(pathApi, first, second) {
+  return pathApi.relative(first, second) === '';
+}
+function windowsPathClass(location) {
+  const backslashes = location.replaceAll('/', '\\');
+  if (/^\\\\[?.]\\/.test(backslashes)) return 'namespace';
+  if (backslashes.startsWith('\\\\')) return 'unc';
+  return null;
+}
+async function resolveQaFile(location, scratch, operation, options = {}) {
+  const platform = options.platform || process.platform;
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
+  const fileSystem = options.fileSystem || fs;
+  const temporary = pathApi.resolve(options.tempDirectory || os.tmpdir());
+  if (typeof location !== 'string' || !pathApi.isAbsolute(location))
+    throw qaPathError(operation, 'relative', 'lexical');
+  if (platform === 'win32') {
+    const special = windowsPathClass(location);
+    if (special) throw qaPathError(operation, special, 'lexical');
+  }
+  const candidate = pathApi.resolve(location);
+  const trustedScratch = ordinaryRealpath(pathApi.resolve(scratch), platform);
+  const lexicalTemp = inside(pathApi, temporary, candidate);
+  const lexicalScratch = inside(pathApi, trustedScratch, candidate);
+  if (!lexicalTemp && !lexicalScratch) {
+    const otherDrive = platform === 'win32' &&
+      !samePath(pathApi, pathApi.parse(temporary).root, pathApi.parse(candidate).root);
+    throw qaPathError(operation, otherDrive ? 'other-drive' : 'outside-temp', 'lexical');
+  }
+  const basename = pathApi.basename(candidate);
+  if (platform === 'win32' &&
+      (basename.includes(':') || /[. ]$/.test(basename) ||
+       /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(basename)))
+    throw qaPathError(operation, 'special-name', 'lexical');
+  let physicalTemp;
+  try { physicalTemp = ordinaryRealpath(await fileSystem.realpath(temporary), platform); }
+  catch { throw qaPathError(operation, 'trusted-temp', 'root'); }
+  const relative = lexicalTemp ? pathApi.relative(temporary, candidate) :
+    pathApi.relative(trustedScratch, candidate);
+  const rebased = lexicalTemp ? pathApi.join(physicalTemp, relative) :
+    pathApi.join(trustedScratch, relative);
+  const parent = pathApi.dirname(rebased);
+  if (!samePath(pathApi, parent, trustedScratch))
+    throw qaPathError(operation, 'parent-mismatch', 'lexical');
+  if (!inside(pathApi, physicalTemp, parent))
+    throw qaPathError(operation, 'outside-temp', 'physical');
+  // A lexical match alone is insufficient on case-sensitive Windows volumes.
+  // Check each existing suffix component, then the physical parent identity.
+  let cursor = physicalTemp;
   try {
+    for (const segment of pathApi.relative(physicalTemp, parent).split(pathApi.sep)) {
+      if (!segment) continue;
+      cursor = pathApi.join(cursor, segment);
+      if ((await fileSystem.lstat(cursor)).isSymbolicLink())
+        throw qaPathError(operation, 'symlink-parent', 'physical');
+    }
+    const physicalParent = ordinaryRealpath(await fileSystem.realpath(parent), platform);
+    const physicalScratch = ordinaryRealpath(await fileSystem.realpath(scratch), platform);
+    if (pathApi.normalize(physicalParent) !== pathApi.normalize(physicalScratch))
+      throw qaPathError(operation, 'parent-mismatch', 'physical');
+  } catch (error) {
+    if (error?.qaPathRejection) throw error;
+    throw qaPathError(operation, 'unresolved-parent', 'physical');
+  }
+  return pathApi.join(scratch, basename);
+}
+async function readFixedFile(location, root, limit, operation = 'input') {
+  if (typeof location !== 'string' || !path.isAbsolute(location) ||
+      path.dirname(location) !== root)
+    throw qaPathError(operation, 'parent-mismatch', 'read');
+  let handle;
+  try {
+    const entry = await fs.lstat(location);
+    if (!entry.isFile() || entry.isSymbolicLink() || entry.size < 1 || entry.size > limit)
+      throw qaPathError(operation, 'unbounded-or-alias', 'read');
+    handle = await fs.open(location, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     const original = await handle.stat();
-    const bytes = await handle.readFile();
-    if (!original.isFile() || bytes.length !== original.size ||
-        await fs.realpath(location) !== path.join(await fs.realpath(path.dirname(location)), path.basename(location)))
-      throw new Error('QA input changed or aliases another path.');
+    if (!original.isFile() || original.size < 1 || original.size > limit)
+      throw qaPathError(operation, 'unbounded-or-alias', 'read');
+    const bytes = Buffer.alloc(original.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!bytesRead) break;
+      offset += bytesRead;
+    }
+    const extra = await handle.read(Buffer.alloc(1), 0, 1, bytes.length);
+    const after = await handle.stat();
+    const physicalFile = ordinaryRealpath(await fs.realpath(location), process.platform);
+    const physicalParent = ordinaryRealpath(await fs.realpath(path.dirname(location)), process.platform);
+    const expectedFile = path.join(physicalParent, path.basename(location));
+    const exactParent = path.normalize(path.dirname(physicalFile)) === path.normalize(physicalParent);
+    if (offset !== bytes.length || extra.bytesRead !== 0 || after.size !== original.size ||
+        !after.isFile() || !exactParent ||
+        path.normalize(physicalFile) !== path.normalize(expectedFile))
+      throw qaPathError(operation, 'changed-or-alias', 'read');
     return bytes;
-  } finally { await handle.close(); }
+  } catch (error) {
+    if (error?.qaPathRejection) throw error;
+    throw qaPathError(operation, 'unresolved-file', 'read');
+  } finally { if (handle) await handle.close(); }
 }
 
 function validateConfig(config, scratch, profileRoute) {
@@ -53,15 +147,16 @@ function validateConfig(config, scratch, profileRoute) {
     'profileOpenFault']);
   if (Object.keys(config).some(key => !allowed.has(key))) throw new Error('Unknown native QA configuration key.');
   if (typeof config.output !== 'string' || !path.isAbsolute(config.output) ||
-      path.dirname(config.output) !== scratch) throw new Error('QA output is not a direct disposable scratch file.');
+      path.dirname(config.output) !== scratch)
+    throw qaPathError('output', 'invalid-or-parent', 'validation');
   if (config.screenshotFile !== undefined &&
       (typeof config.screenshotFile !== 'string' || !path.isAbsolute(config.screenshotFile) ||
        path.dirname(config.screenshotFile) !== scratch || !config.screenshotFile.endsWith('.png')))
-    throw new Error('QA screenshot is not a direct disposable scratch PNG.');
+    throw qaPathError('screenshotFile', 'invalid-or-parent-or-extension', 'validation');
   if(config.progressFile !== undefined &&
       (typeof config.progressFile !== 'string'||!path.isAbsolute(config.progressFile)||
        path.dirname(config.progressFile)!==scratch))
-    throw new Error('QA progress record is not a direct disposable scratch file.');
+    throw qaPathError('progressFile', 'invalid-or-parent', 'validation');
   if (config.waitMs !== undefined && (!Number.isInteger(config.waitMs) || config.waitMs < 0 || config.waitMs > 12000))
     throw new Error('Invalid native QA wait.');
   if (config.action === 'seed' && (typeof config.rawFile !== 'string' ||
@@ -91,8 +186,9 @@ function validateConfig(config, scratch, profileRoute) {
        !['delay','reject'].includes(config.profileOpenFault)))
     throw new Error('Invalid finite profile-open fault.');
   for (const key of ['rawFile', 'backupFile']) if (config[key] !== undefined &&
-      (!path.isAbsolute(config[key]) || path.dirname(config[key]) !== scratch))
-    throw new Error('QA data files must be direct disposable scratch files.');
+      (typeof config[key] !== 'string' || !path.isAbsolute(config[key]) ||
+       path.dirname(config[key]) !== scratch))
+    throw qaPathError(key, 'invalid-or-parent', 'validation');
 }
 
 const rendererState = async win => win.webContents.executeJavaScript(`(() => ({
@@ -222,21 +318,17 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
   const scratch = path.dirname(original);
   assert.equal(path.dirname(copy), scratch, 'both disposable profile roots share one scratch directory');
   assert.notEqual(original, copy);
-  if (typeof configPath !== 'string' || !path.isAbsolute(configPath))
-    throw new Error('Native QA config must have an absolute path.');
-  configPath = await normalizeTempSpelling(configPath);
-  if (path.dirname(configPath) !== scratch)
-    throw new Error('Native QA config must be a direct disposable scratch file.');
-  const config = JSON.parse((await readFixedFile(configPath, scratch, 4096)).toString('utf8'));
-  for (const key of ['output', 'rawFile', 'backupFile', 'screenshotFile', 'progressFile']) if (typeof config[key] === 'string' &&
-      path.isAbsolute(config[key])) config[key] = await normalizeTempSpelling(config[key]);
+  configPath = await resolveQaFile(configPath, scratch, 'config');
+  const config = JSON.parse((await readFixedFile(configPath, scratch, 4096, 'config')).toString('utf8'));
+  for (const key of ['output', 'rawFile', 'backupFile', 'screenshotFile', 'progressFile'])
+    if (typeof config[key] === 'string') config[key] = await resolveQaFile(config[key], scratch, key);
   validateConfig(config, scratch, profileRoute);
   let result = { ok: false, action: config.action };
   try {
     await waitForBoot(win);
     if (config.action === 'seed') {
       assert.equal(profileRoute.kind, 'original');
-      const bytes = await readFixedFile(config.rawFile, scratch, MAX_INPUT);
+      const bytes = await readFixedFile(config.rawFile, scratch, MAX_INPUT, 'rawFile');
       assert.equal(sha256(bytes), config.expectedSha256, 'seed raw SHA-256');
       const raw = bytes.toString('utf8');
       assert.deepEqual(Buffer.from(raw, 'utf8'), bytes, 'seed raw UTF-8 round-trip');
@@ -265,7 +357,7 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
           assert.match(view.ui.recoveryStatus, /Verified raw backup:/i,
             'the protected Export control completed the native dialog transaction');
         } finally { dialog.showSaveDialog = prior; }
-        const exported = JSON.parse((await readFixedFile(backupPath, scratch, MAX_BACKUP)).toString('utf8'));
+        const exported = JSON.parse((await readFixedFile(backupPath, scratch, MAX_BACKUP, 'backupFile')).toString('utf8'));
         assert.equal(exported.format, 'aincrad.raw-save-backup.v1');
         assert.equal(exported.saveKey, SAVE_KEY);
         assert.equal(exported.sha256, config.expectedSha256);
@@ -280,14 +372,14 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
         return; // The product stages, opens, and relaunches into the copy.
       }
       assert.equal(profileRoute.kind, 'recovered');
-      const exported = JSON.parse((await readFixedFile(backupPath, scratch, MAX_BACKUP)).toString('utf8'));
+      const exported = JSON.parse((await readFixedFile(backupPath, scratch, MAX_BACKUP, 'backupFile')).toString('utf8'));
       assert.equal(exported.sha256, config.expectedSha256);
       assert.equal((await recoveredProfile.status()).phase, 'pending');
       result.exportStage = { ok: true, backupSha256: exported.sha256,
         byteLength: exported.byteLength };
     } else if (config.action === 'stage' || config.action === 'fault-stage') {
       assert.equal(profileRoute.kind, 'original');
-      await readFixedFile(config.backupFile, scratch, MAX_BACKUP);
+      await readFixedFile(config.backupFile, scratch, MAX_BACKUP, 'backupFile');
       await rawSaveBackup.selectTestBackup(config.backupFile);
       const raw = await win.webContents.executeJavaScript(`localStorage.getItem(${JSON.stringify(SAVE_KEY)})`);
       assert.equal(typeof raw, 'string', 'original raw save');
@@ -494,7 +586,7 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
       if(profileRoute.kind==='recovered'){
         result.openFromOriginal={buttonId:config.buttonId,routed:true};
         if(config.progressFile)result.openFromOriginal.progress=JSON.parse(
-          (await readFixedFile(config.progressFile,scratch,4096)).toString('utf8'));
+          (await readFixedFile(config.progressFile,scratch,4096,'progressFile')).toString('utf8'));
       }
     }
     result = { ...result, ...(await inspect({ app, win, session, recoveredProfile })), ok: true };
@@ -530,4 +622,4 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
   }
 }
 
-module.exports = { runNativeProfileQa };
+module.exports = { runNativeProfileQa, resolveQaFile, readFixedFile };
