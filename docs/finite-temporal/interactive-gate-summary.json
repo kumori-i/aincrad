@@ -1,0 +1,565 @@
+{
+  "schemaVersion": 1,
+  "scope": "Pre-autonomy correctness and interactive resource gate only",
+  "originalInteractiveGate": "FAILED",
+  "autonomousTrialsRun": 0,
+  "source": {
+    "runtimeSource": "79ad0454075dbe27a7a138b0dbb89eea876ae36a3f9034f7f0cfc681fe89910f",
+    "evaluatorSource": "bb71b76ba84a1522569973284fc816d1c44781ab84c1bd5b217a0d9963fc513e",
+    "frozenSource": "2ebb1d93c57206445c76355fd4da845257660382b61c22f74b39203937d59d48",
+    "files": [
+      {
+        "path": "package-lock.json",
+        "sha256": "2161fd575eb609e16bd67b38862425df95dff7490f12ce03739f432a648125e7"
+      },
+      {
+        "path": "package.json",
+        "sha256": "b718e97c0bbec952d54f7415842f3cba79cf1b932e6ab209ddec2c386a104757"
+      },
+      {
+        "path": "scripts/lib/finite-temporal-checkpoint.mjs",
+        "sha256": "3dad25df9b326fa2ca5bf6e5269b40f35aaa59636151da060072eca7f0cae39d"
+      },
+      {
+        "path": "scripts/lib/finite-temporal-driver.mjs",
+        "sha256": "d6df6eadbc78010cb35aca28d3b0ec0c8df9454b660ad01de417c840c7c10284"
+      },
+      {
+        "path": "scripts/lib/finite-temporal-policy.mjs",
+        "sha256": "0cad58e6e03aff28cad0648060703e35fdbe8a5332dbd171084e9ff322e5f2c8"
+      },
+      {
+        "path": "src/art.js",
+        "sha256": "d74cec158dd21717ac8eae21eb4ef08adf1394dd2325cb813f3c5901c5102911"
+      },
+      {
+        "path": "src/atlas.js",
+        "sha256": "3ddf1fa15db7912c4de146928d709146bd9ec1be855f2be7bca9ddd5c7ac5c83"
+      },
+      {
+        "path": "src/biology-config.js",
+        "sha256": "0f52d5cda07f1e9cb25ff526bb1ae66fd937b9d24aa54bbe9285266e17cee184"
+      },
+      {
+        "path": "src/biology.js",
+        "sha256": "671304f9afab9d72360edc9842649657180fa1f2b2ba421e5484b791c22b38b3"
+      },
+      {
+        "path": "src/build-info.js",
+        "sha256": "4fb8ab5985331e7ff3cbba9ef64920e8bea64566cf9c3aae025feb98464ffc6e"
+      },
+      {
+        "path": "src/cardinal-config.js",
+        "sha256": "b70c2e21cb92bfcdb686203cf484b1a11f1eb20d0315078bbaaac67f18e0786f"
+      },
+      {
+        "path": "src/cardinal-experiments.js",
+        "sha256": "f043dc65575bb53528cbe0f3a3fbf73dc8cd790a723d0426af9abcef543d590d"
+      },
+      {
+        "path": "src/cardinal-metrics.js",
+        "sha256": "f106155c49e1fe2f2c71dc7c199d2c6f9e0f48dbc59a7b949a3cf3101eadb895"
+      },
+      {
+        "path": "src/cardinal-panel.js",
+        "sha256": "23f6a028ddfaafac95d3ec26927211122f9d494ee40ee31c5f3f9d0e84f13a43"
+      },
+      {
+        "path": "src/cardinal-state.js",
+        "sha256": "390a6ca45f6143b213c45bd1ed01a2d5cc5c0c88bec9bf66e994adbd1e7a6706"
+      },
+      {
+        "path": "src/cardinal.js",
+        "sha256": "17c52f4814af50ea062a431d3e9fa9c773cdc0ff66ce1108a7d882cfb1271520"
+      },
+      {
+        "path": "src/cognition.js",
+        "sha256": "e42371f7b2dcb2d71a33af92da97aac69a854b8f5622aeb12ddcce05427d6601"
+      },
+      {
+        "path": "src/config.js",
+        "sha256": "05e6fc8b6422d45eaeddc7afa45d80343ade3c883ad3bea5c10aba209fb15f3e"
+      },
+      {
+        "path": "src/controller.js",
+        "sha256": "f28cb7323c7a28b0407b9a185804e17e7adec2182893a30bb786b522387ee96e"
+      },
+      {
+        "path": "src/discovery-actions.js",
+        "sha256": "95987fa0df42014aa14595bdc8b2822ec22f309ea94478915925959c258374a8"
+      },
+      {
+        "path": "src/discovery-config.js",
+        "sha256": "ef4ce5deca8baf48a4ea3c804f4dddb22175886fa80a1f1d5e485e254ea34191"
+      },
+      {
+        "path": "src/discovery-state.js",
+        "sha256": "347548cdbd37c7a60dc8978818cdc2e023cbfdb50d15c66e9ea4ee9569a92824"
+      },
+      {
+        "path": "src/discovery.js",
+        "sha256": "a05a14ce041be4c203929fde612579656e199d1a3e21bbca3db929e7103fc9af"
+      },
+      {
+        "path": "src/ecology-config.js",
+        "sha256": "e9fb891f3eb23a968e2823ff87b2ca8df0a0a7bdec41afb7f9e08cf0254f86ba"
+      },
+      {
+        "path": "src/ecology-corridors.js",
+        "sha256": "8cf665b5062edc1b9373ac66e4d02a909b34d5e8aa0d3f3bea88bcd0bbf7f20c"
+      },
+      {
+        "path": "src/ecology-regions.js",
+        "sha256": "c8295bc9147006315262cfc43f2ef8f38f34d0dc9c9c5de69a37e43f73978265"
+      },
+      {
+        "path": "src/ecology.js",
+        "sha256": "c0f7070620b07902812defd0028a1369b33dabdc5a3910a21bd9cf1304f6e4a5"
+      },
+      {
+        "path": "src/environment.js",
+        "sha256": "7ff17316cf53b3c80dc46baf9855ba0b34bc9ae8e3924a4576f812a41d8992bb"
+      },
+      {
+        "path": "src/interoception.js",
+        "sha256": "7c6cf4547d5639dac763e4513ac6324d305f5372a37adb28a4e3f2d4e132d4bb"
+      },
+      {
+        "path": "src/main.js",
+        "sha256": "b0c1c383b4f7b51bdfd64095a649c8888c84aec24188ad0493ee41d62ee8b742"
+      },
+      {
+        "path": "src/navigation.js",
+        "sha256": "c62f43ac31eaa9163bb732bae8cc6b1f0df4422f36c5c84a31f0f1bb308d98b2"
+      },
+      {
+        "path": "src/npc-memory.js",
+        "sha256": "c4fe6ced5d7154d3c9156b541089b3be7715f2029e25f67c4672fa0949496851"
+      },
+      {
+        "path": "src/npc-panel.js",
+        "sha256": "3d87aaa6a40a090434882b3922f151269310c1657107864ab9e0f62c56cf6cf7"
+      },
+      {
+        "path": "src/npc-state.js",
+        "sha256": "32935b7dce775adc78939aa4f7a61b971311f4c5c24f0256fcdaaaf4e1810452"
+      },
+      {
+        "path": "src/npc.js",
+        "sha256": "d19856f5869b2df2d5941a645c06d3cfbf7ad101dfd27bf6abe05137812b2162"
+      },
+      {
+        "path": "src/perception.js",
+        "sha256": "01d32fb3f2277e0b9515920d898d4018bf3d008445d686f1926ad05dd437aa22"
+      },
+      {
+        "path": "src/population.js",
+        "sha256": "eda9257649c52dcd2751bef3cc0e2324b15fe54bc33a0c5fc8fcd5d6c38ccab6"
+      },
+      {
+        "path": "src/renderer.js",
+        "sha256": "3cb834ef025d4dc603ff85edf77c247702f5aee9947e5f36e2e0261b586627e5"
+      },
+      {
+        "path": "src/resources.js",
+        "sha256": "3e886178427bb179770b13d652fb75eca56fa45e55ec93d7a6ae6f72d17f2dbd"
+      },
+      {
+        "path": "src/save.js",
+        "sha256": "62b5d8b9aaaddbcd1125c744fc1e0f011bbffa855b833ffdeb9fb61601a17ad6"
+      },
+      {
+        "path": "src/simulation-clock.js",
+        "sha256": "8669e24112a8961e2c1df4517750dcbd0e70400b5e14ce28d2b50108c59be50e"
+      },
+      {
+        "path": "src/social.js",
+        "sha256": "e2d61fe63ad6de7bb014682c429b22e84e4c84dd203603cb2b79cb3ac3ced446"
+      },
+      {
+        "path": "src/temporal-capacity.js",
+        "sha256": "8a8340b17442847a6510cc3e11f7125f6f2e069e80a1467b94765cee1ec27f9b"
+      },
+      {
+        "path": "src/temporal-ledger.js",
+        "sha256": "93c6e052961cba14cadd5b7de8ed3e4c1845695dc88db155b303e9c9ce251f7d"
+      },
+      {
+        "path": "src/temporal-returns.js",
+        "sha256": "6ffa62329cef1c983004f2fc167e0ef213a3dfbc36a26f098b63a05fb6f75e28"
+      },
+      {
+        "path": "src/temporal-storage.js",
+        "sha256": "61a75a709fd984cc8f2c108b601190f52824039bb8360dce000caa8299a5a5bf"
+      },
+      {
+        "path": "src/world-rules.js",
+        "sha256": "2e62f867c318b5e935e59affe3683d594fde8572d8e56c5b15d5710b5dfa76fa"
+      },
+      {
+        "path": "src/world.js",
+        "sha256": "41c7d1c0268b4aa336ae0c4ce764b22bcb0cde2493573c4cb2bc52cc05dd2d6a"
+      }
+    ],
+    "otherFiles": [
+      {
+        "path": "docs/DESIGN-finite-source-temporal.md",
+        "sha256": "d1ef4e490ef9417debf08cfe500adf87ab7d08cfacc6b6414e479ea4831d36c0"
+      },
+      {
+        "path": "scripts/measure-finite-temporal.mjs",
+        "sha256": "072e08de7a65756c81cecfdb12de64dc1a09bbeb832844b4aca563ea797ed9b2"
+      },
+      {
+        "path": "tests/finite-temporal-checkpoint-v08.test.mjs",
+        "sha256": "388883792b918097186c5025c0a3f31deec1a578ffc5a1a1c71b6b59bd31f88f"
+      },
+      {
+        "path": "tests/finite-temporal-driver-v08.test.mjs",
+        "sha256": "17063b3134134d658e4e4029e2e4d53059575832e8706d91e7aaaf93ad82d38e"
+      },
+      {
+        "path": "tests/finite-temporal-policy-v08.test.mjs",
+        "sha256": "195fe6313988dea55b519d441329525f79d06c88a7302ec9031c11cab99be962"
+      },
+      {
+        "path": "tests/finite-temporal-evaluator-v08.test.mjs",
+        "sha256": "633fc700538205fb49f3b3e6f228dead042948143cc47d12f1b67f487613904a"
+      },
+      {
+        "path": "tests/temporal-capacity-v08.test.mjs",
+        "sha256": "6d89da08dd965d91703a5e7877837cd0030dbe3843394b4d9b3905c2c77a227f"
+      }
+    ]
+  },
+  "correctness": {
+    "fullTests": 528,
+    "failures": 0,
+    "build": true,
+    "independentReview": true,
+    "nativeSmoke": true,
+    "nativeReopen": true,
+    "defaultParity": {
+      "frames": 7200,
+      "dt": 0.016666666666666666,
+      "actors": 2,
+      "saveReopenAt": 60,
+      "saveSha256": "d68206624ebdb4ea30ba779d1437abcf34088f5f3d56353d5df4c0234e58a68d",
+      "finalSha256": "a9085056b94cce33e98247d980dce90baf2413728071520e258aaf4a69daa358"
+    }
+  },
+  "hardware": {
+    "node": "v24.19.0",
+    "v8": "13.6.233.17-node.51",
+    "platform": "linux",
+    "release": "6.18.44",
+    "arch": "x64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "logicalCpus": 9,
+    "totalMemoryBytes": 10451460096,
+    "freeMemoryBytesAtStart": 8554643456,
+    "loadAverageAtStart": [
+      1.6,
+      1.05,
+      0.66
+    ],
+    "execArgv": [],
+    "loadAverageAtEnd": [
+      1.55,
+      1.21,
+      0.76
+    ],
+    "freeMemoryBytesAtEnd": 8249860096
+  },
+  "gates": {
+    "minimumMeasuredSubmissions": 200,
+    "maxAddedDecisionP95Ms": 5,
+    "maxEncodedActorBytes": 1048576,
+    "passed": false
+  },
+  "cases": [
+    {
+      "name": "cold",
+      "arm": "online",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 0.5323300000000017,
+        "p95": 1.6939029999998638,
+        "p99": 2.5495679999999084,
+        "max": 4.930304999999862,
+        "mean": 0.7169706250000009
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 2.0573519999998098,
+        "p95": 4.476693999999952,
+        "p99": 7.402320999999574,
+        "max": 30.55202700000018,
+        "mean": 2.514318508333332
+      },
+      "encodedActorAndMetadataBytes": 22626,
+      "gatePassed": true
+    },
+    {
+      "name": "cold",
+      "arm": "no-bootstrap",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 0.5195420000000013,
+        "p95": 1.4991579999996247,
+        "p99": 2.516483000000335,
+        "max": 2.9500809999999547,
+        "mean": 0.6644586333333791
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 1.8203969999995024,
+        "p95": 3.9319780000005267,
+        "p99": 5.6325290000004316,
+        "max": 6.056120999999621,
+        "mean": 2.132428766666711
+      },
+      "encodedActorAndMetadataBytes": 22632,
+      "gatePassed": true
+    },
+    {
+      "name": "cold",
+      "arm": "frozen-zero",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 0.48284700000112935,
+        "p95": 1.0722859999987122,
+        "p99": 2.05102799999986,
+        "max": 2.3129300000000512,
+        "mean": 0.5603559416666334
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 1.7957579999983864,
+        "p95": 3.2637180000019725,
+        "p99": 4.939419000000271,
+        "max": 5.981937999998991,
+        "mean": 2.0216218999999684
+      },
+      "encodedActorAndMetadataBytes": 22631,
+      "gatePassed": true
+    },
+    {
+      "name": "full-cap-known",
+      "arm": "online",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 3.7961769999965327,
+        "p95": 11.868704000000434,
+        "p99": 27.251712999997835,
+        "max": 29.082234999999855,
+        "mean": 5.166598354166543
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 5.549066999999923,
+        "p95": 15.361587999999756,
+        "p99": 49.89279799999895,
+        "max": 50.80344799999875,
+        "mean": 7.529403824999963
+      },
+      "encodedActorAndMetadataBytes": 343413,
+      "gatePassed": false
+    },
+    {
+      "name": "full-cap-known",
+      "arm": "no-bootstrap",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 2.81916099999944,
+        "p95": 5.322419999996782,
+        "p99": 6.797638000003644,
+        "max": 13.204203000001144,
+        "mean": 3.135060329166693
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 4.1249210000023595,
+        "p95": 6.9816569999966305,
+        "p99": 8.576576999999816,
+        "max": 15.064162000002398,
+        "mean": 4.52520970416637
+      },
+      "encodedActorAndMetadataBytes": 339642,
+      "gatePassed": false
+    },
+    {
+      "name": "full-cap-known",
+      "arm": "frozen-zero",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 2.032851000003575,
+        "p95": 4.409578999999212,
+        "p99": 5.854025000000547,
+        "max": 6.906888999998046,
+        "mean": 2.328897016666694
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 3.32344600000215,
+        "p95": 5.786595999998099,
+        "p99": 7.888569999995525,
+        "max": 9.796845999997458,
+        "mean": 3.661827629166813
+      },
+      "encodedActorAndMetadataBytes": 337913,
+      "gatePassed": true
+    },
+    {
+      "name": "full-cap-unknown",
+      "arm": "online",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 2.9578979999932926,
+        "p95": 18.97016799999983,
+        "p99": 165.19143600000825,
+        "max": 769.1881719999947,
+        "mean": 10.336844366666355
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 4.493736000003992,
+        "p95": 31.24460499999259,
+        "p99": 433.45460299999104,
+        "max": 1524.844591000001,
+        "mean": 21.670658879166453
+      },
+      "encodedActorAndMetadataBytes": 340897,
+      "gatePassed": false
+    },
+    {
+      "name": "full-cap-unknown",
+      "arm": "no-bootstrap",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 2.376260999997612,
+        "p95": 4.534704999998212,
+        "p99": 6.9552980000007665,
+        "max": 15.303647000007913,
+        "mean": 2.7021832500002954
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 3.5344850000110455,
+        "p95": 6.673813000001246,
+        "p99": 10.136743000010028,
+        "max": 16.29839000001084,
+        "mean": 3.998318112500116
+      },
+      "encodedActorAndMetadataBytes": 338716,
+      "gatePassed": true
+    },
+    {
+      "name": "full-cap-unknown",
+      "arm": "frozen-zero",
+      "addedDecisionMs": {
+        "n": 240,
+        "p50": 1.8044990000053076,
+        "p95": 2.8022469999996247,
+        "p99": 4.251336000001174,
+        "max": 4.521731000000727,
+        "mean": 1.940479941666308
+      },
+      "combinedDecisionMs": {
+        "n": 240,
+        "p50": 3.023474999994505,
+        "p95": 4.684999000004609,
+        "p99": 5.6657109999941895,
+        "max": 5.8287100000161445,
+        "mean": 3.2018379291657766
+      },
+      "encodedActorAndMetadataBytes": 337014,
+      "gatePassed": true
+    }
+  ],
+  "sampledProcessMemory": {
+    "heapUsedBytes": 189262048,
+    "rssBytes": 358277120,
+    "caveat": "Whole evaluator process, including source buffers, copied fixtures, report arrays and serialization. Sampled maxima are not a proven transient peak or isolated runtime memory requirement; garbage collection is not forced."
+  },
+  "limitations": [
+    "Cloud CPU and current system load only; no laptop budget or smooth-frame claim",
+    "Warmed JIT but independent reset snapshots, not a continuing learned trajectory",
+    "Synthetic stress records all use timestamp zero, so their discount gaps are zero; this is a cap/lookup/update workload, not a worst-case timing bound over every numeric trajectory",
+    "Finite source is not exhausted or physically sampled by the synthetic memory fixture",
+    "The initial cold-body opportunity has no held-item sample/release choices and the synthetic IDs do not match source lineage; saturated counts therefore admit this fixture only, not worst-case later learned-policy latency",
+    "This actor-size admission is a measured fixture result, not a bound on every future ordinary NPC memory"
+  ],
+  "evidence": [
+    {
+      "file": "budget.json",
+      "sha256": "eabb0c3b890d9c946ce69192cffea9f4adf389bd39c363bafa94c34358efe2e4",
+      "bytes": 1424632
+    },
+    {
+      "file": "budget.stdout.log",
+      "sha256": "3be0aef30fa16e0bd1ded13768d17e821f8ae2fb279c03ee7c82b5f4a87c6d98",
+      "bytes": 1358
+    },
+    {
+      "file": "budget.stderr.log",
+      "sha256": "ab3e3f03c76fcceb4bd952505b374ff1436af17da58c1c91d6cd63e1e7480868",
+      "bytes": 692
+    },
+    {
+      "file": "source-freeze.json",
+      "sha256": "7e6ccd790b2041a89c9f628f31042d927958147af9084bc1c8974eede98033c1",
+      "bytes": 7774
+    },
+    {
+      "file": "review-clearance.md",
+      "sha256": "60588ea397efa31f90a8a46b9d1838af749491bd6debe31a3aab328b2c654e93",
+      "bytes": 1621
+    },
+    {
+      "file": "aincrad-finite-check-final.log",
+      "sha256": "6f4c00e645f2c73bcc1c9075e1d3beb70a596d899d177c8e8a75dfe4056bde96",
+      "bytes": 55513
+    },
+    {
+      "file": "aincrad-finite-build-final.log",
+      "sha256": "a8ce0d8e9f56031df83a6b1c92ef0780d7a7651f558ac094b13381e29dd96e95",
+      "bytes": 235
+    },
+    {
+      "file": "aincrad-finite-default-parity-final.log",
+      "sha256": "f5a0ddbe2c32cd62557cedb9790ed392f1a911cdc5f464e5cb3806513c003071",
+      "bytes": 191
+    },
+    {
+      "file": "aincrad-finite-default-parity.json",
+      "sha256": "0ebed665ec8c2455f970cb4bde27695e8dfbc283327ed040667806212815d49a",
+      "bytes": 9925
+    },
+    {
+      "file": "aincrad-finite-default-parity.mjs",
+      "sha256": "67206b7024f262628db1006777a26e8e8ceb14bf4b78f50bef7af72602cc3608",
+      "bytes": 2346
+    },
+    {
+      "file": "aincrad-finite-smoke-final.log",
+      "sha256": "1ccd44f4d91bd8f9383ea181230f5b9addffc9b774c6a687367bbc55a013c32d",
+      "bytes": 7908
+    },
+    {
+      "file": "aincrad-finite-native-reopen-final.log",
+      "sha256": "55a358a6becc37025ee545dce559a84a745b6a441005de3b3addfe14d3184c06",
+      "bytes": 15386
+    },
+    {
+      "file": "native-reopen.json",
+      "sha256": "e256e4fc8c72eedac3f7c8df59c24dcd3ee0082df34daa6e60d02c845a9a4f25",
+      "bytes": 1018
+    },
+    {
+      "file": "evaluate-finite-temporal-interactive.mjs",
+      "sha256": "bb71b76ba84a1522569973284fc816d1c44781ab84c1bd5b217a0d9963fc513e",
+      "bytes": 53762
+    }
+  ]
+}

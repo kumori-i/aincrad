@@ -2,6 +2,7 @@
  * Dictionary indices are serialization references, never policy features.
  */
 import { decodeTemporalKey } from './temporal-returns.js';
+import { temporalCapacityFor,checkTemporalCapacity } from './temporal-capacity.js';
 export const TEMPORAL_STORAGE = Object.freeze({ bytes: 8 * 1024 * 1024, metadataReservation: 2 * 1024 * 1024, rowReservation: 384, rows: 4096, dictionaryEntries: 32768, encoding: 'temporal-key-dictionary-v1' });
 const encoder = new TextEncoder(), caches = new WeakMap();
 const fixedReservation = TEMPORAL_STORAGE.metadataReservation + TEMPORAL_STORAGE.rows * TEMPORAL_STORAGE.rowReservation;
@@ -12,27 +13,30 @@ function validKey(key) { return typeof key === 'string' && decodeTemporalKey(key
 function referencedKeys(memory) {
   return [...(memory.model?.rows || []).map(r => r.key), ...(memory.model?.transitions || []).flatMap(t => [t.key, t.nextKey]), ...(memory.receipts || []).map(r => r.key), memory.open?.key].filter(k => typeof k === 'string');
 }
-function dictionary(keys) {
-  if (!Array.isArray(keys) || keys.length > TEMPORAL_STORAGE.dictionaryEntries) fail('Unsupported temporal context dictionary.');
+function dictionary(keys, limits = null) {
+  if (!Array.isArray(keys) || keys.length > (limits?.contextKeys ?? TEMPORAL_STORAGE.dictionaryEntries)) fail('Unsupported temporal context dictionary.');
   const index = new Map(); let reservedBytes = fixedReservation;
   for (const key of keys) {
     if (!validKey(key) || index.has(key)) fail('Invalid or duplicate temporal context dictionary key.');
     index.set(key, index.size); reservedBytes += keyBytes(key);
   }
   if (reservedBytes > TEMPORAL_STORAGE.bytes) fail('Temporal memory exceeds its reserved 8 MiB wire budget; original data must be preserved.', 'TEMPORAL_BUDGET');
-  return { index, reservedBytes, length: keys.length };
+  const dictionaryBytes = keys.length ? 1 + reservedBytes - fixedReservation : 2;
+  if (limits && dictionaryBytes > limits.contextBytes) fail('Temporal context dictionary exceeds its finite-profile UTF-8 budget.', 'TEMPORAL_CAPACITY');
+  return { index, reservedBytes, dictionaryBytes, length: keys.length };
 }
 /** Restoration-only migration includes keys that outlived row admission. */
 export function prepareTemporalStorage(memory, savedKeys = undefined) {
   if (savedKeys !== undefined && !Array.isArray(savedKeys)) fail('Invalid temporal context dictionary.');
   const keys = savedKeys === undefined ? [] : [...savedKeys];
   // Validate saved entries once. Only newly referenced legacy keys need decoding.
-  const cache = dictionary(keys);
+  const limits = temporalCapacityFor(memory), cache = dictionary(keys, limits);
   for (const key of referencedKeys(memory)) if (!cache.index.has(key)) {
     if (savedKeys !== undefined) fail('Temporal proof references a context missing from its explicit dictionary.');
     if (!validKey(key)) fail('Invalid referenced temporal context.');
     const bytes = keyBytes(key);
-    if (cache.length >= TEMPORAL_STORAGE.dictionaryEntries || cache.reservedBytes + bytes > TEMPORAL_STORAGE.bytes) fail('Temporal memory exceeds its reserved 8 MiB wire budget; original data must be preserved.', 'TEMPORAL_BUDGET');
+    if (cache.length >= (limits?.contextKeys ?? TEMPORAL_STORAGE.dictionaryEntries) || limits && cache.dictionaryBytes + bytes - (cache.length ? 0 : 1) > limits.contextBytes || cache.reservedBytes + bytes > TEMPORAL_STORAGE.bytes) fail('Temporal memory exceeds its reserved 8 MiB wire budget; original data must be preserved.', 'TEMPORAL_BUDGET');
+    cache.dictionaryBytes += bytes - (cache.length ? 0 : 1);
     cache.index.set(key, cache.length++); cache.reservedBytes += bytes; keys.push(key);
   }
   memory.contextKeys = keys;
@@ -42,25 +46,26 @@ export function prepareTemporalStorage(memory, savedKeys = undefined) {
 function cacheFor(memory) {
   let cache = caches.get(memory);
   if (!cache || cache.length !== memory.contextKeys?.length) {
-    cache = dictionary(memory.contextKeys || []); caches.set(memory, cache);
+    cache = dictionary(memory.contextKeys || [], temporalCapacityFor(memory)); caches.set(memory, cache);
   }
   return cache;
 }
 /** Only actual context submission may spend capacity. Existing keys stay admitted. */
 export function admitTemporalContext(memory, key) {
   if (!validKey(key)) fail('Invalid submitted temporal context.');
-  const cache = cacheFor(memory);
+  const cache = cacheFor(memory), limits = temporalCapacityFor(memory);
   if (cache.index.has(key)) return true;
   const bytes = keyBytes(key);
-  if (cache.index.size >= TEMPORAL_STORAGE.dictionaryEntries || cache.reservedBytes + bytes > TEMPORAL_STORAGE.bytes) {
+  if (cache.index.size >= (limits?.contextKeys ?? TEMPORAL_STORAGE.dictionaryEntries) || limits && cache.dictionaryBytes + bytes - (cache.length ? 0 : 1) > limits.contextBytes || cache.reservedBytes + bytes > TEMPORAL_STORAGE.bytes) {
     memory.storage.saturated = true; memory.storage.overflows = Math.min(1e9, memory.storage.overflows + 1); return false;
   }
+  cache.dictionaryBytes += bytes - (cache.length ? 0 : 1);
   cache.index.set(key, cache.index.size); cache.reservedBytes += bytes;
   memory.contextKeys.push(key); cache.length++; return true;
 }
 export function temporalStorageDiagnostics(memory) {
-  const cache = cacheFor(memory);
-  return { limitBytes: TEMPORAL_STORAGE.bytes, reservedBytes: cache.reservedBytes, contexts: cache.length, saturated: memory.storage?.saturated === true, overflows: memory.storage?.overflows || 0 };
+  const cache = cacheFor(memory), limits = temporalCapacityFor(memory);
+  return { limitBytes: TEMPORAL_STORAGE.bytes, reservedBytes: cache.reservedBytes, contexts: cache.length, saturated: memory.storage?.saturated === true, overflows: memory.storage?.overflows || 0, ...(limits ? { profile: limits.name, dictionaryBytes: cache.dictionaryBytes, dictionaryLimitBytes: limits.contextBytes, contextLimit: limits.contextKeys } : {}) };
 }
 function reference(index, key, unknown = false) {
   if (unknown === true) { if (key === null) return null; fail('Unknown temporal context has a conflicting reference.'); }
@@ -69,10 +74,12 @@ function reference(index, key, unknown = false) {
 }
 /** Called after canonical validation. Does not admit, train, evict or mutate. */
 export function encodeTemporalWire(memory) {
+  const limits = temporalCapacityFor(memory);
+  if (limits) checkTemporalCapacity(memory, limits);
   // Cached keys were canonicalized at admission/restore. A cheap identity scan
   // detects external mutation without repeatedly decoding thousands of strings.
   let cache = caches.get(memory);
-  if (!cache || cache.length !== memory.contextKeys?.length || memory.contextKeys.some((key, i) => cache.index.get(key) !== i)) cache = dictionary(memory.contextKeys || []);
+  if (!cache || cache.length !== memory.contextKeys?.length || memory.contextKeys.some((key, i) => cache.index.get(key) !== i)) cache = dictionary(memory.contextKeys || [], limits);
   const { contextKeys, ...rest } = memory;
   const model = { ...memory.model,
     rows: memory.model.rows.map(r => ({ ...r, key: reference(cache.index, r.key) })),
