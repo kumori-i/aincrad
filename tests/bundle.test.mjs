@@ -22,7 +22,7 @@ test('desktop build contains deterministic renderer assets and desktop runtime w
       assert.deepEqual(data,await readFile(join(b.renderer,file.path)));
     }
     const html=await readFile(join(a.renderer,'index.html'),'utf8');
-    assert.match(html,/src="\.\/src\/main\.js"/);assert.match(html,/href="\.\/style\.css"/);
+    assert.match(html,/src="\.\/src\/entry\.js"/);assert.match(html,/href="\.\/style\.css"/);
     assert.match(html,/connect-src 'none'/);assert.match(html,/object-src 'none'/);assert.ok(!html.includes('unsafe-inline'));
     assert.match(await readFile(join(a.desktop,'main.cjs'),'utf8'),/sandbox:true/);
     await assert.rejects(readFile(join(a.renderer,'package.json')),{code:'ENOENT'});
