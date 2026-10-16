@@ -9,6 +9,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { ownedProcess, checkedCommand, successful } from './supervisor.mjs';
 import { createBudget, hashFile, readBounded, runtimeInventory, signalOptions } from './bounded-io.mjs';
+import { probeX11Setup } from './x11-setup.mjs';
 export { createBudget, hashFile, readBounded, runtimeInventory, signalOptions } from './bounded-io.mjs';
 const p = createRequire(import.meta.url)('./policy.cjs');
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -85,11 +86,28 @@ function summary(result) { return { code: result.code, signal: result.signal, re
 async function absent(file) { try { await lstat(file); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }
 async function removeAuthority(file) { if (!file) return { created: false, removed: true }; try { await unlink(file); } catch (error) { if (error.code !== 'ENOENT') return { created: true, removed: false }; } return { created: true, removed: await absent(file) }; }
 
+// Readiness is filesystem/liveness polling only. No client connection is retried.
+export async function waitForOwnedDisplaySocket(number, owner, budget, io = { lstat, sleep, uid: process.getuid?.() }) {
+  p.demand(Number.isInteger(number) && number >= 100 && number < 500 && owner && typeof owner.isRunning === 'function', 'owned-display-input');
+  const path = `/tmp/.X11-unix/X${number}`;
+  for (let polls = 1; polls <= 20; polls++) {
+    budget.check(); p.demand(owner.isRunning() === true, 'owned-display-not-live');
+    try {
+      const st = await budget.wait(io.lstat(path));
+      p.demand(st.isSocket() && !st.isSymbolicLink() && st.uid === io.uid, 'owned-display-socket-mismatch');
+      p.demand(owner.isRunning() === true, 'owned-display-not-live');
+      return { path, polls, dev: st.dev, ino: st.ino, uid: st.uid, mode: st.mode & 0o7777 };
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (polls < 20) await budget.wait(io.sleep(100));
+  }
+  throw new Error('owned-display-socket-unavailable');
+}
+
 export async function qualify(options) {
   const startedAt = new Date().toISOString(), owned = [], report = { version: 1, status: 'unavailable', startedAt, reason: null, preflight: null, display: null, native: null, cleanup: [], screenshot: null };
   const controller = new AbortController(), budget = createBudget({ signal: controller.signal });
   let unexpectedDisplayExit = false, deliberateCleanup = false;
-  let dir = null, auth = null, emptyAuth = null, timer = null, aborted = null, runtimeRoot = null, inventoryBefore = null;
+  let dir = null, auth = null, timer = null, aborted = null, runtimeRoot = null, inventoryBefore = null;
   const stop = reason => { aborted ||= reason; controller.abort(); for (const item of owned) void item.close(reason); };
   const onInt = () => stop('qualification-interrupted'), onTerm = () => stop('qualification-interrupted');
   process.once('SIGINT', onInt); process.once('SIGTERM', onTerm);
@@ -113,8 +131,8 @@ export async function qualify(options) {
     let number = null;
     for (let i = 0; i < 32; i++) { const n = randomInt(100, 500); if (await absent(`/tmp/.X${n}-lock`) && await absent(`/tmp/.X11-unix/X${n}`)) { number = n; break; } }
     p.demand(number !== null, 'unoccupied-display-unavailable');
-    auth = join(dir, 'Xauthority'); emptyAuth = join(dir, 'empty-authority');
-    await writeFile(auth, '', { flag: 'wx', mode: 0o600 }); await writeFile(emptyAuth, '', { flag: 'wx', mode: 0o600 });
+    auth = join(dir, 'Xauthority');
+    await writeFile(auth, '', { flag: 'wx', mode: 0o600 });
     const env = { PATH: '/usr/bin:/bin', HOME: dir, TMPDIR: dir, XDG_RUNTIME_DIR: runtimeDir, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', DISPLAY: `:${number}`, XAUTHORITY: auth };
     const cookie = randomBytes(16).toString('hex');
     operation = 'display-authority';
@@ -126,21 +144,18 @@ export async function qualify(options) {
     const display = ownedProcess('/usr/bin/Xvfb', args, { env, deadlineMs: 35000 }); owned.push(display);
     display.child?.once('exit', () => { if (!deliberateCleanup) unexpectedDisplayExit = true; });
     operation = 'display-admission';
-    let info = null, attempts = 0;
-    for (; attempts < 10; attempts++) {
-      guard(); p.demand(display.isRunning(), 'xvfb-startup-unavailable');
-      const candidate = await checkedCommand('/usr/bin/xdpyinfo', ['-display', `:${number}`], { env, deadlineMs: 1000 }, owned);
-      if (successful(candidate)) { info = candidate; break; }
-      p.demand(!candidate.reason && candidate.cleanup.groupGone, 'x-display-client-unavailable'); await sleep(100);
-    }
-    p.demand(info !== null, 'x-display-unavailable'); const size = p.dimensions(info.stdout);
-    guard(); const denial = await checkedCommand('/usr/bin/xdpyinfo', ['-display', `:${number}`], { env: { ...env, XAUTHORITY: emptyAuth }, deadlineMs: 1500 }, owned);
-    p.demand(p.cookieDenial(denial) && denial.exitConfirmed && denial.cleanup.groupGone, 'cookie-free-denial-unavailable');
-    guard(); const recheck = await checkedCommand('/usr/bin/xdpyinfo', ['-display', `:${number}`], { env, deadlineMs: 1500 }, owned);
-    p.demand(successful(recheck), 'authenticated-display-recheck-unavailable'); p.dimensions(recheck.stdout); guard();
+    report.display = { backend: 'preinstalled-Xvfb', displayNumber: number,
+      args: args.map(a => a === auth ? '[private-authority]' : a), readiness: null, setup: null };
+    const readiness = await waitForOwnedDisplaySocket(number, display, budget); report.display.readiness = readiness;
+    const secret = Buffer.from(cookie, 'hex');
+    try { report.display.setup = await probeX11Setup({ displayNumber: number, socketPath: readiness.path, cookie: secret, ownedServer: display, signal: controller.signal }); }
+    finally { secret.fill(0); }
+    p.demand(report.display.setup.status === 'qualified', 'x-display-setup-unavailable'); guard();
+    const socketAfter = await budget.wait(lstat(readiness.path));
+    p.demand(socketAfter.isSocket() && !socketAfter.isSymbolicLink() && socketAfter.dev === readiness.dev && socketAfter.ino === readiness.ino && socketAfter.uid === readiness.uid, 'owned-display-socket-changed');
     const tcp = assertNoTcpListener(await readFile('/proc/net/tcp', 'utf8'), await readFile('/proc/net/tcp6', 'utf8'), number);
-    report.display = { backend: 'preinstalled-Xvfb', displayNumber: number, args: args.map(a => a === auth ? '[private-authority]' : a), ...size,
-      tcp, authMode: (await lstat(auth)).mode & 0o777, cookieFreeDenied: true, xauth: summary(xauth), firstAuthenticated: summary(info), negative: summary(denial), authenticatedRecheck: summary(recheck), startupAttempts: attempts + 1 };
+    Object.assign(report.display, { width: report.display.setup.width, height: report.display.setup.height, tcp,
+      authMode: (await lstat(auth)).mode & 0o777, cookieFreeDenied: true, xauth: summary(xauth) });
     p.demand(report.display.authMode === 0o600, 'authority-mode-unavailable');
     const config = { version: 1, codeRoot, profile, result: join(dir, 'native-result.json'), capture: join(dir, 'capture.png'), code, expectedElectron: '44.7.0' };
     const configPath = join(dir, 'config.json'); await writeFile(configPath, `${JSON.stringify(config)}\n`, { flag: 'wx', mode: 0o400 });
@@ -167,8 +182,8 @@ export async function qualify(options) {
     const cleanupBudget = createBudget({ deadlineAt: Date.now() + p.LIMIT.cleanupMs });
     try {
       report.cleanup = await cleanupBudget.wait(Promise.all([...owned].reverse().map(child => child.close())));
-      report.authorityCleanup = await cleanupBudget.wait(Promise.all([removeAuthority(auth), removeAuthority(emptyAuth)]).then(([normal, empty]) => ({ normal, empty })));
-      if (report.cleanup.some(c => !c.groupGone || !c.exited) || !report.authorityCleanup.normal.removed || !report.authorityCleanup.empty.removed) throw new Error('owned-cleanup-unavailable');
+      report.authorityCleanup = { normal: await cleanupBudget.wait(removeAuthority(auth)) };
+      if (report.cleanup.some(c => !c.groupGone || !c.exited) || !report.authorityCleanup.normal.removed) throw new Error('owned-cleanup-unavailable');
     } catch (error) { report.status = 'unavailable'; report.reason ||= 'owned-cleanup-unavailable'; report.cleanupDiagnostic = p.diagnostic(error, 'owned-cleanup'); }
     if (runtimeRoot && inventoryBefore) {
       try { const after = await runtimeInventory(runtimeRoot, budget); report.runtime.unchangedAfter = JSON.stringify(after) === JSON.stringify(inventoryBefore); if (!report.runtime.unchangedAfter) throw new Error(); }

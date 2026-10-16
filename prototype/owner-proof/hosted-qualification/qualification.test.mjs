@@ -8,7 +8,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { ownedProcess, groupGone, successful } from './supervisor.mjs';
-import { parseArguments, assertNoTcpListener, logResult, hashFile, createBudget, runtimeInventory, readBounded, signalOptions, runEntry } from './qualify.mjs';
+import { parseArguments, assertNoTcpListener, logResult, hashFile, createBudget, runtimeInventory, readBounded, signalOptions, runEntry, waitForOwnedDisplaySocket } from './qualify.mjs';
 const p = createRequire(import.meta.url)('./policy.cjs');
 const hash = 'a'.repeat(64), commit = 'b'.repeat(40);
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -340,4 +340,24 @@ test('diagnostics contain throwing accessors and do not coerce object values', (
   const value = { toString() { throw new Error('must-not-coerce'); } };
   assert.deepEqual(p.diagnostic({ name: value, code: value }), { operation: 'entry', errorName: 'OtherError', errorCode: 'OTHER' });
   assert.deepEqual(p.diagnostic({ get name() { throw new Error('secret'); }, code: 'ENOENT' }), { operation: 'entry', errorName: 'OtherError', errorCode: 'ENOENT' });
+});
+
+
+test('owned socket readiness is bounded filesystem admission, never a connection', async () => {
+  const missing = () => Object.assign(new Error('missing'), { code: 'ENOENT' });
+  const st = { isSocket: () => true, isSymbolicLink: () => false, uid: 1001, dev: 2, ino: 3, mode: 0o140777 };
+  const owner = { isRunning: () => true }, b = { check() {}, wait: promise => promise }; let polls = 0, sleeps = 0;
+  const ready = await waitForOwnedDisplaySocket(123, owner, b, { uid: 1001, lstat: async path => { assert.equal(path, '/tmp/.X11-unix/X123'); if (++polls < 3) throw missing(); return st; }, sleep: async ms => { assert.equal(ms, 100); sleeps++; } });
+  assert.deepEqual(ready, { path: '/tmp/.X11-unix/X123', polls: 3, dev: 2, ino: 3, uid: 1001, mode: 0o777 }); assert.equal(sleeps, 2);
+  polls = sleeps = 0;
+  await assert.rejects(waitForOwnedDisplaySocket(123, owner, b, { uid: 1001, lstat: async () => { polls++; throw missing(); }, sleep: async () => { sleeps++; } }), /owned-display-socket-unavailable/);
+  assert.equal(polls, 20); assert.equal(sleeps, 19);
+  for (const bad of [{ ...st, isSocket: () => false }, { ...st, isSymbolicLink: () => true }, { ...st, uid: 0 }]) await assert.rejects(waitForOwnedDisplaySocket(123, owner, b, { uid: 1001, lstat: async () => bad, sleep() { throw Error('must not retry'); } }), /socket-mismatch/);
+  await assert.rejects(waitForOwnedDisplaySocket(123, { isRunning: () => false }, b, { lstat() { throw Error('must not read'); } }), /not-live/);
+  for (const n of [99, 500, '123']) await assert.rejects(waitForOwnedDisplaySocket(n, owner, b), /input/);
+});
+test('v3 retains native gates and only two preinstalled tool prerequisites', () => {
+  assert.deepEqual(p.TOOLS, ['/usr/bin/Xvfb', '/usr/bin/xauth']);
+  assert.ok(p.SOURCE_FILES.includes('x11-setup.mjs')); assert.ok(p.SOURCE_FILES.includes('x11-setup.test.mjs'));
+  assert.equal(p.EXPECTED_BEFORE, '7451d71fc78505da38229e2c1e3ff8d139aed809'); assert.equal(p.BRANCH, 'refs/heads/proof/owner-hosted-qualification-v3');
 });

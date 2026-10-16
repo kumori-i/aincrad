@@ -4,13 +4,13 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 12885,
-      "sha256": "3b130f1f2a2e9c4674f43c44f9a4ba12696d3827942b1f5111bb0d98293167f5"
+      "bytes": 14464,
+      "sha256": "fddf6bb57ce46b83548f8172e0f09d666f621e69ec5299931e32a793798786b1"
     },
     {
       "path": "policy.cjs",
-      "bytes": 16912,
-      "sha256": "e52d2a69c3948624ff058a619118fb837e2e1325e3573bec6ac54e23e014cf76"
+      "bytes": 16930,
+      "sha256": "1243f15962a7cee1c9256312456335c444151d596c9b3fed83f888e820c10b2c"
     },
     {
       "path": "supervisor.mjs",
@@ -23,9 +23,19 @@
       "sha256": "10592aecae05fe2206db9a7540e1efb7aeb02562759c601790573641cdc2bdc5"
     },
     {
+      "path": "x11-setup.mjs",
+      "bytes": 13478,
+      "sha256": "46ab1f73c5ad40ebb9ac50f79972d0a199d087a94a247b4bd0de5e5d2e7d417d"
+    },
+    {
+      "path": "x11-setup.test.mjs",
+      "bytes": 20221,
+      "sha256": "88da060c792e43c234a7e1ce1d0763b185cd69bcc88dfd4cd1cbef7c5e078154"
+    },
+    {
       "path": "qualify.mjs",
-      "bytes": 20129,
-      "sha256": "683266156fe3f43b366c44af6448e1d30363e58bb9bafacd39d777d2e4ea56b7"
+      "bytes": 20631,
+      "sha256": "eee2c0edb1e9e32ddfa947f87671eece16309f0d566d0ea7014ec86921a1fa50"
     },
     {
       "path": "electron-main.cjs",
@@ -54,8 +64,8 @@
     },
     {
       "path": "qualification.test.mjs",
-      "bytes": 34809,
-      "sha256": "4e4d6b7fedef3c5a25d4e5cdb33d7ad4a0c1c2d26f5e807abce6fbfe9d8bfe52"
+      "bytes": 36862,
+      "sha256": "edf1f235297e3a6f96f53fed62ee351170ebf27f105636524b472f84809bd324"
     }
   ],
   "packages": {
