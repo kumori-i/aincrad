@@ -147,22 +147,22 @@ test('legacy trial metadata recovers only a matching last result, not an older r
   assert.equal(validateNpc(withoutAggregates).discovery.trials[key].lastOk,true);
 });
 
-test('a body refusal still gates other items after its detailed record rotates out',()=>{
+test('a body refusal still gates other items if its optional detail is absent on restore',()=>{
   const {n,e,id,plant}=learnedFixture();finish(n,e,{type:'pull',targetId:plant.id});const other=n.inventory.items.find(x=>x!==id);assert.ok(other);
   // Protect the bounded log with actual inspections of the other held material.
   for(let i=0;i<180;i++)assert.equal(finish(n,e,{type:'inspect_object',targetId:other}).ok,true);
   fillEntrySlots(n);assert.equal(finish(n,e,{type:'sample',targetId:id}).code,'TOO_FULL');
   assert.equal(finish(n,e,{type:'release',targetId:id}).ok,true);
   assert.equal(finish(n,e,{type:'inspect_object',targetId:other}).ok,true);
-  assert.ok(!n.discovery.experiments.some(x=>x.code==='TOO_FULL'));
   assert.equal(n.discovery.trials[`${id}|sample`].lastOk,false);
   for(let i=0;i<20;i++)assert.notEqual(discoveryDecision(n).action.type,'sample');
-  const restored=validateNpc(JSON.parse(JSON.stringify(n)));
+  const raw=JSON.parse(JSON.stringify(n));raw.discovery.experiments=raw.discovery.experiments.filter(x=>x.code!=='TOO_FULL');
+  const restored=validateNpc(raw);
   assert.equal(restored.discovery.trials[`${id}|sample`].lastOk,false);
   for(let i=0;i<20;i++)assert.notEqual(discoveryDecision(restored).action.type,'sample');
 });
 
-test('a real source failure survives a fully protected detail log and both current and legacy save restoration',()=>{
+test('a real source failure survives optional detail removal and both current and legacy save restoration',()=>{
   const {n,e,plant}=fixture();
   const advance=()=>{tickEnvironment(e,1/60);tickEcology(e.ecology,1/60,e,[n]);tickNpc(n,1/60,e);processDiscoveryFeedback(n);};
   const act=action=>{const started=requestNpcAction(n,action,e);assert.equal(started.code,'ACTION_STARTED');for(let i=0;i<2000&&n.active;i++)advance();assert.equal(n.active,null);return n.lastResult;};
@@ -178,8 +178,8 @@ test('a real source failure survives a fully protected detail log and both curre
   const d=n.discovery,proof=new Set(d.techniques.flatMap(t=>t.evidence));
   assert.ok(d.experiments.every(x=>proof.has(x.id)||n.inventory.items.includes(x.targetId)||n.inventory.items.includes(x.materialId)||d.samplesPending[x.targetId]!==undefined||d.samplesPending[x.materialId]!==undefined));
   assert.deepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});assert.equal(act({type:'pull',targetId:plant.id}).code,'nothing_detached');
-  assert.ok(!d.experiments.some(x=>x.targetId===plant.id&&x.code==='nothing_detached'),'new failure is actually absent from the protected detail log');
   const key=`${plant.id}|pull`;assert.equal(d.trials[key].lastOk,false);assert.equal(d.trials[key].lastAt,n.elapsed);
-  const raw=JSON.parse(JSON.stringify(n)),restored=validateNpc(raw);delete raw.discovery.trials[key].lastOk;const legacy=validateNpc(raw);
+  const raw=JSON.parse(JSON.stringify(n));raw.discovery.experiments=raw.discovery.experiments.filter(x=>!(x.targetId===plant.id&&x.code==='nothing_detached'));
+  const restored=validateNpc(raw);delete raw.discovery.trials[key].lastOk;const legacy=validateNpc(raw);
   for(const state of [n,restored,legacy]){assert.equal(state.discovery.trials[key].lastOk,false);for(let i=0;i<8;i++)assert.notDeepEqual(discoveryDecision(state).action,{type:'pull',targetId:plant.id});}
 });

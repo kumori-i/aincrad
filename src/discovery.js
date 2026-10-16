@@ -6,20 +6,26 @@ import { distance } from './world.js';
 import { rememberedCells,rememberedEdges,lineOfSight } from './perception.js';
 import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
+import { recordEvent, withProofTransaction } from './npc-events.js';
+import { retainHeldObservations } from './proof-retention.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
 const random=n=>{n.rng=(Math.imul(n.rng,1664525)+1013904223)>>>0;return n.rng/4294967296;};
 export function rememberDiscoveryObservation(npc,objects=[]){
   const d=memory(npc);if(!d.search.home)d.search.home={...npc.position};
   for(const raw of objects){const object=cleanSensoryObject({...raw,observedAt:npc.elapsed});if(object)d.observations[object.id]=object;}
-  const sorted=Object.values(d.observations).sort((a,b)=>b.observedAt-a.observedAt);d.observations=Object.fromEntries(sorted.slice(0,DISCOVERY_RULES.maxObjects).map(o=>[o.id,o]));
+  d.observations=retainHeldObservations(npc,d.observations);
+  withProofTransaction(npc,()=>{});
 }
 export function recordDiscoveryOutcome(npc,action,result,event){
+  return withProofTransaction(npc,()=>recordDiscoveryOutcomeLinked(npc,action,result,event));
+}
+function recordDiscoveryOutcomeLinked(npc,action,result,event){
   if(!DISCOVERY_RULES.primitives.includes(action?.type))return;
   const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
-  d.experiments.push(experiment);if(d.experiments.length>DISCOVERY_RULES.maxExperiments){const protectedIds=new Set([...d.techniques.flatMap(t=>t.evidence),...d.experiments.filter(e=>(npc.inventory.items||[]).includes(e.materialId)||(npc.inventory.items||[]).includes(e.targetId)||d.samplesPending[e.targetId]!==undefined||e.materialId&&d.samplesPending[e.materialId]!==undefined).map(e=>e.id)]);const removable=d.experiments.findIndex(e=>!protectedIds.has(e.id));d.experiments.splice(removable<0?0:removable,1);}
+  d.experiments.push(experiment); // The enclosing action transaction links before shared compaction.
   const practice=d.practice[action.type]||=( {successes:0,failures:0,seconds:0});
   // A rejected command is not practice. Successful inspection cannot improve pulling.
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;
@@ -33,33 +39,49 @@ export function recordDiscoveryOutcome(npc,action,result,event){
 function sampleAcquisition(d,sample){
   return d.experiments.filter(e=>e.ok&&e.materialId===sample.targetId&&e.id<sample.id).at(-1)||d.experiments.filter(e=>e.ok&&e.primitive==='grasp'&&e.targetId===sample.targetId&&e.id<sample.id).at(-1);
 }
+const processingFeedback=new WeakSet();
+function seenFeedback(d,key){d.seenFeedback.push(key);d.seenFeedback=d.seenFeedback.slice(-128);}
+function conditionMatches(proof,effect){
+  const f=proof?.details?.feedback;
+  return proof?.type==='condition'&&Number.isFinite(proof.at)&&proof.at>=effect.at&&proof.details.code==='DISCOVERY_EFFECT'&&f?.id===effect.id&&f.ingestionId===effect.ingestionId&&f.actionId===effect.actionId&&f.effect===effect.effect&&f.objectId===effect.objectId&&f.source==='experienced'&&f.at===effect.at;
+}
 export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=true}={}){
-  const d=memory(npc);
-  for(const event of npc.physiology?.feedback||[]){
-    const key=event.id;if(d.seenFeedback.includes(key))continue;d.seenFeedback.push(key);d.seenFeedback=d.seenFeedback.slice(-128);
-    const sample=d.experiments.find(e=>e.primitive==='sample'&&e.ok&&e.targetId===event.objectId&&e.actionId===event.actionId&&e.ingestionId===event.ingestionId&&event.provenance==='sampled'&&event.at>=e.at);if(!sample)continue;
-    if(sample.ingestionId&&d.effects.some(e=>e.ingestionId===sample.ingestionId&&e.effect===event.effect))continue;
-    const effect={id:String(key),at:event.at,objectId:event.objectId,actionId:sample.actionId,ingestionId:sample.ingestionId||'',effect:event.effect,hunger:event.hunger,thirst:event.thirst,energy:event.energy,pain:event.pain,source:'experienced'};d.effects.push(effect);d.effects=d.effects.slice(-DISCOVERY_RULES.maxEffects);if(d.samplesPending[event.objectId]!==undefined&&d.samplesPending[event.objectId]<=sample.at)delete d.samplesPending[event.objectId];
-    const proof=recordEffect?.(effect);if(proof?.id)effect.proofEventId=proof.id;
+  if(processingFeedback.has(npc))return;
+  const d=memory(npc);processingFeedback.add(npc);
+  try{for(const event of [...(npc.physiology?.feedback||[])]){
+    const key=event.id;if(d.seenFeedback.includes(key))continue;
+    const sample=d.experiments.find(e=>e.primitive==='sample'&&e.ok&&e.targetId===event.objectId&&e.actionId===event.actionId&&e.ingestionId===event.ingestionId&&event.provenance==='sampled'&&event.at>=e.at);
+    if(!sample||sample.ingestionId&&d.effects.some(e=>e.ingestionId===sample.ingestionId&&e.effect===event.effect)){seenFeedback(d,key);continue;}
+    withProofTransaction(npc,()=>{
+      const effect={id:String(key),at:event.at,objectId:event.objectId,actionId:sample.actionId,ingestionId:sample.ingestionId||'',effect:event.effect,hunger:event.hunger,thirst:event.thirst,energy:event.energy,pain:event.pain,source:'experienced'};
+      const proof=recordEffect?recordEffect(effect):recordEvent(npc,'condition',{code:'DISCOVERY_EFFECT',feedback:effect});
+      // Accept only an original receipt actually recorded in this actor. The
+      // outer timestamp is genuine recognition time; embedded at is emission.
+      if(npc.discovery!==d||!Number.isInteger(proof?.id)||!npc.memory.experience.some(x=>x.id===proof.id&&conditionMatches(x,effect)))throw new Error('DISCOVERY_EFFECT_PROOF');
+      effect.proofEventId=proof.id;
+      d.effects.push(effect);d.effects=d.effects.slice(-DISCOVERY_RULES.maxEffects);
+      seenFeedback(d,key);
+      if(d.samplesPending[event.objectId]!==undefined&&d.samplesPending[event.objectId]<=sample.at)delete d.samplesPending[event.objectId];
     if(event.effect==='discomfort'){
       const acquired=sampleAcquisition(d,sample);
       for(const t of d.techniques.filter(t=>t.evidence.includes(sample.id)||acquired&&t.sourceId===acquired.targetId&&t.steps[0].type===acquired.primitive)){
         t.confidence='revised';t.evidence=[...new Set([...t.evidence,...(acquired?[acquired.id]:[]),sample.id])].slice(-16);
       }
-      for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='contradicted';continue;
+      for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='contradicted';return;
     }
-    if(event.effect!=='sustained'||!foodLearning)continue;
-    const grasp=sampleAcquisition(d,sample);if(!grasp)continue;
+    if(event.effect!=='sustained'||!foodLearning)return;
+    const grasp=sampleAcquisition(d,sample);if(!grasp)return;
     const sourceId=grasp.targetId,evidence=[grasp.id,sample.id],steps=[{type:grasp.primitive,targetId:'$source'},{type:'sample',targetId:'$material'}];
     let technique=d.techniques.find(t=>t.sourceId===sourceId&&t.steps[0].type===grasp.primitive);
     if(!technique){technique={id:`technique:${npc.id}:${d.nextId++}`,sourceId,steps,evidence,at:npc.elapsed,effect:'sustained',confidence:'tentative',successes:0,failures:0};d.techniques.push(technique);d.foodDiscoveries++;if(npc.cognition){npc.cognition.knowledgeGained++;npc.cognition.lastKnowledgeAt=npc.elapsed;}}
     technique.successes++;technique.evidence=[...new Set([...technique.evidence,...evidence])].slice(-16);if(technique.confidence!=='revised')technique.confidence=technique.successes>=2?'supported':'tentative';d.techniques=d.techniques.slice(-DISCOVERY_RULES.maxTechniques);
     npc.stats.independentMeals++;npc.stats.firstFoodAt??=npc.elapsed;
     for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='supported';
-  }
+    });
+  }}finally{processingFeedback.delete(npc);}
 }
 /** Explicit human testimony proposes operations; words alone prove no affordance. */
-export function recordDiscoveryReport(npc,content,{sourceId='human',channel='journal',messageId='',at=npc.elapsed}={}){
+function recordDiscoveryReportLinked(npc,content,{sourceId='human',channel='journal',messageId='',at=npc.elapsed}={}){
   if(npc.mode!=='discovery'||!['human','aster','mira'].includes(sourceId)||typeof content!=='string')return null;
   const d=memory(npc),text=content.slice(0,600);if(d.reports.some(r=>r.messageId===messageId&&r.sourceId===sourceId&&messageId))return null;
   const report={id:`report:${npc.id}:${d.nextId++}`,text,sourceId,channel:String(channel).slice(0,20),messageId:String(messageId||'').slice(0,80),at,status:'unverified',proposed:[],cursor:0,evidence:[]};
@@ -79,6 +101,9 @@ export function recordDiscoveryReport(npc,content,{sourceId='human',channel='jou
     }
   }
   d.reports.push(report);d.reports=d.reports.slice(-DISCOVERY_RULES.maxReports);return report;
+}
+export function recordDiscoveryReport(npc,content,options={}){
+  return withProofTransaction(npc,()=>recordDiscoveryReportLinked(npc,content,options));
 }
 export const recordTechniqueReport=recordDiscoveryReport;
 export function recordDiscoveryClaim(npc,claim,options={}){

@@ -1,6 +1,6 @@
 import { CONFIG, SPAWN, CAVES, CAVE_SPAWN, LANDMARKS } from './config.js';
 import { clamp, freshState, moveActor, nearestInteraction, clockTime, regionName, distance, canStand } from './world.js';
-import { loadSave, writeSave, validateSave } from './save.js';
+import { loadSave, writeSave, validateSave, saveProtectionReason } from './save.js';
 import { Renderer } from './renderer.js';
 import { PopulationRuntime } from './population.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
@@ -28,10 +28,12 @@ let lastTime=performance.now()/1000, lastAutosave=0, lastHud=0, toastUntil=0, fp
 const simulationClock=new SimulationClock({step:CONFIG.fixedStep,onStep:fixedUpdate});
 simulationClock.reset(lastTime);
 if(loaded.exists)ui.begin.innerHTML='Continue your expedition <span>↗</span>';
-if(loaded.error)pendingToast=loaded.error;
+if(loaded.error){pendingToast=loaded.error;ui['save-status'].textContent='Save protected';}
 
 function notify(message,seconds=5){ui.toast.textContent=message;ui.toast.classList.remove('hidden');toastUntil=performance.now()/1000+seconds;}
 function save(explicit=false){
+  const protection=saveProtectionReason(state);
+  if(protection){saveBlocked=true;ui['save-status'].textContent='Save protected';if(explicit)notify(protection,9);return false;}
   if(saveBlocked&&!explicit)return false;
   const ok=writeSave(storage,state);
   if(ok){saveBlocked=false;ui['save-status'].textContent='Saved locally';if(explicit)notify('Expedition saved on this computer.');}

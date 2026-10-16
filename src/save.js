@@ -8,8 +8,19 @@ import { ECOLOGY_RULES } from './ecology-config.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { validateCardinal } from './cardinal.js';
 import { hasLifecyclePayload, lifecycleError } from './plant-lifecycle-state.js';
+import { retainedProofIntegrityError } from './proof-retention.js';
 const SAVE_VERSIONS = new Set([1,2,3,4,5,6,8]);
 const AGENT_IDS = ['aster','mira'];
+const PROOF_WARNING='Learned evidence in this expedition is incomplete or depends on an older feedback queue. The original save has been preserved. Start a new expedition explicitly to replace it.';
+export function saveProtectionReason(state){
+  if(state?.saveBlocked)return state.saveBlockedReason||'The original save is protected and has not been overwritten.';
+  if(state?.simulationMode!=='discovery')return null;
+  const actors=[...(Array.isArray(state.agents)?state.agents:[]),state.npc].filter(Boolean);
+  // The envelope selects discovery rules on restore. A serialized actor cannot
+  // opt out of the raw proof check by claiming legacy mode inside that world.
+  return actors.some(n=>n.mode!=='discovery'||n.proofRetentionError||retainedProofIntegrityError(n))?PROOF_WARNING:null;
+}
+
 function unsupportedRules(raw){
   const ecology=raw.environment?.ecology;
   // v7 contains a separate research learner. Even a mislabeled older envelope
@@ -45,13 +56,15 @@ function newCharacterAt(id,elapsed,mode){
   return npc;
 }
 export function validateSave(raw, {restoring=true}={}) {
-  const supported=raw&&typeof raw==='object'&&SAVE_VERSIONS.has(raw.version)&&!unsupportedRules(raw);
+  const protection=saveProtectionReason(raw);
+  const supported=raw&&typeof raw==='object'&&SAVE_VERSIONS.has(raw.version)&&!unsupportedRules(raw)&&!protection;
   const mode=supported&&(raw.version<5||raw.simulationMode!=='discovery')?'legacy':'discovery';
   const base = freshState({mode,populateEcology:!supported});
   if (!supported) {
     // Direct validation is also a load boundary, never authorization to erase an
     // unsupported source through a later ordinary autosave.
     Object.defineProperty(base,'saveBlocked',{value:true,enumerable:false});
+    if(protection)Object.defineProperty(base,'saveBlockedReason',{value:protection,enumerable:false});
     return base;
   }
   const ids = new Set(CAVES.map(c => c.id));
@@ -99,6 +112,7 @@ function protectedFresh(error){
   // A failed read must not become a fresh autosave over the user's existing disk
   // data. Explicitly starting a new expedition creates an unprotected state.
   Object.defineProperty(state,'saveBlocked',{value:true,enumerable:false});
+  Object.defineProperty(state,'saveBlockedReason',{value:error,enumerable:false});
   return {state,exists:false,error,blocked:true};
 }
 export function loadSave(storage) {
@@ -106,14 +120,17 @@ export function loadSave(storage) {
     const data = storage.getItem(CONFIG.saveKey);
     if (!data) return { state: freshState(), exists: false, error: null, blocked:false };
     const parsed = JSON.parse(data);
+    const protection=saveProtectionReason(parsed);if(protection)return protectedFresh(protection);
     if (!SAVE_VERSIONS.has(parsed?.version)||unsupportedRules(parsed)) return protectedFresh('The previous save uses unsupported rules or a newer version. It has been preserved; start a new expedition explicitly to replace it.');
     return { state: validateSave(parsed), exists: true, error: null, blocked:false };
   } catch { return protectedFresh('The local save could not be read. Your previous data has not been overwritten.'); }
 }
 export function writeSave(storage, state) {
-  if(state?.saveBlocked || !SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))return false;
+  if(saveProtectionReason(state)||!SAVE_VERSIONS.has(state?.version)||unsupportedRules(state))return false;
   try {
-    const {npc:historicalAlias,...saved}=validateSave(state,{restoring:false});
+    const canonical=validateSave(state,{restoring:false});
+    if(saveProtectionReason(canonical))return false;
+    const {npc:historicalAlias,...saved}=canonical;
     storage.setItem(CONFIG.saveKey, JSON.stringify(saved));
     return true;
   }

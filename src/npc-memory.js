@@ -9,6 +9,8 @@ import { rememberDiscoveryObservation,recordDiscoveryOutcome } from './discovery
 import { validateDiscoveryMemory,objectId } from './discovery-state.js';
 import { validatePhysiology,projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
+import { recordEvent, compact, withProofTransaction } from './npc-events.js';
+export { recordEvent } from './npc-events.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
 const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
@@ -16,28 +18,6 @@ const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move
 const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwise;
 const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
 const cellsFor=(npc,scene=npc.scene)=>scene==='valley'?npc.memory.cells:(npc.memory.caveCells[scene]||={});
-function compact(value,depth=0){
-  if(depth>5)return null;
-  if(typeof value==='string')return value.slice(0,600);
-  if(typeof value==='number')return Number.isFinite(value)?clamp(value,-1e12,1e12):null;
-  if(typeof value==='boolean'||value===null)return value;
-  if(Array.isArray(value))return value.slice(0,24).map(v=>compact(v,depth+1));
-  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([k])=>!['__proto__','constructor','prototype'].includes(k)).slice(0,24).map(([k,v])=>[k.slice(0,60),compact(v,depth+1)]));
-  return null;
-}
-export function recordEvent(npc,type,details={}){
-  const event={id:npc.memory.nextId++,at:npc.elapsed,type,details:compact(details)};
-  npc.memory.experience.push(event);
-  if(npc.memory.experience.length>NPC_RULES.maxExperience){
-    // One actual rest outcome survives unrelated action/detail rotation. Keeping
-    // a later success also prevents an older failure from resurfacing on reopen.
-    const restOutcome=npc.mode==='discovery'?npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1)?.id:null;
-    const protectedIds=new Set([restOutcome,...npc.memory.skills.flatMap(s=>s.supportingExperience),...(npc.inventory?.apples||[]).map(a=>a.eventId),...(npc.discovery?.experiments||[]).map(e=>e.actionId),...(npc.discovery?.effects||[]).map(e=>e.proofEventId),npc.flask.fillEventId,...Object.keys(npc.memory.shelters||{}).map(id=>npc.memory.experience.filter(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok).at(-1)?.id)].filter(Number.isInteger));
-    const removable=npc.memory.experience.findIndex(e=>!protectedIds.has(e.id));
-    npc.memory.experience.splice(removable<0?0:removable,1);
-  }
-  return event;
-}
 export function rememberObservation(npc,observation){
   if(npc.mode==='discovery')rememberDiscoveryObservation(npc,observation.objects||[]);
   const m=npc.memory;m.foods||={};m.shelters||={};m.caveCells||={};m.caveEdges||={};m.caveExits||={};m.features||={};m.effects||={};
@@ -132,6 +112,9 @@ function candidateFromRelief(npc,event,id){
   makeSkill(npc,{id:`shelter-${move?'approach-enter-rest':'enter-rest'}`,signature:move?'approach-enter-rest':'enter-rest',name:move?'Approach shelter and rest':'Enter shelter and rest',need:'thermal',parameter:'shelterId',steps,inRange:!move},event,id,move?.details.startPosition||enter.details.startPosition,[...(move?[move.id]:[]),enter.id,event.id]);
 }
 export function learnOutcome(npc,action,result,context,startPosition){
+  return withProofTransaction(npc,()=>learnOutcomeLinked(npc,action,result,context,startPosition));
+}
+function learnOutcomeLinked(npc,action,result,context,startPosition){
   const previous=npc.memory.experience.filter(e=>e.type==='action').at(-1);
   const timedProgress=result.code==='ACTION_TIMEOUT'&&(result.distance||0)>40;
   if(!result.ok&&result.code!=='PRIORITY_CHANGED'&&!timedProgress){npc.stats.invalidActions++;if(previous?.details.result?.code===result.code&&previous?.details.action?.type===action.type)npc.stats.repeatedInvalid++;}
