@@ -4,6 +4,7 @@ import { createNpc } from './npc-state.js';
 import { createEnvironment } from './environment.js';
 import { createCommunity } from './social.js';
 import { createCardinal } from './cardinal.js';
+import { selectFreshGeometryProfile } from './geometry-profile.js';
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -209,7 +210,11 @@ export function regionName(x, y, scene) {
   if (forestAmount(x, y) > .54) return 'The Oldwood';
   return y > 0 ? 'Sunfall Meadows' : 'The High Meadows';
 }
-export function freshState({mode='discovery',populateEcology=true,connectedEcology=mode==='discovery'}={}) {
+export function freshState(options={}) {
+  const {mode='discovery',populateEcology=true,connectedEcology=mode==='discovery',geometryProfile}=options;
+  const geometry=Object.hasOwn(options,'geometryProfile')?
+    selectFreshGeometryProfile(geometryProfile):selectFreshGeometryProfile();
+  if(!geometry.playable)throw new Error('The preview geometry is not playable until world, collision, and rendering rules agree.');
   const simulationMode=mode==='legacy'?'legacy':'discovery';
   const connected=simulationMode==='discovery'&&connectedEcology===true;
   const agents = [createNpc({id:'aster',mode:simulationMode}), createNpc({id:'mira',mode:simulationMode})];
