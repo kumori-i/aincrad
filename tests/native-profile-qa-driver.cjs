@@ -1,8 +1,8 @@
 /** Finite Electron QA actions. Main loads this only in an unpackaged --test
  * launch with explicit, disposable original and recovered profile roots. */
 const assert = require('node:assert/strict');
-const { createHash } = require('node:crypto');
-const { constants } = require('node:fs');
+const { createHash, createHmac, randomBytes } = require('node:crypto');
+const { constants, realpathSync } = require('node:fs');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
@@ -43,6 +43,72 @@ function windowsPathClass(location) {
   if (backslashes.startsWith('\\\\')) return 'unc';
   return null;
 }
+function windowsQaParentDiagnostic({ candidate, temporary, syncTemp, physicalTemp,
+  scratch, rebasedParent, routeTempRoot }, key) {
+  const win = path.win32;
+  const digest = value => createHmac('sha256', key).update(value).digest('hex').slice(0, 12);
+  const parts = value => {
+    const normalized = win.normalize(value), root = win.parse(normalized).root;
+    return { normalized, root, segments: normalized.slice(root.length).split(win.sep).filter(Boolean) };
+  };
+  const signature = value => {
+    if (typeof value !== 'string' || value.length > 2048) return { available: false };
+    const { normalized, root, segments } = parts(value);
+    const indices = segments.length <= 12 ? segments.map((_, index) => index) :
+      [...Array(6).keys(), ...Array(6).keys()].map((index, position) =>
+        position < 6 ? index : segments.length - 6 + index);
+    const leaf = segments.at(-1) || '';
+    return {
+      rootKind: /^\\\\[?.]\\/.test(root) ? 'namespace' :
+        root.startsWith('\\\\') ? 'unc' : /^[a-z]:\\$/i.test(root) ? 'drive' : 'other',
+      rootId: digest(root.toLowerCase()),
+      pathId: digest(normalized), foldedPathId: digest(normalized.toLowerCase()),
+      depth: Math.min(segments.length, 255), omitted: segments.length - indices.length,
+      leafClass: /^aincrad-recovered-native-[a-z0-9_-]{6,64}$/i.test(leaf) ? 'qa-scratch' : 'other',
+      components: indices.map(index => {
+        const segment = segments[index];
+        return [index, Math.min(segment.length, 255), digest(segment),
+          digest(segment.toLowerCase()), /~[0-9](?:\.|$)/.test(segment) ? 1 : 0];
+      }),
+    };
+  };
+  const relation = (first, second) => {
+    if (typeof first !== 'string' || typeof second !== 'string' ||
+        first.length > 2048 || second.length > 2048) return { available: false };
+    const a = parts(first), b = parts(second);
+    const sameRoot = a.root.toLowerCase() === b.root.toLowerCase();
+    const foldedEqual = a.normalized.toLowerCase() === b.normalized.toLowerCase();
+    let firstFoldMismatch = sameRoot ? Math.min(a.segments.length, b.segments.length) : -1;
+    if (sameRoot) for (let index = 0; index < Math.min(a.segments.length, b.segments.length); index++) {
+      if (a.segments[index].toLowerCase() !== b.segments[index].toLowerCase()) {
+        firstFoldMismatch = index; break;
+      }
+    }
+    return { sameRoot, exact: a.normalized === b.normalized, foldedEqual,
+      firstFoldMismatch: foldedEqual ? null : Math.min(firstFoldMismatch, 255) };
+  };
+  const suppliedParent = win.dirname(candidate);
+  // The harness creates config-N.json directly in aincrad-recovered-native-*.
+  // This parent is only a hint for its Node-side temp root, never an authority.
+  const hostTempHint = /^aincrad-recovered-native-[a-z0-9_-]{6,64}$/i.test(
+    win.basename(suppliedParent)) ? win.dirname(suppliedParent) : null;
+  return {
+    event: 'native-qa-scratch-parent', version: 1, operation: 'config', stage: 'lexical',
+    paths: {
+      routeTemp: signature(routeTempRoot), driverTemp: signature(temporary),
+      hostTempHint: signature(hostTempHint), syncTemp: signature(syncTemp),
+      asyncTemp: signature(physicalTemp), suppliedParent: signature(suppliedParent),
+      expectedScratch: signature(scratch), rebasedParent: signature(rebasedParent),
+    },
+    relations: {
+      routeToDriverTemp: relation(routeTempRoot, temporary),
+      hostHintToDriverTemp: relation(hostTempHint, temporary),
+      syncToAsyncTemp: relation(syncTemp, physicalTemp),
+      suppliedToExpectedScratch: relation(suppliedParent, scratch),
+      rebasedToExpectedScratch: relation(rebasedParent, scratch),
+    },
+  };
+}
 async function resolveQaFile(location, scratch, operation, options = {}) {
   const platform = options.platform || process.platform;
   const pathApi = platform === 'win32' ? path.win32 : path.posix;
@@ -76,8 +142,25 @@ async function resolveQaFile(location, scratch, operation, options = {}) {
   const rebased = lexicalTemp ? pathApi.join(physicalTemp, relative) :
     pathApi.join(trustedScratch, relative);
   const parent = pathApi.dirname(rebased);
-  if (!samePath(pathApi, parent, trustedScratch))
+  if (!samePath(pathApi, parent, trustedScratch)) {
+    if (platform === 'win32' && operation === 'config' &&
+        /^config-[1-9][0-9]{0,3}\.json$/i.test(basename) &&
+        /^aincrad-recovered-native-[a-z0-9_-]{6,64}$/i.test(pathApi.basename(pathApi.dirname(candidate))) &&
+        (options.diagnosticSink || process.platform === 'win32')) {
+      // Only the fixed OS temp root is read for this diagnostic. Failures here
+      // cannot change the existing path rejection or reveal raw filesystem errors.
+      try {
+        let syncTemp = null;
+        try { syncTemp = ordinaryRealpath(
+          (options.syncRealpath || realpathSync)(temporary), platform); } catch {}
+        const line = JSON.stringify(windowsQaParentDiagnostic({ candidate, temporary,
+          syncTemp, physicalTemp, scratch: trustedScratch, rebasedParent: parent,
+          routeTempRoot: options.routeTempRoot }, options.diagnosticKey || randomBytes(32)));
+        (options.diagnosticSink || console.error)(`Native QA scratch diagnostic: ${line}`);
+      } catch {}
+    }
     throw qaPathError(operation, 'parent-mismatch', 'lexical');
+  }
   if (!inside(pathApi, physicalTemp, parent))
     throw qaPathError(operation, 'outside-temp', 'physical');
   // A lexical match alone is insufficient on case-sensitive Windows volumes.
@@ -310,7 +393,7 @@ async function waitForFaultMessage(win, kind, limitMs = 12000) {
 }
 
 async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBackup, recoveredProfile,
-  setRestartFault, setPublicationFault, setProfileOpenFault, configPath }) {
+  setRestartFault, setPublicationFault, setProfileOpenFault, configPath, routeTempRoot }) {
   assert.equal(app.isPackaged, false, 'native QA is unavailable in packages');
   assert.equal(profileRoute.isTest, true);
   assert.equal(profileRoute.usesTestPaths, true);
@@ -318,7 +401,7 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
   const scratch = path.dirname(original);
   assert.equal(path.dirname(copy), scratch, 'both disposable profile roots share one scratch directory');
   assert.notEqual(original, copy);
-  configPath = await resolveQaFile(configPath, scratch, 'config');
+  configPath = await resolveQaFile(configPath, scratch, 'config', { routeTempRoot });
   const config = JSON.parse((await readFixedFile(configPath, scratch, 4096, 'config')).toString('utf8'));
   for (const key of ['output', 'rawFile', 'backupFile', 'screenshotFile', 'progressFile'])
     if (typeof config[key] === 'string') config[key] = await resolveQaFile(config[key], scratch, key);

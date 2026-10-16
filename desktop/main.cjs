@@ -16,6 +16,9 @@ const nativeQaOption=nativeQaOptions[0];
 let restartFault=null,publicationFault=null,profileOpenFault=null;
 app.setName('Aincrad');
 let profileRoute;
+// Capture the temp root used by profile routing for a failure-only native QA
+// diagnosis. No environment value or path is printed by the product.
+const nativeQaRouteTemp=process.platform==='win32'&&nativeQaOption?os.tmpdir():null;
 try{
   const smokeDirectory=SMOKE?require('node:fs').mkdtempSync(path.join(os.tmpdir(),'aincrad-smoke-')):null;
   const routeArgs=smokeDirectory?[...process.argv,'--test',`--test-profile=${smokeDirectory}`,
@@ -202,6 +205,7 @@ app.whenReady().then(async()=>{
     const {runNativeProfileQa}=require(path.resolve(__dirname,'..','..','tests','native-profile-qa-driver.cjs'));
     await runNativeProfileQa({app,win,session,profileRoute,rawSaveBackup,recoveredProfile,
       configPath:nativeQaOption.slice('--test-native-qa='.length),
+      routeTempRoot:nativeQaRouteTemp,
       setRestartFault:value=>{
         if(!['reject','exit',null].includes(value))throw new Error('Unknown native restart fault.');
         restartFault=value;

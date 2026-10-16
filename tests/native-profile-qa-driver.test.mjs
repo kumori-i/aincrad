@@ -70,6 +70,7 @@ test('native QA Windows path normalization accepts ordinary spelling variants on
   const temp = 'C:\\Users\\runner\\AppData\\Local\\Temp';
   const scratch = win.join(temp, 'Aincrad-QA');
   const calls = [];
+  const diagnostics = [];
   const fileSystem = {
     async realpath(target) {
       calls.push(['realpath', target]);
@@ -83,7 +84,8 @@ test('native QA Windows path normalization accepts ordinary spelling variants on
       throw new Error(`private fs error: ${target}`);
     },
   };
-  const options = { platform: 'win32', tempDirectory: temp, fileSystem };
+  const options = { platform: 'win32', tempDirectory: temp, fileSystem,
+    diagnosticSink: line => diagnostics.push(line) };
   for (const operation of ['config', 'output', 'rawFile', 'backupFile', 'screenshotFile', 'progressFile']) {
     const candidate = `c:/users/RUNNER/appdata/local/temp/aincrad-qa/${operation}.json`;
     assert.equal(await resolveQaFile(candidate, scratch, operation, options),
@@ -91,6 +93,63 @@ test('native QA Windows path normalization accepts ordinary spelling variants on
   }
   assert.ok(calls.some(([operation, target]) => operation === 'lstat' &&
     win.relative(scratch, target) === ''));
+  assert.deepEqual(diagnostics, [], 'ordinary case and separator variants need no diagnostic');
+});
+
+test('native QA Windows mismatch diagnostic distinguishes temp-root drift and short-name spelling', async () => {
+  const win = path.win32;
+  const temp = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp';
+  const scratch = win.join(temp, 'aincrad-recovered-native-ABC123');
+  const candidate = win.join(scratch, 'config-1.json');
+  const lines = [];
+  const diagnosticKey = Buffer.alloc(32, 7);
+  const diagnosticSink = line => lines.push(line);
+  const common = { platform: 'win32', tempDirectory: temp, diagnosticKey,
+    diagnosticSink, syncRealpath: () => temp };
+  const shortTemp = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp';
+  await assert.rejects(resolveQaFile(candidate, scratch, 'config', {
+    ...common, routeTempRoot: temp,
+    fileSystem: { realpath: async () => shortTemp },
+  }), /class=parent-mismatch; stage=lexical/);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^Native QA scratch diagnostic: \{/);
+  assert.ok(lines[0].length < 6000, 'one diagnostic fits in the bounded child stderr capture');
+  const first = JSON.parse(lines[0].slice('Native QA scratch diagnostic: '.length));
+  assert.equal(first.event, 'native-qa-scratch-parent');
+  assert.equal(first.relations.routeToDriverTemp.exact, true);
+  assert.equal(first.relations.hostHintToDriverTemp.exact, true);
+  assert.equal(first.relations.suppliedToExpectedScratch.exact, true);
+  assert.equal(first.relations.syncToAsyncTemp.foldedEqual, false);
+  assert.equal(first.relations.rebasedToExpectedScratch.foldedEqual, false);
+  assert.ok(first.paths.asyncTemp.components.some(component => component[4] === 1),
+    '8.3-style component has a marker without printing its name');
+  for (const secret of [temp, scratch, candidate, 'C:', 'runneradmin', 'RUNNER~1', 'config-1.json'])
+    assert.ok(!lines[0].includes(secret), 'diagnostic contains no raw path component');
+
+  lines.length = 0;
+  const oldTemp = 'C:\\OldTemp';
+  const oldScratch = win.join(oldTemp, 'aincrad-recovered-native-ABC123');
+  await assert.rejects(resolveQaFile(candidate, oldScratch, 'config', {
+    ...common, routeTempRoot: oldTemp,
+    fileSystem: { realpath: async () => temp },
+  }), /class=parent-mismatch; stage=lexical/);
+  const second = JSON.parse(lines[0].slice('Native QA scratch diagnostic: '.length));
+  assert.equal(second.relations.routeToDriverTemp.foldedEqual, false);
+  assert.equal(second.relations.hostHintToDriverTemp.exact, true);
+  assert.equal(second.relations.syncToAsyncTemp.exact, true);
+  assert.equal(second.relations.rebasedToExpectedScratch.foldedEqual, false);
+  assert.ok(!lines[0].includes(oldTemp));
+  lines.length = 0;
+  await assert.rejects(resolveQaFile(candidate, oldScratch, 'output', {
+    ...common, routeTempRoot: oldTemp,
+    fileSystem: { realpath: async () => temp },
+  }), /class=parent-mismatch; stage=lexical/);
+  assert.deepEqual(lines, [], 'only the failing config gate emits the diagnostic');
+  await assert.rejects(resolveQaFile(win.join(scratch, 'other.json'), oldScratch, 'config', {
+    ...common, routeTempRoot: oldTemp,
+    fileSystem: { realpath: async () => temp },
+  }), /class=parent-mismatch; stage=lexical/);
+  assert.deepEqual(lines, [], 'arbitrary config names emit no path signatures');
 });
 
 test('native QA Windows path rejections give finite classes without exposing paths', async () => {
