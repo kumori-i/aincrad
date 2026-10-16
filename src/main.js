@@ -53,6 +53,8 @@ simulationClock.reset(lastTime);
 if(loaded.exists)ui.begin.innerHTML='Continue your expedition <span>↗</span>';
 if(recoveryRequired){pendingToast=bootIssue;ui['save-status'].textContent='Save protected';}
 const recovered=profileStatus?.kind==='recovered';
+const recoveredCopySupported=profileStatus?.recoveredCopySupported===true;
+const recoveredCopyUnavailable='Recovered-copy creation and opening are unavailable on Windows in this build. Your original save stays protected; you can still export or verify its exact raw backup.';
 const profileLabel=recovered
   ? (boot.gate==='blocked'&&validateProfileStatus(profileStatus)
       ? 'Recovered copy · profile verification failed'
@@ -63,12 +65,16 @@ $('active-profile-label').textContent=profileLabel;
 $('recovery-profile-label').textContent=profileLabel;
 document.title=`Aincrad — ${recovered?'Recovered copy':'Original world'}`;
 if(profileStatus?.kind==='original'&&profileStatus.available){
-  $('welcome-open-copy').classList.remove('hidden');
-  $('welcome-open-status').textContent='A recovered copy is available. Its progress is separate from this original world; there is no merge or automatic copy-back.';
+  if(recoveredCopySupported)$('welcome-open-copy').classList.remove('hidden');
+  $('welcome-open-status').textContent=recoveredCopySupported
+    ? 'A recovered copy is available. Its progress is separate from this original world; there is no merge or automatic copy-back.'
+    : recoveredCopyUnavailable;
   $('welcome-open-status').classList.remove('hidden');
-  $('recovery-open').classList.remove('hidden');
-  $('pause-open-copy').classList.remove('hidden');
-  $('pause-copy-note').classList.remove('hidden');
+  if(recoveredCopySupported){
+    $('recovery-open').classList.remove('hidden');
+    $('pause-open-copy').classList.remove('hidden');
+    $('pause-copy-note').classList.remove('hidden');
+  }
 }
 if(recoveryRequired){
   ui.begin.disabled=true;$('watch-aster').disabled=true;
@@ -77,16 +83,20 @@ if(recoveryRequired){
   if(boot.gate==='original-protected'){
     $('recovery-title').textContent='Your original world needs recovery.';
     $('recovery-migration').textContent=migrationPlan?.ok
-      ? `${migrationPlan.report.migrations.length} pending ingestion record(s) have exact sample-action receipts. Their delayed feedback will remain physical only in a separate recovered copy.`
+      ? recoveredCopySupported
+        ? `${migrationPlan.report.migrations.length} pending ingestion record(s) have exact sample-action receipts. Their delayed feedback will remain physical only in a separate recovered copy.`
+        : `${migrationPlan.report.migrations.length} pending ingestion record(s) have exact sample-action receipts. The original save remains protected while recovered-copy import is unavailable.`
       : 'This save does not meet the strict physical-only migration contract. Its original bytes remain untouched.';
-    $('recovery-note').textContent=profileStatus.phase==='invalid'
-      ? 'The recovered copy slot is incomplete or invalid. After an exact matching backup is verified, a safe staged retry may complete it. Unknown, corrupt, or different slots are refused and never replaced.'
-      : 'Export the exact raw save, or select an existing matching backup. Creating a recovered copy never changes this original world. Later progress in either world may diverge; there is no merge or automatic copy-back.';
+    $('recovery-note').textContent=!recoveredCopySupported?recoveredCopyUnavailable
+      : profileStatus.phase==='invalid'
+        ? 'The recovered copy slot is incomplete or invalid. After an exact matching backup is verified, a safe staged retry may complete it. Unknown, corrupt, or different slots are refused and never replaced.'
+        : 'Export the exact raw save, or select an existing matching backup. Creating a recovered copy never changes this original world. Later progress in either world may diverge; there is no merge or automatic copy-back.';
     $('recovery-backup').classList.remove('hidden');
     $('recovery-verify').classList.remove('hidden');
     $('recovery-backup').disabled=!originalRaw||!window.aincradSave?.exportRaw;
     $('recovery-verify').disabled=!originalRaw||!window.aincradSave?.restoreRaw;
-    if(migrationPlan?.ok&&['none','invalid'].includes(profileStatus.phase)&&window.aincradProfile?.createRecoveredCopy){
+    if(recoveredCopySupported&&migrationPlan?.ok&&['none','invalid'].includes(profileStatus.phase)&&
+        window.aincradProfile?.createRecoveredCopy){
       $('recovery-create').classList.remove('hidden');
       if(profileStatus.phase==='invalid')$('recovery-create').textContent='Retry safe recovered copy staging';
     }
@@ -100,7 +110,7 @@ if(recoveryRequired){
       $('recovery-rows').append(item);
     }
     $('recovery-rows').classList.remove('hidden');
-    if(boot.gate==='pending-empty'&&window.aincradProfile?.restartRecoveredCopy)
+    if(recoveredCopySupported&&boot.gate==='pending-empty'&&window.aincradProfile?.restartRecoveredCopy)
       $('recovery-import').classList.remove('hidden');
     if(boot.gate==='pending-empty')$('recovery-status').textContent='The recovered copy save key is empty. Import has not started.';
     if(boot.gate==='pending-written')$('recovery-status').textContent=bootIssue||'Verifying the imported candidate and restarting…';
@@ -132,7 +142,7 @@ async function exportProtectedSave(){
     if(result?.canceled){status.textContent='Backup canceled. The original save remains untouched.';return;}
     if(!result?.ok||result.sha256!==hash||storage.getItem(CONFIG.saveKey)!==originalRaw)throw new Error('The backup could not be verified against the current local save. Restart before trying again.');
     verifiedBackupRaw=originalRaw;verifiedBackupHash=hash;
-    $('recovery-create').disabled=false;
+    $('recovery-create').disabled=!recoveredCopySupported;
     status.textContent=`Verified raw backup: ${result.path} · checked ${new Date().toLocaleString()} · SHA-256 ${hash}. The original world is unchanged; a different process may later advance it.`;
   }catch(error){status.textContent=error?.message||'Backup failed. The original save remains untouched.';}
   finally{$('recovery-backup').disabled=false;}
@@ -149,7 +159,7 @@ async function verifyRawBackup(){
         await rawSha256(result.raw)!==result.sha256)
       throw new Error('The selected backup is not an exact match for the current original raw save.');
     verifiedBackupRaw=originalRaw;verifiedBackupHash=result.sha256;
-    $('recovery-create').disabled=false;
+    $('recovery-create').disabled=!recoveredCopySupported;
     status.textContent=`Verified matching backup: ${result.path} · checked ${new Date().toLocaleString()} · SHA-256 ${result.sha256}. The original world is unchanged; a different process may later advance it.`;
   }catch(error){status.textContent=error?.message||'Backup verification failed.';}
   finally{$('recovery-verify').disabled=false;}
@@ -163,6 +173,7 @@ async function openRecoveredCopy(){
   let quiesced=false;
   for(const id of ['recovery-open','welcome-open-copy','pause-open-copy'])$(id).disabled=true;
   try{
+    if(!recoveredCopySupported)throw new Error(recoveredCopyUnavailable);
     if(profileStatus?.kind!=='original'||!window.aincradProfile?.openRecoveredCopy)
       throw new Error('The recovered copy route is unavailable.');
     if(started&&!save(true))
@@ -186,6 +197,7 @@ async function createRecoveredCopy(){
   const status=$('recovery-status');
   $('recovery-create').disabled=true;
   try{
+    if(!recoveredCopySupported)throw new Error(recoveredCopyUnavailable);
     if(boot.gate!=='original-protected'||!migrationPlan?.ok||profileStatus?.kind!=='original'||
         !['none','invalid'].includes(profileStatus.phase)||verifiedBackupRaw!==originalRaw||!verifiedBackupHash||
         storage.getItem(CONFIG.saveKey)!==originalRaw||await rawSha256(originalRaw)!==verifiedBackupHash)
@@ -198,12 +210,13 @@ async function createRecoveredCopy(){
     status.textContent='Recovered copy staged from the verified backup. Opening its paused import screen…';
     await openRecoveredCopy();
   }catch(error){status.textContent=error?.message||'The recovered copy could not be created.';verifiedBackupRaw=null;verifiedBackupHash=null;}
-  finally{$('recovery-create').disabled=!verifiedBackupRaw;}
+  finally{$('recovery-create').disabled=!recoveredCopySupported||!verifiedBackupRaw;}
 }
 async function importRecoveredCopy(){
   const status=$('recovery-status');
   $('recovery-import').disabled=true;
   try{
+    if(!recoveredCopySupported)throw new Error(recoveredCopyUnavailable);
     if(boot.gate!=='pending-empty'||!storage||!window.aincradProfile?.restartRecoveredCopy)
       throw new Error('The recovered copy is not ready for explicit import.');
     const again=await inspectProfileBoot({profileApi:window.aincradProfile,

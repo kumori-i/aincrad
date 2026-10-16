@@ -7,7 +7,11 @@ import path from 'node:path';
 import {runInNewContext} from 'node:vm';
 import profile from '../desktop/recovered-profile.cjs';
 
-const {COPY_FLAG,STAGE,RESERVATION,MANIFEST,resolveProfileRoute,assertCopyDirectory,createRecoveredProfileManager}=profile;
+const {COPY_FLAG,STAGE,RESERVATION,MANIFEST,assertCopyDirectory}=profile;
+// These tests exercise the supported copy flow on every CI host. The separate
+// Windows capability tests exercise refusal with platform:'win32'.
+const resolveProfileRoute=inputs=>profile.resolveProfileRoute({...inputs,platform:'linux'});
+const createRecoveredProfileManager=inputs=>profile.createRecoveredProfileManager({...inputs,platform:'linux'});
 const raw=JSON.stringify({version:8,features:{plantLifecycle:1},world:'archived 🫧'});
 const hash=value=>createHash('sha256').update(Buffer.from(value,'utf8')).digest('hex');
 

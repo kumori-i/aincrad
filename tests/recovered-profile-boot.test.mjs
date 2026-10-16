@@ -7,8 +7,10 @@ const saveKey = 'aincrad.save.v1';
 const raw = '{"version":8,"source":"copied"}', candidate = '{"version":8,"migrated":true}';
 const digest = createHash('sha256').update(raw).digest('hex');
 const createdAt = '2026-10-16T12:00:00.000Z';
-const original = { kind: 'original', phase: 'none', available: false, sourceSha256: null, createdAt: null };
-const pending = { kind: 'recovered', phase: 'pending', available: true, sourceSha256: digest, createdAt };
+const original = { kind: 'original', phase: 'none', available: false, recoveredCopySupported: true,
+  sourceSha256: null, createdAt: null };
+const pending = { kind: 'recovered', phase: 'pending', available: true, recoveredCopySupported: true,
+  sourceSha256: digest, createdAt };
 const ready = { ...pending, phase: 'ready' };
 const stage = { raw, sha256: digest, byteLength: Buffer.byteLength(raw), createdAt };
 const stored = (value = null) => {
@@ -41,6 +43,8 @@ test('profile status is checked before Local Storage, and unavailable or inconsi
   assert.match(validateProfileStatus({ ...pending, sourceSha256: 'forged' }), /invalid source/i);
   assert.match(validateProfileStatus({ ...ready, available: false }), /availability/i);
   assert.match(validateProfileStatus({ ...original, sourceSha256: digest }), /inconsistent/i);
+  assert.match(validateProfileStatus({ ...original, recoveredCopySupported: undefined }), /identified/i);
+  assert.match(validateProfileStatus({ ...ready, recoveredCopySupported: false }), /unavailable/i);
 });
 
 test('an original protected save keeps its raw bytes and does not construct a playable world', async () => {
@@ -80,6 +84,24 @@ test('a clean original profile may play only after profile validation', async ()
   assert.equal(result.gate, 'play');
   assert.equal(result.loaded, loaded);
   assert.deepEqual(storage.writes, []);
+});
+
+test('an unsupported recovered-copy capability leaves an original protected save and its raw bytes available', async () => {
+  const disk = stored(raw);
+  const status = { ...original, recoveredCopySupported: false };
+  const result = await inspectProfileBoot(dependencies(status, disk));
+  assert.equal(result.gate, 'original-protected');
+  assert.equal(result.originalRaw, raw);
+  assert.deepEqual(disk.writes, []);
+});
+
+test('an original valid world remains playable when recovered-copy capability is unavailable', async () => {
+  const disk = stored(candidate), loaded = { exists: true, error: null, state: { version: 8 } };
+  const result = await inspectProfileBoot(dependencies(
+    { ...original, recoveredCopySupported: false }, disk, { loadSave: () => loaded }));
+  assert.equal(result.gate, 'play');
+  assert.equal(result.loaded, loaded);
+  assert.deepEqual(disk.writes, []);
 });
 
 test('pending copy accepts an exact stage only while its save key is empty', async () => {

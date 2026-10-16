@@ -1,7 +1,9 @@
 # Separate-profile import for the protected Aincrad world
 
-Status: implemented in the isolated checkout and verified with disposable
-macOS Electron profiles; unpublished. Native checks on other platforms remain.
+Status: draft implementation in PR #16. This local candidate passed disposable
+macOS Electron checks; the preceding draft passed Linux native CI. Exact-head
+Linux and Windows checks remain before publication. Recovered-copy creation
+and opening are explicitly unavailable on Windows; support is deferred.
 This supersedes the in-place commit path in
 `DESIGN-legacy-pending-ingestion-migration.md`. Scope is the approved
 proof-retention proposal SHA
@@ -18,6 +20,16 @@ the new build cannot make in-place migration exclusive. Therefore the protected
 default-profile screen continues to forbid play, autosave and in-place commit.
 
 ## Profile identity and launch route
+
+- On Windows, the original profile remains the normal launch route. The
+  recovered-copy mode flag is rejected before selecting a copy profile or
+  changing Electron paths. The trusted bridge reports the capability as
+  unavailable and refuses create, open, import, ready and restart operations.
+  The renderer says this plainly and still offers exact raw backup export and
+  verification for a protected original save. A valid original world can play
+  and save normally. Any occupied copy slot is left untouched. This is a
+  deliberate temporary platform limit, not a claim that Windows recovery
+  passed its native import test.
 
 - Support **one** recovered copy for this one default-profile world. Its fixed
   identity is `recovered-proof-v1` and its directory is an app-owned sibling of
@@ -128,10 +140,19 @@ default-profile screen continues to forbid play, autosave and in-place commit.
 
 ## Required verification before enabling import
 
+The supported recovered-copy path currently covers macOS and Linux. The
+proposed Windows CI job checks the unavailable capability, direct-route
+rejection, unchanged original/copy bytes after refused operations, the full
+source suite and an ordinary-profile smoke launch. Its previous native
+import attempt failed at directory `fsync` with `EPERM` after protected-original
+checks ([run 38940674942](https://github.com/kumori-i/aincrad/actions/runs/38940674942));
+no Windows recovered copy was published. Native Windows import remains deferred
+until a separately reviewed implementation and verification are available.
+
 - Unit coverage for fixed path/flag parsing, real-path and symlink rejection,
   exclusive slot creation, manifest phases, same-hash resume, divergent-hash
-  refusal and an empty/unknown copy save gate. Keep the existing 533-test
-  baseline green with `npm run check` and `npm run build`.
+  refusal and an empty/unknown copy save gate. Keep the full source suite green
+  with `npm run check` and `npm run build`.
 - Native two-process tests for one writer on the copy, old-default/new-copy
   coexistence, correct `defaultSession.storagePath`, relaunch timing, and no
   userData or sessionData aliasing. Use only disposable profiles and mock old

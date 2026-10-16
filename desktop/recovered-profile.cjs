@@ -14,6 +14,11 @@ const MANIFEST='import-manifest.json';
 const MAX_RAW_BYTES=16*1024*1024;
 const MAX_META_BYTES=4096;
 const HASH=/^[a-f0-9]{64}$/;
+const WINDOWS_RECOVERY_UNAVAILABLE='Recovered-copy creation and opening are unavailable on Windows in this build. The original world and exact raw backup remain available.';
+
+function assertRecoveredCopySupported(platform=process.platform){
+  if(platform==='win32')throw new Error(WINDOWS_RECOVERY_UNAVAILABLE);
+}
 
 function inside(root,candidate){
   const relative=path.relative(root,candidate);
@@ -71,10 +76,11 @@ function testDirectory(value,name){
   return cursor;
 }
 /** Route identity is fixed in native code. The renderer never supplies a path. */
-function resolveProfileRoute({argv,isPackaged,appDataPath,defaultUserDataPath}){
+function resolveProfileRoute({argv,isPackaged,appDataPath,defaultUserDataPath,platform=process.platform}){
   if(!Array.isArray(argv)||typeof appDataPath!=='string'||typeof defaultUserDataPath!=='string')throw new TypeError('Missing profile routing inputs.');
   const recovered=argv.filter(arg=>arg===COPY_FLAG).length;
   if(recovered>1||argv.some(arg=>arg.startsWith('--recovered-proof')&&arg!==COPY_FLAG))throw new Error('Unknown or duplicate recovered profile mode.');
+  if(recovered)assertRecoveredCopySupported(platform);
   const testRequested=argv.includes('--test');
   const test=testRequested&&!isPackaged;
   const testOriginal=optionValue(argv,'--test-profile');
@@ -93,8 +99,12 @@ function resolveProfileRoute({argv,isPackaged,appDataPath,defaultUserDataPath}){
     testOriginal?path.join(path.dirname(originalPath),path.basename(originalPath)+'-recovered-proof-v1'):productCopyPath;
   if(testOriginal&&path.dirname(copyPath)!==path.dirname(originalPath))
     throw new Error('The test profiles must share one disposable parent.');
-  assertSeparate(originalPath,copyPath,defaultUserDataPath,productCopyPath,Boolean(testOriginal));
+  // A disabled Windows copy slot must never prevent the ordinary original
+  // world from opening. Disposable test routes still enforce separation.
+  if(platform!=='win32'||testOriginal)
+    assertSeparate(originalPath,copyPath,defaultUserDataPath,productCopyPath,Boolean(testOriginal));
   return Object.freeze({kind:recovered?'recovered':'original',originalPath,copyPath,isTest:test,usesTestPaths:Boolean(testOriginal),
+    recoveredCopySupported:platform!=='win32',
     userDataPath:recovered?copyPath:originalPath,sessionDataPath:recovered?copyPath:originalPath});
 }
 function assertCopyDirectory(copyPath){
@@ -153,7 +163,8 @@ async function syncDirectory(directory,fileSystem){
   try{await handle.sync();}finally{await handle.close();}
 }
 
-function createRecoveredProfileManager({kind,originalPath,copyPath,fileSystem=fs,clock=()=>new Date(),testPublicationFault}){
+function createRecoveredProfileManager({kind,originalPath,copyPath,fileSystem=fs,clock=()=>new Date(),testPublicationFault,
+  platform=process.platform}){
   if(!['original','recovered'].includes(kind)||typeof originalPath!=='string'||typeof copyPath!=='string')throw new TypeError('Missing recovered profile locations.');
   if(testPublicationFault!==undefined&&typeof testPublicationFault!=='function')throw new TypeError('Invalid publication test hook.');
   let busy=false;
@@ -178,10 +189,12 @@ function createRecoveredProfileManager({kind,originalPath,copyPath,fileSystem=fs
   async function status(){
     const item=await inspect();
     return {kind,phase:item.phase,available:item.phase==='pending'||item.phase==='ready',
+      recoveredCopySupported:platform!=='win32',
       sourceSha256:item.sourceSha256||null,createdAt:item.createdAt||null,
       ...(item.phase==='invalid'?{reason:item.reason}:{}),};
   }
   async function create(raw,expectedHash){return exclusive(async()=>{
+    assertRecoveredCopySupported(platform);
     if(kind!=='original')throw new Error('Import can only be started from the original profile.');
     const bytes=rawBytes(raw);
     if(!HASH.test(expectedHash)||sha256(bytes)!==expectedHash)throw new Error('The verified backup does not match the import source.');
@@ -252,12 +265,14 @@ function createRecoveredProfileManager({kind,originalPath,copyPath,fileSystem=fs
     }finally{await fileSystem.rm(temp,{recursive:true,force:true}).catch(()=>{});}
   });}
   async function stagedRaw(){
+    assertRecoveredCopySupported(platform);
     if(kind!=='recovered')throw new Error('Staged data are only available in the recovered copy.');
     const item=await inspect();
     if(item.phase!=='pending')throw new Error('The recovered copy is not pending a verified import.');
     return {raw:item.raw,sha256:item.sourceSha256,byteLength:item.byteLength,createdAt:item.createdAt};
   }
   async function markReady(attestation){return exclusive(async()=>{
+    assertRecoveredCopySupported(platform);
     if(kind!=='recovered')throw new Error('Only a recovered copy can be marked ready.');
     const item=await inspect();
     if(item.phase!=='pending')throw new Error('The recovered copy is not pending a verified import.');
@@ -283,4 +298,4 @@ function createRecoveredProfileManager({kind,originalPath,copyPath,fileSystem=fs
 }
 
 module.exports={PROFILE_ID,COPY_FLAG,COPY_DIRECTORY,STAGE,RESERVATION,MANIFEST,MAX_RAW_BYTES,
-  resolveProfileRoute,assertCopyDirectory,createRecoveredProfileManager};
+  WINDOWS_RECOVERY_UNAVAILABLE,assertRecoveredCopySupported,resolveProfileRoute,assertCopyDirectory,createRecoveredProfileManager};

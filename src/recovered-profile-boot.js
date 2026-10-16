@@ -7,7 +7,10 @@ const blocked=reason=>({gate:'blocked',reason});
 export function validateProfileStatus(status){
   if(!status||typeof status!=='object'||!['original','recovered'].includes(status.kind)||
       !['none','pending','ready','invalid'].includes(status.phase)||
-      typeof status.available!=='boolean')return 'The active profile could not be identified.';
+      typeof status.available!=='boolean'||typeof status.recoveredCopySupported!=='boolean')
+    return 'The active profile could not be identified.';
+  if(status.kind==='recovered'&&!status.recoveredCopySupported)
+    return 'Recovered-copy opening is unavailable on this platform.';
   // A damaged copy slot must not prevent the original profile from opening or
   // exporting its own protected raw save. It only disables opening the copy.
   if(status.phase==='invalid'&&status.kind==='recovered')

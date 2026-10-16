@@ -11,6 +11,7 @@ on:
       - 'scripts/verify-recovered-native.mjs'
       - 'tests/native-profile-qa-driver.cjs'
       - 'tests/native-synthetic-fixture.mjs'
+      - 'tests/windows-recovered-capability.test.mjs'
       - 'index.html'
       - 'style.css'
       - 'package.json'
@@ -39,15 +40,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # The generated fixture contains no archived world or real profile bytes.
-      - name: Exercise Windows copied-profile import and reopen
+      - name: Run Windows source checks, including the capability gate
         if: runner.os == 'Windows'
-        run: node scripts/verify-recovered-native.mjs --ci-synthetic
+        run: npm run check
+      - name: Verify Windows recovered-copy capability is unavailable and guarded
+        if: runner.os == 'Windows'
+        run: node --test tests/windows-recovered-capability.test.mjs
+      - name: Smoke-test the ordinary Windows desktop in a disposable original profile
+        if: runner.os == 'Windows'
+        run: npm run smoke
+      # The generated fixture contains no archived world or real profile bytes.
       - name: Exercise Linux copied-profile import and reopen
         if: runner.os == 'Linux'
         run: xvfb-run -a node scripts/verify-recovered-native.mjs --ci-synthetic
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && runner.os == 'Linux'
         with:
           name: recovered-profile-native-${{ runner.os }}
           path: |

@@ -42,7 +42,7 @@ test('marked ready copy protects exact bytes when actor, body, or learned eviden
       ]);
     }],
   ];
-  const ready = { kind: 'recovered', phase: 'ready', available: true,
+  const ready = { kind: 'recovered', phase: 'ready', available: true, recoveredCopySupported: true,
     sourceSha256: 'a'.repeat(64), createdAt: '2026-10-16T12:00:00.000Z' };
   for (const [name, alter] of bad) {
     const raw = JSON.parse(candidate);

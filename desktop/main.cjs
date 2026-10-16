@@ -6,7 +6,8 @@ const os=require('node:os');
 const { realpath, readFile, writeFile, mkdir, rename }=require('node:fs/promises');
 const { DEFAULTS, ModelService }=require('./model-provider.cjs');
 const { createRawSaveBackupBridge }=require('./raw-save-backup.cjs');
-const {COPY_FLAG,resolveProfileRoute,assertCopyDirectory,createRecoveredProfileManager}=require('./recovered-profile.cjs');
+const {COPY_FLAG,assertRecoveredCopySupported,resolveProfileRoute,assertCopyDirectory,
+  createRecoveredProfileManager}=require('./recovered-profile.cjs');
 let modelService;
 const ROOT=path.resolve(__dirname,'..','renderer');
 const DEVELOPMENT=process.argv.includes('--dev')&&!app.isPackaged;
@@ -139,16 +140,19 @@ app.whenReady().then(async()=>{
   handle('aincrad:save-restore-raw',()=>rawSaveBackup.restoreRaw());
   handle('aincrad:profile-status',()=>recoveredProfile.status());
   handle('aincrad:profile-create',async(raw,sha256)=>{
+    assertRecoveredCopySupported();
     const verified=await rawSaveBackup.reverifyTicket(raw,sha256);
     return recoveredProfile.create(verified.raw,verified.sha256);
   });
   function relaunchRecovered(){
+    assertRecoveredCopySupported();
     const args=process.argv.slice(1).filter(value=>value!==COPY_FLAG);
     app.relaunch({args:[...args,COPY_FLAG]});
     setTimeout(()=>app.quit(),100);
     return {ok:true};
   }
   handle('aincrad:profile-open',async()=>{
+    assertRecoveredCopySupported();
     if(profileRoute.kind!=='original')throw new Error('The recovered copy is already open.');
     const status=await recoveredProfile.status();
     if(!status.available)throw new Error(status.reason||'No verified recovered copy is available to open.');
@@ -159,8 +163,9 @@ app.whenReady().then(async()=>{
     await session.defaultSession.flushStorageData();
     return relaunchRecovered();
   });
-  handle('aincrad:profile-staged',()=>recoveredProfile.stagedRaw());
+  handle('aincrad:profile-staged',()=>{assertRecoveredCopySupported();return recoveredProfile.stagedRaw();});
   handle('aincrad:profile-ready',async()=>{
+    assertRecoveredCopySupported();
     const first=firstRecoveredLoad&&await Promise.race([firstRecoveredLoad,new Promise(resolve=>setTimeout(()=>resolve(null),3000))]);
     if(!first)
       throw new Error('A recovered import must be verified after a closed-process restart.');
@@ -180,6 +185,7 @@ app.whenReady().then(async()=>{
       bootSaveByteLength:first.byteLength});
   });
   handle('aincrad:profile-restart',async()=>{
+    assertRecoveredCopySupported();
     if(profileRoute.kind!=='recovered')throw new Error('Restart into a recovered copy only from that copy.');
     const status=await recoveredProfile.status();
     if(!status.available)throw new Error(status.reason||'The recovered copy cannot be reopened.');
