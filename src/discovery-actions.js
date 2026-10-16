@@ -9,6 +9,8 @@ export function primitiveDuration(npc,type){
   const practice=npc.discovery?.practice?.[type]?.successes||0;
   return DISCOVERY_RULES.durations[type]*(DISCOVERY_RULES.minimumCostMultiplier+(1-DISCOVERY_RULES.minimumCostMultiplier)*Math.exp(-practice/DISCOVERY_RULES.practiceScale));
 }
+// Action identity belongs to this runtime only; saves interrupt active commands.
+const ticking = new WeakSet(), settled = new WeakSet();
 const done=(complete,npc,request,result,active)=>complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;
 function allowed(npc,id,environment,inspection=false){
   if(!objectId(id)||!npc.discovery?.observations?.[id]&&!npc.inventory?.items?.includes(id))return {ok:false,code:'UNKNOWN_OBJECT'};
@@ -35,38 +37,52 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   return {ok:true,code:'ACTION_STARTED'};
 }
 export function tickDiscoveryAction(npc,dt,environment={},options={}){
-  const active=npc.active;if(active?.kind!=='interaction')return false;
-  const worked=Math.min(Math.max(0,dt),Math.max(0,active.seconds-active.worked));active.worked+=worked;
-  (options.exert||exertPhysiology)(npc,worked,DISCOVERY_RULES.effort[active.request.type]);
-  if(active.worked+1e-8<active.seconds)return true;
-  const request=active.request,check=allowed(npc,request.targetId,environment,request.type==='inspect_object');
-  if(!check.ok){done(options.complete,npc,request,{...check,durationSeconds:active.worked},active);return true;}
-  let result;
-  if(request.type==='inspect_object'){
-    const object=describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id});
-    if(object)npc.discovery.observations[object.id]={...object,observedAt:npc.elapsed};
-    result=object?{ok:true,code:'OBJECT_OBSERVED'}:{ok:false,code:'OBJECT_GONE'};
-  }else if(request.type==='sample'){
-    // A synchronous authoritative transfer commits finite matter only after swallowing succeeds.
-    const fraction=Math.min(1,DISCOVERY_RULES.sampleGrams/Math.max(.001,check.physical.massGrams||0));
-    const material=consumeEcologyMaterial(environment.ecology,request.targetId,fraction,{actorId:npc.id,accept:portion=>ingestMaterial(npc,portion,{objectId:request.targetId,actionId:npc.memory?.nextId||0,provenance:'sampled',at:npc.elapsed})});
-    if(!material?.ok)result={ok:false,code:material?.code||'CANNOT_SAMPLE'};
-    else {
-      const ingestion=material.ingestion;
-      result={ok:ingestion.ok===true,code:ingestion.code||'SWALLOWED',delayed:ingestion.delayed===true,...(ingestion.ingestionId?{ingestionId:ingestion.ingestionId}:{})};
-      if(result.ok){npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
+  const active=npc.active;if(active?.kind!=='interaction'||!Number.isFinite(dt)||dt<=0)return false;
+  if(ticking.has(active))return false;
+  if(settled.has(active)){if(npc.active===active)npc.active=null;return false;}
+  ticking.add(active);let terminal=false;
+  try{
+    const worked=Math.min(dt,Math.max(0,active.seconds-active.worked));active.worked+=worked;
+    try{(options.exert||exertPhysiology)(npc,worked,DISCOVERY_RULES.effort[active.request.type]);}
+    catch(error){settled.add(active);terminal=true;throw error;}
+    // A hook may cancel or replace work. It cannot authorize the captured action.
+    if(npc.active!==active){settled.add(active);return true;}
+    if(active.worked+1e-8<active.seconds)return true;
+    // Retire before validation, effects or callbacks; even a throwing callback
+    // cannot replay this physical completion. Keep its context until completion.
+    settled.add(active);terminal=true;
+    const request=active.request,check=allowed(npc,request.targetId,environment,request.type==='inspect_object');
+    if(!check.ok){done(options.complete,npc,request,{...check,durationSeconds:active.worked},active);return true;}
+    let result;
+    if(request.type==='inspect_object'){
+      const object=describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id});
+      if(object)npc.discovery.observations[object.id]={...object,observedAt:npc.elapsed};
+      result=object?{ok:true,code:'OBJECT_OBSERVED'}:{ok:false,code:'OBJECT_GONE'};
+    }else if(request.type==='sample'){
+      // A synchronous authoritative transfer commits finite matter only after swallowing succeeds.
+      const fraction=Math.min(1,DISCOVERY_RULES.sampleGrams/Math.max(.001,check.physical.massGrams||0));
+      const material=consumeEcologyMaterial(environment.ecology,request.targetId,fraction,{actorId:npc.id,accept:portion=>ingestMaterial(npc,portion,{objectId:request.targetId,actionId:npc.memory?.nextId||0,provenance:'sampled',at:npc.elapsed})});
+      if(!material?.ok)result={ok:false,code:material?.code||'CANNOT_SAMPLE'};
+      else {
+        const ingestion=material.ingestion;
+        result={ok:ingestion.ok===true,code:ingestion.code||'SWALLOWED',delayed:ingestion.delayed===true,...(ingestion.ingestionId?{ingestionId:ingestion.ingestionId}:{})};
+        if(result.ok){npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
+      }
+    }else {
+      const response=interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02});
+      const materialId=response?.materialId||response?.material?.id;
+      result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{})};
+      if(result.ok&&['grasp','pull'].includes(request.type)){
+        const id=materialId||request.targetId;if(!npc.inventory.items.includes(id))npc.inventory.items.push(id);
+        const object=describeEcologyObject(environment.ecology,id,{actorId:npc.id});if(object)npc.discovery.observations[id]={...object,observedAt:npc.elapsed};
+      }
+      if(result.ok&&request.type==='release')npc.inventory.items=npc.inventory.items.filter(id=>id!==request.targetId);
     }
-  }else {
-    const response=interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02});
-    const materialId=response?.materialId||response?.material?.id;
-    result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{})};
-    if(result.ok&&['grasp','pull'].includes(request.type)){
-      const id=materialId||request.targetId;if(!npc.inventory.items.includes(id))npc.inventory.items.push(id);
-      const object=describeEcologyObject(environment.ecology,id,{actorId:npc.id});if(object)npc.discovery.observations[id]={...object,observedAt:npc.elapsed};
-    }
-    if(result.ok&&request.type==='release')npc.inventory.items=npc.inventory.items.filter(id=>id!==request.targetId);
+    // Swallowing a final portion may exhaust the globally persisted held material.
+    npc.inventory.items=npc.inventory.items.filter(id=>lookupEcologyObject(environment.ecology,id)?.heldBy===npc.id);
+    done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);return true;
+  }finally{
+    ticking.delete(active);
+    if(terminal&&npc.active===active)npc.active=null;
   }
-  // Swallowing a final portion may exhaust the globally persisted held material.
-  npc.inventory.items=npc.inventory.items.filter(id=>lookupEcologyObject(environment.ecology,id)?.heldBy===npc.id);
-  done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);return true;
 }

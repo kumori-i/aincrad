@@ -7,7 +7,7 @@ import { BIOLOGY_PROFILES } from './biology-config.js';
 import { getWorldRule } from './world-rules.js';
 import { habitatConditions, plantSuitability, initializeRegions, validateRegions, regionAt, consumeSoil } from './ecology-regions.js';
 import { buildHabitatCorridors, sampleCorridor } from './ecology-corridors.js';
-import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss } from './plant-lifecycle.js';
+import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss, juvenileStrikeLoss } from './plant-lifecycle.js';
 import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, lifecycleError, hasLifecyclePayload, PLANT_FIELDS, MATERIAL_FIELDS, stockTolerance, lifecycleStockAudit, lifecycleRestorationError } from './plant-lifecycle-state.js';
 
 const finite = (v,f=0) => Number.isFinite(v)?v:f;
@@ -326,6 +326,15 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
     return m?{ok:true,code:'piece_detached',targetId:id,materialId:m.id,material:{id:m.id}}:{ok:false,code:'nothing_detached',targetId:id};
   }
   if(verb==='strike'){
+    if(o.lifecycleStage==='juvenile'&&o.kind==='apple_tree'&&Number.isFinite(o.recruitedAt)&&o.recruitedAt>=0&&o.recruitedAt<=e.elapsed&&idPattern.test(o.parentMaterialId)&&o.parentMaterialId!==o.id){
+      const loss=juvenileStrikeLoss({massGrams:o.structureMassGrams,energyKcal:o.structureKcal,waterMl:o.structureWaterMl},{power});
+      if(!loss)return{ok:false,code:'invalid_power',targetId:id};
+      if(loss.lost.massGrams===0)return{ok:true,code:'object_struck',targetId:id};
+      if(commitJuvenileLoss(e,o,loss)){
+        e.plants.splice(e.plants.indexOf(o),1);invalidateIndex(e);
+      }
+      return{ok:true,code:loss.terminal?'object_broken':'object_damaged',targetId:id};
+    }
     if(o.species){
       o.physiology.health=Math.max(0,o.physiology.health-clamp(power,0,4)*7);o.health=o.physiology.health;
       wakePhysiology(o,{kind:'contact',strength:1});o.activity='fleeing';o.targetId=null;
@@ -404,14 +413,20 @@ function growJuvenile(e,p,days,daylight,site,multiplier){
     e.ledger.photosynthesisKcal+=energy;
   }
   const loss=juvenileLoss(current,{days,moisture:p.moisture});
-  if(loss&&loss.lost.massGrams>0){
-    addDetritus(e,loss.lost.massGrams,loss.lost.energyKcal,p.position);
+  return commitJuvenileLoss(e,p,loss??{lost:{massGrams:0,energyKcal:0,waterMl:0},remaining:current,terminal:false});
+}
+/** Shared conservative stock exit for drought and strikes. This does not remove
+ * a plant: growth defers removals until its iteration ends; interactions remove
+ * the exact target immediately. Neither path refunds soil on contact. */
+function commitJuvenileLoss(e,p,loss){
+  if(loss.lost.massGrams>0){
+    addDetritus(e,loss.lost.massGrams,loss.lost.energyKcal,p.position,p.scene);
     e.lifecycle.lostMassGrams+=loss.lost.massGrams;e.lifecycle.lostKcal+=loss.lost.energyKcal;e.lifecycle.releasedWaterMl+=loss.lost.waterMl;
   }
-  const remaining=loss?.remaining??current;
+  const remaining=loss.remaining;
   p.structureMassGrams=remaining.massGrams;p.structureKcal=remaining.energyKcal;p.structureWaterMl=remaining.waterMl;
   p.quantity=0;p.capacity=0;p.growth=0;p.fallHours=0;p.stage=p.structureMassGrams<20?'seedling':'juvenile';
-  if(loss?.terminal){e.lifecycle.deadJuveniles++;return true;}return false;
+  if(loss.terminal){e.lifecycle.deadJuveniles++;return true;}return false;
 }
 function recruitmentPoint(e,m){
   const candidates=[{...m.position}];
