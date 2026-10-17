@@ -216,6 +216,7 @@ window.__ozarkPilot = Object.freeze({
       lastResult: agentSession.npc.lastResult,
       actionEvents: agentSession.npc.memory.experience.filter(e => e.type === 'action').length },
     cameraTarget: state.cameraTarget,
+    renderCamera: { ...renderer.camera }, renderFrame: renderer.frame,
     lastActionEvidence,
     profileIdentity: geometry.profile.identity, started, paused,
   }),

@@ -107,11 +107,23 @@ app.on('browser-window-created', (_event, win) => {
           assert.equal(autonomous.agent.lastResult.action, 'move');
           assert.equal(autonomous.agent.lastResult.movement?.footing, 'shallow-water');
           assert.ok(autonomous.agent.wetness > 0, 'the native agent did not experience wading');
+          const beforeAsterFrame = (await snapshot(win)).renderFrame;
           await page(win, function watchAster() {
             document.getElementById('npc-short').click();
           });
           assert.equal((await snapshot(win)).cameraTarget, 'aster');
-          await delay(120);
+          let centeredOnAster = null;
+          for (let index = 0; index < 100; index += 1) {
+            const current = await snapshot(win);
+            if (current.renderFrame > beforeAsterFrame &&
+                Math.hypot(current.renderCamera.x - current.agent.position.x,
+                  current.renderCamera.y - current.agent.position.y) < 20) {
+              centeredOnAster = current;
+              break;
+            }
+            await delay(80);
+          }
+          assert.ok(centeredOnAster, 'Aster camera never rendered at their physical position');
           await fs.writeFile(path.join(context.output, 'aster-autonomous-wade.png'),
             (await win.webContents.capturePage()).toPNG());
           await page(win, function followPlayer() {

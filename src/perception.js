@@ -48,11 +48,18 @@ export function perceive(npc,environment={}){
       for (let x = Math.ceil((p.x-r)/s); x <= Math.floor((p.x+r)/s); x++) {
         const point = { x:x*s, y:y*s };
         if (distance(p,point)>r || !ozark.lineOfSight(p,point)) continue;
-        const footing = ozark.classify(point.x,point.y,CONFIG.playerRadius);
-        // Classification stays local and qualitative. No elevation, depth,
-        // habitat, current vector, or raw sampler value enters actor memory.
+        const visible = ozark.sample(point.x,point.y);
+        // A locally seen water tile is an attemptable route, not certified
+        // shallow footing. The visible shallow tint does not enter navigation:
+        // only actual swept movement can establish whether Aster can wade.
+        const water = visible.paint === 'surface-water';
+        const apparentGround = water ? 'surface-water' :
+          visible.paint === 'internal-pond' ? 'internal-pond' : 'dry-ground';
+        const possibleStep = apparentGround !== 'internal-pond';
+        // No physical classify result, water band, elevation, depth, current
+        // vector, or raw sampler value enters actor memory.
         cells.push({ key:`${x},${y}`, ...point, scene:npc.scene,
-          walkable:footing.walkable, terrain:footing.reason, observedAt:npc.elapsed });
+          walkable:possibleStep, terrain:apparentGround, observedAt:npc.elapsed });
       }
     const sensed = { ...npc, sensation:ozarkAgentSensation(npc,environment) };
     return { at:npc.elapsed, scene:npc.scene, position:{...p}, lifecycle:npc.lifecycle,
