@@ -193,7 +193,8 @@ function recoveryLessonBatch(npc){
 }
 
 /** Saved data are bounded and allowlisted; recognition templates cannot execute arbitrary code. */
-export function validateNpc(raw,{restoring=true,canStandAt=canStand}={}){
+export function validateNpc(raw,{restoring=true,canStandAt=canStand,
+  waterSourceAt=waterSource}={}){
   const n=createNpc({id:raw?.id==='mira'?'mira':'aster',mode:raw?.version===4&&raw.mode==='discovery'?'discovery':'legacy',preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
   if(!raw||![1,2,3,4].includes(raw.version)||!['aster','mira'].includes(raw.id))return n;
   const scenes=new Set(['valley',...CAVES.map(c=>c.id)]);n.scene=scenes.has(raw.scene)?raw.scene:'valley';
@@ -218,9 +219,10 @@ export function validateNpc(raw,{restoring=true,canStandAt=canStand}={}){
   function restoreEdges(input){const out={};for(const [key,edge] of Object.entries(input||{}).slice(-512))if(/^-?\d{1,3},-?\d{1,3}>-?\d{1,3},-?\d{1,3}$/.test(key))out[key]={observedAt:finite(edge.observedAt),retryAfter:Math.min(n.elapsed+60,finite(edge.retryAfter))};return out;}
   n.memory.cells=restoreCells(m.cells,'valley');n.memory.blockedEdges=restoreEdges(m.blockedEdges);
   for(const scene of scenes)if(scene!=='valley'){if(m.caveCells?.[scene])n.memory.caveCells[scene]=restoreCells(m.caveCells[scene],scene);if(m.caveExits?.[scene]&&distance(m.caveExits[scene],CAVE_EXIT)<1)n.memory.caveExits[scene]={x:CAVE_EXIT.x,y:CAVE_EXIT.y,observedAt:finite(m.caveExits[scene].observedAt)};if(m.caveEdges?.[scene])n.memory.caveEdges[scene]=restoreEdges(m.caveEdges[scene]);}
-  for(const [name,resolve] of n.mode==='discovery'?[['sources',waterSource],['shelters',shelterSource]]:[['sources',waterSource],['foods',foodSource],['shelters',shelterSource]])for(const [id,s] of Object.entries(m[name]||{}).slice(-NPC_RULES.maxSources)){
+  for(const [name,resolve] of n.mode==='discovery'?[['sources',waterSourceAt],['shelters',shelterSource]]:[['sources',waterSourceAt],['foods',foodSource],['shelters',shelterSource]])for(const [id,s] of Object.entries(m[name]||{}).slice(-NPC_RULES.maxSources)){
     const physical=resolve(id);if(!physical||!withinWorld(s)||distance(physical,s)>1)continue;
     n.memory[name][id]={id,name:physical.name,x:s.x,y:s.y,scene:'valley',available:s.available!==false,observedAt:finite(s.observedAt),confidence:'observed',retryAfter:finite(s.retryAfter)};
+    if(name==='sources'&&waterSourceAt!==waterSource)n.memory[name][id].kind='water';
     if(name==='foods')Object.assign(n.memory[name][id],{stock:finite(s.stock,0,physical.capacity||100),capacity:physical.capacity});
     if(name==='shelters'){Object.assign(n.memory[name][id],{targetScene:physical.targetScene,relief:finite(s.relief,0,1e6),reliefCredit:finite(s.reliefCredit,0,100),creditedEntryId:ids.has(s.creditedEntryId)?s.creditedEntryId:null});if(Number.isFinite(s.experiencedTemperature)&&n.memory.experience.some(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok))Object.assign(n.memory[name][id],{experiencedTemperature:clamp(s.experiencedTemperature,-100,100),experiencedAt:finite(s.experiencedAt)});}
   }

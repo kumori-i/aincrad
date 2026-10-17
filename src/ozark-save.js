@@ -1,6 +1,7 @@
 // A separately identified, fresh Ozark world. This module never reads or writes
 // the historical `aincrad.save.v1` key or the recovered-profile import record.
-import { CONFIG } from './config.js';
+import { CONFIG, NPC_RULES } from './config.js';
+import { BIOLOGY_RULES, simulationSeconds } from './biology-config.js';
 import { OZARK_WORLD_PROFILE } from './ozark-world-geometry.js';
 import { createNpc } from './npc-state.js';
 import { validateNpc } from './npc-memory.js';
@@ -8,6 +9,7 @@ import { createEnvironment, validateEnvironment } from './environment.js';
 import { createOzarkEcology, validateOzarkEcology } from './ozark-ecology.js';
 import { createCommunity, validateCommunity } from './social.js';
 import { retainedProofIntegrityError } from './proof-retention.js';
+import { ozarkWaterSource } from './ozark-water-sources.js';
 
 export const OZARK_SAVE_KEY = 'aincrad.ozark.v1';
 export const OZARK_SAVE_VERSION = 9;
@@ -79,32 +81,154 @@ function actorEvidenceExact(before, after) {
     sameExact(before?.[section]?.[field], after?.[section]?.[field]));
 }
 
+function observationReachable(point, observedAt, agentId, position, elapsed,
+  geometry, held = false) {
+  const spawn = geometry.agentSpawns[agentId];
+  const maximumSpeed = CONFIG.walkSpeed * CONFIG.sprintMultiplier +
+    OZARK_WORLD_PROFILE.currentMaxSpeed;
+  // Ozark recovery can make at most one swept relocation of 500px per
+  // completed rescue delay. This generous cone does not certify a route; it
+  // only rules out observations physically unreachable from the fixed spawn.
+  const rescueDelay = simulationSeconds(BIOLOGY_RULES.rescueDelayGameHours);
+  const possibleRescues = Math.floor(observedAt / rescueDelay);
+  const reach = NPC_RULES.visionRadius + observedAt * maximumSpeed +
+    possibleRescues * 500 + 1e-6;
+  return finite(point?.x, geometry.bounds.minX, geometry.bounds.maxX) &&
+    finite(point?.y, geometry.bounds.minY, geometry.bounds.maxY) &&
+    Math.hypot(point.x - spawn.x, point.y - spawn.y) <= reach &&
+    (observedAt !== 0 || geometry.lineOfSight(spawn, point)) &&
+    (observedAt !== elapsed || held ||
+      Math.hypot(point.x - position.x, point.y - position.y) <=
+        NPC_RULES.visionRadius && geometry.lineOfSight(position, point));
+}
+
+function ozarkCellValid(key, cell, elapsed, geometry, agentId, position) {
+  if (!plain(cell) || !/^-?\d{1,3},-?\d{1,3}$/.test(key)) return false;
+  const [col, row] = key.split(',').map(Number);
+  const x = col * NPC_RULES.tileSize, y = row * NPC_RULES.tileSize;
+  if (cell.key !== key || cell.x !== x || cell.y !== y ||
+      cell.scene !== undefined && cell.scene !== 'valley' ||
+      !finite(cell.observedAt, 0, elapsed) ||
+      !Number.isInteger(cell.visits) || cell.visits < 0 ||
+      !finite(x, geometry.bounds.minX, geometry.bounds.maxX) ||
+      !finite(y, geometry.bounds.minY, geometry.bounds.maxY)) return false;
+  if (cell.observedAt === 0) {
+    if (!observationReachable({ x, y }, 0, agentId, position, elapsed,
+      geometry))
+      return false;
+  }
+  if (cell.observedAt > 0 && !observationReachable({ x, y },
+    cell.observedAt, agentId, position, elapsed, geometry)) return false;
+  let visible;
+  try { visible = geometry.sample(x, y); } catch { return false; }
+  const terrain = visible.paint === 'surface-water' ? 'surface-water' :
+    visible.paint === 'internal-pond' ? 'internal-pond' :
+    visible.paint === 'divide' ? 'visible-divide' : 'dry-ground';
+  return cell.terrain === terrain && cell.walkable ===
+    (terrain !== 'internal-pond');
+}
+
+function ozarkEdgeValid(key, edge, elapsed, geometry) {
+  if (!plain(edge) || !/^-?\d{1,3},-?\d{1,3}>-?\d{1,3},-?\d{1,3}$/.test(key) ||
+      !finite(edge.observedAt, 0, elapsed) ||
+      !finite(edge.retryAfter, 0, elapsed + 60)) return false;
+  const [from, to] = key.split('>');
+  if (from >= to) return false;
+  return [from, to].every(part => {
+    const [col, row] = part.split(',').map(Number);
+    return finite(col * NPC_RULES.tileSize, geometry.bounds.minX,
+      geometry.bounds.maxX) &&
+      finite(row * NPC_RULES.tileSize, geometry.bounds.minY,
+        geometry.bounds.maxY);
+  });
+}
+
+function ozarkDiscoveryTimeValid(discovery, elapsed, geometry, agentId,
+  position, heldItems) {
+  return plain(discovery) && plain(discovery.observations) &&
+    Object.values(discovery.observations).every(object =>
+      finite(object?.observedAt, 0, elapsed) &&
+      object.scene === 'valley' &&
+      finite(object.position?.x, geometry.bounds.minX, geometry.bounds.maxX) &&
+      finite(object.position?.y, geometry.bounds.minY, geometry.bounds.maxY) &&
+      observationReachable(object.position, object.observedAt,
+        agentId, position, elapsed, geometry,
+        heldItems?.includes(object.id))) &&
+    Array.isArray(discovery.reports) && discovery.reports.every(report =>
+      finite(report?.at, 0, elapsed)) &&
+    Array.isArray(discovery.techniques) && discovery.techniques.every(technique =>
+      finite(technique?.at, 0, elapsed)) &&
+    plain(discovery.trials) && Object.values(discovery.trials).every(trial =>
+      finite(trial?.lastAt, 0, elapsed)) &&
+    plain(discovery.samplesPending) &&
+    Object.values(discovery.samplesPending).every(at => finite(at, 0, elapsed)) &&
+    finite(discovery.lastAttemptAt, 0, elapsed) &&
+    finite(discovery.lastDialogueAt, -60, elapsed) &&
+    finite(discovery.search?.startedAt, 0, elapsed) &&
+    (discovery.run === null || finite(discovery.run?.startedAt, 0, elapsed));
+}
+
 function checkActor(raw, id, worldElapsed, geometry, restoring) {
   const timedRows = [raw?.memory?.experience, raw?.discovery?.experiments,
     raw?.discovery?.effects, raw?.physiology?.stomach,
     raw?.physiology?.feedback];
+  const sources = raw?.memory?.sources;
+  const memory = raw?.memory;
   if (!plain(raw) || raw.id !== id || raw.version !== 4 ||
       raw.mode !== 'discovery' || raw.scene !== 'valley' ||
-      !finite(raw.elapsed, 0, worldElapsed) ||
+      raw.elapsed !== worldElapsed ||
       !occupiable(geometry, raw.position) ||
       timedRows.some(rows => !Array.isArray(rows) ||
         rows.some(row => !finite(row?.at, 0, raw.elapsed))) ||
+      !ozarkDiscoveryTimeValid(raw.discovery, raw.elapsed, geometry, id,
+        raw.position, raw.inventory?.items) ||
       raw.proofRetentionError || retainedProofIntegrityError(raw)) {
     fail(`${id} has invalid identity, position, time, or evidence`);
+  }
+  if (!plain(sources) || Object.keys(sources).length > NPC_RULES.maxSources ||
+      Object.entries(sources).some(([key, source]) =>
+        !plain(source) || source.id !== key || source.kind !== 'water' ||
+        source.scene !== 'valley' || source.confidence !== 'observed' ||
+        !finite(source.x, geometry.bounds.minX, geometry.bounds.maxX) ||
+        !finite(source.y, geometry.bounds.minY, geometry.bounds.maxY) ||
+        !finite(source.observedAt, 0, raw.elapsed) ||
+        !finite(source.retryAfter, 0, raw.elapsed + 60) ||
+        !observationReachable(source, source.observedAt, id,
+          raw.position, raw.elapsed, geometry))) {
+    fail(`${id} has invalid Ozark water-source memory`);
+  }
+  if (!plain(memory?.cells) ||
+      Object.keys(memory.cells).length > NPC_RULES.maxCells ||
+      Object.entries(memory.cells).some(([key, cell]) =>
+        !ozarkCellValid(key, cell, raw.elapsed, geometry, id, raw.position)) ||
+      !plain(memory.blockedEdges) ||
+      Object.keys(memory.blockedEdges).length > 512 ||
+      Object.entries(memory.blockedEdges).some(([key, edge]) =>
+        !ozarkEdgeValid(key, edge, raw.elapsed, geometry)) ||
+      ['foods', 'shelters', 'caveCells', 'caveEdges', 'caveExits'].some(field =>
+        !plain(memory[field]) || Reflect.ownKeys(memory[field]).length !== 0)) {
+    fail(`${id} has invalid Ozark terrain or legacy-site memory`);
   }
   const canStandAt = (x, y, scene) => scene === 'valley' &&
     occupiable(geometry, { x, y });
   // Inspect the canonical disk form before restart can append its one explicit
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
-  const canonical = validateNpc(raw, { restoring: false, canStandAt });
+  const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  const canonical = validateNpc(raw, { restoring: false, canStandAt,
+    waterSourceAt });
   if (canonical.scene !== 'valley' || !sameExact(canonical.position, raw.position) ||
+      !sameExact(canonical.memory.sources, raw.memory.sources) ||
+      !sameExact(canonical.memory.blockedEdges, raw.memory.blockedEdges) ||
       !actorEvidenceExact(raw, canonical) || retainedProofIntegrityError(canonical)) {
     fail(`${id} would lose physical or learned evidence during validation`);
   }
   if (!restoring) return canonical;
-  const resumed = validateNpc(raw, { restoring: true, canStandAt });
+  const resumed = validateNpc(raw, { restoring: true, canStandAt,
+    waterSourceAt });
   if (resumed.scene !== 'valley' || !sameExact(resumed.position, raw.position) ||
+      !sameExact(resumed.memory.sources, raw.memory.sources) ||
+      !sameExact(resumed.memory.blockedEdges, raw.memory.blockedEdges) ||
       retainedProofIntegrityError(resumed)) {
     fail(`${id} could not be restored without losing evidence`);
   }

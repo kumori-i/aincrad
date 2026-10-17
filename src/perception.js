@@ -6,6 +6,7 @@ import { bodySignals, sensedEnvironment } from './interoception.js';
 import { senseEcology,describeEcologyObject } from './ecology.js';
 import { isSleeping } from './biology.js';
 import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { nearbyOzarkWaterSources } from './ozark-water-sources.js';
 
 export const tileKey=(p)=>`${Math.round(p.x/NPC_RULES.tileSize)},${Math.round(p.y/NPC_RULES.tileSize)}`;
 export function tilePoint(key){const [x,y]=key.split(',').map(Number);return{x:x*NPC_RULES.tileSize,y:y*NPC_RULES.tileSize};}
@@ -68,7 +69,9 @@ export function perceive(npc,environment={}){
           walkable:possibleStep, terrain:apparentGround, observedAt:npc.elapsed });
       }
     const sensed = { ...npc, sensation:ozarkAgentSensation(npc,environment) };
-    const objects=ozarkPersistentWorldAgent(npc)?[
+    const persistent = ozarkPersistentWorldAgent(npc);
+    const sources = persistent ? nearbyOzarkWaterSources(p,r,ozark,environment) : [];
+    const objects=persistent?[
       ...senseEcology(environment.ecology,p,npc.scene,r).filter(o=>
         ozark.lineOfSight(p,o.position)),
       ...(npc.inventory.items||[]).map(id=>
@@ -78,7 +81,7 @@ export function perceive(npc,environment={}){
       body:bodySignals(sensed), environment:sensedEnvironment(sensed),
       flask:{water:npc.flask.water,capacity:npc.flask.capacity},
       inventory:{items:[...(npc.inventory.items||[])],capacity:npc.inventory.capacity},
-      cells, sources:[], foods:[], shelters:[], objects };
+      cells, sources, foods:[], shelters:[], objects };
   }
   const cells=[],p=npc.position,r=NPC_RULES.visionRadius,s=NPC_RULES.tileSize,scene=npc.scene;
   for(let y=Math.ceil((p.y-r)/s);y<=Math.floor((p.y+r)/s);y++)for(let x=Math.ceil((p.x-r)/s);x<=Math.floor((p.x+r)/s);x++){

@@ -24,6 +24,14 @@ for the human player; it does not fill the agents' maps or supply a route.
 Attempts at water and slopes produce action receipts and bodily effort, and
 learned effects retain their physical sample and action proof through saving.
 
+River, spring, and internal pond shores expose deterministic dry-bank water
+points only when an agent can see them locally. A thirsty agent can remember an
+observed bank, walk to it, fill a flask, and drink through the ordinary bodily
+path; the observed source survives the strict Ozark save and reload. Neither
+agent starts within sight of a bank. A bounded route from each approved spawn
+has been exercised, but autonomous long-run survival, nutrition, and cave play
+are not established by that route.
+
 ## Living map
 
 The new ecology places finite producers, wildlife, materials, and local soil and

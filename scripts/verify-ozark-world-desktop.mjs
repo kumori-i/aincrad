@@ -84,6 +84,7 @@ async function capture(win, name, waitMs = 160) {
 
 function evidenceCount(agent) {
   return {
+    knownWaterSources: Object.keys(agent.memory.sources).length,
     observations: Object.keys(agent.discovery.observations).length,
     experiments: agent.discovery.experiments.length,
     effects: agent.discovery.effects.length,
@@ -93,6 +94,16 @@ function evidenceCount(agent) {
 }
 
 function assertEarlierEvidence(before, after, label) {
+  for (const [id, source] of Object.entries(before.memory.sources)) {
+    const current = after.memory.sources[id];
+    assert.ok(current, label + ' lost a physical water source ' + id);
+    const { observedAt: priorAt, ...prior } = source;
+    const { observedAt: currentAt, ...restored } = current;
+    assert.deepEqual(restored, prior,
+      label + ' changed a previously observed physical water source');
+    assert.ok(currentAt >= priorAt && currentAt <= after.elapsed,
+      label + ' gave a water source an invalid new observation time');
+  }
   for (const key of ['experiments', 'effects', 'seenFeedback'])
     assert.deepEqual(after.discovery[key], before.discovery[key],
       label + ' changed learned ' + key + ' during write/load');

@@ -192,6 +192,44 @@ test('forged sample/effect proof and future timestamps protect the exact Ozark s
   }
 });
 
+test('Ozark agent clocks and discovery observation times cannot exceed the shared world clock', () => {
+  const disk = storage(), state = createOzarkState(geometry);
+  state.elapsed = 10;
+  state.environment.elapsed = 10;
+  state.environment.ecology.elapsed = 10;
+  for (const actor of state.agents) actor.elapsed = 10;
+  assert.equal(writeOzarkSave(disk, state, geometry), true);
+  const good = JSON.parse(disk.getItem(OZARK_SAVE_KEY));
+  for (const change of [
+    raw => { raw.agents[0].elapsed = 0; },
+    raw => { raw.agents[0].discovery.observations['object:1'] = {
+      id: 'object:1', scene: 'valley', position: { ...geometry.agentSpawns.aster },
+      appearance: {}, observedAt: 11,
+    }; },
+    raw => { raw.agents[0].discovery.observations['object:999999'] = {
+      id: 'object:999999', scene: 'valley', position: { x: 23000, y: 0 },
+      appearance: {}, observedAt: 0,
+    }; },
+    raw => { raw.agents[0].discovery.observations['object:999999'] = {
+      id: 'object:999999', scene: 'valley', position: { x: 8000, y: 8000 },
+      appearance: {}, observedAt: 0,
+    }; },
+    raw => { raw.agents[0].discovery.samplesPending['object:1'] = 11; },
+    raw => { raw.agents[0].discovery.trials['object:1|inspect_object'] = {
+      attempts: 1, successes: 1, failures: 0, seconds: 1,
+      lastAt: 11, lastCode: 'INSPECTED', lastOk: true,
+    }; },
+  ]) {
+    const forged = structuredClone(good);
+    change(forged);
+    const bytes = JSON.stringify(forged);
+    disk.setItem(OZARK_SAVE_KEY, bytes);
+    assert.equal(loadOzarkSave(disk, geometry).blocked, true);
+    assert.equal(writeOzarkSave(disk, state, geometry), false);
+    assert.equal(disk.getItem(OZARK_SAVE_KEY), bytes);
+  }
+});
+
 test('complete learned water effect keeps its exact sample and action proof through Ozark write/load', () => {
   const disk = storage(), state = createOzarkState(geometry);
   state.elapsed = 20;

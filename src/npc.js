@@ -1,6 +1,7 @@
 import { CONFIG, NPC_RULES, NPC_PRESETS, BODY_RULES, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
 import { canStand, moveActor, distance, clamp } from './world.js';
 import { waterSource, foodSource, gatherFood, shelterSource } from './resources.js';
+import { ozarkWaterSource } from './ozark-water-sources.js';
 import { environmentConditions } from './environment.js';
 import { bodySignals, sensedEnvironment, restUnsafe } from './interoception.js';
 import { perceive, tileKey, tilePoint, actorLineOfSight, rememberedCells, rememberedEdges, scenePointValid } from './perception.js';
@@ -98,7 +99,12 @@ function knownResource(npc,request){
   if(request.shelterId)return {kind:'shelter',known:npc.memory.shelters[request.shelterId],id:request.shelterId};
   return null;
 }
-function physicalResource(resource,environment){return resource.kind==='water'?waterSource(resource.id,environment):resource.kind==='food'?foodSource(resource.id,environment):shelterSource(resource.id);}
+function physicalResource(resource,environment,npc){
+  if(resource.kind==='water')return ozarkPersistentWorldAgent(npc)?
+    ozarkWaterSource(resource.id,ozarkAgentWorld(npc),environment):
+    waterSource(resource.id,environment);
+  return resource.kind==='food'?foodSource(resource.id,environment):shelterSource(resource.id);
+}
 function observedResourceRoute(npc,known){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc);
   const anchor=npc.navigationAnchor&&cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null;
@@ -123,9 +129,11 @@ export function requestNpcAction(npc,raw,environment={}){
   const request=cleanRequest(raw,npc),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
   if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
   if(['swim','climb'].includes(request.type)&&!ozarkPersistentWorldAgent(npc))return complete(npc,request,{ok:false,code:'UNSUPPORTED_TERRAIN_ACTION'},context,startPosition);
+  if(ozarkAgentWorld(npc)&&['enter_shelter','exit_shelter'].includes(request.type))return complete(npc,request,{ok:false,code:'NO_OZARK_SHELTER'},context,startPosition);
   if(npc.mode==='discovery'&&(['gather_food','eat'].includes(request.type)||request.foodId))return complete(npc,request,{ok:false,code:'UNDISCOVERED_MACRO'},context,startPosition);
   if(['rest','sleep'].includes(request.type)&&restUnsafe(npc))return complete(npc,request,{ok:false,code:'UNSAFE_TO_REST',body:bodySignals(npc)},context,startPosition);
   const resource=knownResource(npc,request),known=resource?.known;
+  if(resource&&ozarkAgentWorld(npc)&&resource.kind!=='water')return complete(npc,request,{ok:false,code:'NO_OZARK_SITE'},context,startPosition);
   if(resource&&!known)return complete(npc,request,{ok:false,code:resource.kind==='water'?'UNKNOWN_SOURCE':resource.kind==='food'?'UNKNOWN_FOOD':'UNKNOWN_SHELTER'},context,startPosition);
   if(resource&&npc.scene!=='valley')return complete(npc,request,{ok:false,code:'RESOURCE_IN_OTHER_SCENE'},context,startPosition);
   if(request.type==='observe'){
@@ -134,7 +142,7 @@ export function requestNpcAction(npc,raw,environment={}){
   }
   if(request.type==='inspect'){
     if(distance(npc.position,known)>NPC_RULES.visionRadius||!actorLineOfSight(npc,npc.position,known))return complete(npc,request,{ok:false,code:'OUT_OF_VIEW'},context,startPosition);
-    const physical=physicalResource(resource,environment);
+    const physical=physicalResource(resource,environment,npc);
     if(!physical)return complete(npc,request,{ok:false,code:'RESOURCE_UNAVAILABLE'},context,startPosition);
     const {shelteredTemperature,renewAt,...exterior}=physical;
     Object.assign(known,exterior,{observedAt:npc.elapsed});
@@ -144,7 +152,7 @@ export function requestNpcAction(npc,raw,environment={}){
     const range=request.type==='enter_shelter'?100:NPC_RULES.collectionRange;
     if(distance(npc.position,known)>range)return complete(npc,request,{ok:false,code:'OUT_OF_REACH'},context,startPosition);
     if(!actorLineOfSight(npc,npc.position,known))return complete(npc,request,{ok:false,code:'INTERACTION_BLOCKED'},context,startPosition);
-    const physical=physicalResource(resource,environment);
+    const physical=physicalResource(resource,environment,npc);
     if(!physical||physical.available===false)return complete(npc,request,{ok:false,code:resource.kind==='food'?'FOOD_DEPLETED':'SOURCE_UNAVAILABLE'},context,startPosition);
     if(request.type==='fill_flask'){
       if(npc.flask.water>=npc.flask.capacity-.00001)return complete(npc,request,{ok:false,code:'FLASK_FULL'},context,startPosition);
