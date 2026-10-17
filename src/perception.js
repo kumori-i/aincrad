@@ -5,7 +5,7 @@ import { environmentConditions } from './environment.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { senseEcology,describeEcologyObject } from './ecology.js';
 import { isSleeping } from './biology.js';
-import { ozarkAgentWorld, ozarkAgentSensation } from './ozark-agent-world.js';
+import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 export const tileKey=(p)=>`${Math.round(p.x/NPC_RULES.tileSize)},${Math.round(p.y/NPC_RULES.tileSize)}`;
 export function tilePoint(key){const [x,y]=key.split(',').map(Number);return{x:x*NPC_RULES.tileSize,y:y*NPC_RULES.tileSize};}
@@ -38,6 +38,11 @@ export function lineOfSight(from,to,scene='valley'){
   }
   return true;
 }
+/** The bound actor sees through its authoritative terrain, never a legacy valley overlay. */
+export function actorLineOfSight(npc,from,to){
+  const ozark=ozarkAgentWorld(npc);
+  return ozark?ozark.lineOfSight(from,to):lineOfSight(from,to,npc.scene);
+}
 /** Only local, unoccluded samples and physically visible interaction points are returned. */
 export function perceive(npc,environment={}){
   if(npc.mode==='discovery'&&isSleeping(npc))return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{items:[],capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],objects:[],shelters:[]};
@@ -54,7 +59,8 @@ export function perceive(npc,environment={}){
         // only actual swept movement can establish whether Aster can wade.
         const water = visible.paint === 'surface-water';
         const apparentGround = water ? 'surface-water' :
-          visible.paint === 'internal-pond' ? 'internal-pond' : 'dry-ground';
+          visible.paint === 'internal-pond' ? 'internal-pond' :
+          visible.paint === 'divide'&&ozarkPersistentWorldAgent(npc) ? 'visible-divide' : 'dry-ground';
         const possibleStep = apparentGround !== 'internal-pond';
         // No physical classify result, water band, elevation, depth, current
         // vector, or raw sampler value enters actor memory.
@@ -62,11 +68,17 @@ export function perceive(npc,environment={}){
           walkable:possibleStep, terrain:apparentGround, observedAt:npc.elapsed });
       }
     const sensed = { ...npc, sensation:ozarkAgentSensation(npc,environment) };
+    const objects=ozarkPersistentWorldAgent(npc)?[
+      ...senseEcology(environment.ecology,p,npc.scene,r).filter(o=>
+        ozark.lineOfSight(p,o.position)),
+      ...(npc.inventory.items||[]).map(id=>
+        describeEcologyObject(environment.ecology,id,{actorId:npc.id})).filter(Boolean),
+    ]:[];
     return { at:npc.elapsed, scene:npc.scene, position:{...p}, lifecycle:npc.lifecycle,
       body:bodySignals(sensed), environment:sensedEnvironment(sensed),
       flask:{water:npc.flask.water,capacity:npc.flask.capacity},
       inventory:{items:[...(npc.inventory.items||[])],capacity:npc.inventory.capacity},
-      cells, sources:[], foods:[], shelters:[], objects:[] };
+      cells, sources:[], foods:[], shelters:[], objects };
   }
   const cells=[],p=npc.position,r=NPC_RULES.visionRadius,s=NPC_RULES.tileSize,scene=npc.scene;
   for(let y=Math.ceil((p.y-r)/s);y<=Math.floor((p.y+r)/s);y++)for(let x=Math.ceil((p.x-r)/s);x<=Math.floor((p.x+r)/s);x++){

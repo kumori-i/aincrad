@@ -3,11 +3,12 @@ import { DISCOVERY_RULES } from './discovery-config.js';
 import { createDiscoveryMemory,cleanSensoryObject,objectId } from './discovery-state.js';
 import { bodySignals,sensedEnvironment } from './interoception.js';
 import { distance } from './world.js';
-import { rememberedCells,rememberedEdges,lineOfSight } from './perception.js';
+import { rememberedCells,rememberedEdges,actorLineOfSight } from './perception.js';
 import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { recordEvent, withProofTransaction } from './npc-events.js';
 import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
+import { ozarkAgentWorld, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
 const random=n=>{n.rng=(Math.imul(n.rng,1664525)+1013904223)>>>0;return n.rng/4294967296;};
@@ -139,6 +140,87 @@ function routeTarget(npc,point){
   const choices=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>45&&distance(c,npc.position)<900).sort((a,b)=>distance(a,point)-distance(b,point));
   let admitted=0;
   for(const c of choices){if(admitted>=24)break;const route=routes.metrics(c,30);if(!route||!(route.returnedLength<speed*(NPC_RULES.maxActionSeconds-1)))continue;admitted++;if(distance(c,point)>=distance(npc.position,point)-20)continue;return {type:'move',target:{x:c.x,y:c.y}};}
+  return null;
+}
+// A terrain attempt begins with a sighting or a failed bodily step. Geometry
+// remains the arbiter only when the action runs; this policy never probes a
+// distant tile for hidden depth, grade, current, or a certified crossing.
+function terrainTraversalDecision(npc){
+  if(!ozarkPersistentWorldAgent(npc))return null;
+  const geometry=ozarkAgentWorld(npc),cells=rememberedCells(npc);
+  const nearby=Object.values(cells).filter(cell=>
+    cell.scene===npc.scene&&distance(npc.position,cell)>8&&
+    distance(npc.position,cell)<=NPC_RULES.tileSize*2&&
+    actorLineOfSight(npc,npc.position,cell));
+  const events=npc.memory.experience.filter(event=>event.type==='action'&&
+    event.at<=npc.elapsed&&npc.elapsed-event.at<90);
+  const attempted=(type,cell,since=0)=>events.some(event=>
+    event.at>=since&&event.details.action?.type===type&&
+    event.details.action?.target?.x===cell.x&&
+    event.details.action?.target?.y===cell.y);
+  const felt=geometry.observe(npc.position).ground;
+  if(felt==='deep-water'||felt==='deep-pond'){
+    const strain=bodySignals(npc),exhausted=['winded','exhausted'].includes(strain.stamina)||
+      strain.energy==='depleted'||strain.pain==='severe';
+    const lastMotion=[...events].reverse().find(event=>
+      ['move','swim'].includes(event.details.action?.type)&&
+      distance(event.details.startPosition||npc.position,event.details.position||npc.position)>20);
+    if(lastMotion&&!exhausted){
+      const from=lastMotion.details.startPosition,to=lastMotion.details.position;
+      const heading={x:to.x-from.x,y:to.y-from.y};
+      const length=Math.hypot(heading.x,heading.y);
+      const onward=nearby.filter(cell=>{
+        const dx=cell.x-npc.position.x,dy=cell.y-npc.position.y;
+        return (dx*heading.x+dy*heading.y)/Math.max(1,Math.hypot(dx,dy)*length)>.72&&
+          !attempted('swim',cell,npc.elapsed-20);
+      }).sort((a,b)=>
+        ((b.x-npc.position.x)*heading.x+(b.y-npc.position.y)*heading.y)-
+        ((a.x-npc.position.x)*heading.x+(a.y-npc.position.y)*heading.y))[0];
+      if(onward)return {action:{type:'swim',target:{x:onward.x,y:onward.y}},reason:'My last bodily movement carried me this way through water; another visible patch continues that heading.',need:'safety'};
+    }
+    const visibleDry=Object.values(cells).filter(cell=>cell.scene===npc.scene&&
+      ['dry-ground','visible-divide'].includes(cell.terrain)&&distance(npc.position,cell)<=NPC_RULES.visionRadius&&
+      actorLineOfSight(npc,npc.position,cell)).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
+    const shore=visibleDry[0];
+    if(shore){
+      const toward=nearby.filter(cell=>distance(cell,shore)<distance(npc.position,shore)-12&&
+        !attempted('swim',cell,npc.elapsed-20)).sort((a,b)=>distance(a,shore)-distance(b,shore))[0];
+      if(toward)return {action:{type:'swim',target:{x:toward.x,y:toward.y}},reason:'I feel deep water under me and can see a nearer patch toward the bank.',need:'safety'};
+    }
+  }
+  const blocked=[...events].reverse().find(event=>event.details.action?.type==='move'&&
+    event.details.result?.code==='ROUTE_BLOCKED'&&event.details.result?.blockedTarget);
+  if(blocked){
+    const target=blocked.details.result.blockedTarget,cell=nearby.find(c=>c.x===target.x&&c.y===target.y);
+    if(cell){
+      const type=['surface-water','internal-pond'].includes(cell.terrain)?'swim':'climb';
+      if(!attempted(type,cell,blocked.at))return {action:{type,target:{x:cell.x,y:cell.y}},reason:type==='swim'?
+        'My walking step met resistance at visible water; I can try moving through it with a swim.':
+        'My walking step met firm resistance; I can try the observed slope with a climb.',need:'understanding'};
+    }
+  }
+  if(npc.learning){
+    const experiencedSwim=events.some(event=>event.details.action?.type==='swim'&&
+      event.details.result?.ok&&event.details.result?.movement?.traversal==='swimming');
+    if(experiencedSwim){
+      const next=nearby.filter(cell=>['surface-water','internal-pond'].includes(cell.terrain)&&
+        !attempted('swim',cell,npc.elapsed-45)).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];
+      if(next)return {action:{type:'swim',target:{x:next.x,y:next.y}},reason:'A previous swim actually moved me through water; I can try another visible water patch.',need:'understanding'};
+    }
+  }
+  // A first water or visible divide attempt is curiosity, not a promised
+  // crossing or an inherited skill. Admission and swept collision decide it.
+  const hasTerrainResult=events.some(event=>['swim','climb'].includes(event.details.action?.type));
+  const untried=hasTerrainResult?null:nearby.filter(cell=>
+    ['surface-water','internal-pond','visible-divide'].includes(cell.terrain)&&
+    !attempted(cell.terrain==='visible-divide'?'climb':'swim',cell,npc.elapsed-90))
+    .sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];
+  if(untried){
+    const type=untried.terrain==='visible-divide'?'climb':'swim';
+    return {action:{type,target:{x:untried.x,y:untried.y}},reason:type==='swim'?
+      'I can see nearby water and cautiously test moving through it.':
+      'I can see a nearby divide and cautiously test climbing it.',need:'understanding'};
+  }
   return null;
 }
 // All consumption paths use the same observed constraints. A swallowing refusal
@@ -273,6 +355,8 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     const refuge=Object.values(npc.memory.shelters).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];if(refuge){if(distance(refuge,npc.position)<=100)return wrap({type:'enter_shelter',shelterId:refuge.id},'Exposure hurts; the observed opening may provide cover.','thermal');const move=routeTarget(npc,refuge);if(move)return wrap(move,'I am moving toward an observed opening.','thermal');}
   }
   if(npc.scene!=='valley'&&(!dangerous||body.thirst==='desperate thirst'||body.hunger==='faint with hunger')&&(thirsty||['hungry','ravenous','faint with hunger'].includes(body.hunger))){const exit=npc.memory.caveExits?.[npc.scene];if(exit){if(distance(npc.position,exit)<100)return wrap({type:'exit_shelter'},'My body needs something outside this refuge.','survival');const move=routeTarget(npc,exit);if(move)return wrap(move,'I remember this route toward the opening.','survival');}}
+  const waterEscape=terrainTraversalDecision(npc);
+  if(waterEscape?.need==='safety')return wrap(waterEscape.action,waterEscape.reason,'safety');
   if(foodLearning&&(['ravenous','faint with hunger'].includes(body.hunger)||depletedAfterRefusal)&&!samplingBlocked(npc,body)){
     if(depletedAfterRefusal){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I still hold the result of an operation sequence I previously tested; I can cautiously finish its first sampling trial before acquiring more.','food');}
     const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
@@ -310,8 +394,10 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       if(d.run)break;
     }
   }
+  const traversal=waterEscape||terrainTraversalDecision(npc);
+  if(traversal)return wrap(traversal.action,traversal.reason,traversal.need);
   const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
-  const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||lineOfSight(npc.position,o.position,npc.scene)));
+  const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||actorLineOfSight(npc,npc.position,o.position)));
   const choices=[];
   for(const object of objects){
     const held=npc.inventory.items.includes(object.id),near=held||distance(npc.position,object.position)<=DISCOVERY_RULES.reach;

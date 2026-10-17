@@ -9,6 +9,7 @@ import { habitatConditions, plantSuitability, initializeRegions, validateRegions
 import { buildHabitatCorridors, sampleCorridor } from './ecology-corridors.js';
 import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss, juvenileStrikeLoss } from './plant-lifecycle.js';
 import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, lifecycleError, hasLifecyclePayload, PLANT_FIELDS, MATERIAL_FIELDS, stockTolerance, lifecycleStockAudit, lifecycleRestorationError } from './plant-lifecycle-state.js';
+import { geometryForOzarkEcology } from './ozark-ecology.js';
 
 const finite = (v,f=0) => Number.isFinite(v)?v:f;
 const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,finite(v,lo)));
@@ -349,6 +350,10 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
   }
   if(verb==='release'){
     if(o.heldBy!==actorId)return{ok:false,code:'object_not_held'};
+    const ozark=geometryForOzarkEcology(e);
+    if(e.ozarkEcologyVersion===1&&(!ozark||scene!=='valley'||
+        !ozark.canOccupy(position.x,position.y,CONFIG.playerRadius)))
+      return{ok:false,code:'object_out_of_reach',targetId:id};
     o.heldBy=null;o.position={...position};o.scene=scene;invalidateIndex(e);return{ok:true,code:'object_released',targetId:id};
   }
   if(verb==='pull'){
@@ -375,9 +380,15 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
       return{ok:true,code:loss.terminal?'object_broken':'object_damaged',targetId:id};
     }
     if(o.species){
+      const ozark=geometryForOzarkEcology(e);
+      if(e.ozarkEcologyVersion===1&&!ozark)return{ok:false,code:'geometry_unavailable',targetId:id};
       o.physiology.health=Math.max(0,o.physiology.health-clamp(power,0,4)*7);o.health=o.physiology.health;
       wakePhysiology(o,{kind:'contact',strength:1});o.activity='fleeing';o.targetId=null;
-      o.targetPosition=safePoint(o.position.x+(o.position.x-position.x)*4,o.position.y+(o.position.y-position.y)*4,SPECIES[o.species].radius);
+      const ox=o.position.x-position.x,oy=o.position.y-position.y;
+      if(ozark){
+        o.targetPosition=[4,2,1].map(scale=>({x:o.position.x+ox*scale,y:o.position.y+oy*scale}))
+          .find(point=>ozark.classify(point.x,point.y,SPECIES[o.species].radius).reason==='dry-ground')||null;
+      }else o.targetPosition=safePoint(o.position.x+ox*4,o.position.y+oy*4,SPECIES[o.species].radius);
       if(o.health<=0)death(e,o);
       return{ok:true,code:o.health<=0?'object_stopped_moving':'object_recoiled',targetId:id};
     }

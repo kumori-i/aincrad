@@ -13,8 +13,8 @@ import { recordEvent, compact, withProofTransaction } from './npc-events.js';
 export { recordEvent } from './npc-events.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
-const OPS=new Set(['observe','move','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
-const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
+const OPS=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
+const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','swim','climb','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
 const FEATURE_NAMES=new Set(['thirst','hunger','thermal','injured','water','food','sheltered','knownWater','knownFood','knownShelter']);
 const featureBatches=new WeakMap();
 function validFeatureEntry([key,value]){
@@ -193,11 +193,11 @@ function recoveryLessonBatch(npc){
 }
 
 /** Saved data are bounded and allowlisted; recognition templates cannot execute arbitrary code. */
-export function validateNpc(raw,{restoring=true}={}){
+export function validateNpc(raw,{restoring=true,canStandAt=canStand}={}){
   const n=createNpc({id:raw?.id==='mira'?'mira':'aster',mode:raw?.version===4&&raw.mode==='discovery'?'discovery':'legacy',preset:raw?.preset,learning:raw?.learning!==false,seed:raw?.seed});
   if(!raw||![1,2,3,4].includes(raw.version)||!['aster','mira'].includes(raw.id))return n;
   const scenes=new Set(['valley',...CAVES.map(c=>c.id)]);n.scene=scenes.has(raw.scene)?raw.scene:'valley';
-  if(Number.isFinite(raw.position?.x)&&Number.isFinite(raw.position?.y)&&canStand(raw.position.x,raw.position.y,n.scene))n.position={x:raw.position.x,y:raw.position.y};else n.scene='valley';
+  if(Number.isFinite(raw.position?.x)&&Number.isFinite(raw.position?.y)&&canStandAt(raw.position.x,raw.position.y,n.scene))n.position={x:raw.position.x,y:raw.position.y};else n.scene='valley';
   n.elapsed=finite(raw.elapsed);n.hydration=finite(raw.hydration,n.hydration,100);n.nourishment=finite(raw.nourishment,n.nourishment,100);n.health=finite(raw.health,n.health,100);n.riskCost=finite(raw.riskCost);
   if(n.mode==='discovery')n.physiology=validatePhysiology(raw.physiology,{profile:'human',elapsed:n.elapsed});
   for(const field of ['energy','stamina','fatigue','sleepPressure'])n[field]=finite(raw[field],n[field],100);n.bodyMode=['awake','resting','sleeping'].includes(raw.bodyMode)?raw.bodyMode:'awake';

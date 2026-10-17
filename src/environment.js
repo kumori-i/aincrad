@@ -2,6 +2,7 @@ import { CONFIG, ENV_RULES, APPLE_PATCHES, CAVES, PONDS } from './config.js';
 import { clamp, lerp, hash, distance, objectsInRect, terrain, canStandOutside } from './world.js';
 import { createEcology, validateEcology, migrateEcologyDistribution } from './ecology.js';
 import { habitatConditions } from './ecology-regions.js';
+import { geometryForOzarkEcology } from './ozark-ecology.js';
 import { createWorldRules, validateWorldRules, getWorldRule } from './world-rules.js';
 
 export const WEATHER_KINDS = Object.freeze(['clear', 'cloudy', 'rainy', 'windy']);
@@ -51,7 +52,7 @@ export function tickEnvironment(env, dt) {
   }
 }
 /** Ignore arbitrary fields, forged weather and unknown resource IDs in disk saves. */
-export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'?'discovery':'legacy', connectedEcology=false } = {}) {
+export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'?'discovery':'legacy', connectedEcology=false, ecologyValidator } = {}) {
   const base = createEnvironment(Number.isInteger(raw?.seed) ? raw.seed : CONFIG.seed,{mode,populate:false});
   base.elapsed = safeElapsed(Number.isFinite(elapsed) ? elapsed : raw?.elapsed);
   base.worldRules=validateWorldRules(raw?.worldRules);
@@ -70,10 +71,12 @@ export function validateEnvironment(raw, { elapsed, mode=raw?.mode==='discovery'
     }
   }
   if(mode==='discovery'){
-    base.ecology=validateEcology(raw?.ecology,{seed:base.seed,elapsed:base.elapsed,connectedEcology});
+    base.ecology=ecologyValidator
+      ? ecologyValidator(raw?.ecology,{seed:base.seed,elapsed:base.elapsed})
+      : validateEcology(raw?.ecology,{seed:base.seed,elapsed:base.elapsed,connectedEcology});
     // Partition existing soil once; preserve old populations, depletion, IDs
     // and bodies without introducing resources or refilling an exhausted world.
-    if(raw?.ecology && (raw.ecology.distributionVersion??1)<3)migrateEcologyDistribution(base.ecology,3);
+    if(!ecologyValidator && raw?.ecology && (raw.ecology.distributionVersion??1)<3)migrateEcologyDistribution(base.ecology,3);
   }
   updateWeather(base); return base;
 }
@@ -92,15 +95,24 @@ export function dailyTemperature(hour) {
 export function environmentConditions(env = {}, actor = {}) {
   const position = pointOf(actor), hour = environmentHour(env), scene = actor.scene || 'valley';
   const sheltered = scene !== 'valley' && CAVES.some(c => c.id === scene);
+  const ozarkEcology = env.ecology?.ozarkEcologyVersion === 1;
+  const ozark = ozarkEcology ? geometryForOzarkEcology(env.ecology) : null;
+  if(ozarkEcology && !ozark)throw new Error('Ozark ecology geometry is not bound');
+  const ozarkSite = ozark && scene === 'valley' ? ozark.sample(position.x,position.y) : null;
   const override = env.settings?.weatherOverride;
   const weather = WEATHER_KINDS.includes(override) ? override : WEATHER_KINDS.includes(env.weather?.kind) ? env.weather.kind : weatherAt(Math.floor(safeElapsed(env.elapsed) / ENV_RULES.weatherSeconds), Number.isInteger(env.seed) ? env.seed : CONFIG.seed,getWorldRule(env,'rainfallMultiplier'));
   const effect = WEATHER_EFFECTS[weather];
   const rainfall=getWorldRule(env,'rainfallMultiplier');
   const wind = sheltered ? 0 : (WEATHER_KINDS.includes(override) ? effect.wind : finite(env.weather?.wind, effect.wind))*getWorldRule(env,'windMultiplier');
-  const shade = !sheltered && objectsInRect(position.x - 145, position.y - 145, 290, 290)
-    .some(o => ['oak', 'pine'].includes(o.kind) && distance(o, position) < 85 * o.scale);
+  const shade = ozarkSite ? ozarkSite.canopy >= .58 && ozarkSite.light < .55 :
+    !sheltered && objectsInRect(position.x - 145, position.y - 145, 290, 290)
+      .some(o => ['oak', 'pine'].includes(o.kind) && distance(o, position) < 85 * o.scale);
+  const localOffset = ozarkSite
+    ? -2 * clamp(ozarkSite.elevation / 1200, 0, 1) - (ozarkSite.habitat === 'shaded-cove' ? 1 : 0)
+    : env.mode==='discovery'&&env.ecology?.regionalVersion===1
+      ? habitatConditions(position,env.ecology?.ecosystemModelVersion===1?1:0).temperatureOffsetC : 0;
   const airTemperature = sheltered ? ENV_RULES.caveTemperature : dailyTemperature(hour)
-    + (WEATHER_KINDS.includes(override) ? effect.offset : finite(env.weather?.temperatureOffset, effect.offset)) + getWorldRule(env,'temperatureOffsetC') + (env.mode==='discovery'&&env.ecology?.regionalVersion===1?habitatConditions(position,env.ecology?.ecosystemModelVersion===1?1:0).temperatureOffsetC:0);
+    + (WEATHER_KINDS.includes(override) ? effect.offset : finite(env.weather?.temperatureOffset, effect.offset)) + getWorldRule(env,'temperatureOffsetC') + localOffset;
   const wetness = clamp(finite(actor.wetness ?? actor.thermal?.wetness, 0), 0, 100) / 100;
   const raining = !sheltered && weather === 'rainy' && rainfall>0;
   const shadeCooling = shade && hour >= 7 && hour <= 19 ? ENV_RULES.shadeCooling : 0;

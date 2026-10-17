@@ -3,16 +3,17 @@ import { canStand, moveActor, distance, clamp } from './world.js';
 import { waterSource, foodSource, gatherFood, shelterSource } from './resources.js';
 import { environmentConditions } from './environment.js';
 import { bodySignals, sensedEnvironment, restUnsafe } from './interoception.js';
-import { perceive, tileKey, tilePoint, lineOfSight, rememberedCells, rememberedEdges, scenePointValid } from './perception.js';
+import { perceive, tileKey, tilePoint, actorLineOfSight, rememberedCells, rememberedEdges, scenePointValid } from './perception.js';
 import { knownRoute } from './navigation.js';
 import { recordEvent, rememberObservation, policyContext, learnOutcome, recoveryLesson, learningCostTick } from './npc-memory.js';
 import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
-import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, wakePhysiology, isSleeping, relievePhysiology } from './biology.js';
+import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { requestDiscoveryAction, tickDiscoveryAction } from './discovery-actions.js';
-import { ozarkAgentWorld, ozarkAgentSensation } from './ozark-agent-world.js';
+import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
-const allowedActions=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
+const allowedActions=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
+const movementActions=new Set(['move','swim','climb']);
 const needSeverity=(reserve,warning,critical)=>{
   const mild=Math.pow((100-reserve)/100,2)*.08;
   if(reserve>warning)return mild;
@@ -45,7 +46,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   const active=npc.active;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
   if(active&&result.durationSeconds===undefined)result.durationSeconds=Math.max(0,npc.elapsed-active.startedAt);
-  if(active?.request.type==='move'&&ozarkAgentWorld(npc)){
+  if(active&&movementActions.has(active.request.type)&&ozarkAgentWorld(npc)){
     const expected=active.attemptedDistance||0,forward=active.forwardProgress||0;
     const ratio=expected>0?forward/expected:0;
     const progress=ratio<.15?'negligible':ratio<.8?'limited':'steady';
@@ -53,6 +54,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
     const effort=npc.physiology.fatigue>active.startFatigue+1e-9||npc.physiology.stamina<active.startStamina-1e-9?'rising':'steady';
     const footing=ozarkAgentWorld(npc).classify(npc.position.x,npc.position.y,CONFIG.playerRadius).reason;
     result.movement={progress,resistance:progress==='negligible'?'strong':progress==='limited'?'resisted':'free',wetness,effort,footing};
+    if(ozarkPersistentWorldAgent(npc))result.movement.traversal=active.swimSeconds>0?'swimming':active.climbSeconds>0?'climbing':active.passiveDriftSeconds>0&&forward<3?'adrift':active.waterSeconds>0?'wading':'walking';
   }
   if(active?.startScene)startScene=active.startScene;
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
@@ -67,14 +69,21 @@ export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){
   if(npc.mode==='discovery'&&active.request.type==='sleep')wakePhysiology(npc,'interrupted sleep');
   complete(npc,active.request,{ok:false,code,riskCost:Math.max(0,npc.riskCost-active.startRisk),distance:active.travelled||0},active.context,active.startPosition,active.startScene);return true;
 }
-function cleanRequest(raw,scene,mode='legacy'){
+function cleanRequest(raw,npc){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||!allowedActions.has(raw.type))return null;
   const action={type:raw.type};
-  if(['move','inspect','fill_flask','gather_food','enter_shelter'].includes(raw.type)){
+  const scene=npc.scene,mode=npc.mode;
+  if(['move','swim','climb','inspect','fill_flask','gather_food','enter_shelter'].includes(raw.type)){
     const ids=['sourceId','foodId','shelterId'].filter(key=>raw[key]!==undefined);
-    if(ids.length>1)return null;
+    if(ids.length>1||movementActions.has(raw.type)&&raw.type!=='move'&&ids.length)return null;
     if(ids.length){const key=ids[0];if(typeof raw[key]!=='string'||raw[key].length>70||raw[key].length<1)return null;action[key]=raw[key];}
-    else if(raw.type==='move'){if(!scenePointValid(raw.target,scene))return null;action.target={x:raw.target.x,y:raw.target.y};}
+    else if(movementActions.has(raw.type)){
+      const bounds=ozarkPersistentWorldAgent(npc)?ozarkAgentWorld(npc)?.bounds:null;
+      const valid=bounds?Number.isFinite(raw.target?.x)&&Number.isFinite(raw.target?.y)&&
+        raw.target.x>=bounds.minX&&raw.target.x<=bounds.maxX&&raw.target.y>=bounds.minY&&raw.target.y<=bounds.maxY:
+        scenePointValid(raw.target,scene);
+      if(!valid)return null;action.target={x:raw.target.x,y:raw.target.y};
+    }
     else return null;
     if(raw.type==='fill_flask'&&!action.sourceId||raw.type==='gather_food'&&!action.foodId||raw.type==='enter_shelter'&&!action.shelterId)return null;
   }
@@ -111,8 +120,9 @@ export function requestNpcAction(npc,raw,environment={}){
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   if(npc.mode==='discovery'&&isSleeping(npc))return{ok:false,code:'ASLEEP'};
   if(npc.mode==='discovery'&&DISCOVERY_RULES.primitives.includes(raw?.type))return requestDiscoveryAction(npc,raw,environment,{complete});
-  const request=cleanRequest(raw,npc.scene,npc.mode),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
+  const request=cleanRequest(raw,npc),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
   if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
+  if(['swim','climb'].includes(request.type)&&!ozarkPersistentWorldAgent(npc))return complete(npc,request,{ok:false,code:'UNSUPPORTED_TERRAIN_ACTION'},context,startPosition);
   if(npc.mode==='discovery'&&(['gather_food','eat'].includes(request.type)||request.foodId))return complete(npc,request,{ok:false,code:'UNDISCOVERED_MACRO'},context,startPosition);
   if(['rest','sleep'].includes(request.type)&&restUnsafe(npc))return complete(npc,request,{ok:false,code:'UNSAFE_TO_REST',body:bodySignals(npc)},context,startPosition);
   const resource=knownResource(npc,request),known=resource?.known;
@@ -123,7 +133,7 @@ export function requestNpcAction(npc,raw,environment={}){
     return complete(npc,request,{ok:true,code:'OBSERVED',novelCells:Math.max(0,Object.keys(rememberedCells(npc)).length-previous)},context,startPosition);
   }
   if(request.type==='inspect'){
-    if(distance(npc.position,known)>NPC_RULES.visionRadius||!lineOfSight(npc.position,known,npc.scene))return complete(npc,request,{ok:false,code:'OUT_OF_VIEW'},context,startPosition);
+    if(distance(npc.position,known)>NPC_RULES.visionRadius||!actorLineOfSight(npc,npc.position,known))return complete(npc,request,{ok:false,code:'OUT_OF_VIEW'},context,startPosition);
     const physical=physicalResource(resource,environment);
     if(!physical)return complete(npc,request,{ok:false,code:'RESOURCE_UNAVAILABLE'},context,startPosition);
     const {shelteredTemperature,renewAt,...exterior}=physical;
@@ -133,7 +143,7 @@ export function requestNpcAction(npc,raw,environment={}){
   if(request.type==='fill_flask'||request.type==='gather_food'||request.type==='enter_shelter'){
     const range=request.type==='enter_shelter'?100:NPC_RULES.collectionRange;
     if(distance(npc.position,known)>range)return complete(npc,request,{ok:false,code:'OUT_OF_REACH'},context,startPosition);
-    if(!lineOfSight(npc.position,known,npc.scene))return complete(npc,request,{ok:false,code:'INTERACTION_BLOCKED'},context,startPosition);
+    if(!actorLineOfSight(npc,npc.position,known))return complete(npc,request,{ok:false,code:'INTERACTION_BLOCKED'},context,startPosition);
     const physical=physicalResource(resource,environment);
     if(!physical||physical.available===false)return complete(npc,request,{ok:false,code:resource.kind==='food'?'FOOD_DEPLETED':'SOURCE_UNAVAILABLE'},context,startPosition);
     if(request.type==='fill_flask'){
@@ -157,7 +167,7 @@ export function requestNpcAction(npc,raw,environment={}){
   if(request.type==='exit_shelter'){
     if(npc.scene==='valley')return complete(npc,request,{ok:false,code:'NOT_IN_SHELTER'},context,startPosition);
     if(distance(npc.position,CAVE_EXIT)>=100)return complete(npc,request,{ok:false,code:'OUT_OF_REACH'},context,startPosition);
-    if(!lineOfSight(npc.position,CAVE_EXIT,npc.scene))return complete(npc,request,{ok:false,code:'INTERACTION_BLOCKED'},context,startPosition);
+    if(!actorLineOfSight(npc,npc.position,CAVE_EXIT))return complete(npc,request,{ok:false,code:'INTERACTION_BLOCKED'},context,startPosition);
     const cave=CAVES.find(c=>c.id===npc.scene),position=cave&&{x:cave.x,y:cave.y+95};
     if(!position||!canStand(position.x,position.y,'valley'))return complete(npc,request,{ok:false,code:'EXIT_BLOCKED'},context,startPosition);
     npc.scene='valley';npc.position=position;npc.navigationAnchor=null;npc.epoch++;
@@ -193,17 +203,22 @@ export function requestNpcAction(npc,raw,environment={}){
     npc.presentation.eatUntil=npc.elapsed+2;updateFeelings(npc,gain/100);
     return complete(npc,request,{ok:true,code:'ATE',nourishmentGain:gain,foodConsumed:1,foodId:apple.foodId,gatherEventId:apple.eventId,provenance:'collected',independent},context,startPosition);
   }
-  if(request.type==='move'){
+  if(movementActions.has(request.type)){
     const cells=rememberedCells(npc),edges=rememberedEdges(npc);let target=request.target,route=null;
     const anchor=npc.navigationAnchor&&cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null;
-    if(resource){route=observedResourceRoute(npc,known);target={x:known.x,y:known.y};if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);}
+    if(request.type!=='move'){
+      const cell=cells[tileKey(target)];
+      if(!cell||target.x!==cell.x||target.y!==cell.y||distance(npc.position,target)>NPC_RULES.tileSize*2||
+          !actorLineOfSight(npc,npc.position,target))return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
+      route=[target];
+    }else if(resource){route=observedResourceRoute(npc,known);target={x:known.x,y:known.y};if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);}
     else {
       const cell=cells[tileKey(target)];if(!cell?.walkable||distance(target,cell)>NPC_RULES.tileSize*.71||ozarkAgentWorld(npc)&&(target.x!==cell.x||target.y!==cell.y))return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
       route=knownRoute(cells,npc.position,target,30,edges,npc.elapsed,anchor);if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
     }
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
-    if(ozarkAgentWorld(npc))Object.assign(npc.active,{startWetness:npc.thermal.wetness,startStamina:npc.physiology.stamina,startFatigue:npc.physiology.fatigue,forwardProgress:0,attemptedDistance:0});
+    if(ozarkAgentWorld(npc))Object.assign(npc.active,{startWetness:npc.thermal.wetness,startStamina:npc.physiology.stamina,startFatigue:npc.physiology.fatigue,forwardProgress:0,attemptedDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,passiveDriftSeconds:0});
   }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,startEnergy:npc.energy,startStamina:npc.stamina,startFatigue:npc.fatigue,startSleepPressure:npc.sleepPressure};
   npc.bodyMode=request.type==='sleep'?'sleeping':request.type==='rest'?'resting':'awake';
   if(npc.mode==='discovery'&&request.type==='sleep')beginSleep(npc,{hours:gameHours(request.seconds)});
@@ -224,9 +239,25 @@ export function rescueNpc(npc,collapseId=npc.collapseId){
   const ozark=ozarkAgentWorld(npc);
   const stand=(x,y)=>ozark?ozark.classify(x,y,CONFIG.playerRadius).walkable:canStand(x,y,npc.scene);
   let safe=stand(npc.position.x,npc.position.y)?{...npc.position}:null;
-  for(let radius=12;!safe&&radius<=120;radius+=12)for(let i=0;i<16;i++){
+  let recoveryTravel=0,physicalRecovery=ozarkPersistentWorldAgent(npc)&&!safe;
+  let candidateChecks=0;
+  for(let radius=12;!safe&&candidateChecks<24&&radius<=(physicalRecovery?500:120);radius+=12)for(let i=0;i<16;i++){
     const p={x:npc.position.x+Math.cos(i*Math.PI/8)*radius,y:npc.position.y+Math.sin(i*Math.PI/8)*radius};
-    if(stand(p.x,p.y)){safe=p;break;}
+    if(!stand(p.x,p.y))continue;
+    if(!physicalRecovery){safe=p;break;}
+    // External rescue may cross water, but its landing must be reachable
+    // along the same swept physical motion as an awake swimmer. Nothing in
+    // this rescue search enters the actor's observations or route memory.
+    const probe={...npc.position};let travelled=0,stalled=0;
+    for(let step=0;step<120&&distance(probe,p)>6;step++){
+      const before=distance(probe,p);
+      const motion=ozark.advance(probe,p.x-probe.x,p.y-probe.y,.25,false,'swim');
+      travelled+=motion.distance;
+      stalled=before-distance(probe,p)<.05?stalled+1:0;
+      if(stalled>4)break;
+    }
+    if(distance(probe,p)<=6&&stand(probe.x,probe.y)){safe=probe;recoveryTravel=travelled;break;}
+    if(++candidateChecks>=24)break;
   }
   if(!safe)return {ok:false,code:'NO_SAFE_RECOVERY_POSITION'};
   const before={hydration:npc.hydration,nourishment:npc.nourishment,health:npc.health,hot:npc.thermal.hot,cold:npc.thermal.cold};
@@ -238,7 +269,7 @@ export function rescueNpc(npc,collapseId=npc.collapseId){
   npc.thermal.hot=Math.min(npc.thermal.hot,20);npc.thermal.cold=Math.min(npc.thermal.cold,20);npc.thermal.wetness=Math.min(npc.thermal.wetness,30);updateFeelings(npc);
   npc.rescuedCollapseId=collapseId;npc.lifecycle='RECOVERING';npc.lifecycleAt=npc.elapsed;npc.epoch++;
   npc.stats.rescues++;npc.stats.lastRescuer='divine';npc.presentation.rescueUntil=npc.elapsed+8;
-  recordEvent(npc,'rescue',{collapseId,cause:npc.collapseCause,hydrationGain:npc.hydration-before.hydration,nourishmentGain:npc.nourishment-before.nourishment,healthGain:npc.health-before.health,thermalRelief:before.hot+before.cold-npc.thermal.hot-npc.thermal.cold,provenance:'divine',position:npc.position,scene:npc.scene,verified:'Partial bodily relief was received during recovery, without gathering supplies.',observedAttribution:npc.rescuePresentation==='quiet'?'The source of the intervention was not observed.':'A warmth and a benevolent presence; divine attribution is an interpretation, not a witnessed human action.'});
+  recordEvent(npc,'rescue',{collapseId,cause:npc.collapseCause,hydrationGain:npc.hydration-before.hydration,nourishmentGain:npc.nourishment-before.nourishment,healthGain:npc.health-before.health,thermalRelief:before.hot+before.cold-npc.thermal.hot-npc.thermal.cold,provenance:'divine',position:npc.position,scene:npc.scene,...(physicalRecovery?{recoveryTravel,recoveryMode:'swept swim'}:{}),verified:'Partial bodily relief was received during recovery, without gathering supplies.',observedAttribution:npc.rescuePresentation==='quiet'?'The source of the intervention was not observed.':'A warmth and a benevolent presence; divine attribution is an interpretation, not a witnessed human action.'});
   recoveryLesson(npc);npc.decision=npc.rescuePresentation==='quiet'?'I recovered with partial relief. The source of the intervention was not observed.':'A benevolent presence gave partial bodily relief. This rescue did not count as independent survival.';
   return {ok:true,code:'RESCUED',provenance:'divine'};
 }
@@ -353,7 +384,7 @@ function tickDiscoveryNpc(npc,dt,environment){
   if(npc.elapsed-npc.bodyFeedback.since>=30){if(signals.overall!=='settled')recordEvent(npc,'condition',{code:'BODY_FEEDBACK',intervalSeconds:npc.elapsed-npc.bodyFeedback.since,riskCost:npc.bodyFeedback.cost,body:signals,scene:npc.scene});npc.bodyFeedback={since:npc.elapsed,cost:0};}
   if(npc.health<=0){const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile];collapseNpc(npc,f.waterDeficitMl/(p.massKg*1000)>.05?'dehydration':f.availableEnergyKcal<=0?'prolonged deprivation':Math.max(npc.thermal.hot,npc.thermal.cold)>=80?'thermal exposure':'injury');return;}
   const active=npc.active;
-  if(ozark&&active?.request.type!=='move'){
+  if(ozark&&!movementActions.has(active?.request.type)){
     // The river moves a body even when the actor has chosen no movement.
     const drift=ozark.advance(npc.position,0,0,dt,false);
     wetOzarkBody(npc,dt,drift.waterSeconds);
@@ -380,17 +411,29 @@ function tickDiscoveryNpc(npc,dt,environment){
   let moved,forward;
   if(ozark){
     const before={...npc.position},duration=Math.min(dt*pace,d/CONFIG.walkSpeed);
-    const motion=ozark.advance(npc.position,dx,dy,duration,false);
+    const mode=active.request.type==='move'?'walk':active.request.type;
+    let motion=ozark.advance(npc.position,dx,dy,duration,false,mode);
+    // A walking request made while already in deep water cannot propel the
+    // actor, but it also cannot cancel the river's passive current.
+    const passiveDrift=mode==='walk'&&motion.distance===0;
+    if(passiveDrift)motion=ozark.advance(npc.position,0,0,duration,false,'walk');
     moved=motion.distance;
     // The result includes current drift; conservatively exclude all passive
     // drift from forward progress so a favorable current cannot hide a stall.
     forward=Math.max(0,((npc.position.x-before.x)*dx+(npc.position.y-before.y)*dy)/d-motion.driftDistance);
     active.forwardProgress+=forward;
     active.attemptedDistance+=CONFIG.walkSpeed*duration;
+    active.waterSeconds+=(motion.waterSeconds||0);
+    if(mode==='swim')active.swimSeconds+=(motion.swimSeconds||0);
+    active.climbSeconds+=(motion.climbSeconds||0);
+    active.fallRiskSeconds+=(motion.fallRiskSeconds||0);
+    if(passiveDrift)active.passiveDriftSeconds+=(motion.waterSeconds||0);
     wetOzarkBody(npc,dt,motion.waterSeconds);
     // A resisted step still costs effort; passive current displacement is not
     // credited as purposeful progress or as extra work.
-    exertPhysiology(npc,duration,1+.6*motion.waterSeconds/Math.max(duration,1e-9));
+    const effort=ozarkPersistentWorldAgent(npc)?Math.max(1,(motion.effortSeconds||0)/Math.max(duration,1e-9)):
+      1+.6*motion.waterSeconds/Math.max(duration,1e-9);
+    exertPhysiology(npc,duration,effort);
   }else{
     moved=moveActor(npc.position,dx,dy,Math.min(dt*pace,d/CONFIG.walkSpeed),false,npc.scene);
     exertPhysiology(npc,moved/CONFIG.walkSpeed,1);
@@ -398,9 +441,16 @@ function tickDiscoveryNpc(npc,dt,environment){
   }
   active.travelled+=moved;updateFeelings(npc);
   active.blockedFor=forward<.05?active.blockedFor+dt:0;
+  if(ozarkPersistentWorldAgent(npc)&&active.request.type==='climb'&&active.fallRiskSeconds>=.5){
+    const injury=harmPhysiology(npc,2,{stimulus:'contact'});
+    npc.stats.injuries+=injury.damage||0;
+    recordEvent(npc,'condition',{code:'CLIMB_SLIP',body:bodySignals(npc),position:{...npc.position},scene:npc.scene,provenance:'experienced footing'});
+    complete(npc,active.request,{ok:false,code:'SLIPPED',distance:active.travelled,body:bodySignals(npc),...losses},active.context,active.startPosition,active.startScene);
+    return;
+  }
   if(active.blockedFor>1||npc.elapsed>active.expiresAt){
     const code=active.blockedFor>1?'ROUTE_BLOCKED':'ACTION_TIMEOUT';
     if(active.blockedFor>1){const from=active.index?active.route[active.index-1]:active.startPosition;npc.navigationAnchor=tileKey(from);const edge=[tileKey(from),tileKey(target)].sort().join('>'),edges=rememberedEdges(npc);edges[edge]={observedAt:npc.elapsed,retryAfter:npc.elapsed+60};const entries=Object.entries(edges);if(entries.length>512)delete edges[entries[0][0]];}
-    complete(npc,active.request,{ok:false,code,distance:active.travelled,novelCells:active.novelCells||0,...losses},active.context,active.startPosition,active.startScene);
+    complete(npc,active.request,{ok:false,code,distance:active.travelled,novelCells:active.novelCells||0,...(ozarkPersistentWorldAgent(npc)?{blockedTarget:{x:target.x,y:target.y}}:{}),...losses},active.context,active.startPosition,active.startScene);
   }
 }
