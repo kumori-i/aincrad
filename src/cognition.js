@@ -143,9 +143,9 @@ export function searchReturn(npc){
   const nodes=Object.values(cells).filter(cell=>cell.walkable&&distance(cell,npc.position)>80&&distance(cell,npc.position)<600&&distance(cell,bounds.home)<d-60).sort((a,b)=>distance(a,bounds.home)-distance(b,bounds.home));
   const next=nodes.find(cell=>{const route=knownRoute(cells,npc.position,cell,30,edges,npc.elapsed,npc.navigationAnchor);return route&&routeSeconds(npc,route)<=NPC_RULES.maxActionSeconds-.75;});return next?{type:'move',target:{x:next.x,y:next.y}}:null;
 }
-export function explorationFrontier(npc){
+export function explorationFrontier(npc,{reportedHints=true}={}){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc),c=cognition(npc),bounds=searchBounds(npc);
-  const reports=c.beliefs.filter(b=>b.source==='reported'&&b.status==='unverified'&&b.position&&b.available!==false);
+  const reports=reportedHints?c.beliefs.filter(b=>b.source==='reported'&&b.status==='unverified'&&b.position&&b.available!==false):[];
   const candidates=Object.values(cells).filter(cell=>cell.walkable&&distance(cell,npc.position)>140&&distance(cell,npc.position)<900&&(npc.scene!=='valley'||distance(cell,bounds.home)<bounds.radius)).map(cell=>{let unknown=0;const [x,y]=cell.key.split(',').map(Number);for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)if(dx*dx+dy*dy<=9&&!cells[`${x+dx},${y+dy}`])unknown++;const reportProgress=reports.reduce((value,report)=>Math.max(value,(distance(npc.position,report.position)-distance(cell,report.position))*.02),0);return {cell,unknown,score:unknown+reportProgress+(cell.terrain==='trail'?3:0)-(cell.visits||0)*4-(npc.memory.exploration.recentTargets.includes(`${npc.scene}:${cell.key}`)?15:0)};}).sort((a,b)=>b.score-a.score);
   for(const candidate of candidates.slice(0,24)){if(!candidate.unknown)continue;const out=knownRoute(cells,npc.position,candidate.cell,30,edges,npc.elapsed,npc.navigationAnchor),back=knownRoute(cells,candidate.cell,npc.position,30,edges,npc.elapsed);if(!out||!back)continue;const seconds=routeSeconds(npc,out)+routeSeconds({...npc,position:candidate.cell},back);if(seconds>18)continue;return {target:{x:candidate.cell.x,y:candidate.cell.y},unknown:candidate.unknown,travelSeconds:Math.ceil(seconds),returnRoute:back};}return null;
 }

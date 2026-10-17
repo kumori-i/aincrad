@@ -9,6 +9,7 @@ import { BIOLOGY_RULES } from './biology-config.js';
 import { recordEvent, withProofTransaction } from './npc-events.js';
 import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
 import { ozarkAgentWorld, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { explorationFrontier } from './cognition.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
 const random=n=>{n.rng=(Math.imul(n.rng,1664525)+1013904223)>>>0;return n.rng/4294967296;};
@@ -199,7 +200,7 @@ function terrainTraversalDecision(npc){
         'My walking step met firm resistance; I can try the observed slope with a climb.',need:'understanding'};
     }
   }
-  if(npc.learning){
+  if(npc.learning&&['shallow-water','deep-water','deep-pond'].includes(felt)){
     const experiencedSwim=events.some(event=>event.details.action?.type==='swim'&&
       event.details.result?.ok&&event.details.result?.movement?.traversal==='swimming');
     if(experiencedSwim){
@@ -344,11 +345,15 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   if(!foodLearning)d.run=null;
   const wrap=(action,reason,need='understanding')=>({action,reason,need,provider:'discovery-learner'});
   const escape=contactEscape(npc);if(escape)return wrap(escape.action,'A contact I actually experienced hurt; I can move away through terrain I observed.','safety');
-  const thirsty=['thirsty','parched','desperate thirst'].includes(body.thirst);
+  const thirsty=['thirsty','parched','desperate thirst'].includes(body.thirst)||
+    ozarkPersistentWorldAgent(npc)&&body.thirst==='dry mouth';
   if(thirsty&&npc.flask.water>0)return wrap({type:'drink'},'My thirst is asking for remembered water relief.','water');
   if(thirsty&&npc.scene==='valley'){
-    const source=Object.values(npc.memory.sources).filter(s=>s.available!==false&&(s.retryAfter||0)<=npc.elapsed).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];
-    if(source){if(distance(source,npc.position)<=NPC_RULES.collectionRange)return wrap({type:'fill_flask',sourceId:source.id},'I can reach the water I actually observed.','water');const move=routeTarget(npc,source);if(move)return wrap(move,'I am approaching remembered water.','water');}
+    const sources=Object.values(npc.memory.sources).filter(s=>s.available!==false&&(s.retryAfter||0)<=npc.elapsed).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
+    for(const source of ozarkPersistentWorldAgent(npc)?sources:sources.slice(0,1)){
+      if(distance(source,npc.position)<=NPC_RULES.collectionRange)return wrap({type:'fill_flask',sourceId:source.id},'I can reach the water I actually observed.','water');
+      const move=routeTarget(npc,source);if(move)return wrap(move,'I am approaching remembered water.','water');
+    }
   }
   const dangerous=body.thermal.startsWith('dangerously')||['overheated','shivering'].includes(body.thermal);
   if(dangerous&&npc.scene==='valley'){
@@ -393,6 +398,16 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       // A source without an observed route must not conceal another earned source.
       if(d.run)break;
     }
+  }
+  // Once immediate bodily care has been considered, a dry mouth without an
+  // accessible remembered source motivates a bounded firsthand survey.
+  // Unverified reports cannot point it toward a claimed water location.
+  if(ozarkPersistentWorldAgent(npc)&&npc.scene==='valley'&&npc.flask.water<=0&&
+     body.thirst!=='quenched'&&(!['ravenous','faint with hunger'].includes(body.hunger)||
+       ['parched','desperate thirst'].includes(body.thirst))){
+    const frontier=explorationFrontier(npc,{reportedHints:false});
+    if(frontier)return wrap({type:'move',target:frontier.target},
+      'My mouth is dry; I can search another edge of ground I have actually seen.','water');
   }
   const traversal=waterEscape||terrainTraversalDecision(npc);
   if(traversal)return wrap(traversal.action,traversal.reason,traversal.need);
