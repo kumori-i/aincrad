@@ -1,0 +1,8 @@
+{
+  "fileName": "aincrad-save-stage-a-evidence.zip",
+  "bytes": 2399874,
+  "sha256": "fe690dc91250e5b16b17c72b460777ea19bbeb669579d49644808ed25c5db8a3",
+  "entries": 242,
+  "manifestSha256": "638cf7076ade75ffa81ce4f6433a5f9e2c969ad0d4fd06457e8744e0d60cad08",
+  "note": "Full source/input/raw evidence retained in cloud evidence export; disposable native profile directories remain local and are excluded."
+}
