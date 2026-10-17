@@ -104,6 +104,11 @@ test('pilot starts fresh and walks without touching profile or storage APIs', as
     now += 1000 / 60; tick();
     now += 1000 / 60; tick();
     assert.ok(browser.__ozarkPilot.snapshot().player.x > before.player.x);
+    const dryEvidence = browser.__ozarkPilot.snapshot().lastActionEvidence;
+    assert.equal(dryEvidence.action.type, 'move');
+    assert.equal(dryEvidence.result.code, 'MOVED');
+    assert.equal(dryEvidence.result.resistance, 'free');
+    assert.ok(dryEvidence.result.displacement.x > 0);
     const press = code => events.get('keydown')({ code, preventDefault() {},
       ctrlKey: false, metaKey: false, altKey: false });
     const release = code => events.get('keyup')({ code });
@@ -125,13 +130,28 @@ test('pilot starts fresh and walks without touching profile or storage APIs', as
     assert.equal(wading.observation.ground, 'shallow-water');
     assert.equal(wading.observation.currentCue, 'downstream');
     assert.ok(wading.wetness > 0 && wading.effort > 0);
+    assert.equal(wading.lastActionEvidence.afterObservation.ground, 'shallow-water');
+    assert.equal(wading.lastActionEvidence.result.wetness, 'wetter');
+    assert.equal(wading.lastActionEvidence.result.effort, 'rising');
+    assert.doesNotMatch(JSON.stringify(wading.lastActionEvidence),
+      /depthProxy|inputTravel|requestedTravel|waterSeconds|currentDirection/);
+    assert.equal(wading.lastActionEvidence.at, wading.elapsed);
+    assert.ok(wading.lastActionEvidence.startedAt < wading.lastActionEvidence.at);
+    for (let index = 0; index < 12; index += 1) advance();
+    const drifting = browser.__ozarkPilot.snapshot();
+    assert.ok(drifting.player.x > wading.player.x && drifting.player.y < wading.player.y,
+      'the authored current can move an idle actor');
+    assert.ok(drifting.elapsed > drifting.lastActionEvidence.at,
+      'an idle drift must not masquerade as the previous attempted action');
+    assert.deepEqual(drifting.lastActionEvidence, wading.lastActionEvidence);
     events.get('blur')();
     for (let index = 0; index < 30; index += 1) advance();
     const unfocused = browser.__ozarkPilot.snapshot();
-    assert.deepEqual(unfocused.player, wading.player,
+    assert.deepEqual(unfocused.player, drifting.player,
       'focus loss should pause input and modeled current together');
-    assert.equal(unfocused.wetness, wading.wetness);
-    assert.equal(unfocused.effort, wading.effort);
+    assert.equal(unfocused.wetness, drifting.wetness);
+    assert.equal(unfocused.effort, drifting.effort);
+    assert.equal(unfocused.elapsed, drifting.elapsed);
     events.get('focus')();
     press('KeyS');
     for (let index = 0; index < 120 &&
