@@ -10,6 +10,7 @@ import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from '.
 import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, wakePhysiology, isSleeping, relievePhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { requestDiscoveryAction, tickDiscoveryAction } from './discovery-actions.js';
+import { ozarkAgentWorld, ozarkAgentSensation } from './ozark-agent-world.js';
 
 const allowedActions=new Set(['observe','move','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
 const needSeverity=(reserve,warning,critical)=>{
@@ -35,7 +36,7 @@ export function updateFeelings(npc,relief=0){
 export function observeNpc(npc,environment={}){
   if(npc.mode==='discovery'&&isSleeping(npc))return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:{...sensedEnvironment(npc),visibility:'eyes closed'},flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{items:[...npc.inventory.items],capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[],objects:[],sleepSenses:{contact:'none',sound:'indistinct'}};
   if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[]};
-  npc.sensation=environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
+  npc.sensation=ozarkAgentWorld(npc)?ozarkAgentSensation(npc,environment):environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
   const observation=perceive(npc,environment);rememberObservation(npc,observation);
   if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:npc.sensation.feltTemperature,experiencedAt:npc.elapsed});
   return observation;
@@ -44,9 +45,22 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   const active=npc.active;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
   if(active&&result.durationSeconds===undefined)result.durationSeconds=Math.max(0,npc.elapsed-active.startedAt);
+  if(active?.request.type==='move'&&ozarkAgentWorld(npc)){
+    const expected=active.attemptedDistance||0,forward=active.forwardProgress||0;
+    const ratio=expected>0?forward/expected:0;
+    const progress=ratio<.15?'negligible':ratio<.8?'limited':'steady';
+    const wetness=npc.thermal.wetness>active.startWetness+1e-9?'wetter':npc.thermal.wetness<active.startWetness-1e-9?'drying':'steady';
+    const effort=npc.physiology.fatigue>active.startFatigue+1e-9||npc.physiology.stamina<active.startStamina-1e-9?'rising':'steady';
+    const footing=ozarkAgentWorld(npc).classify(npc.position.x,npc.position.y,CONFIG.playerRadius).reason;
+    result.movement={progress,resistance:progress==='negligible'?'strong':progress==='limited'?'resisted':'free',wetness,effort,footing};
+  }
   if(active?.startScene)startScene=active.startScene;
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
   npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
+}
+function wetOzarkBody(npc,dt,waterSeconds){
+  const wet=Math.max(0,Math.min(dt,waterSeconds));
+  npc.thermal.wetness=clamp(npc.thermal.wetness+wet*18-(dt-wet)*2,0,100);
 }
 export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){
   const active=npc.active;if(!active)return false;
@@ -184,11 +198,12 @@ export function requestNpcAction(npc,raw,environment={}){
     const anchor=npc.navigationAnchor&&cells[npc.navigationAnchor]?.walkable&&distance(npc.position,tilePoint(npc.navigationAnchor))<160?npc.navigationAnchor:null;
     if(resource){route=observedResourceRoute(npc,known);target={x:known.x,y:known.y};if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);}
     else {
-      const cell=cells[tileKey(target)];if(!cell?.walkable||distance(target,cell)>NPC_RULES.tileSize*.71)return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
+      const cell=cells[tileKey(target)];if(!cell?.walkable||distance(target,cell)>NPC_RULES.tileSize*.71||ozarkAgentWorld(npc)&&(target.x!==cell.x||target.y!==cell.y))return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
       route=knownRoute(cells,npc.position,target,30,edges,npc.elapsed,anchor);if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
     }
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
+    if(ozarkAgentWorld(npc))Object.assign(npc.active,{startWetness:npc.thermal.wetness,startStamina:npc.physiology.stamina,startFatigue:npc.physiology.fatigue,forwardProgress:0,attemptedDistance:0});
   }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,startEnergy:npc.energy,startStamina:npc.stamina,startFatigue:npc.fatigue,startSleepPressure:npc.sleepPressure};
   npc.bodyMode=request.type==='sleep'?'sleeping':request.type==='rest'?'resting':'awake';
   if(npc.mode==='discovery'&&request.type==='sleep')beginSleep(npc,{hours:gameHours(request.seconds)});
@@ -206,10 +221,12 @@ export function collapseNpc(npc,reason='dehydration'){
 }
 export function rescueNpc(npc,collapseId=npc.collapseId){
   if(npc.lifecycle!=='COLLAPSED'||collapseId!==npc.collapseId||npc.rescuedCollapseId>=collapseId)return {ok:false,code:'ALREADY_RESCUED'};
-  let safe=canStand(npc.position.x,npc.position.y,npc.scene)?{...npc.position}:null;
+  const ozark=ozarkAgentWorld(npc);
+  const stand=(x,y)=>ozark?ozark.classify(x,y,CONFIG.playerRadius).walkable:canStand(x,y,npc.scene);
+  let safe=stand(npc.position.x,npc.position.y)?{...npc.position}:null;
   for(let radius=12;!safe&&radius<=120;radius+=12)for(let i=0;i<16;i++){
     const p={x:npc.position.x+Math.cos(i*Math.PI/8)*radius,y:npc.position.y+Math.sin(i*Math.PI/8)*radius};
-    if(canStand(p.x,p.y,npc.scene)){safe=p;break;}
+    if(stand(p.x,p.y)){safe=p;break;}
   }
   if(!safe)return {ok:false,code:'NO_SAFE_RECOVERY_POSITION'};
   const before={hydration:npc.hydration,nourishment:npc.nourishment,health:npc.health,hot:npc.thermal.hot,cold:npc.thermal.cold};
@@ -314,13 +331,18 @@ export function demonstrateCollapse(npc){if(npc.lifecycle!=='AWAKE')return false
 /** Discovery uses the same movement/collision ledger and a slower biological clock. */
 function tickDiscoveryNpc(npc,dt,environment){
   dt=Math.min(dt,.25);npc.elapsed+=dt;
+  const ozark=ozarkAgentWorld(npc);
+  if(ozark&&npc.lifecycle!=='AWAKE'){
+    const drift=ozark.advance(npc.position,0,0,dt,false);
+    wetOzarkBody(npc,dt,drift.waterSeconds);
+  }
   if(npc.lifecycle==='COLLAPSED'){if(npc.elapsed-npc.lifecycleAt>=simulationSeconds(BIOLOGY_RULES.rescueDelayGameHours))rescueNpc(npc);return;}
   if(npc.lifecycle==='RECOVERING'){
     if(npc.elapsed-npc.lifecycleAt>=simulationSeconds(BIOLOGY_RULES.recoveryGameHours)){npc.lifecycle='AWAKE';npc.lifecycleAt=npc.elapsed;npc.epoch++;npc.nextDecisionAt=npc.elapsed;recordEvent(npc,'recovery',{collapseId:npc.collapseId,identity:npc.id,body:bodySignals(npc)});}
     return;
   }
   const previousSignals=bodySignals(npc),previousRisk=bodyRisk(npc);
-  npc.sensation=environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
+  npc.sensation=ozark?ozarkAgentSensation(npc,environment):environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
   const result=tickPhysiology(npc,dt,npc.sensation,{activity:npc.active?.request.type==='rest'?'resting':'awake'});
   if(result.damage>0)npc.stats.injuries+=result.damage;
   const risk=(previousRisk+bodyRisk(npc))*.5*dt;npc.riskCost+=risk;npc.bodyFeedback.cost+=risk;learningCostTick(npc,dt,risk,{thermalRelief:0});updateFeelings(npc);
@@ -330,7 +352,13 @@ function tickDiscoveryNpc(npc,dt,environment){
   if(Object.keys(signals).some(key=>signals[key]!==previousSignals[key]))recordEvent(npc,'condition',{code:'BODY_SIGNAL',body:signals});
   if(npc.elapsed-npc.bodyFeedback.since>=30){if(signals.overall!=='settled')recordEvent(npc,'condition',{code:'BODY_FEEDBACK',intervalSeconds:npc.elapsed-npc.bodyFeedback.since,riskCost:npc.bodyFeedback.cost,body:signals,scene:npc.scene});npc.bodyFeedback={since:npc.elapsed,cost:0};}
   if(npc.health<=0){const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile];collapseNpc(npc,f.waterDeficitMl/(p.massKg*1000)>.05?'dehydration':f.availableEnergyKcal<=0?'prolonged deprivation':Math.max(npc.thermal.hot,npc.thermal.cold)>=80?'thermal exposure':'injury');return;}
-  const active=npc.active;if(!active)return;
+  const active=npc.active;
+  if(ozark&&active?.request.type!=='move'){
+    // The river moves a body even when the actor has chosen no movement.
+    const drift=ozark.advance(npc.position,0,0,dt,false);
+    wetOzarkBody(npc,dt,drift.waterSeconds);
+  }
+  if(!active)return;
   const losses={riskCost:Math.max(0,npc.riskCost-(active.startRisk||0))};
   if(active.kind==='interaction'){tickDiscoveryAction(npc,dt,environment,{complete,exert:exertPhysiology});return;}
   if(active.request.type==='sleep'){
@@ -349,8 +377,27 @@ function tickDiscoveryNpc(npc,dt,environment){
   const dx=target.x-npc.position.x,dy=target.y-npc.position.y,d=Math.hypot(dx,dy);
   if(d<3){if(rememberedCells(npc)[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;return;}
   const exhausted=npc.stamina<15||npc.fatigue>75||npc.energy<15||npc.physiology.sleep.inertiaHours>0,pace=exhausted?BIOLOGY_RULES.exhaustionWalkMultiplier:1;
-  const moved=moveActor(npc.position,dx,dy,Math.min(dt*pace,d/CONFIG.walkSpeed),false,npc.scene);active.travelled+=moved;exertPhysiology(npc,moved/CONFIG.walkSpeed,1);updateFeelings(npc);
-  active.blockedFor=moved<.05?active.blockedFor+dt:0;
+  let moved,forward;
+  if(ozark){
+    const before={...npc.position},duration=Math.min(dt*pace,d/CONFIG.walkSpeed);
+    const motion=ozark.advance(npc.position,dx,dy,duration,false);
+    moved=motion.distance;
+    // The result includes current drift; conservatively exclude all passive
+    // drift from forward progress so a favorable current cannot hide a stall.
+    forward=Math.max(0,((npc.position.x-before.x)*dx+(npc.position.y-before.y)*dy)/d-motion.driftDistance);
+    active.forwardProgress+=forward;
+    active.attemptedDistance+=CONFIG.walkSpeed*duration;
+    wetOzarkBody(npc,dt,motion.waterSeconds);
+    // A resisted step still costs effort; passive current displacement is not
+    // credited as purposeful progress or as extra work.
+    exertPhysiology(npc,duration,1+.6*motion.waterSeconds/Math.max(duration,1e-9));
+  }else{
+    moved=moveActor(npc.position,dx,dy,Math.min(dt*pace,d/CONFIG.walkSpeed),false,npc.scene);
+    exertPhysiology(npc,moved/CONFIG.walkSpeed,1);
+    forward=moved;
+  }
+  active.travelled+=moved;updateFeelings(npc);
+  active.blockedFor=forward<.05?active.blockedFor+dt:0;
   if(active.blockedFor>1||npc.elapsed>active.expiresAt){
     const code=active.blockedFor>1?'ROUTE_BLOCKED':'ACTION_TIMEOUT';
     if(active.blockedFor>1){const from=active.index?active.route[active.index-1]:active.startPosition;npc.navigationAnchor=tileKey(from);const edge=[tileKey(from),tileKey(target)].sort().join('>'),edges=rememberedEdges(npc);edges[edge]={observedAt:npc.elapsed,retryAfter:npc.elapsed+60};const entries=Object.entries(edges);if(entries.length>512)delete edges[entries[0][0]];}
