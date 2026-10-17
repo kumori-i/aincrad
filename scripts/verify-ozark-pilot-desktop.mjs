@@ -97,6 +97,27 @@ app.on('browser-window-created', (_event, win) => {
           win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'D' });
           const moved = await snapshot(win);
           assert.ok(moved.player.x > started.player.x + 10, 'native right input did not move the player');
+          let autonomous = null;
+          for (let index = 0; index < 90; index += 1) {
+            const current = await snapshot(win);
+            if (current.agent?.actionEvents >= 1) { autonomous = current; break; }
+            await delay(80);
+          }
+          assert.ok(autonomous, 'Aster did not complete an autonomous action in the native pilot');
+          assert.equal(autonomous.agent.lastResult.action, 'move');
+          assert.equal(autonomous.agent.lastResult.movement?.footing, 'shallow-water');
+          assert.ok(autonomous.agent.wetness > 0, 'the native agent did not experience wading');
+          await page(win, function watchAster() {
+            document.getElementById('npc-short').click();
+          });
+          assert.equal((await snapshot(win)).cameraTarget, 'aster');
+          await delay(120);
+          await fs.writeFile(path.join(context.output, 'aster-autonomous-wade.png'),
+            (await win.webContents.capturePage()).toPNG());
+          await page(win, function followPlayer() {
+            document.getElementById('npc-short').click();
+          });
+          assert.equal((await snapshot(win)).cameraTarget, 'player');
           await fs.writeFile(path.join(context.output, 'walking-corridor.png'),
             (await win.webContents.capturePage()).toPNG());
           const bank = await holdUntil(win, 'A', current =>
@@ -130,12 +151,14 @@ app.on('browser-window-created', (_event, win) => {
             passed: true, isolatedProfile: true, nativeInput: true, inputClearedOnBlur: true,
             shallowWaterEnteredAndExited: true, wetnessAndEffortObserved: true,
             qualitativeCurrentObserved: true, zeroPilotStorageCalls: true,
+            autonomousAgentWaded: true, agentCameraWorked: true,
             exactLegacySaveBytesPreserved: true,
             profileIdentity: afterBlur.profileIdentity, start: started.player,
             afterInput: moved.player, bank: bank.player, shallow: shallow.player,
             afterExit: exited.player, shallowObservation: shallow.observation,
             shallowWetness: shallow.wetness, shallowEffort: shallow.effort,
             afterExitWetness: exited.wetness, afterExitEffort: exited.effort,
+            agentWadingReceipt: autonomous.agent.lastResult.movement,
           }, null, 2) + '\\n');
           console.log('PASS: native walking, shallow-water entry and exit, wetness/effort, current cue, screenshots, and zero storage calls.');
         }
@@ -180,4 +203,5 @@ assert.equal(result.passed, true);
 console.log(JSON.stringify({ ...result,
   walkingScreenshot: join(output, 'walking-corridor.png'),
   wadingScreenshot: join(output, 'wading-shallow-channel.png'),
+  agentScreenshot: join(output, 'aster-autonomous-wade.png'),
 }, null, 2));

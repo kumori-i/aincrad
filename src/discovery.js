@@ -8,6 +8,7 @@ import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { recordEvent, withProofTransaction } from './npc-events.js';
 import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
+import { ozarkAgentWorld } from './ozark-agent-world.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
 const random=n=>{n.rng=(Math.imul(n.rng,1664525)+1013904223)>>>0;return n.rng/4294967296;};
@@ -330,6 +331,18 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   // patch cannot block an unfamiliar nearby object or a remembered frontier forever.
   const targets=objects.filter(o=>distance(o.position,npc.position)>DISCOVERY_RULES.reach&&!availabilityBlocked(npc,'inspect_object',o.id)).map(o=>({o,score:5/(1+Object.entries(d.trials||{}).filter(([key])=>key.startsWith(`${o.id}|`)).reduce((sum,[,t])=>sum+t.attempts,0))-distance(o.position,npc.position)/1500+random(npc)})).sort((a,b)=>b.score-a.score);
   for(const target of targets.slice(0,4)){const move=routeTarget(npc,target.o.position);if(move)choices.push({action:move,score:target.score,reason:'I can approach an unfamiliar object within my observed map.'});}
+  if(ozarkAgentWorld(npc)){
+    // The pilot actor can investigate a new shallow edge only after seeing it.
+    // This is an exploratory choice, not knowledge of safety or a scripted move.
+    const shallows=Object.values(rememberedCells(npc)).filter(c=>
+      c.terrain==='shallow-water'&&c.walkable&&!(c.visits||0)&&
+      distance(c,npc.position)>100&&distance(c,npc.position)<350)
+      .sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
+    for(const shore of shallows){
+      const move=routeTarget(npc,shore);
+      if(move){choices.push({action:move,score:7,reason:'I can investigate a shallow-looking patch that I can see from here; I do not know how the crossing will feel.'});break;}
+    }
+  }
   if(npc.scene==='valley'){
     // Exploration stays local to observed terrain and bounded actions, not the first observation's coordinates.
     const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);

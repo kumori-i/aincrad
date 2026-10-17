@@ -1,6 +1,6 @@
 // A fresh, in-memory walking pilot view. Ground pixels come only from the
 // selected pilot geometry; no historical valley layers are drawn here.
-import { ART_PIXEL, drawAvatar } from './art.js';
+import { ART_PIXEL, drawAvatar, drawNpc } from './art.js';
 import { previewGroundColor } from './preview-ground-dispatch.js';
 import { CONFIG } from './config.js';
 
@@ -158,7 +158,8 @@ export class PilotRenderer {
   draw(state, anim = DEFAULT_ANIM) {
     const player = state?.player;
     if (!finitePoint(player)) throw new TypeError('Expected finite pilot player position');
-    this.snap(player);
+    this.snap(state.cameraTarget === 'aster' && finitePoint(state.agent?.position)
+      ? state.agent.position : player);
     this.frame += 1;
     const scale = Math.max(2, Math.round(this.zoom * ART_PIXEL * this.dpr));
     const width = Math.ceil(this.canvas.width / scale);
@@ -191,7 +192,11 @@ export class PilotRenderer {
           CHUNK_SIZE, CHUNK_SIZE);
       }
     }
+    if (finitePoint(state.agent?.position) && state.agent.position.y <= player.y)
+      drawNpc(g, state.agent, anim.time);
     drawAvatar(g, player, anim.facing, anim.time, anim.moving, 'valley');
+    if (finitePoint(state.agent?.position) && state.agent.position.y > player.y)
+      drawNpc(g, state.agent, anim.time);
     // The actor's disc may touch shallow water before its center enters a
     // painted water pixel. Small foot splashes make that contact visible.
     if (this.geometry.classify(player.x, player.y, CONFIG.playerRadius).reason === 'shallow-water') {

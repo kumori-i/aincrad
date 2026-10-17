@@ -2,15 +2,18 @@ import { CONFIG } from './config.js';
 import { OZARK_WALKING_PILOT_PROFILE } from './geometry-profile.js';
 import { createOzarkWalkingPilot } from './ozark-pilot-geometry.js';
 import { applyPilotMovement } from './ozark-pilot-action-evidence.js';
+import { createOzarkWadingAgentSession } from './ozark-agent-session.js';
 import { PilotRenderer } from './ozark-pilot-renderer.js';
 import { SimulationClock } from './simulation-clock.js';
 
 // This module is entered only through the exact disposable-profile test URL.
-// It constructs a fresh walking and wading session without loading the normal game boot,
-// saved worlds, NPC runtime, ecology, or persistence code.
+// It constructs a fresh player and one discovery actor without loading the
+// normal game boot, saved worlds, ecology, or persistence code.
 const $ = id => document.getElementById(id);
 const geometry = createOzarkWalkingPilot(OZARK_WALKING_PILOT_PROFILE);
-const state = { player: { ...geometry.spawn }, elapsed: 0, wetness: 0, effort: 0 };
+const agentSession = createOzarkWadingAgentSession(geometry);
+const state = { player: { ...geometry.spawn }, agent: agentSession.npc,
+  cameraTarget: 'player', elapsed: 0, wetness: 0, effort: 0 };
 const renderer = new PilotRenderer($('world'), geometry);
 const anim = { time: 0, moving: false, facing: { x: 0, y: 1 } };
 const keys = new Set();
@@ -37,9 +40,11 @@ function notify(message, seconds = 5) {
 }
 
 document.title = 'Aincrad — Unsaved Ozark wading pilot';
-text('welcome-profile-label', 'Isolated wading pilot · no progress is saved');
-text('active-profile-label', 'Fresh Ozark wading pilot · unsaved');
+text('welcome-profile-label', 'Isolated wading pilot with Aster · no progress is saved');
+text('active-profile-label', 'Fresh Ozark pilot with Aster · unsaved');
 text('begin', 'Explore the Ozark pilot ↗');
+text('watch-aster', 'Watch Aster at the river ↗');
+$('npc-short').title = 'Switch camera between Aster and your footsteps';
 text('save-status', 'Unsaved wading pilot');
 text('expedition-mode', 'WADING PILOT');
 text('location-kicker', 'ONE BOUNDED OZARK CORRIDOR');
@@ -50,13 +55,13 @@ const buildLabel = document.querySelector('.welcome .build');
 if (buildLabel) buildLabel.textContent = 'OZARK WADING PILOT';
 const welcomeCopy = $('welcome')?.querySelector('.welcome-copy > p:nth-of-type(2)');
 if (welcomeCopy) welcomeCopy.textContent =
-  'Walk a bounded Ozark corridor and test one shallow river edge. Deeper water and steep ground still block movement.';
+  'Walk a bounded Ozark corridor while Aster independently explores a shallow river edge. Deeper water and steep ground still block movement.';
 const welcomeMode = $('welcome')?.querySelector('.welcome-mode');
 if (welcomeMode) welcomeMode.textContent =
   'This is an isolated, fresh session. Closing it discards all pilot progress.';
 const welcomeControls = $('welcome')?.querySelector('.welcome-controls');
 if (welcomeControls) welcomeControls.textContent =
-  'WASD or arrow keys to move · shallow water slows and pushes · Esc to pause';
+  'WASD or arrow keys to move · click Aster’s card to follow them · Esc to pause';
 const welcomeDetail = $('welcome')?.querySelector('.welcome-detail');
 if (welcomeDetail) welcomeDetail.textContent = 'OZARK · SHALLOW WADING · UNSAVED';
 const welcomeFoot = $('welcome')?.querySelector('.welcome-foot span:last-child');
@@ -71,7 +76,7 @@ const fatalCopy = $('fatal')?.querySelector('.menu-card > p');
 if (fatalCopy) fatalCopy.textContent =
   'This pilot is unsaved. Close and restart the isolated test session.';
 for (const id of [
-  'watch-aster', 'welcome-open-copy', 'npc-short', 'open-npc',
+  'welcome-open-copy', 'open-npc',
   'open-cardinal', 'help-button', 'interaction', 'waypoint-hud',
   'map-panel', 'help-panel', 'npc-panel', 'cardinal-panel',
   'save-button', 'return-camp', 'pause-open-copy', 'pause-copy-note',
@@ -95,6 +100,12 @@ function updateHud() {
   const seconds = Math.floor(state.elapsed);
   text('clock', `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`);
   text('day', 'UNSAVED');
+  const agent = agentSession.npc;
+  const movement = agent.lastResult?.movement;
+  const footing = geometry.observe(agent.position).ground;
+  const wet = agent.thermal.wetness > 50 ? 'soaked' : agent.thermal.wetness > 2 ? 'wet' : 'dry';
+  text('npc-short', `Aster · ${title(footing)} · ${wet}\n${agent.decision}${movement ? `\nLast move: ${title(movement.progress)} · ${title(movement.resistance)}` : ''}\n${state.cameraTarget === 'aster' ? 'Watching Aster · click to follow yourself' : 'Click to watch Aster'}`);
+  $('npc-short')?.setAttribute?.('aria-pressed', String(state.cameraTarget === 'aster'));
 }
 updateHud();
 
@@ -129,6 +140,7 @@ function fixedStep(dt) {
     Number(keys.has('KeyW') || keys.has('ArrowUp'));
   const motion = applyPilotMovement(geometry, state, { dx, dy, dt,
     sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') });
+  agentSession.tick(dt);
   anim.moving = motion.distance > .01;
   if (motion.evidence) lastActionEvidence = motion.evidence;
   if (dx || dy) {
@@ -158,6 +170,11 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 $('begin').addEventListener('click', begin);
+$('watch-aster').addEventListener('click', () => { begin(); state.cameraTarget = 'aster'; updateHud(); });
+$('npc-short').addEventListener('click', () => {
+  state.cameraTarget = state.cameraTarget === 'aster' ? 'player' : 'aster';
+  updateHud();
+});
 $('resume').addEventListener('click', () => setPause(false));
 window.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.code === 'KeyS') {
@@ -193,6 +210,12 @@ window.__ozarkPilot = Object.freeze({
   snapshot: () => ({
     player: { ...state.player }, observation: geometry.observe(state.player),
     wetness: state.wetness, effort: state.effort, elapsed: state.elapsed,
+    agent: { position: { ...agentSession.npc.position }, decision: agentSession.npc.decision,
+      active: agentSession.npc.active?.request?.type || null,
+      wetness: agentSession.npc.thermal.wetness,
+      lastResult: agentSession.npc.lastResult,
+      actionEvents: agentSession.npc.memory.experience.filter(e => e.type === 'action').length },
+    cameraTarget: state.cameraTarget,
     lastActionEvidence,
     profileIdentity: geometry.profile.identity, started, paused,
   }),
