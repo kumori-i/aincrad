@@ -1,6 +1,7 @@
 import { CONFIG } from './config.js';
 import { OZARK_WALKING_PILOT_PROFILE } from './geometry-profile.js';
 import { createOzarkWalkingPilot } from './ozark-pilot-geometry.js';
+import { applyPilotMovement } from './ozark-pilot-action-evidence.js';
 import { PilotRenderer } from './ozark-pilot-renderer.js';
 import { SimulationClock } from './simulation-clock.js';
 
@@ -21,6 +22,7 @@ let started = false;
 let paused = false;
 let windowFocused = true;
 let observation = geometry.observe(state.player);
+let lastActionEvidence = null;
 let lastFrame = performance.now();
 let lastHud = 0;
 let toastUntil = 0;
@@ -125,21 +127,14 @@ function fixedStep(dt) {
   const dy = !windowFocused ? 0 :
     Number(keys.has('KeyS') || keys.has('ArrowDown')) -
     Number(keys.has('KeyW') || keys.has('ArrowUp'));
-  const result = geometry.advance(state.player, dx, dy, dt,
-    keys.has('ShiftLeft') || keys.has('ShiftRight'));
-  anim.moving = result.distance > .01;
-  const waterSeconds = Math.max(0, Math.min(dt, result.waterSeconds));
-  const drySeconds = dt - waterSeconds;
-  state.wetness = Math.max(0, Math.min(1,
-    state.wetness + waterSeconds * .18 - drySeconds * .02));
-  state.effort = Math.max(0, Math.min(1,
-    state.effort + waterSeconds * (.09 + .06 * (result.depthProxy ?? 0)) -
-    drySeconds * (dx || dy ? .01 : .035)));
+  const motion = applyPilotMovement(geometry, state, { dx, dy, dt,
+    sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') });
+  anim.moving = motion.distance > .01;
+  if (motion.evidence) lastActionEvidence = motion.evidence;
   if (dx || dy) {
     const length = Math.hypot(dx, dy);
     anim.facing = { x: dx / length, y: dy / length };
   }
-  state.elapsed += dt;
 }
 
 const clock = new SimulationClock({ step: CONFIG.fixedStep, onStep: fixedStep });
@@ -197,7 +192,8 @@ window.addEventListener('resize', () => renderer.resize());
 window.__ozarkPilot = Object.freeze({
   snapshot: () => ({
     player: { ...state.player }, observation: geometry.observe(state.player),
-    wetness: state.wetness, effort: state.effort,
+    wetness: state.wetness, effort: state.effort, elapsed: state.elapsed,
+    lastActionEvidence,
     profileIdentity: geometry.profile.identity, started, paused,
   }),
   start: begin,
