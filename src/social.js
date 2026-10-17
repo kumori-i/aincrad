@@ -1,5 +1,5 @@
 import { CAVES, CONFIG, SOCIAL_RULES } from './config.js';
-import { lineOfSight } from './perception.js';
+import { actorLineOfSight } from './perception.js';
 import { recordClaim } from './cognition.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
@@ -193,7 +193,7 @@ export class SocialCoordinator {
   }
 
   nearby(npc) {
-    return this.agents().filter(peer => peer.id !== npc.id && peer.scene === npc.scene && distance(peer.position, npc.position) <= SOCIAL_RULES.peerRange && lineOfSight(npc.position, peer.position, npc.scene));
+    return this.agents().filter(peer => peer.id !== npc.id && peer.scene === npc.scene && distance(peer.position, npc.position) <= SOCIAL_RULES.peerRange && actorLineOfSight(npc,npc.position,peer.position));
   }
 
   receive(npc, message) {
@@ -274,7 +274,7 @@ export class SocialCoordinator {
       else if (aliveAndAwake(npc)) this.receive(npc, message);
     }
     const journal=awake?availableJournal.slice(-12):[];
-    const notes = awake?community.notes.filter(note => note.scene === npc.scene && distance(note.position, npc.position) <= SOCIAL_RULES.noteRange && lineOfSight(npc.position, note.position, npc.scene)).map(note => ({id: note.id, authorId: note.authorId, title: note.title, scene: note.scene, position: {...note.position}, read: note.readers.includes(npc.id)})):[];
+    const notes = awake?community.notes.filter(note => note.scene === npc.scene && distance(note.position, npc.position) <= SOCIAL_RULES.noteRange && actorLineOfSight(npc,npc.position,note.position)).map(note => ({id: note.id, authorId: note.authorId, title: note.title, scene: note.scene, position: {...note.position}, read: note.readers.includes(npc.id)})):[];
     return {
       peers: awake?this.nearby(npc).map(peer => ({id: peer.id, name: peer.name, scene: peer.scene, position: {...peer.position}, appearance: appearance(peer), relationship: {familiarity: (memory.relationships[peer.id]?.familiarity ?? 0) > .5 ? 'familiar' : memory.relationships[peer.id] ? 'acquainted' : 'unfamiliar'}})):[],
       journal, nearbyMessages: memory.heard.filter(message => message.channel === 'peer').slice(-6), notes,
@@ -413,7 +413,7 @@ export class SocialCoordinator {
   readNote(npc, action) {
     const note = this.community().notes.find(note => note.id === action.noteId);
     if (!note) return {ok: false, code: 'UNKNOWN_NOTE'};
-    if (note.scene !== npc.scene || distance(note.position, npc.position) > SOCIAL_RULES.noteRange || !lineOfSight(npc.position, note.position, npc.scene)) return {ok: false, code: 'NOTE_OUT_OF_REACH'};
+    if (note.scene !== npc.scene || distance(note.position, npc.position) > SOCIAL_RULES.noteRange || !actorLineOfSight(npc,npc.position,note.position)) return {ok: false, code: 'NOTE_OUT_OF_REACH'};
     if (note.readers.includes(npc.id)) return {ok: true, code: 'NOTE_ALREADY_READ', note, reward: 0};
     note.readers.push(npc.id);
     for (const claim of note.claims?.length ? note.claims : [{subject: note.title, kind: 'general', text: note.text}]) recordClaim(npc, claim, {sourceId: note.authorId, at: nowFor(npc, this.getEnvironment?.()), channel: 'note', messageId: note.id});

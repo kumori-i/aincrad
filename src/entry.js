@@ -1,7 +1,10 @@
-// The ordinary desktop route keeps its existing boot and save handling.
-// Only the exact disposable-profile test URL enters the unsaved walking pilot.
+// Each world has a separate boot and save boundary. The bounded walking pilot
+// remains available only through its exact disposable-profile test URL.
 export function entryModuleFor(search) {
-  return search === '?test=1&ozarkPilot=1' ? './ozark-pilot-main.js' : './main.js';
+  if (search === '?test=1&ozarkPilot=1') return './ozark-pilot-main.js';
+  if (search === '?ozarkWorld=1' || search === '?test=1&ozarkWorld=1')
+    return './ozark-world-main.js';
+  return './main.js';
 }
 
 export function bootEntry(search, load = path => import(path)) {

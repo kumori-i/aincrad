@@ -70,6 +70,12 @@ $('welcome-profile-label').textContent=profileLabel;
 $('active-profile-label').textContent=profileLabel;
 $('recovery-profile-label').textContent=profileLabel;
 document.title=`Aincrad — ${recovered?'Recovered copy':'Original world'}`;
+if(profileStatus?.kind==='original'&&window.aincradWorld?.open){
+  for(const id of ['welcome-ozark','recovery-ozark','pause-ozark']){
+    const button=$(id);button.classList.remove('hidden');
+    button.addEventListener('click',openOzarkWorld);
+  }
+}
 if(profileStatus?.kind==='original'&&profileStatus.available){
   if(recoveredCopySupported)$('welcome-open-copy').classList.remove('hidden');
   $('welcome-open-status').textContent=recoveredCopySupported
@@ -262,6 +268,23 @@ function save(explicit=false){
   if(ok){saveBlocked=false;ui['save-status'].textContent='Saved locally';if(explicit)notify('Expedition saved on this computer.');}
   else {ui['save-status'].textContent='Save unavailable';if(explicit)notify('Local saving is unavailable. Your current session is still running.',7);}
   return ok;
+}
+async function openOzarkWorld(event){
+  const button=event.currentTarget, wasPaused=paused;
+  button.disabled=true;
+  try{
+    if(started&&!save(true))
+      throw new Error('The current original world could not be saved. The separate Ozark world was not opened.');
+    paused=true;keys.clear();anim.moving=false;
+    simulationClock.reset(performance.now()/1000);
+    const result=await window.aincradWorld.open('ozark');
+    if(result?.ok!==true)
+      throw new Error(result?.reason||'The separate Ozark world could not open.');
+  }catch(error){
+    paused=wasPaused;simulationClock.reset(performance.now()/1000);
+    button.disabled=false;
+    notify(error?.message||'The separate Ozark world could not open.',8);
+  }
 }
 function closePanels(keepCardinal=false){for(const name of ['map-panel','pause-panel','help-panel'])ui[name].classList.add('hidden');if(keepCardinal!==true)cardinalPanel?.close();panel=null;keys.clear();ui.world.focus({preventScroll:true});}
 function updateAtlas(){renderer.drawAtlas(ui['atlas-map'],state);const status=renderer.atlasStatus();$('atlas-zoom-label').textContent=`${status.zoom.toFixed(1)}×`;}

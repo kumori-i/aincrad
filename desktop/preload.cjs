@@ -33,3 +33,6 @@ contextBridge.exposeInMainWorld('aincradProfile',Object.freeze({
   markReady:()=>ipcRenderer.invoke('aincrad:profile-ready'),
   restartRecoveredCopy:()=>ipcRenderer.invoke('aincrad:profile-restart'),
 }));
+contextBridge.exposeInMainWorld('aincradWorld',Object.freeze({
+  open:world=>ipcRenderer.sendSync('aincrad:world-open',world),
+}));

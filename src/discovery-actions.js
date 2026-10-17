@@ -1,7 +1,7 @@
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { objectId } from './discovery-state.js';
 import { distance } from './world.js';
-import { lineOfSight } from './perception.js';
+import { actorLineOfSight } from './perception.js';
 import { lookupEcologyObject,describeEcologyObject,interactEcologyObject,consumeEcologyMaterial } from './ecology.js';
 import { ingestMaterial,exertPhysiology,isSleeping } from './biology.js';
 import { rememberDirectDiscoveryObject } from './discovery.js';
@@ -21,7 +21,7 @@ function allowed(npc,id,environment,inspection=false){
   if(physical.scene!==npc.scene)return {ok:false,code:'OTHER_SCENE'};
   const position=physical.position||physical;
   if(distance(npc.position,position)>(inspection?400:DISCOVERY_RULES.reach))return {ok:false,code:inspection?'OUT_OF_VIEW':'OUT_OF_REACH'};
-  if(!lineOfSight(npc.position,position,npc.scene))return {ok:false,code:'INTERACTION_BLOCKED'};
+  if(!actorLineOfSight(npc,npc.position,position))return {ok:false,code:'INTERACTION_BLOCKED'};
   return {ok:true,physical};
 }
 /** Physical commands are anatomical operations, never edible-object shortcuts. */

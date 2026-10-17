@@ -1,6 +1,7 @@
 import { CONFIG, PONDS } from './config.js';
 import { ECOLOGY_RULES as R } from './ecology-config.js';
 import { forestAmount, ridgeValue, waterDistance, riverX, LAKE } from './world.js';
+import { ozarkRegionAt } from './ozark-ecology.js';
 
 const finite = value => Number.isFinite(value) ? value : 0;
 const clamp = (value, low, high) => Math.max(low, Math.min(high, finite(value)));
@@ -48,6 +49,7 @@ export function regionIndex(position) {
 export function regionAt(ecology, position, scene='valley') {
   // Cave material stays in the compatibility detritus remainder; it cannot
   // fertilize a remote valley merely because local coordinates overlap.
+  if(scene==='valley' && ecology?.ozarkEcologyVersion===1)return ozarkRegionAt(ecology,position);
   return scene === 'valley' ? ecology.regions?.[regionIndex(position)] || null : null;
 }
 

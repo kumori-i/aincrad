@@ -133,6 +133,34 @@ app.whenReady().then(async()=>{
     try{const u=new URL(event.senderFrame.url);return event.senderFrame===event.sender.mainFrame&&u.protocol==='aincrad:'&&u.host==='app'&&u.pathname==='/index.html';}catch{return false;}
   }
   const handle=(channel,fn)=>ipcMain.handle(channel,async(event,...args)=>{if(!trusted(event))throw new Error('Untrusted model bridge sender.');return fn(...args);});
+  ipcMain.on('aincrad:world-open',(event,world)=>{
+    if(!trusted(event)||event.sender!==win?.webContents||
+       profileRoute.kind!=='original'||PILOT_REQUESTED||SMOKE||
+       !['original','ozark'].includes(world)||!win||win.isDestroyed()){
+      event.returnValue={ok:false,reason:'World switching is unavailable in this profile.'};
+      return;
+    }
+    const current=new URL(win.webContents.getURL()).search;
+    if(!['','?test=1','?ozarkWorld=1','?test=1&ozarkWorld=1'].includes(current)){
+      event.returnValue={ok:false,reason:'World switching is unavailable on this route.'};
+      return;
+    }
+    const query=world==='ozark'
+      ?(profileRoute.isTest?'?test=1&ozarkWorld=1':'?ozarkWorld=1')
+      :(profileRoute.isTest?'?test=1':'');
+    // Acknowledge while the calling frame still exists, then navigate on the
+    // next event-loop turn. Awaiting loadURL inside an invoke destroys its own
+    // reply target as soon as the old document unloads.
+    event.returnValue={ok:true};
+    setTimeout(()=>{
+      if(win?.isDestroyed())return;
+      win.loadURL('aincrad://app/index.html'+query).then(()=>{
+        if(!win.isDestroyed())win.setTitle(world==='ozark'?'Aincrad — Ozark wilderness':'Aincrad — Original world');
+      }).catch(error=>{
+        if(!win.isDestroyed())dialog.showErrorBox('Aincrad could not open this world',error.message);
+      });
+    },0);
+  });
   handle('aincrad:model-status',()=>modelService.status());
   handle('aincrad:model-configure',async raw=>{
     const status=modelService.configure(raw);
