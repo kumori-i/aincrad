@@ -11,6 +11,10 @@ on:
       - 'scripts/verify-recovered-native.mjs'
       - 'tests/native-profile-qa-driver.cjs'
       - 'tests/native-synthetic-fixture.mjs'
+      - 'tests/ozark-self-edge-fixture.mjs'
+      - 'tests/ozark-self-edge-native.test.mjs'
+      - 'tests/ozark-self-edge-save.test.mjs'
+      - 'tests/native-profile-qa-driver.test.mjs'
       - 'tests/windows-recovered-capability.test.mjs'
       - 'index.html'
       - 'style.css'
@@ -53,6 +57,9 @@ jobs:
       - name: Exercise Linux copied-profile import and reopen
         if: runner.os == 'Linux'
         run: xvfb-run -a node scripts/verify-recovered-native.mjs --ci-synthetic
+      - name: Exercise Linux Ozark self-edge app save, close and reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-recovered-native.mjs --ozark-self-edge
       - uses: actions/upload-artifact@v4
         if: always() && runner.os == 'Linux'
         with:
@@ -61,5 +68,7 @@ jobs:
             test-results/recovered-native-synthetic-summary.json
             test-results/recovered-native-synthetic-*.png
             test-results/recovered-native-failure.png
+            test-results/ozark-self-edge-native-summary.json
+            test-results/ozark-self-edge-native-*.png
           if-no-files-found: warn
           retention-days: 7

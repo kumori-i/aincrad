@@ -248,12 +248,18 @@ async function readFixedFile(location, root, limit, operation = 'input') {
 function validateConfig(config, scratch, profileRoute) {
   if (!config || typeof config !== 'object' || Array.isArray(config) || config.version !== 1 ||
       !['inspect', 'seed', 'stage', 'export-stage', 'commit', 'hold', 'same-process-reload',
-        'fault-import', 'fault-stage', 'resume', 'open-from-original'].includes(config.action))
+        'fault-import', 'fault-stage', 'resume', 'open-from-original',
+        'ozark-self-edge-write', 'ozark-self-edge-reopen'].includes(config.action))
     throw new Error('Invalid finite native QA action.');
   const allowed = new Set(['version', 'action', 'output', 'rawFile', 'expectedSha256',
     'backupFile', 'waitMs', 'screenshotFile', 'faultKind', 'buttonId', 'progressFile',
     'profileOpenFault']);
   if (Object.keys(config).some(key => !allowed.has(key))) throw new Error('Unknown native QA configuration key.');
+  if (config.action.startsWith('ozark-self-edge-')) {
+    if (profileRoute.kind !== 'original' ||
+        Object.keys(config).some(key => !['version', 'action', 'output', 'screenshotFile'].includes(key)))
+      throw new Error('Ozark self-edge QA requires an original disposable profile and fixed synthetic inputs.');
+  }
   if (typeof config.output !== 'string' || !path.isAbsolute(config.output) ||
       path.dirname(config.output) !== scratch)
     throw qaPathError('output', 'invalid-or-parent', 'validation');
@@ -340,6 +346,103 @@ async function inspect({ app, win, session, recoveredProfile }) {
     actors: parsed?.agents?.map(actor => ({ id: actor.id, physiology: actor.physiology,
       effects: actor.discovery?.effects })) ?? [],
   };
+}
+
+// Fixed synthetic Ozark actions reuse the existing sandboxed world-switch and
+// save hooks. No caller-supplied code, save key, fixture path or state is accepted.
+async function ozarkSelfEdge({ win, action }) {
+  const preferences = win.webContents.getLastWebPreferences();
+  assert.equal(preferences.sandbox, true);
+  assert.equal(preferences.contextIsolation, true);
+  assert.equal(preferences.nodeIntegration, false);
+  const writing = action === 'ozark-self-edge-write';
+  const { syntheticOzarkSelfEdge, evidence } = await import(
+    pathToFileURL(path.resolve(__dirname, 'ozark-self-edge-fixture.mjs')).href);
+  const fixture = syntheticOzarkSelfEdge();
+  const expected = JSON.parse(fixture.raw);
+  const before = await win.webContents.executeJavaScript(`(() => ({
+    original: localStorage.getItem('aincrad.save.v1'),
+    ozark: localStorage.getItem('aincrad.ozark.v1')
+  }))()`);
+  let original = before.original;
+  let seed = before.ozark;
+  if (writing) {
+    assert.equal(original, null, 'write phase requires a fresh original slot');
+    assert.equal(seed, null, 'write phase requires a fresh Ozark slot');
+    assert.equal(await win.webContents.executeJavaScript('window.__aincrad.save()'), true);
+    original = await win.webContents.executeJavaScript("localStorage.getItem('aincrad.save.v1')");
+    assert.ok(typeof original === 'string' && original.length > 1000,
+      'the historical-key control is a real generated original save');
+    // Whitespace is valid save data. The production writer must replace these
+    // bytes with its canonical representation; a seed/readback alone cannot pass.
+    seed = JSON.stringify(expected, null, 2);
+    await win.webContents.executeJavaScript(
+      `localStorage.setItem('aincrad.ozark.v1', ${JSON.stringify(seed)})`);
+  } else {
+    assert.ok(typeof original === 'string' && original.length > 1000);
+    assert.ok(typeof seed === 'string' && seed.length > 1000);
+    assert.ok(seed === fixture.raw, 'reopen starts with the exact native checkpoint bytes');
+  }
+  assert.match(win.webContents.getURL(), /^aincrad:\/\/app\/index\.html\?test=1$/);
+  void win.webContents.executeJavaScript("void window.aincradWorld.open('ozark'); true")
+    .catch(() => {}); // Native navigation may replace the invoking frame.
+  const deadline = Date.now() + 20000;
+  let ready = false;
+  while (Date.now() < deadline) {
+    try {
+      ready = win.webContents.getURL() === 'aincrad://app/index.html?test=1&ozarkWorld=1' &&
+        await win.webContents.executeJavaScript('Boolean(window.__ozarkWorld)');
+      if (ready) break;
+    } catch { /* Wait for the native route change to finish. */ }
+    await pause(100);
+  }
+  assert.equal(ready, true, 'native world switch reached the Ozark runtime');
+  const snapshot = await win.webContents.executeJavaScript('window.__ozarkWorld.snapshot()');
+  assert.equal(snapshot.blocked, false, 'real self-edge opens through the application validator');
+  assert.equal(snapshot.started, false, 'no simulation runs during persistence QA');
+  assert.equal(snapshot.elapsed, expected.elapsed);
+  assert.deepEqual(snapshot.player, expected.player);
+  assert.deepEqual(snapshot.playerBody, expected.playerBody);
+  assert.equal(snapshot.geometryIdentity, expected.geometryIdentity);
+  assert.deepEqual(snapshot.agents.map(actor => actor.id), ['aster', 'mira']);
+  // Snapshot omits inventory; disk assertions below cover the complete proof.
+  for (const [index, actor] of snapshot.agents.entries()) {
+    const { items: _items, ...proof } = evidence(expected.agents[index]);
+    const { items: _absent, ...actual } = evidence({ ...actor, inventory: {} });
+    assert.deepEqual(actual, proof, 'live runtime retained exact body and action evidence');
+  }
+  assert.deepEqual(snapshot.agents[0].memory.blockedEdges[fixture.edgeKey],
+    { observedAt: fixture.receipt.at, retryAfter: fixture.receipt.at + 60 });
+  assert.ok(snapshot.agents[0].memory.experience.some(event =>
+    JSON.stringify(event) === JSON.stringify(fixture.receipt)), 'actual blocked action receipt survived boot');
+  if (writing) {
+    assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.save()'), true,
+      'the real app writer must accept its loaded self-edge state');
+    assert.equal((await win.webContents.executeJavaScript('window.__ozarkWorld.snapshot()')).saveStatus,
+      'Ozark world saved locally');
+  }
+  const after = await win.webContents.executeJavaScript(`(() => ({
+    original: localStorage.getItem('aincrad.save.v1'),
+    ozark: localStorage.getItem('aincrad.ozark.v1'),
+    snapshot: window.__ozarkWorld.snapshot(),
+    fatal: !document.getElementById('fatal').classList.contains('hidden'),
+    originalRuntime: typeof window.__aincrad
+  }))()`);
+  assert.equal(after.fatal, false);
+  assert.equal(after.originalRuntime, 'undefined');
+  assert.ok(after.original === original, 'opening and saving Ozark preserve exact original bytes');
+  assert.ok(after.ozark === fixture.raw, 'native write/reopen preserves the exact canonical fixture');
+  assert.deepEqual(JSON.parse(after.ozark), expected, 'all saved proof and physiology remain exact');
+  assert.deepEqual({ ...after.snapshot, saveStatus: snapshot.saveStatus }, snapshot,
+    'saving or inspecting must not change live evidence or the frozen clock');
+  if (writing) assert.ok(after.ozark !== seed, 'actual app write changed seeded bytes');
+  else assert.ok(after.ozark === seed, 'reopen never reseeds or rewrites storage');
+  return { pid: process.pid, sha256: sha256(Buffer.from(after.ozark, 'utf8')),
+    seedSha256: sha256(Buffer.from(seed, 'utf8')), byteLength: Buffer.byteLength(after.ozark, 'utf8'),
+    originalSha256: sha256(Buffer.from(original, 'utf8')), edgeKey: fixture.edgeKey,
+    edge: snapshot.agents[0].memory.blockedEdges[fixture.edgeKey], receipt: fixture.receipt,
+    snapshot, fullSavedEvidenceSha256: sha256(Buffer.from(JSON.stringify(expected.agents.map(evidence)))),
+    sandboxed: true, appWrite: writing };
 }
 
 async function writeResult(file, value) {
@@ -434,7 +537,9 @@ async function runNativeProfileQa({ app, win, session, profileRoute, rawSaveBack
   let result = { ok: false, action: config.action };
   try {
     await waitForBoot(win);
-    if (config.action === 'seed') {
+    if (config.action.startsWith('ozark-self-edge-')) {
+      result.ozark = await ozarkSelfEdge({ win, action: config.action });
+    } else if (config.action === 'seed') {
       assert.equal(profileRoute.kind, 'original');
       const bytes = await readFixedFile(config.rawFile, scratch, MAX_INPUT, 'rawFile');
       assert.equal(sha256(bytes), config.expectedSha256, 'seed raw SHA-256');
