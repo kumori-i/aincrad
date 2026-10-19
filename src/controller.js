@@ -10,6 +10,7 @@ import { signalUrgencies, cognitiveObservation, updateCognition, localPlan, adop
 import { discoveryDecision,discoveryObservation,processDiscoveryFeedback,contactEscape } from './discovery.js';
 import { isSleeping } from './biology.js';
 import { ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates } from './discovery-candidates.js';
 
 function random(npc){npc.rng=(Math.imul(npc.rng,1664525)+1013904223)>>>0;return npc.rng/4294967296;}
 const thermalLevel=n=>Math.max(n.thermal?.hot||0,n.thermal?.cold||0);
@@ -140,7 +141,9 @@ export class NpcController {
   constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false}={}){this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;this.readyDecision=null;this.provider.cancel?.();}
-  dispose(){this.disposed=true;this.cancel();}
+  setDiscoveryCandidateCapture(enabled){setDiscoveryCandidateCapture(this,enabled);}
+  takeDiscoveryCandidateSnapshot(){return takeDiscoveryCandidateSnapshot(this);}
+  dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}
   selectSkill(){const c=skillCandidates(this.npc).sort((a,b)=>needPriorities(this.npc)[b.need]-needPriorities(this.npc)[a.need])[0];return c?{skill:c.skill,[c.parameter]:c.resourceId}:null;}
   startSkill(skill,resourceId){
     const n=this.npc,candidate=skillCandidates(n).find(c=>c.skill.id===skill?.id&&c.resourceId===resourceId);if(!candidate)return false;
@@ -226,6 +229,7 @@ export class NpcController {
         }else {this.perform({...dialogue,offline:true});return;}
       }
     }
+    captureDiscoveryCandidates(this,n);
     const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.perform(decision.action);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }
