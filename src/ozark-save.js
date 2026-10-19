@@ -133,7 +133,9 @@ function ozarkEdgeValid(key, edge, elapsed, geometry) {
       !finite(edge.observedAt, 0, elapsed) ||
       !finite(edge.retryAfter, 0, elapsed + 60)) return false;
   const [from, to] = key.split('>');
-  if (from >= to) return false;
+  // Movement records a failed snap to the current tile center as a self-edge;
+  // navigation consumes that evidence. Preserve the producer's sorted order.
+  if (from > to) return false;
   return [from, to].every(part => {
     const [col, row] = part.split(',').map(Number);
     return finite(col * NPC_RULES.tileSize, geometry.bounds.minX,
