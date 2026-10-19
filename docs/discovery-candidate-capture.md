@@ -72,10 +72,11 @@ ablation is disabled, but `foodLearning` and `policyEnabled` explicitly report
 that setting. Neither historical counters nor the technique's selected evidence
 list is used as independent proof.
 
-Observed timings come from original completed-action receipts, including failed
-actions where their actual duration is retained. They are active-action times,
-not whole-procedure completion latency. Cooldowns, gaps, remaining work, future
-relief, experienced effort, future harm, route and current availability remain
+Observed timings come from original action receipts, including failed actions
+where their duration is retained. Discovery completion records active work;
+older cancellation receipts can instead contain elapsed command time. Neither
+is whole-procedure completion latency. Cooldowns, gaps, remaining work, future
+relief, future effort, future harm, route and current availability remain
 explicitly unknown. A stale sighting cannot certify that a source still exists.
 No numeric utility, learned skill increase or survival improvement is claimed.
 
@@ -84,6 +85,58 @@ and evidence fields. It excludes raw receipts, exact body stores, `riskCost`,
 nutrition, ecology, privileged geometry and other actors' state. It cannot be
 passed back as a policy choice. Mutating the report is rejected; subsequently
 changing the actor cannot change an already drained report.
+
+## Firsthand handling feedback
+
+Newly executed `inspect_object`, `grasp`, `release`, `pull`, `sample` and `strike`
+actions can add one small `handling` object to their existing action result:
+
+- `source: 'experienced'`
+- `activeActionSeconds`: positive acknowledged physical work, in simulation seconds
+- `effort: 'rising' | 'steady'`: the same net fatigue/stamina trend convention used
+  by movement feedback
+
+This is a report of the body's experienced trend, not an estimate of calories,
+effort intensity, remaining capacity or nutritional value. `steady` means no
+detected net rise. Recovery or a saturated/exhausted body can mask a change, so
+it never means free, easy or safe. Concurrent background physiology is part of
+the experienced interval; the field does not isolate a causal metabolic charge.
+
+The witness is private to the admitted runtime action and bound to its actor,
+physiology/discovery context, primitive and target. It accumulates only work
+slices whose existing exertion call returned while that action was still active.
+Cancellation or collapse can report earlier acknowledged slices. A synchronously
+cancelling or throwing exertion hook cannot certify its in-flight slice; an
+omitted slice is not evidence of zero cost. Completion and cancellation consume
+the witness once. No observer changes exertion, time advancement or completion.
+
+Immediate refusals, zero-work cancellation, copied/restored active commands and
+old receipts have no new witness. Restart retains the existing interruption
+behavior and does not reconstruct partial effort from saved body state, current
+practice or primitive constants. Existing `durationSeconds` semantics stay intact.
+
+The action receipt remains the sole evidence owner. Its optional nested handling
+data uses the existing bounded receipt serialization; no save version, experiment
+field, extra event, retention owner or aggregate is added. Only the retained
+receipt is accepted as evidence; the existing `lastResult` mirror is never a
+fallback after that receipt retires. The active selector and model observation
+projection do not read the new field.
+
+Food candidates expose `observedEffort` only for their relevant original receipts
+after the usual unique-ID and experiment checks. Each copied row identifies its
+action and experiment, outcome, target, observed time, acknowledged seconds and
+qualitative effort. Complete coverage cannot be certified from a retained ledger,
+so `experienced-effort` stays in `missingCosts` even when all visible rows have
+feedback; missing, malformed, retired or truncated witnesses are never zero cost.
+`future-effort` also always stays unknown.
+Known rows are historical witnesses, never a total procedure cost or a future
+prediction. Rest/wait rows remain empty in this food-handling slice.
+
+Handling feedback appears when the physical command finishes or is interrupted.
+It cannot become a food benefit or toxicity result. Sample ingestion and later
+digestive effects keep their separate original action, ingestion and recognition
+proof, including delayed harmful feedback. No hidden food/source identity is
+inferred from effort.
 
 ## Resource bounds
 
@@ -94,7 +147,7 @@ Relevant observation and pending-marker entries are direct lookups from these
 bounded identities; neither map is enumerated. In particular, live pending-marker
 history is not assumed to have the save loader's shorter bound.
 
-There are at most 26 candidate envelopes. Per-candidate timing, refusal, effect
+There are at most 26 candidate envelopes. Per-candidate timing, effort, refusal, effect
 and pending output lists, and shared uncertain-effect output, are capped at 16
 rows, with retained counts and truncation flags. Refusals include immediate
 rejections without a positive completed-action duration.
@@ -110,6 +163,15 @@ RNG, run and evidence, API lifecycle, malformed/ambiguous proof, contradictions,
 stale observations, bounded traversal and hidden-field exclusion. The retained
 historical actor fixture is from an older experimental trajectory; its replay is
 a current-code counterfactual, not evidence of a current-main survival trajectory.
+
+Handling regressions separately reconstruct the byte-verified pre-feedback
+physical action and NPC modules. Short legal-action comparisons strip only the
+new receipt/last-result fields and compare the remaining full actor, environment,
+RNG and policy choice. They cover paid failure and interruption, runtime witness
+identity/lifecycle, immediate work versus delayed beneficial and harmful sample
+effects, old/new save reload, strict Ozark persistence and existing bounded
+receipt/experiment retirement. These are focused contract tests, not a survival
+or action-selection benchmark.
 
 This API is a foundation for inspecting alternatives on the same observed state.
 Any future selector needs a separate reviewed contract, explicit safety vetoes,

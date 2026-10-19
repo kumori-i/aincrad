@@ -105,6 +105,16 @@ function timing(receipt, experimentId = null) {
     targetId: objectId(action.targetId) ? action.targetId : null, ok: result.ok,
     code: text(result.code, 60), at: receipt.at, activeActionSeconds: result.durationSeconds };
 }
+function effort(receipt, experimentId) {
+  const handling = receipt?.details?.result?.handling, action = receipt?.details?.action;
+  if (!handling || typeof handling !== 'object' || Array.isArray(handling) ||
+      !knownPrimitive(action?.type) || handling.source !== 'experienced' ||
+      !['rising', 'steady'].includes(handling.effort) ||
+      !Number.isFinite(handling.activeActionSeconds) || handling.activeActionSeconds <= 0 || handling.activeActionSeconds > 30) return null;
+  return { actionId: receipt.id, experimentId, type: action.type, targetId: action.targetId,
+    ok: receipt.details.result.ok, code: text(receipt.details.result.code, 60), at: receipt.at,
+    activeActionSeconds: handling.activeActionSeconds, effort: handling.effort, source: 'experienced' };
+}
 function continuity(acquisition, sample, receipts) {
   const start = acquisition.actionId, end = sample.actionId;
   if (end <= start || end - start > L.receipts || acquisition.at > sample.at) return false;
@@ -127,7 +137,7 @@ function qualitativeBody(npc) {
 }
 function missingCosts() {
   return ['current-availability', 'route', 'future-relief', 'remaining-procedure-work',
-    'completion-latency', 'experienced-effort', 'future-harm', 'retired-evidence-coverage'];
+    'completion-latency', 'experienced-effort', 'future-effort', 'future-harm', 'retired-evidence-coverage'];
 }
 function rowSummary(rows) {
   return { rows: rows.slice(0, L.rowsPerCandidate), retainedCount: rows.length,
@@ -155,7 +165,7 @@ function alternative(type, receipts, now) {
     needTargets: type === 'rest' ? ['fatigue'] : [], procedure: null, continuation: null,
     nextOperation: { type }, identity: null, availability: 'unknown', route: 'not-applicable',
     pending: false, adverse: refusals.length > 0, observedTiming, observedRefusals,
-    observedEffects: rowSummary([]), pendingEvidence: rowSummary([]),
+    observedEffort: rowSummary([]), observedEffects: rowSummary([]), pendingEvidence: rowSummary([]),
     support: { actionIds: witnesses([...observedTiming.rows, ...observedRefusals.rows], 'actionId'), experimentIds: [], ingestionIds: [], recognitionIds: [] },
     missingCosts: missingCosts().filter(cost => cost !== 'route'),
   };
@@ -169,13 +179,15 @@ function foodCandidate(technique, context) {
   for (const targetId of materialIds) context.coveredMaterials.add(targetId);
   const relevant = experiments.filter(e => e.targetId === sourceId && e.primitive === acquisitionType || e.primitive === 'sample' && materialIds.has(e.targetId));
   const samples = relevant.filter(e => e.primitive === 'sample' && e.ok && ingestionId(e.ingestionId));
-  const timings = [], refusals = [];
+  const timings = [], efforts = [], refusals = [];
   for (const e of relevant) {
-    const receipt = receipts.get(e.actionId), row = timing(receipt, e.id), rejected = refusal(receipt, e.id);
+    const receipt = receipts.get(e.actionId), row = timing(receipt, e.id), felt = effort(receipt, e.id), rejected = refusal(receipt, e.id);
     if (row) timings.push(row);
+    if (felt) efforts.push(felt);
     if (rejected) refusals.push(rejected);
   }
   timings.sort((a, b) => a.actionId - b.actionId);
+  efforts.sort((a, b) => a.actionId - b.actionId);
   const observed = [], positive = new Set();
   let adverse = false, unlinkedEffects = 0, unlinkedAdverseEffects = 0;
   for (const { effect, sample, recognition, valid } of effects) {
@@ -218,19 +230,21 @@ function foodCandidate(technique, context) {
   } : null;
   const cursor = continuation ? continuation.cursor : 0, step = cursor === null ? null : technique.steps[cursor];
   const nextOperation = step ? { type: step.type, targetId: step.targetId === '$source' ? sourceId : continuation?.materialId ?? null } : null;
-  const observedTiming = rowSummary(timings), observedEffects = rowSummary(observed), observedRefusals = rowSummary(refusals);
-  const copiedWitnesses = [...observedTiming.rows, ...observedEffects.rows, ...observedRefusals.rows];
+  const observedTiming = rowSummary(timings), observedEffort = rowSummary(efforts), observedEffects = rowSummary(observed), observedRefusals = rowSummary(refusals);
+  const copiedWitnesses = [...observedTiming.rows, ...observedEffort.rows, ...observedEffects.rows, ...observedRefusals.rows];
   return { id: `food:${technique.id}`, intent: 'repeat retained food procedure', needTargets: ['hunger'], policyEnabled: foodLearning,
     procedure: { id: technique.id, sourceId, steps: technique.steps.map(step => ({ type: step.type, targetId: step.targetId })) },
     continuation, nextOperation,
     identity: { source: observation(observations, sourceId), heldMaterialIds: held.filter(targetId => materialIds.has(targetId)) },
     availability: 'unknown', route: 'unknown', pending: pendingRows.length > 0, adverse,
-    observedTiming, observedEffects, observedRefusals, pendingEvidence: rowSummary(pendingRows),
+    observedTiming, observedEffort, observedEffects, observedRefusals, pendingEvidence: rowSummary(pendingRows),
     retainedSourceSupport: { status: positive.size ? 'observed-direct-chain' : 'unknown', ingestionCount: positive.size },
     support: { actionIds: [...new Set([...witnesses(copiedWitnesses, 'actionId'), ...witnesses(observedEffects.rows, 'acquisitionActionId')])],
       experimentIds: [...new Set([...witnesses(copiedWitnesses, 'experimentId'), ...witnesses(observedEffects.rows, 'acquisitionExperimentId')])],
       ingestionIds: witnesses(observedEffects.rows, 'ingestionId'), recognitionIds: witnesses(observedEffects.rows, 'recognitionId') },
     evidenceGaps: { unlinkedEffects, unlinkedAdverseEffects, sourceContinuityUnknown: observed.some(row => row.sourceContinuity === 'unknown') },
+    // Valid retained rows cannot certify complete history: unmatched/retired
+    // records can be absent before this projection, so coverage stays unknown.
     missingCosts: missingCosts(),
   };
 }
