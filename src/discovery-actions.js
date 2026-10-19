@@ -12,7 +12,28 @@ export function primitiveDuration(npc,type){
 }
 // Action identity belongs to this runtime only; saves interrupt active commands.
 const ticking = new WeakSet(), settled = new WeakSet();
-const done=(complete,npc,request,result,active)=>complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;
+// Runtime-only witnesses. Restarted/copied active commands have no measured
+// work witness, and neither old receipts nor primitive constants can supply one.
+const handlingWitnesses = new WeakMap();
+export function takeDiscoveryActionFeedback(npc,active){
+  const witness=handlingWitnesses.get(active);
+  if(!witness||witness.actor!==npc)return null;
+  handlingWitnesses.delete(active);
+  const f=npc.physiology;
+  if(npc.active!==active||f!==witness.physiology||npc.discovery!==witness.discovery||
+    active.request?.type!==witness.type||active.request?.targetId!==witness.targetId||
+    !(witness.worked>0)||witness.worked>witness.seconds+1e-8||
+    !Number.isFinite(f?.fatigue)||!Number.isFinite(f?.stamina))return null;
+  // Same net bodily trend as movement.effort, not a calorie estimate. Steady
+  // includes saturation/recovery and never means that the action was free.
+  return {source:'experienced',activeActionSeconds:witness.worked,
+    effort:f.fatigue>witness.fatigue+1e-9||f.stamina<witness.stamina-1e-9?'rising':'steady'};
+}
+const done=(complete,npc,request,result,active)=>{
+  const handling=takeDiscoveryActionFeedback(npc,active);
+  if(handling)result={...result,handling};
+  return complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;
+};
 function allowed(npc,id,environment,inspection=false){
   if(!objectId(id)||!npc.discovery?.observations?.[id]&&!npc.inventory?.items?.includes(id))return {ok:false,code:'UNKNOWN_OBJECT'};
   const physical=lookupEcologyObject(environment.ecology,id);if(!physical)return {ok:false,code:'OBJECT_GONE'};
@@ -35,6 +56,10 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   if(['grasp','pull'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity)return done(options.complete,npc,request,{ok:false,code:'HANDS_FULL'});
   const seconds=primitiveDuration(npc,request.type);
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+seconds+.05,seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
+  if(Number.isFinite(npc.physiology?.fatigue)&&Number.isFinite(npc.physiology?.stamina))
+    handlingWitnesses.set(npc.active,{actor:npc,physiology:npc.physiology,discovery:npc.discovery,
+      type:request.type,targetId:request.targetId,seconds,
+      fatigue:npc.physiology.fatigue,stamina:npc.physiology.stamina,worked:0});
   return {ok:true,code:'ACTION_STARTED'};
 }
 export function tickDiscoveryAction(npc,dt,environment={},options={}){
@@ -46,6 +71,10 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     const worked=Math.min(dt,Math.max(0,active.seconds-active.worked));active.worked+=worked;
     try{(options.exert||exertPhysiology)(npc,worked,DISCOVERY_RULES.effort[active.request.type]);}
     catch(error){settled.add(active);terminal=true;throw error;}
+    // A throwing or synchronously cancelling hook cannot certify its current
+    // work slice. Prior returned slices remain available to interruption receipts.
+    const witness=handlingWitnesses.get(active);
+    if(witness&&npc.active===active)witness.worked+=worked;
     // A hook may cancel or replace work. It cannot authorize the captured action.
     if(npc.active!==active){settled.add(active);return true;}
     if(active.worked+1e-8<active.seconds)return true;
@@ -84,6 +113,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);return true;
   }finally{
     ticking.delete(active);
+    if(terminal||npc.active!==active)handlingWitnesses.delete(active);
     if(terminal&&npc.active===active)npc.active=null;
   }
 }
