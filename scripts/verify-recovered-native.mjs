@@ -2,6 +2,7 @@
  * Usage: node scripts/verify-recovered-native.mjs --ci-synthetic [--keep]
  *   or: node scripts/verify-recovered-native.mjs --historical-config=<absolute JSON> [--faults] [--keep]
  *   or: node scripts/verify-recovered-native.mjs --receiptless-current [--keep]
+ *   or: node scripts/verify-recovered-native.mjs --ozark-self-edge [--keep]
  * Historical mode reads only the copied, hash-verified evidence named by the
  * ignored local config. The test-only Electron main probe has finite actions. */
 import assert from 'node:assert/strict';
@@ -19,6 +20,7 @@ import { prepareLegacyPendingMigration } from '../src/save.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const syntheticMode=process.argv.includes('--ci-synthetic');
 const receiptlessMode=process.argv.includes('--receiptless-current');
+const ozarkSelfEdgeMode=process.argv.includes('--ozark-self-edge');
 const historicalOptions=process.argv.filter(arg=>arg.startsWith('--historical-config='));
 let historicalSource=null;
 const currentCopyPath=resolve(root,'../evidence/live-original-save-20261016-1343.json');
@@ -657,11 +659,105 @@ async function runFaultMatrix(){
   console.log(`Native fault matrix: ${summary.scenarios.filter(row=>row.ok).length}/${kinds.length} passed. ${output}`);
 }
 
-if((syntheticMode?1:0)+(receiptlessMode?1:0)+historicalOptions.length!==1||
-    receiptlessMode&&(process.argv.includes('--faults')||process.argv.includes('--open-routes'))){
-  console.error('Choose --ci-synthetic, --receiptless-current, or one local --historical-config=<absolute JSON>.');
+// A separate two-process regression using the same finite driver, trusted
+// profile routing, sandboxed app and child-process launcher as copied-profile QA.
+async function runOzarkSelfEdge() {
+  const output = resolve(root, 'test-results/ozark-self-edge-native-summary.json');
+  const screenshots = ['write', 'reopen', 'failure'].map(phase =>
+    resolve(root, `test-results/ozark-self-edge-native-${phase}.png`));
+  for (const file of [output, ...screenshots]) await rm(file, { force: true });
+  const scratch = await mkdtemp(join(tmpdir(), 'aincrad-recovered-native-'));
+  const original = join(scratch, 'original'), copy = join(scratch, 'recovered');
+  const summary = { fixture: 'localized-synthetic-ozark-self-edge-action', passed: false, checks: [] };
+  const check = (name, value = true) => { assert.ok(value, name); summary.checks.push(name); };
+  let child = null;
+  try {
+    const built = await buildApplication();
+    summary.sourceFingerprint = built.sourceFingerprint;
+    const results = [];
+    for (const [index, phase] of ['write', 'reopen'].entries()) {
+      const configPath = join(scratch, `config-${index + 1}.json`);
+      const resultPath = join(scratch, `result-${index + 1}.json`);
+      const screenshotFile = join(scratch, `${phase}.png`);
+      await writeFile(configPath, JSON.stringify({ version: 1, action: `ozark-self-edge-${phase}`,
+        output: resultPath, screenshotFile }), { mode: 0o600 });
+      child = childProcess(root, ['--test', `--test-profile=${original}`,
+        `--test-recovered-root=${copy}`, `--test-native-qa=${configPath}`]);
+      // Await actual process termination before starting the next phase. A
+      // renderer reload or same-process navigation cannot satisfy this contract.
+      const code = await waitExit(child);
+      assert.equal(code, 0, failText(child));
+      const result = await waitOutput(resultPath, child, 1000);
+      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.ozark?.pid, child.pid);
+      check(`${phase}: actual storage is inside the isolated original profile`,
+        canonical(result.paths.userData) === canonical(original) &&
+        canonical(result.paths.sessionData) === canonical(original) &&
+        within(original, result.paths.storagePath));
+      check(`${phase}: sandbox retained and original slot byte-exact`,
+        result.ozark.sandboxed && result.save.sha256 === result.ozark.originalSha256);
+      check(`${phase}: real self-edge and blocked action receipt present`,
+        result.ozark.edgeKey === '7,29>7,29' && result.ozark.receipt.details.result.code === 'ROUTE_BLOCKED');
+      await mkdir(dirname(output), { recursive: true });
+      await copyFile(screenshotFile, screenshots[index]);
+      results.push(result.ozark);
+      child = null;
+    }
+    const [written, reopened] = results;
+    check('two distinct Electron processes closed successfully', written.pid !== reopened.pid);
+    check('actual app writer replaced pretty fixture with canonical bytes',
+      written.appWrite && written.seedSha256 !== written.sha256);
+    check('reopen read exact persisted bytes without seeding or saving',
+      !reopened.appWrite && reopened.seedSha256 === written.sha256 && reopened.sha256 === written.sha256 &&
+      reopened.byteLength === written.byteLength);
+    check('original slot bytes survived both processes unchanged', written.originalSha256 === reopened.originalSha256);
+    assert.deepEqual(reopened.snapshot, written.snapshot, 'exact unstarted runtime evidence, bodies and clock');
+    check('exact self-edge, action proof, bodies and frozen clock restored',
+      written.fullSavedEvidenceSha256 === reopened.fullSavedEvidenceSha256);
+    summary.passed = true;
+    summary.processIds = results.map(result => result.pid);
+    summary.originalSaveSha256 = written.originalSha256;
+    summary.ozarkSaveSha256 = written.sha256;
+    summary.seedSha256 = written.seedSha256;
+    summary.savedEvidenceSha256 = written.fullSavedEvidenceSha256;
+    summary.elapsed = written.snapshot.elapsed;
+    summary.edge = { key: written.edgeKey, ...written.edge };
+    summary.receipt = written.receipt;
+  } catch (error) {
+    summary.error = error?.stack || String(error);
+    for (const name of await readdir(scratch).catch(() => [])) {
+      if (!/^result-[12]\.json$/.test(name)) continue;
+      try {
+        const result = JSON.parse(await readFile(join(scratch, name), 'utf8'));
+        if (result.ok === false) summary.nativeFailureDiagnostic = result;
+        if (result.failureScreenshot && within(scratch, result.failureScreenshot)) {
+          await mkdir(dirname(output), { recursive: true });
+          await copyFile(result.failureScreenshot, screenshots[2]);
+        }
+      } catch {}
+    }
+    process.exitCode = 1;
+  } finally {
+    if (child?.exitCode === null) {
+      child.kill('SIGTERM');
+      await pause(300);
+      if (child.exitCode === null) child.kill('SIGKILL');
+      await waitExit(child, 5000).catch(() => {});
+    }
+    if (process.argv.includes('--keep')) summary.disposableProfile = scratch;
+    else await rm(scratch, { recursive: true, force: true });
+    await mkdir(dirname(output), { recursive: true });
+    await writeFile(output, JSON.stringify(summary, null, 2) + '\n');
+  }
+  console.log(`${summary.passed ? 'PASS' : 'FAIL'}: native Ozark self-edge write/close/reopen. ${output}`);
+}
+
+if((syntheticMode?1:0)+(receiptlessMode?1:0)+(ozarkSelfEdgeMode?1:0)+historicalOptions.length!==1||
+    (receiptlessMode||ozarkSelfEdgeMode)&&(process.argv.includes('--faults')||process.argv.includes('--open-routes'))){
+  console.error('Choose --ci-synthetic, --receiptless-current, --ozark-self-edge, or one local --historical-config=<absolute JSON>.');
   process.exitCode=1;
 }
+else if(ozarkSelfEdgeMode)await runOzarkSelfEdge();
 else if(process.argv.includes('--faults'))await runFaultMatrix();
 else if(process.argv.includes('--open-routes'))await runOriginalOpenRoutes();
 else await main();
