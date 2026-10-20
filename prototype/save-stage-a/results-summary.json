@@ -1,0 +1,1964 @@
+{
+  "version": 1,
+  "verdict": "FAILED_STAGE_A_NO_INTEGRATION",
+  "planSha256": "7fff23a90c08d88e55a87e108c90c13cc1bc6ae04f78e6701c853112af0cf265",
+  "packetSha256": "a0ad86fc6a793da8672b54813b2c4436e883a0ddc372c63c409b888ae68f9798",
+  "sourceCommit": "e204ae9625f41fede5f662a77fc744b46b1f7947",
+  "stableMainCommit": "1f20f401f720b61069dcea06d10cc4e885e0b1f6",
+  "stableRendererFingerprint": "37c7c8ed74449e65fdb07ef6ac1b985e315d1d3e232e69fb307389e866f8263f",
+  "inputManifestSha256": "6690b43d968392a00165a0d16dc8a3d5158fae384ebf03b2a5cea33ccaed875d",
+  "rawReportSha256": "968da96d3d0b0d265054e9d2e2a86287b64f56664319c564a7c74c4ea840026b",
+  "startedAt": "2026-10-16T06:02:54.078Z",
+  "finishedAt": "2026-10-16T06:05:35.032Z",
+  "elapsedSeconds": 160.954,
+  "complete": true,
+  "gatesPassed": false,
+  "postflight": {
+    "passed": true
+  },
+  "host": {
+    "platform": "linux",
+    "arch": "x64",
+    "node": "v24.19.0",
+    "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "logicalCpus": 9,
+    "totalMemoryBytes": 10451460096,
+    "freeMemoryBytes": 8409976832,
+    "loadavg": [
+      0.13,
+      0.76,
+      0.63
+    ]
+  },
+  "hostAfter": {
+    "freeMemoryBytes": 8060465152,
+    "loadavg": [
+      1.29,
+      0.96,
+      0.73
+    ]
+  },
+  "counts": {
+    "arms": 16,
+    "samples": 400,
+    "cold": 16,
+    "warmup": 64,
+    "measured": 320
+  },
+  "method": {
+    "p50": "upper median sorted[10] of20",
+    "p95": "nearest rank sorted[18] of20",
+    "pairing": "A/B differ only selectedAgentId; preseed B once; prior exact opposite hash required for each of25 commits",
+    "queue": "Native counters cover coordinator only; worker retention structurally bounded and unit-tested.",
+    "memory": "250ms sampled summed per-process working sets and post-window renderer heap, not universal transient peaks; shared memory can appear in multiple process footprints."
+  },
+  "comparisons": [
+    {
+      "fixture": "fresh-v8",
+      "session": 1,
+      "passed": true,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": true,
+        "commitWithinFrame": true,
+        "frameGapAtMost33_3": true,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "fresh-v8",
+      "session": 2,
+      "passed": true,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": true,
+        "commitWithinFrame": true,
+        "frameGapAtMost33_3": true,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "recorded-900s",
+      "session": 1,
+      "passed": false,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": false,
+        "commitWithinFrame": false,
+        "frameGapAtMost33_3": false,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "recorded-900s",
+      "session": 2,
+      "passed": false,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": true,
+        "commitWithinFrame": false,
+        "frameGapAtMost33_3": false,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "native-juvenile",
+      "session": 1,
+      "passed": false,
+      "tests": {
+        "rendererWorkHalved": false,
+        "dispatchWithinFrame": true,
+        "commitWithinFrame": true,
+        "frameGapAtMost33_3": true,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "native-juvenile",
+      "session": 2,
+      "passed": true,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": true,
+        "commitWithinFrame": true,
+        "frameGapAtMost33_3": true,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "physical-cap",
+      "session": 1,
+      "passed": false,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": false,
+        "commitWithinFrame": false,
+        "frameGapAtMost33_3": false,
+        "frameNoRegression": true
+      }
+    },
+    {
+      "fixture": "physical-cap",
+      "session": 2,
+      "passed": false,
+      "tests": {
+        "rendererWorkHalved": true,
+        "dispatchWithinFrame": false,
+        "commitWithinFrame": false,
+        "frameGapAtMost33_3": false,
+        "frameNoRegression": true
+      }
+    }
+  ],
+  "arms": [
+    {
+      "id": "fresh-v8-s1-baseline",
+      "fixture": "fresh-v8",
+      "session": 1,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "a6b23f5731a3bc819b044d994771313d3678bf003527e93687bfc80e100bec13",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 62.600000001490116,
+        "requestMs": 62.600000001490116,
+        "storageCommitMs": 2.8000000044703484,
+        "maxFrameGapMs": 50,
+        "maxEventLoopGapMs": 71.5,
+        "endToEndMs": 62.600000001490116
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 31.5,
+          "p95": 48.30000000447035,
+          "max": 50.69999999552965
+        },
+        "requestMs": {
+          "upperMedian": 31.5,
+          "p95": 48.30000000447035,
+          "max": 50.69999999552965
+        },
+        "storageCommitMs": {
+          "upperMedian": 2.2000000029802322,
+          "p95": 3.5999999940395355,
+          "max": 5.299999997019768
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.800000000000182,
+          "p95": 33.40000000000009,
+          "max": 50
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 34.899999998509884,
+          "p95": 52.80000000447035,
+          "max": 56.600000001490116
+        },
+        "endToEndMs": {
+          "upperMedian": 31.5,
+          "p95": 48.30000000447035,
+          "max": 50.69999999552965
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 438300,
+      "sampledPeakPostWindowRendererHeapBytes": 41291339,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "fresh-v8-s1-worker",
+      "fixture": "fresh-v8",
+      "session": 1,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "8b704ddc8bd7d535467d4d6468915c3dee9c3f298272c9a12b68e86c04d3445b",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 6.4000000059604645,
+        "requestMs": 2.600000001490116,
+        "storageCommitMs": 2.6999999955296516,
+        "maxFrameGapMs": 16.799999999999955,
+        "maxEventLoopGapMs": 7.800000004470348,
+        "endToEndMs": 159.80000000447035
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 4.799999997019768,
+          "p95": 8.200000002980232,
+          "max": 9.900000005960464
+        },
+        "requestMs": {
+          "upperMedian": 1.6000000014901161,
+          "p95": 3.7000000029802322,
+          "max": 4.300000004470348
+        },
+        "storageCommitMs": {
+          "upperMedian": 2.2999999970197678,
+          "p95": 4.699999995529652,
+          "max": 5.100000001490116
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 3.100000001490116,
+          "p95": 5.600000001490116,
+          "max": 6.300000004470348
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0.5,
+          "p95": 1.6000000014901161,
+          "max": 4.200000010430813
+        },
+        "workerPreparationMs": {
+          "upperMedian": 34.69999999552965,
+          "p95": 43.29999999701977,
+          "max": 64.59999999403954
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.700000000000728,
+          "p95": 16.800000000000182,
+          "max": 16.800000000000182
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 7.5,
+          "p95": 11.199999995529652,
+          "max": 16.69999999552965
+        },
+        "endToEndMs": {
+          "upperMedian": 42.79999999701977,
+          "p95": 57.5,
+          "max": 70.69999999552965
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 500468,
+      "sampledPeakPostWindowRendererHeapBytes": 47341105,
+      "finalCoordinator": {
+        "instance": "stage-a-1-fresh-v8",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "fresh-v8-s2-worker",
+      "fixture": "fresh-v8",
+      "session": 2,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "73079f8e34cda09b540ff9f967097a6cf6f741cbba02f97f18b89ccd082b5a66",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 5.799999997019768,
+        "requestMs": 2.399999998509884,
+        "storageCommitMs": 2.600000001490116,
+        "maxFrameGapMs": 16.799999999999955,
+        "maxEventLoopGapMs": 8.299999997019768,
+        "endToEndMs": 146.89999999850988
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 5.200000002980232,
+          "p95": 7.399999998509884,
+          "max": 9.300000004470348
+        },
+        "requestMs": {
+          "upperMedian": 1.3999999985098839,
+          "p95": 2.1999999955296516,
+          "max": 2.2999999970197678
+        },
+        "storageCommitMs": {
+          "upperMedian": 3.4000000059604645,
+          "p95": 5.5,
+          "max": 7.100000001490116
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 3.8000000044703484,
+          "p95": 5.899999998509884,
+          "max": 7.700000002980232
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0.5000000074505806,
+          "p95": 0.8999999985098839,
+          "max": 1
+        },
+        "workerPreparationMs": {
+          "upperMedian": 31.5,
+          "p95": 61.19999999552965,
+          "max": 82.10000000149012
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.700000000000273,
+          "p95": 16.800000000000182,
+          "max": 16.800000000000182
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 7.799999997019768,
+          "p95": 10.300000004470348,
+          "max": 10.5
+        },
+        "endToEndMs": {
+          "upperMedian": 39,
+          "p95": 69.80000000447035,
+          "max": 91.79999999701977
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 502024,
+      "sampledPeakPostWindowRendererHeapBytes": 40802968,
+      "finalCoordinator": {
+        "instance": "stage-a-2-fresh-v8",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "fresh-v8-s2-baseline",
+      "fixture": "fresh-v8",
+      "session": 2,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "925024e12736c0872631b828ef5683a45ed706c5e916481f7b43fff9f1b18dc9",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 57.69999999552965,
+        "requestMs": 57.69999999552965,
+        "storageCommitMs": 2.100000001490116,
+        "maxFrameGapMs": 49.999999999999886,
+        "maxEventLoopGapMs": 60.20000000298023,
+        "endToEndMs": 57.69999999552965
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 32.899999998509884,
+          "p95": 43.29999999701977,
+          "max": 46.5
+        },
+        "requestMs": {
+          "upperMedian": 32.899999998509884,
+          "p95": 43.29999999701977,
+          "max": 46.5
+        },
+        "storageCommitMs": {
+          "upperMedian": 1.8999999985098839,
+          "p95": 5.200000002980232,
+          "max": 6.200000002980232
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 33.20000000000073,
+          "p95": 33.40000000000009,
+          "max": 33.40000000000009
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 37.80000000447035,
+          "p95": 47.100000001490116,
+          "max": 52.5
+        },
+        "endToEndMs": {
+          "upperMedian": 32.899999998509884,
+          "p95": 43.29999999701977,
+          "max": 46.5
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 437816,
+      "sampledPeakPostWindowRendererHeapBytes": 41185534,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "recorded-900s-s1-baseline",
+      "fixture": "recorded-900s",
+      "session": 1,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "d2a0a587bd85a17c68fbc9260555919b5f643efda8309dddc046545a6c5f7702",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 162.19999999552965,
+        "requestMs": 162.19999999552965,
+        "storageCommitMs": 20.19999999552965,
+        "maxFrameGapMs": 150,
+        "maxEventLoopGapMs": 167,
+        "endToEndMs": 162.19999999552965
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 93.79999999701977,
+          "p95": 107.5,
+          "max": 111.5
+        },
+        "requestMs": {
+          "upperMedian": 93.79999999701977,
+          "p95": 107.5,
+          "max": 111.5
+        },
+        "storageCommitMs": {
+          "upperMedian": 16.5,
+          "p95": 20.399999998509884,
+          "max": 21.600000001490116
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 100,
+          "p95": 116.69999999999982,
+          "max": 116.69999999999982
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 96.09999999403954,
+          "p95": 110.60000000149012,
+          "max": 113.29999999701977
+        },
+        "endToEndMs": {
+          "upperMedian": 93.89999999850988,
+          "p95": 107.5,
+          "max": 111.5
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 551504,
+      "sampledPeakPostWindowRendererHeapBytes": 62225882,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "recorded-900s-s1-worker",
+      "fixture": "recorded-900s",
+      "session": 1,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "ed88baa43e0fbc24f0d9c495ecc9b0f6300b5138e288f217c1a7e5b6f8334c0d",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 43.600000001490116,
+        "requestMs": 22.200000002980232,
+        "storageCommitMs": 18.100000001490116,
+        "maxFrameGapMs": 16.700000000000045,
+        "maxEventLoopGapMs": 26,
+        "endToEndMs": 287.80000000447035
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 35.599999994039536,
+          "p95": 49.19999999552965,
+          "max": 55.70000000298023
+        },
+        "requestMs": {
+          "upperMedian": 12.199999995529652,
+          "p95": 19.100000001490116,
+          "max": 30.899999998509884
+        },
+        "storageCommitMs": {
+          "upperMedian": 20.600000001490116,
+          "p95": 27.30000000447035,
+          "max": 31.30000000447035
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 23.299999997019768,
+          "p95": 34.099999994039536,
+          "max": 35
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 3.100000001490116,
+          "p95": 6.799999989569187,
+          "max": 6.799999997019768
+        },
+        "workerPreparationMs": {
+          "upperMedian": 96.5,
+          "p95": 235.70000000298023,
+          "max": 318.1000000014901
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.800000000000182,
+          "p95": 33.30000000000018,
+          "max": 66.60000000000036
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 27.599999994039536,
+          "p95": 37.399999998509884,
+          "max": 39.099999994039536
+        },
+        "endToEndMs": {
+          "upperMedian": 155.29999999701977,
+          "p95": 322.3999999985099,
+          "max": 479.30000000447035
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 615828,
+      "sampledPeakPostWindowRendererHeapBytes": 67393697,
+      "finalCoordinator": {
+        "instance": "stage-a-1-recorded-900s",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "recorded-900s-s2-worker",
+      "fixture": "recorded-900s",
+      "session": 2,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "c0aaae9c0880675244d6c1c89f13e210e0be6a0f9e25d25d03f7266c092b8981",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 48.599999994039536,
+        "requestMs": 13,
+        "storageCommitMs": 22,
+        "maxFrameGapMs": 16.800000000000182,
+        "maxEventLoopGapMs": 47.29999999701977,
+        "endToEndMs": 460.69999999552965
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 34.5,
+          "p95": 46.100000001490116,
+          "max": 46.79999998956919
+        },
+        "requestMs": {
+          "upperMedian": 11.400000005960464,
+          "p95": 16.69999999552965,
+          "max": 16.899999998509884
+        },
+        "storageCommitMs": {
+          "upperMedian": 19,
+          "p95": 28,
+          "max": 28.900000005960464
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 21.399999998509884,
+          "p95": 32.099999994039536,
+          "max": 34.399999998509884
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 2.7999999970197678,
+          "p95": 4.300000004470348,
+          "max": 6.399999998509884
+        },
+        "workerPreparationMs": {
+          "upperMedian": 96.79999999701977,
+          "p95": 114.09999999403954,
+          "max": 118
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.799999999999272,
+          "p95": 66.80000000000018,
+          "max": 166.70000000000073
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 26.900000005960464,
+          "p95": 67.89999999850988,
+          "max": 85.89999999850988
+        },
+        "endToEndMs": {
+          "upperMedian": 150.69999999552965,
+          "p95": 171.10000000149012,
+          "max": 197.29999999701977
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 603820,
+      "sampledPeakPostWindowRendererHeapBytes": 62205841,
+      "finalCoordinator": {
+        "instance": "stage-a-2-recorded-900s",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "recorded-900s-s2-baseline",
+      "fixture": "recorded-900s",
+      "session": 2,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "273c0d2f5c693a114f1995470ad7b2cd2bbc95f19b9b71befdac2e07deaa0f65",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 159.90000000596046,
+        "requestMs": 159.90000000596046,
+        "storageCommitMs": 26.399999998509884,
+        "maxFrameGapMs": 150,
+        "maxEventLoopGapMs": 166,
+        "endToEndMs": 159.90000000596046
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 130.5,
+          "p95": 171.59999999403954,
+          "max": 187.40000000596046
+        },
+        "requestMs": {
+          "upperMedian": 130.5,
+          "p95": 171.59999999403954,
+          "max": 187.40000000596046
+        },
+        "storageCommitMs": {
+          "upperMedian": 22.399999998509884,
+          "p95": 36.70000000298023,
+          "max": 38.19999999552965
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 133.30000000000018,
+          "p95": 183.30000000000018,
+          "max": 200
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 134.29999999701977,
+          "p95": 177.5,
+          "max": 189.70000000298023
+        },
+        "endToEndMs": {
+          "upperMedian": 130.60000000149012,
+          "p95": 171.59999999403954,
+          "max": 187.40000000596046
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 543324,
+      "sampledPeakPostWindowRendererHeapBytes": 65829924,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "native-juvenile-s1-baseline",
+      "fixture": "native-juvenile",
+      "session": 1,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "9450bc2a17936c57d0ed87139232876b8a53803065f80838fb693a04cd0467ae",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 12.699999995529652,
+        "requestMs": 12.699999995529652,
+        "storageCommitMs": 0.09999999403953552,
+        "maxFrameGapMs": 16.799999999999955,
+        "maxEventLoopGapMs": 14.800000004470348,
+        "endToEndMs": 12.699999995529652
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 2,
+          "p95": 3,
+          "max": 3
+        },
+        "requestMs": {
+          "upperMedian": 2,
+          "p95": 3,
+          "max": 3
+        },
+        "storageCommitMs": {
+          "upperMedian": 0.20000000298023224,
+          "p95": 0.30000000447034836,
+          "max": 0.4000000059604645
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.700000000000728,
+          "p95": 16.800000000000182,
+          "max": 33.40000000000009
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 5.200000002980232,
+          "p95": 8.300000004470348,
+          "max": 44.30000000447035
+        },
+        "endToEndMs": {
+          "upperMedian": 2,
+          "p95": 3,
+          "max": 3
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 397564,
+      "sampledPeakPostWindowRendererHeapBytes": 10358954,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "native-juvenile-s1-worker",
+      "fixture": "native-juvenile",
+      "session": 1,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "c01a079d602df18a04fbc3357e7299dc330715f4d83fd59266cf4a4ca95ef938",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 3.4000000059604645,
+        "requestMs": 1.7000000029802322,
+        "storageCommitMs": 0.8999999985098839,
+        "maxFrameGapMs": 16.700000000000045,
+        "maxEventLoopGapMs": 5.5999999940395355,
+        "endToEndMs": 74.80000000447035
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 0.8999999985098839,
+          "p95": 1.8999999985098839,
+          "max": 2.399999998509884
+        },
+        "requestMs": {
+          "upperMedian": 0.4000000059604645,
+          "p95": 1,
+          "max": 1.7999999970197678
+        },
+        "storageCommitMs": {
+          "upperMedian": 0.30000000447034836,
+          "p95": 0.6000000014901161,
+          "max": 0.8999999985098839
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0.3999999985098839,
+          "p95": 0.8999999985098839,
+          "max": 1.2000000029802322
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0.10000000149011612,
+          "p95": 0.30000000447034836,
+          "max": 0.5
+        },
+        "workerPreparationMs": {
+          "upperMedian": 2.899999998509884,
+          "p95": 3.899999998509884,
+          "max": 9.199999995529652
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.700000000000273,
+          "p95": 16.800000000000182,
+          "max": 16.800000000000182
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 5.699999995529652,
+          "p95": 7.200000002980232,
+          "max": 8.199999995529652
+        },
+        "endToEndMs": {
+          "upperMedian": 4.5,
+          "p95": 6,
+          "max": 13.399999998509884
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 414640,
+      "sampledPeakPostWindowRendererHeapBytes": 12143400,
+      "finalCoordinator": {
+        "instance": "stage-a-1-native-juvenile",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "native-juvenile-s2-worker",
+      "fixture": "native-juvenile",
+      "session": 2,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "c4afe7b72b0ce992404dc2a4d8ead8a56d2d8ab72951300554d4222e6c8aa1aa",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 2.600000001490116,
+        "requestMs": 1.6000000014901161,
+        "storageCommitMs": 0.4000000059604645,
+        "maxFrameGapMs": 16.800000000000182,
+        "maxEventLoopGapMs": 5.700000002980232,
+        "endToEndMs": 69.39999999850988
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 0.6999999955296516,
+          "p95": 1.1000000014901161,
+          "max": 1.1000000014901161
+        },
+        "requestMs": {
+          "upperMedian": 0.3999999985098839,
+          "p95": 0.6000000014901161,
+          "max": 0.8000000044703484
+        },
+        "storageCommitMs": {
+          "upperMedian": 0.20000000298023224,
+          "p95": 0.3999999985098839,
+          "max": 0.5
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0.30000000447034836,
+          "p95": 0.5999999940395355,
+          "max": 0.6000000014901161
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0.10000000149011612,
+          "p95": 0.20000000298023224,
+          "max": 0.20000000298023224
+        },
+        "workerPreparationMs": {
+          "upperMedian": 2.1999999955296516,
+          "p95": 2.9000000059604645,
+          "max": 3.4000000059604645
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.700000000000273,
+          "p95": 16.800000000000182,
+          "max": 16.800000000000182
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 5.5,
+          "p95": 6.100000001490116,
+          "max": 6.5
+        },
+        "endToEndMs": {
+          "upperMedian": 3.7000000029802322,
+          "p95": 4.899999998509884,
+          "max": 4.9000000059604645
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 415036,
+      "sampledPeakPostWindowRendererHeapBytes": 11538327,
+      "finalCoordinator": {
+        "instance": "stage-a-2-native-juvenile",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "native-juvenile-s2-baseline",
+      "fixture": "native-juvenile",
+      "session": 2,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "4332588005bdc2abe9b0f7b10aab20c54efab772f1f9c67c3fe69409e0a6f33c",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 21.5,
+        "requestMs": 21.5,
+        "storageCommitMs": 0.6000000014901161,
+        "maxFrameGapMs": 16.799999999999955,
+        "maxEventLoopGapMs": 27.899999998509884,
+        "endToEndMs": 21.5
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 2.899999998509884,
+          "p95": 5.600000001490116,
+          "max": 9
+        },
+        "requestMs": {
+          "upperMedian": 2.899999998509884,
+          "p95": 5.600000001490116,
+          "max": 9
+        },
+        "storageCommitMs": {
+          "upperMedian": 0.29999999701976776,
+          "p95": 0.7000000029802322,
+          "max": 1.2000000029802322
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 16.700000000000273,
+          "p95": 16.800000000000182,
+          "max": 16.800000000000182
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 5.5,
+          "p95": 7.5,
+          "max": 11
+        },
+        "endToEndMs": {
+          "upperMedian": 2.899999998509884,
+          "p95": 5.600000001490116,
+          "max": 9
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 396304,
+      "sampledPeakPostWindowRendererHeapBytes": 10561375,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "physical-cap-s1-baseline",
+      "fixture": "physical-cap",
+      "session": 1,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "4619af97400813706262e4adbcfe2e2500e0506f81a9aa056529bb34e6cefb05",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 246.29999999701977,
+        "requestMs": 246.29999999701977,
+        "storageCommitMs": 32.19999999552965,
+        "maxFrameGapMs": 233.29999999999995,
+        "maxEventLoopGapMs": 252.29999999701977,
+        "endToEndMs": 246.29999999701977
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 167.10000000149012,
+          "p95": 190.69999999552965,
+          "max": 191.10000000149012
+        },
+        "requestMs": {
+          "upperMedian": 167.10000000149012,
+          "p95": 190.69999999552965,
+          "max": 191.10000000149012
+        },
+        "storageCommitMs": {
+          "upperMedian": 32.70000000298023,
+          "p95": 45.19999999552965,
+          "max": 45.5
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 166.6999999999989,
+          "p95": 183.39999999999964,
+          "max": 200
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 170.40000000596046,
+          "p95": 193.79999999701977,
+          "max": 196.10000000149012
+        },
+        "endToEndMs": {
+          "upperMedian": 167.10000000149012,
+          "p95": 190.69999999552965,
+          "max": 191.10000000149012
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 635420,
+      "sampledPeakPostWindowRendererHeapBytes": 116782163,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "physical-cap-s1-worker",
+      "fixture": "physical-cap",
+      "session": 1,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "0aa87419601ced315443a6dbe162d747b27eab3d0685c2a63696e27a0b45434f",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 76.70000000298023,
+        "requestMs": 34.80000000447035,
+        "storageCommitMs": 36.79999999701977,
+        "maxFrameGapMs": 33.40000000000009,
+        "maxEventLoopGapMs": 45.79999999701977,
+        "endToEndMs": 416.3999999985099
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 62.899999998509884,
+          "p95": 78.5,
+          "max": 79.69999999552965
+        },
+        "requestMs": {
+          "upperMedian": 23.799999997019768,
+          "p95": 30.5,
+          "max": 34.79999999701977
+        },
+        "storageCommitMs": {
+          "upperMedian": 34.600000001490116,
+          "p95": 45.599999994039536,
+          "max": 51.100000001490116
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 39.899999998509884,
+          "p95": 53,
+          "max": 58.100000001490116
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 5.399999998509884,
+          "p95": 7.4000000059604645,
+          "max": 7.899999998509884
+        },
+        "workerPreparationMs": {
+          "upperMedian": 163.60000000149012,
+          "p95": 196.89999999850988,
+          "max": 202.29999999701977
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 33.399999999999636,
+          "p95": 66.69999999999891,
+          "max": 66.80000000000109
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 43.19999999552965,
+          "p95": 61.100000001490116,
+          "max": 61.600000001490116
+        },
+        "endToEndMs": {
+          "upperMedian": 263.70000000298023,
+          "p95": 313.90000000596046,
+          "max": 315.3999999985099
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 741604,
+      "sampledPeakPostWindowRendererHeapBytes": 121047415,
+      "finalCoordinator": {
+        "instance": "stage-a-1-physical-cap",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "physical-cap-s2-worker",
+      "fixture": "physical-cap",
+      "session": 2,
+      "arm": "worker",
+      "status": "completed",
+      "resultSha256": "44d17e10161bbc84f75def0e0c9a3e48ab0136e718303f62831ed66a832898a2",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 65,
+        "requestMs": 26.600000001490116,
+        "storageCommitMs": 32.5,
+        "maxFrameGapMs": 50,
+        "maxEventLoopGapMs": 61.20000000298023,
+        "endToEndMs": 396.1000000014901
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 57.600000001490116,
+          "p95": 66.20000000298023,
+          "max": 71.09999999403954
+        },
+        "requestMs": {
+          "upperMedian": 20.200000002980232,
+          "p95": 22.799999997019768,
+          "max": 25.19999999552965
+        },
+        "storageCommitMs": {
+          "upperMedian": 33,
+          "p95": 36.099999994039536,
+          "max": 39
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 37.5,
+          "p95": 45.899999998509884,
+          "max": 45.899999998509884
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 4.600000001490116,
+          "p95": 6.899999998509884,
+          "max": 13.799999997019768
+        },
+        "workerPreparationMs": {
+          "upperMedian": 164.5,
+          "p95": 175.5,
+          "max": 179
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 33.29999999999927,
+          "p95": 50,
+          "max": 50
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 41,
+          "p95": 47.29999999701977,
+          "max": 49.19999999552965
+        },
+        "endToEndMs": {
+          "upperMedian": 255.70000000298023,
+          "p95": 284.70000000298023,
+          "max": 285.29999999701977
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 729020,
+      "sampledPeakPostWindowRendererHeapBytes": 110997483,
+      "finalCoordinator": {
+        "instance": "stage-a-2-physical-cap",
+        "epoch": 1,
+        "generation": 1,
+        "sequence": 25,
+        "retiredSequence": 25,
+        "lastCommittedSequence": 25,
+        "inFlight": null,
+        "dirty": false,
+        "workerEnabled": true,
+        "workerLive": true,
+        "captureCount": 25,
+        "commitCount": 25,
+        "retainedSnapshots": 0,
+        "maxInFlight": 1,
+        "status": {
+          "phase": "saved",
+          "epoch": 1,
+          "id": 25,
+          "dirty": false,
+          "kind": null
+        },
+        "disposed": false
+      },
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    },
+    {
+      "id": "physical-cap-s2-baseline",
+      "fixture": "physical-cap",
+      "session": 2,
+      "arm": "baseline",
+      "status": "completed",
+      "resultSha256": "060380c53794cc5d41ab8f0f764df5af92157c114f15f69c47a09e09447e947d",
+      "samples": 25,
+      "cold": {
+        "rendererWorkMs": 230.29999999701977,
+        "requestMs": 230.29999999701977,
+        "storageCommitMs": 33.399999998509884,
+        "maxFrameGapMs": 216.70000000000005,
+        "maxEventLoopGapMs": 237.60000000149012,
+        "endToEndMs": 230.29999999701977
+      },
+      "measured": {
+        "rendererWorkMs": {
+          "upperMedian": 180.70000000298023,
+          "p95": 289.5,
+          "max": 317.19999999552965
+        },
+        "requestMs": {
+          "upperMedian": 180.70000000298023,
+          "p95": 289.5,
+          "max": 317.19999999552965
+        },
+        "storageCommitMs": {
+          "upperMedian": 37.599999994039536,
+          "p95": 48.600000001490116,
+          "max": 65.70000000298023
+        },
+        "responseHandlerInclusiveMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "responseHandlerExclusiveCommitMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "workerPreparationMs": {
+          "upperMedian": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameGapMs": {
+          "upperMedian": 183.40000000000055,
+          "p95": 316.59999999999945,
+          "max": 350
+        },
+        "maxEventLoopGapMs": {
+          "upperMedian": 184.79999999701977,
+          "p95": 306.70000000298023,
+          "max": 319.30000000447035
+        },
+        "endToEndMs": {
+          "upperMedian": 180.70000000298023,
+          "p95": 289.5,
+          "max": 317.19999999552965
+        }
+      },
+      "restoredEqual": true,
+      "security": {
+        "nodeAbsent": true,
+        "fetchBlocked": true,
+        "evalBlocked": true,
+        "nestedWorkerBlocked": true,
+        "policyConfirmed": true,
+        "policyEvidence": [
+          {
+            "effectiveDirective": "connect-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "script-src",
+            "blockedURI": "eval",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          },
+          {
+            "effectiveDirective": "worker-src",
+            "blockedURI": "aincrad",
+            "disposition": "enforce",
+            "originalPolicy": "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+          }
+        ]
+      },
+      "sampledPeakSummedProcessWorkingSetKiB": 643668,
+      "sampledPeakPostWindowRendererHeapBytes": 135001506,
+      "finalCoordinator": null,
+      "screenshot": {
+        "bytes": 87,
+        "width": 1,
+        "height": 1
+      },
+      "version": "44.7.0"
+    }
+  ],
+  "limitations": [
+    "All PNG captures are1x1 despite requested1440x900 window. Viewport dimensions were not captured. Full-sized desktop rendering load is unverified; frame timings are headless diagnostic evidence only.",
+    "28 of400 frame arrays end0.1\u201311.1ms before declared observation-window end (23 measured,4 warmup,1 cold). Save completion and all leading edges are covered; all timer arrays bracket both ends. Frame metrics describe retained observations, not certified full-window coverage.",
+    "The strict33.3ms threshold is retained; recorded-900s session1 worker p95 frame gap33.30000000000018 fails as preregistered. No retrospective numerical tolerance.",
+    "Cloud Linux/Xeon Electron44.7.0; no laptop portability or interactive readiness claim.",
+    "Physics paused; active-play StageB was not run. No epoch/close integration was added to stable gameplay.",
+    "Both arms accepted all7.24MB capacity writes in isolated profiles; this is not a universal quota guarantee.",
+    "Capacity fixture is schema-valid synthetic storage stress, with8 rabbits above normal species birth cap; not a naturally reached ecosystem."
+  ]
+}
