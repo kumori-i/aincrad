@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
@@ -17,11 +18,10 @@ if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND
   throw new Error('Native aquatic QA needs a desktop display (for CI: Xvfb with a window manager); headless Chromium does not establish native blur/minimize behavior.');
 await mkdir(outputRoot, { recursive: true });
 const output = await mkdtemp(join(outputRoot, 'run-'));
-const temporary = join(output, 'isolated-temp');
-await mkdir(temporary, { recursive: true });
+const isolated = join(output, 'isolated-state');
 for (const name of ['home', 'config', 'cache'])
-  await mkdir(join(temporary, name), { recursive: true });
-const profile = join(temporary, 'profile');
+  await mkdir(join(isolated, name), { recursive: true });
+const profile = join(isolated, 'profile');
 const built = await buildApplication();
 const context = { root, output, profile, sourceFingerprint: built.sourceFingerprint };
 
@@ -276,11 +276,16 @@ app.on('browser-window-created',(_event,win)=>win.webContents.once('did-finish-l
 require(path.join(context.root,'dist/desktop/main.cjs'));
 `);
 const electron = createRequire(import.meta.url)('electron');
+// Chromium creates a Unix socket beneath TMPDIR. Deep checkout/artifact paths
+// exceed that socket's path limit, so only disposable runtime temp goes here.
+// The real profile and all persistent evidence stay in the output directory.
+const temporary = await mkdtemp(join(tmpdir(), 'aq-'));
+try {
 for (const phase of ['write', 'reopen']) {
   const flags = [harness, '--test', `--test-profile=${profile}`, `--phase=${phase}`];
   if (process.platform === 'linux') flags.push('--disable-gpu');
-  const env = { ...process.env, TMPDIR: temporary, TMP: temporary, TEMP: temporary, HOME: join(temporary, 'home'),
-    XDG_CONFIG_HOME: join(temporary, 'config'), XDG_CACHE_HOME: join(temporary, 'cache') }; delete env.ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, TMPDIR: temporary, TMP: temporary, TEMP: temporary, HOME: join(isolated, 'home'),
+    XDG_CONFIG_HOME: join(isolated, 'config'), XDG_CACHE_HOME: join(isolated, 'cache') }; delete env.ELECTRON_RUN_AS_NODE;
   const status = await new Promise((resolveStatus, reject) => {
     const child = spawn(electron, flags, { cwd: root, stdio: 'inherit', env });
     child.on('error', reject); child.on('exit', (code, signal) => resolveStatus({ code, signal }));
@@ -288,3 +293,11 @@ for (const phase of ['write', 'reopen']) {
   assert.deepEqual(status, { code: 0, signal: null }, `Native ${phase} failed; evidence retained at ${output}`);
 }
 console.log(await readFile(join(output, 'result.json'), 'utf8'));
+} finally {
+  // Both child processes have exited (or spawning failed). Never remove the
+  // output/profile, including on failure. Retries tolerate Windows file release.
+  await rm(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(error => {
+    console.error(`Could not clean disposable runtime temp ${temporary}; native evidence remains at ${output}:`, error);
+    process.exitCode = 1; // Report cleanup trouble without masking a native failure.
+  });
+}
