@@ -1,3 +1,4 @@
+import { matchingResultObject } from './discovery-result-object.js';
 import { bodySignals } from './interoception.js';
 
 // Diagnostic only. The single pull/drain slot belongs to a controller, never an
@@ -60,7 +61,7 @@ function index(rows, key) {
 }
 function matchesExperiment(e, receipt, now) {
   const action = receipt?.details?.action, result = receipt?.details?.result;
-  return id(e?.id) && id(e.actionId) && time(e.at) && e.at <= now &&
+  return matchingResultObject(e,receipt) && id(e?.id) && id(e.actionId) && time(e.at) && e.at <= now &&
     knownPrimitive(e.primitive) && objectId(e.targetId) && typeof e.ok === 'boolean' &&
     receipt?.type === 'action' && receipt.at === e.at && knownPrimitive(action?.type) && action.type === e.primitive &&
     objectId(action.targetId) && action.targetId === e.targetId && result?.ok === e.ok &&

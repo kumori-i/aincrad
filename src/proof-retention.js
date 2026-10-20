@@ -1,3 +1,4 @@
+import { matchingResultObject } from './discovery-result-object.js';
 import { CAVES, NPC_RULES } from './config.js';
 import { BIOLOGY_PROFILES, BIOLOGY_RULES } from './biology-config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
@@ -53,7 +54,7 @@ function uniqueIndex(rows, key) {
 // Keep the existing action/sample cross-check exact. In particular, an action
 // with the same target or result text is not a substitute for the original ID.
 function validExperiment(experiment, receipt) {
-  return positiveId(experiment?.id) && positiveId(experiment.actionId) && time(experiment.at) &&
+  return matchingResultObject(experiment,receipt) && positiveId(experiment?.id) && positiveId(experiment.actionId) && time(experiment.at) &&
     DISCOVERY_RULES.primitives.includes(experiment.primitive) && objectId(experiment.targetId) &&
     receipt?.type === 'action' && receipt.at === experiment.at &&
     receipt.details?.action?.type === experiment.primitive && receipt.details.action.targetId === experiment.targetId &&
@@ -308,6 +309,13 @@ export function retainedProofIntegrityError(npc) {
     return 'uncommitted-proof-retirement';
   const index = indexes(npc);
   if (!index) return 'malformed-proof-input';
+  // Validate raw optional relations before any canonicalizer can erase malformed
+  // presence. Ordinary bundle retirement removes the receipt and experiment.
+  if (npc.discovery.experiments.some(e => Object.hasOwn(e, 'resultObjectId') &&
+      !matchingResultObject(e, index.events.get(e.actionId))) ||
+      npc.memory.experience.some(r => r.details?.result && Object.hasOwn(r.details.result, 'resultObjectId') &&
+      !matchingResultObject(index.experimentsByAction.get(r.id), r)))
+    return 'invalid-result-object-relation';
   const feedbackError = legacyFeedbackError(npc, index);
   if (feedbackError) return feedbackError;
   const unknownError = unknownPhysicalError(npc, index);

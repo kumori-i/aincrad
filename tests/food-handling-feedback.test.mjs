@@ -85,12 +85,21 @@ const hashes = {
 function baselineModule(name, replacements = {}) {
   let source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
   if (name === 'discovery-actions.js') source = source
+    // Remove only the later H1 completion-capacity/result-identity additions.
+    .replace(/^const actionActors = new WeakMap\(\);\nexport function retireDiscoveryAction\(npc,active\)\{[\s\S]*?^\}\n/m, '')
+    .replace(/^  actionActors\.set\(npc\.active,npc\);\n/m, '')
+    .replace(/^  if\(actionActors\.get\(active\)!==npc\)\{[^\n]+\n/m, '')
+    .replace(/^    if\(\['grasp','pull'\]\.includes\(request\.type\)\&\&\(npc\.inventory\.items\?\.length\|\|0\)>=DISCOVERY_RULES\.capacity\)\{[\s\S]*?^    \}\n/m, '')
+    .replace(",...(objectId(response?.resultObjectId)?{resultObjectId:response.resultObjectId}:{})", '')
+    .replace(/^      if\(result\.ok\&\&result\.resultObjectId\)\{[\s\S]*?^      \}\n/m, '')
     .replace(/\/\/ Runtime-only witnesses\.[\s\S]*?\n};\n(?=function allowed)/,
       'const done=(complete,npc,request,result,active)=>complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;\n')
     .replace(/^  if\(Number\.isFinite\(npc\.physiology\?\.fatigue\)[\s\S]*?worked:0\}\);\n/m, '')
     .replace(/^    \/\/ A throwing or synchronously cancelling hook[\s\S]*?witness\.worked\+=worked;\n/m, '')
     .replace(/^    if\(terminal\|\|npc\.active!==active\)handlingWitnesses\.delete\(active\);\n/m, '');
   else source = source
+    .replace(', retireDiscoveryAction', '')
+    .replace('  retireDiscoveryAction(npc,active);\n', '')
     // Remove the later drink projection while preserving the original hash.
     .replace('relievePhysiology, projectPhysiology', 'relievePhysiology')
     .replace('      // The immediate transfer changes fullness, not absorbed relief. Keep the\n      // derived body display and original receipt consistent before any save.\n      projectPhysiology(npc);\n', '')
