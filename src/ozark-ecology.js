@@ -9,13 +9,15 @@ import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, life
 import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss } from './plant-lifecycle.js';
 import { getWorldRule } from './world-rules.js';
 import { environmentConditions } from './environment.js';
+import { aquaticEnabled, aquaticEnergy, seedAquaticEcology, tickAquaticEcology, decayAquaticMaterial } from './aquatic-ecology.js';
+import { aquaticError } from './aquatic-state.js';
 
 const GRID = R.habitatGridSize;
 const STEP = R.stepSeconds;
 const ID = /^object:([1-9][0-9]{0,8})$/;
 const ECOLOGY_FIELDS = new Set(['version','distributionVersion','ozarkEcologyVersion','geometryIdentity',
   'ozarkRegionBounds','regionalVersion','seed','elapsed','pending','nextId','plants','animals',
-  'materials','detritus','ledger','lifecycle','births','deaths','regions']);
+  'materials','detritus','ledger','lifecycle','births','deaths','regions','aquatic']);
 const PLANT_FIELDS = new Set(['id','kind','scene','position','capacity','quantity','biomassGrams',
   'moisture','stage','growth','seasonIndex','fallHours','ageDays','lifecycleStage',
   'structureMassGrams','structureKcal','structureWaterMl','recruitedAt','parentMaterialId']);
@@ -26,7 +28,7 @@ const ANIMAL_FIELDS = new Set(['id','species','scene','position','physiology','h
   'actionHours','feelings']);
 const MATERIAL_FIELDS = new Set(['id','kind','materialType','scene','position','heldBy',
   'massGrams','energyKcal','waterMl','createdAt','ageHours','spoiled','digestHours',
-  'toxicity','seedOpportunity','nextGerminationAt']);
+  'toxicity','seedOpportunity','nextGerminationAt','fishOrigin','originFishId','fishTissue']);
 const geometries = new WeakMap();
 const finite = value => Number.isFinite(value);
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -201,11 +203,11 @@ function distributeSoil(ecology) {
 function energy(ecology){
   return ecology.plants.reduce((sum,p)=>sum+(p.kind==='grass'?p.biomassGrams*R.grassKcalPerGram:p.quantity*MATERIALS[p.kind==='apple_tree'?'apple':'berry'].energyKcal)+(p.structureKcal||0),0)+
     ecology.animals.reduce((sum,a)=>sum+a.structureKcal+a.physiology.availableEnergyKcal+a.physiology.storedEnergyKcal+a.physiology.stomach.reduce((v,s)=>v+s.remainingKcal,0),0)+
-    ecology.materials.reduce((sum,m)=>sum+m.energyKcal,0)+ecology.detritus.energyKcal;
+    ecology.materials.reduce((sum,m)=>sum+m.energyKcal,0)+ecology.detritus.energyKcal+aquaticEnergy(ecology);
 }
 
 /** Fresh-only placement; no locations, nutrition or water routes enter actors. */
-export function createOzarkEcology(geometry,seed=CONFIG.seed,elapsed=0) {
+export function createOzarkEcology(geometry,seed=CONFIG.seed,elapsed=0,{finiteAquatic=true}={}) {
   requireGeometry(geometry);
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff||!finite(elapsed)||elapsed<0)throw new RangeError('Invalid Ozark ecology seed or clock');
   const bounds=boundsOf(geometry),ecology={version:R.version,distributionVersion:R.distributionVersion,
@@ -279,6 +281,8 @@ export function createOzarkEcology(geometry,seed=CONFIG.seed,elapsed=0) {
   }
   ecology.detritus.nutrients=Math.max(2500,ecology.plants.length*34);
   distributeSoil(ecology);
+  // Append only after all old land objects, preserving their global IDs.
+  if(finiteAquatic)seedAquaticEcology(ecology,geometry);
   ecology.ledger.initialKcal=energy(ecology);
   return ecology;
 }
@@ -314,7 +318,7 @@ function validateRows(ecology,geometry){
 }
 
 /** Strict new-world restoration. Invalid stock or identity is never repaired. */
-export function validateOzarkEcology(raw,geometry,{seed=CONFIG.seed,elapsed=0}={}) {
+export function validateOzarkEcology(raw,geometry,{seed=CONFIG.seed,elapsed=0,finiteAquatic=aquaticEnabled(raw)}={}) {
   requireGeometry(geometry);
   if(!raw||typeof raw!=='object'||raw.version!==R.version||raw.distributionVersion!==R.distributionVersion||
       raw.ozarkEcologyVersion!==1||raw.geometryIdentity!==geometry.profile.identity||raw.regionalVersion!==1||
@@ -334,6 +338,7 @@ export function validateOzarkEcology(raw,geometry,{seed=CONFIG.seed,elapsed=0}={
       raw.animals.some(o=>Object.keys(o).some(key=>!ANIMAL_FIELDS.has(key)))||
       raw.materials.some(o=>Object.keys(o).some(key=>!MATERIAL_FIELDS.has(key))))
     throw new Error('Protected Ozark ecology: unsupported object field');
+  const fishError=aquaticError(raw,geometry,{enabled:finiteAquatic});if(fishError)throw new Error(`Protected Ozark ecology: ${fishError}`);
   const lifeError=lifecycleError(raw);if(lifeError)throw new Error(`Protected Ozark ecology: ${lifeError}`);
   validateRows(raw,geometry);
   const objects=[...raw.plants,...raw.animals,...raw.materials];
@@ -343,7 +348,7 @@ export function validateOzarkEcology(raw,geometry,{seed=CONFIG.seed,elapsed=0}={
     // Producers and wildlife live on dry passable ground. A hand-held object
     // may be released while its carrier swims or climbs; that occupied
     // footprint remains valid and must survive the next save verbatim.
-    return !radius||(o.kind==='material'||o.kind==='carcass'
+    return !radius||(o.kind==='material'||o.kind==='carcass'||o.kind==='fish_specimen'
       ? !geometry.canOccupy(o.position?.x,o.position?.y,radius)
       : o.species?!walkingSite(geometry,o.position,radius):!drySite(geometry,o.position,radius));
   }))throw new Error('Protected Ozark ecology: invalid object position');
@@ -526,13 +531,15 @@ function animalFood(e,a,environment){
   const sources=nearby(e,a.position,sight).filter(o=>{
     if(a.species==='rabbit')return o.kind==='grass'&&o.biomassGrams>12;
     if(a.species==='bobcat')return o.kind==='carcass'&&o.massGrams>10||o.species==='rabbit';
-    return o.species==='rabbit'||o.kind==='bramble'&&o.quantity>0||o.kind==='material'&&o.materialType!=='grass'&&o.massGrams>10;
+    return o.species==='rabbit'||o.kind==='bramble'&&o.quantity>0||o.kind==='material'&&['apple','berry','flesh'].includes(o.materialType)&&o.massGrams>10;
   }).filter(o=>o!==a);
   sources.sort((x,y)=>distance(x.position,a.position)-distance(y.position,a.position));
   return sources[0]||null;
 }
 function bite(e,a,target){
-  if(target.species)return false;
+  // Exact historical diets: new material kinds never inherit a land diet.
+  const allowed=a.species==='rabbit'?target.kind==='grass':a.species==='bobcat'?target.kind==='carcass'&&target.materialType==='flesh':target.kind==='bramble'||target.kind==='material'&&['apple','berry','flesh'].includes(target.materialType);
+  if(target.species||!allowed)return false;
   const rules=SPECIES[a.species],grams=rules.biteGrams;
   let mass,energy,water;
   if(target.kind==='grass'){
@@ -663,13 +670,18 @@ function tickAnimals(e,dt,environment,agents,callbacks,geometry){
 }
 function materialStep(e,dt,agents){
   for(const m of [...e.materials]){
+    if(decayAquaticMaterial(e,m,dt,agents,(mass,kcal,point)=>addDetritus(e,mass,kcal,point)))continue;
     m.ageHours+=gameHours(dt);m.spoiled=m.ageHours>=MATERIALS[m.materialType].spoilDays*24;
     if(m.spoiled){const fraction=Math.min(1,gameHours(dt)/(R.materialDecayDays*24));
       const mass=m.massGrams*fraction,calories=m.energyKcal*fraction;
       const location=m.heldBy?agents.find(a=>a.id===m.heldBy)?.position||m.position:m.position;
       m.massGrams-=mass;m.energyKcal-=calories;m.waterMl*=1-fraction;addDetritus(e,mass,calories,location);}
     if(m.massGrams<.1){const location=m.heldBy?agents.find(a=>a.id===m.heldBy)?.position||m.position:m.position;
-      addDetritus(e,m.massGrams,m.energyKcal,location);e.materials.splice(e.materials.indexOf(m),1);}
+      addDetritus(e,m.massGrams,m.energyKcal,location);e.materials.splice(e.materials.indexOf(m),1);
+      // V10 saves require exact ownership in both directions even while the
+      // carrier is idle/asleep. Preserve the untouched V9 cleanup behavior.
+      if(aquaticEnabled(e))for(const actor of agents)if(Array.isArray(actor.inventory?.items))actor.inventory.items=actor.inventory.items.filter(id=>id!==m.id);
+    }
   }
   recruitJuveniles(e,geometryForOzarkEcology(e));
   const fraction=gameDays(dt)/10;
@@ -694,6 +706,7 @@ export function tickOzarkEcology(ecology,dt,environment={},agents=[],callbacks={
     growPlants(ecology,STEP,environment,geometry);
     tickAnimals(ecology,STEP,environment,agents,callbacks,geometry);
     materialStep(ecology,STEP,agents);
+    tickAquaticEcology(ecology,STEP,geometry,{deposit:(mass,kcal,point)=>addDetritus(ecology,mass,kcal,point)});
   }
 }
 
@@ -705,5 +718,5 @@ export function ozarkEcologyCoverage(ecology) {
     quadrants[`${object.position.y<0?'north':'south'}${object.position.x<0?'West':'East'}`]++;
   }
   return {regions:GRID*GRID,occupiedRegions:occupied.size,plants:ecology.plants.length,
-    animals:ecology.animals.length,quadrants};
+    animals:ecology.animals.length,fish:ecology.aquatic?.fish.length||0,initialFish:ecology.aquatic?.initialCount||0,quadrants};
 }

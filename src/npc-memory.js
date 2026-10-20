@@ -6,15 +6,15 @@ import { tileKey, tilePoint } from './perception.js';
 import { validateCognition } from './cognition.js';
 import { validateSocialMemory } from './social.js';
 import { rememberDiscoveryObservation,recordDiscoveryOutcome } from './discovery.js';
-import { validateDiscoveryMemory,objectId } from './discovery-state.js';
+import { validateDiscoveryMemory,objectId,discoveryAcquires } from './discovery-state.js';
 import { validatePhysiology,projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { recordEvent, compact, withProofTransaction } from './npc-events.js';
 export { recordEvent } from './npc-events.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
-const OPS=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
-const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','swim','climb','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.primitives]);
+const OPS=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.allPrimitives]);
+const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','swim','climb','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.allPrimitives]);
 const FEATURE_NAMES=new Set(['thirst','hunger','thermal','injured','water','food','sheltered','knownWater','knownFood','knownShelter']);
 const featureBatches=new WeakMap();
 function validFeatureEntry([key,value]){
@@ -227,7 +227,7 @@ export function validateNpc(raw,{restoring=true,canStandAt=canStand,
     if(name==='shelters'){Object.assign(n.memory[name][id],{targetScene:physical.targetScene,relief:finite(s.relief,0,1e6),reliefCredit:finite(s.reliefCredit,0,100),creditedEntryId:ids.has(s.creditedEntryId)?s.creditedEntryId:null});if(Number.isFinite(s.experiencedTemperature)&&n.memory.experience.some(e=>e.details.action?.type==='enter_shelter'&&e.details.action.shelterId===id&&e.details.result?.ok))Object.assign(n.memory[name][id],{experiencedTemperature:clamp(s.experiencedTemperature,-100,100),experiencedAt:finite(s.experiencedAt)});}
   }
   n.inventory={capacity:NPC_RULES.foodCapacity||3,apples:(Array.isArray(raw.inventory?.apples)?raw.inventory.apples:[]).filter((a,index,all)=>all.findIndex(other=>other.eventId===a?.eventId)===index).filter(a=>foodSource(a?.foodId)&&Number.isFinite(a.collectedAt)&&Number.isInteger(a.eventId)&&n.memory.experience.some(e=>e.id===a.eventId&&e.details.action?.type==='gather_food'&&e.details.action.foodId===a.foodId&&e.details.result?.ok&&e.details.result.foodCollected===1)).slice(0,NPC_RULES.foodCapacity||3).map(a=>({foodId:a.foodId,collectedAt:finite(a.collectedAt),eventId:a.eventId}))};
-  if(n.mode==='discovery')n.inventory={capacity:DISCOVERY_RULES.capacity,apples:[],items:[...new Set(Array.isArray(raw.inventory?.items)?raw.inventory.items:[])].filter(objectId).filter(id=>n.discovery.observations[id]&&n.discovery.experiments.some(e=>e.ok&&(e.materialId===id||e.targetId===id&&e.primitive==='grasp'))).slice(0,DISCOVERY_RULES.capacity)};
+  if(n.mode==='discovery')n.inventory={capacity:DISCOVERY_RULES.capacity,apples:[],items:[...new Set(Array.isArray(raw.inventory?.items)?raw.inventory.items:[])].filter(objectId).filter(id=>n.discovery.observations[id]&&n.discovery.experiments.some(e=>discoveryAcquires(e,id))).slice(0,DISCOVERY_RULES.capacity)};
   for(const [key,v] of Object.entries(m.values||{}).slice(-384)){
     const parts=key.split('::');if(parts.length!==2||!CATEGORIES.has(parts[1])||!/^[-a-z|]{1,150}$/.test(parts[0]))continue;
     n.memory.values[key]={attempts:finite(v.attempts),value:Number.isFinite(v.value)?clamp(v.value,-12,12):0};

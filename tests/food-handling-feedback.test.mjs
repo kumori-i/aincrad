@@ -76,14 +76,15 @@ function withoutHandling(n) {
 
 // Reconstruct exact main 3ed43543530c149ec404212aab0d1ef3165648c8 bytes by
 // removing only this patch's additions. Hashes make unrelated edits fail closed;
-// no .git directory, new frozen archive or hand-written baseline is required.
+// The exact pre-aquatic source is frozen in test fixtures; hashes below still
+// pin the earlier main bytes after removing the historical handling delta.
 // The NPC baseline imports the baseline discovery helper, not today's helper.
 const hashes = {
   'discovery-actions.js': '0e210b3ac40f7d5fa0411d94e03aa272d74c229cd8a1d23bc7304205ea5415cc',
   'npc.js': '66f22afe48331bc902d89a1989a6fbfe9bb8eab4d5a4785b88f546e5481bcf73',
 };
 function baselineModule(name, replacements = {}) {
-  let source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
+  let source = readFileSync(new URL(`./fixtures/pre-aquatic-${name}`, import.meta.url), 'utf8');
   if (name === 'discovery-actions.js') source = source
     .replace(/\/\/ Runtime-only witnesses\.[\s\S]*?\n};\n(?=function allowed)/,
       'const done=(complete,npc,request,result,active)=>complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;\n')

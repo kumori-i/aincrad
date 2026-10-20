@@ -10,6 +10,9 @@ import { buildHabitatCorridors, sampleCorridor } from './ecology-corridors.js';
 import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss, juvenileStrikeLoss } from './plant-lifecycle.js';
 import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, lifecycleError, hasLifecyclePayload, PLANT_FIELDS, MATERIAL_FIELDS, stockTolerance, lifecycleStockAudit, lifecycleRestorationError } from './plant-lifecycle-state.js';
 import { geometryForOzarkEcology } from './ozark-ecology.js';
+import { aquaticEnabled, aquaticEnergy, aquaticHabitat, aquaticRevision, captureAquaticFish, pullAquaticTissue, recordAquaticIngestion, recordAquaticDiscard } from './aquatic-ecology.js';
+import { DISCOVERY_RULES } from './discovery-config.js';
+import { hasAquaticPayload } from './aquatic-state.js';
 
 const finite = (v,f=0) => Number.isFinite(v)?v:f;
 const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,finite(v,lo)));
@@ -35,14 +38,14 @@ function plantConditions(e,p){
 const cellKey=(o)=>`${o.scene}:${Math.floor(o.position.x/R.spatialCell)}:${Math.floor(o.position.y/R.spatialCell)}`;
 function invalidateIndex(e){indexes.delete(e);}
 function buildIndex(e){
-  const index={ids:new Map(),cells:new Map(),species:{},elapsed:e.elapsed,plants:e.plants,animals:e.animals,materials:e.materials,lengths:[e.plants.length,e.animals.length,e.materials.length]};
-  for(const o of [...e.plants,...e.animals,...e.materials]){
+  const index={ids:new Map(),cells:new Map(),species:{},elapsed:e.elapsed,plants:e.plants,animals:e.animals,materials:e.materials,aquaticRevision:aquaticRevision(e),lengths:[e.plants.length,e.animals.length,e.materials.length]};
+  for(const o of [...e.plants,...e.animals,...e.materials,...(e.aquatic?.fish||[])]){
     index.ids.set(o.id,o);const key=cellKey(o);if(!index.cells.has(key))index.cells.set(key,new Set());index.cells.get(key).add(o);
     if(o.species)index.species[o.species]=(index.species[o.species]||0)+1;
   }
   indexes.set(e,index);return index;
 }
-function indexFor(e){const i=indexes.get(e);return i&&i.elapsed===e.elapsed&&i.plants===e.plants&&i.animals===e.animals&&i.materials===e.materials&&i.lengths[0]===e.plants.length&&i.lengths[1]===e.animals.length&&i.lengths[2]===e.materials.length?i:buildIndex(e);}
+function indexFor(e){const i=indexes.get(e);return i&&i.aquaticRevision===aquaticRevision(e)&&i.elapsed===e.elapsed&&i.plants===e.plants&&i.animals===e.animals&&i.materials===e.materials&&i.lengths[0]===e.plants.length&&i.lengths[1]===e.animals.length&&i.lengths[2]===e.materials.length?i:buildIndex(e);}
 function nearby(e,point,scene,radius){
   const i=indexFor(e),out=[];
   for(let y=Math.floor((point.y-radius)/R.spatialCell);y<=Math.floor((point.y+radius)/R.spatialCell);y++)for(let x=Math.floor((point.x-radius)/R.spatialCell);x<=Math.floor((point.x+radius)/R.spatialCell);x++)
@@ -256,13 +259,15 @@ function bodyEnergy(p){return Math.max(0,finite(p?.availableEnergyKcal))+Math.ma
 /** An engine audit, never an agent observation. Transfers are counted once. */
 export function ecologyEnergy(e) {
   return (e.plants||[]).reduce((n,p)=>n+plantEnergy(p),0)+(e.animals||[]).reduce((n,a)=>n+a.structureKcal+bodyEnergy(a.physiology),0)+
-    (e.materials||[]).reduce((n,m)=>n+m.energyKcal,0)+finite(e.detritus?.energyKcal);
+    (e.materials||[]).reduce((n,m)=>n+m.energyKcal,0)+finite(e.detritus?.energyKcal)+aquaticEnergy(e);
 }
 export function lookupEcologyObject(e,id) {
   if(!e || typeof id!=='string' || !idPattern.test(id))return null;
   return indexFor(e).ids.get(id)||null;
 }
 function appearance(o){
+  if(o.kind==='fish')return{shape:'small streamlined body with fins',color:'silver-grey',texture:'smooth scales',details:'fins flicking below the surface'};
+  if(o.kind==='fish_specimen')return{shape:o.fishTissue?.massGrams>0?'still scaled body':'bony frame with fins',color:'silver-grey and pale pink',texture:o.fishTissue?.massGrams>0?'scales and exposed soft tissue':'bones and scales',smell:o.spoiled?'sharp and unpleasant':'strong'};
   if(o.species){
     const s=o.species;
     return {shape:s==='rabbit'?'small furry body with long ears':s==='bobcat'?'stocky furry body with a short tail':'slender furry body with a long bushy tail',color:s==='rabbit'?'brown-grey':s==='bobcat'?'mottled brown':'russet and pale',texture:'fur',sound:o.activity==='chasing'?'rapid footfalls':o.activity==='sleeping'?'quiet breathing':'soft rustling'};
@@ -276,13 +281,14 @@ function appearance(o){
   return{shape:m.shape,color:m.color,texture:m.texture,smell:o.spoiled?'sharp and unpleasant':m.smell};
 }
 function publicObject(o){return{id:o.id,scene:o.scene,position:{...o.position},appearance:appearance(o),
-  motion:o.species?(['moving','fleeing','chasing'].includes(o.activity)?'moving':o.activity==='sleeping'?'still with slow breathing':'still'):'still',
-  count:o.species?1:o.kind==='grass'?Math.floor(o.biomassGrams/45):o.kind==='apple_tree'||o.kind==='bramble'?Math.max(0,Math.ceil(o.quantity)):Math.max(1,Math.ceil(o.quantity ?? o.massGrams/100))};}
+  motion:o.kind==='fish'?'moving':o.species?(['moving','fleeing','chasing'].includes(o.activity)?'moving':o.activity==='sleeping'?'still with slow breathing':'still'):'still',
+  count:o.kind==='fish'?1:o.kind==='fish_specimen'?(o.fishTissue?.massGrams>0?1:0):o.species?1:o.kind==='grass'?Math.floor(o.biomassGrams/45):o.kind==='apple_tree'||o.kind==='bramble'?Math.max(0,Math.ceil(o.quantity)):Math.max(1,Math.ceil(o.quantity ?? o.massGrams/100))};}
 /** Sensory data contains no diet, food, calorie, species or edibility labels. */
 export function senseEcology(e,position,scene='valley',radius=400) {
   if(!e||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y))return[];
   const r=clamp(radius,0,1200);
-  return nearby(e,position,scene,r).filter(o=>!o.heldBy).sort((a,b)=>distance(a.position,position)-distance(b.position,position)).slice(0,96).map(publicObject);
+  const geometry=geometryForOzarkEcology(e);
+  return nearby(e,position,scene,r).filter(o=>!o.heldBy&&(o.kind!=='fish'||geometry&&aquaticHabitat(geometry,o.position)&&geometry.lineOfSight(position,o.position))).sort((a,b)=>distance(a.position,position)-distance(b.position,position)).slice(0,96).map(publicObject);
 }
 export function describeEcologyObject(e,id,{actorId}={}) {
   const o=lookupEcologyObject(e,id);if(!o||o.heldBy&&o.heldBy!==actorId)return null;return publicObject(o);
@@ -290,11 +296,11 @@ export function describeEcologyObject(e,id,{actorId}={}) {
 /** Private visual-only projection; controllers must use senseEcology instead. */
 export function renderEcology(e,scene='valley') {
   if(!e)return[];
-  return [...e.plants,...e.animals,...e.materials].filter(o=>o.scene===scene&&!o.heldBy).map(o=>({id:o.id,kind:o.species||o.kind,scene:o.scene,position:{...o.position},x:o.position.x,y:o.position.y,
-    stage:o.stage|| (o.spoiled?'spoiled':'fresh'),structureRatio:o.lifecycleStage==='juvenile'?clamp(o.structureMassGrams/J.maxMassGrams,0,1):undefined,quantity:o.quantity??1,biomass:o.biomassGrams,biomassRatio:o.kind==='grass'?clamp(o.biomassGrams/o.capacity,0,1):undefined,
+  return [...e.plants,...e.animals,...e.materials,...(e.aquatic?.fish||[])].filter(o=>o.scene===scene&&!o.heldBy).map(o=>({id:o.id,kind:o.species||o.kind,scene:o.scene,position:{...o.position},x:o.position.x,y:o.position.y,
+    stage:o.kind==='fish_specimen'&&!(o.fishTissue?.massGrams>0)?'bare':o.stage|| (o.spoiled?'spoiled':'fresh'),structureRatio:o.lifecycleStage==='juvenile'?clamp(o.structureMassGrams/J.maxMassGrams,0,1):undefined,materialType:o.materialType,quantity:o.kind==='fish_specimen'?(o.fishTissue?.massGrams>0?1:0):o.quantity??1,biomass:o.biomassGrams,biomassRatio:o.kind==='grass'?clamp(o.biomassGrams/o.capacity,0,1):undefined,
     moistureRatio:siteModel(e)&&['grass','apple_tree','bramble'].includes(o.kind)?clamp(o.moisture,0,1):undefined,
-    facing:o.species?{x:Math.cos(o.direction),y:Math.sin(o.direction)}:undefined,
-    activity:o.activity||'idle',sleeping:o.species?isSleeping(o):false,shape:appearance(o).shape,color:appearance(o).color}));
+    facing:o.species||o.kind==='fish'?{x:Math.cos(o.direction),y:Math.sin(o.direction)}:undefined,
+    activity:o.kind==='fish'?'moving':o.activity||'idle',sleeping:o.species?isSleeping(o):false,shape:appearance(o).shape,color:appearance(o).color}));
 }
 function addDetritus(e,mass,energy,position,scene='valley'){
   mass=Math.max(0,mass);energy=Math.max(0,energy);
@@ -335,17 +341,41 @@ function death(e,a){
   addMaterial(e,'flesh',a.position,{kind:'carcass',massGrams:mass,energyKcal:energy,waterMl:mass*.7});
   e.animals.splice(e.animals.indexOf(a),1);e.deaths++;invalidateIndex(e);
 }
+/** Engine-only shore interception checks. The aim must be a witnessed observation,
+ * supplied by the timed dispatcher, never reconstructed here from private state. */
+export function preflightEcologyFishCapture(e,id,{actorId,position,scene='valley',aim,inventory}={}){
+  const fail=code=>({ok:false,code,targetId:id});
+  if(!aquaticEnabled(e))return fail('fishing_unavailable');
+  if(!['aster','mira'].includes(actorId)||!Array.isArray(inventory))return fail('invalid_actor');
+  const fish=lookupEcologyObject(e,id),geometry=geometryForOzarkEcology(e);
+  if(!fish||fish.kind!=='fish'||!e.aquatic.fish.includes(fish))return fail('fish_unavailable');
+  if(!geometry||scene!=='valley'||fish.scene!==scene||!Number.isFinite(position?.x)||!Number.isFinite(position?.y)||geometry.classify(position.x,position.y,CONFIG.playerRadius).reason!=='dry-ground')return fail('shore_required');
+  if(fish.heldBy||distance(position,fish.position)>80||!geometry.lineOfSight(position,fish.position)||!aquaticHabitat(geometry,fish.position))return fail('fish_out_of_reach');
+  if(inventory.length>=DISCOVERY_RULES.capacity||inventory.includes(id))return fail('hands_full');
+  if(e.materials.length>=R.maxMaterials)return fail('object_limit');
+  if(!Number.isFinite(aim?.x)||!Number.isFinite(aim?.y)||distance(aim,fish.position)>12)return fail('fish_missed');
+  return {ok:true,physical:fish};
+}
+export function captureEcologyFish(e,id,options={}){
+  const check=preflightEcologyFishCapture(e,id,options);if(!check.ok)return check;
+  // No callbacks or asynchronous boundary between validation and both ownership
+  // halves. A second/reentrant call sees the specimen, never another live fish.
+  const response=captureAquaticFish(e,id,options.actorId,options.position);
+  if(response?.ok){options.inventory.push(id);invalidateIndex(e);}
+  return response;
+}
 /** Engine interaction. Reach and ownership are checked again at completion. */
-export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley',power=1,amount=.02}={}){
+export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley',power=1,amount=.02,inventory}={}){
   const o=lookupEcologyObject(e,id);
   if(!o)return{ok:false,code:'object_missing'};
   if(!['aster','mira'].includes(actorId)||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y)||!['valley',...CAVES.map(c=>c.id)].includes(scene)||(scene!==o.scene||distance(position,o.position)>R.reach)&&o.heldBy!==actorId)return{ok:false,code:'object_out_of_reach'};
   if(o.heldBy&&o.heldBy!==actorId)return{ok:false,code:'object_held_elsewhere'};
   if(verb==='inspect_object')return{ok:true,code:'object_observed',targetId:id,object:publicObject(o)};
   if(verb==='grasp'){
-    if(o.species)return{ok:false,code:'object_resists_grasp',targetId:id};
-    if(o.kind!=='material'&&o.kind!=='carcass')return{ok:false,code:'object_still_attached',targetId:id};
+    if(o.species||o.kind==='fish')return{ok:false,code:'object_resists_grasp',targetId:id};
+    if(o.kind!=='material'&&o.kind!=='carcass'&&o.kind!=='fish_specimen')return{ok:false,code:'object_still_attached',targetId:id};
     if(o.kind==='carcass')return{ok:false,code:'object_too_heavy',targetId:id};
+    if(inventory&&inventory.length>=DISCOVERY_RULES.capacity&&!inventory.includes(id))return{ok:false,code:'hands_full',targetId:id};
     o.heldBy=actorId;return{ok:true,code:'object_held',targetId:id,materialId:id,material:{id}};
   }
   if(verb==='release'){
@@ -357,7 +387,14 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
     o.heldBy=null;o.position={...position};o.scene=scene;invalidateIndex(e);return{ok:true,code:'object_released',targetId:id};
   }
   if(verb==='pull'){
-    if(o.species)return{ok:false,code:'object_resists_pull',targetId:id};
+    if(inventory&&inventory.length>=DISCOVERY_RULES.capacity)return{ok:false,code:'hands_full',targetId:id};
+    if(o.kind==='fish_specimen'){
+      if(!Array.isArray(inventory))return{ok:false,code:'inventory_required',targetId:id};
+      const response=pullAquaticTissue(e,o,actorId,position);
+      if(response.ok)invalidateIndex(e);
+      return response;
+    }
+    if(o.species||o.kind==='fish')return{ok:false,code:'object_resists_pull',targetId:id};
     if(o.kind==='carcass'){
       const grams=Math.min(100,o.massGrams),fraction=grams/o.massGrams;
       if(grams<1)return{ok:false,code:'nothing_detached',targetId:id};
@@ -404,8 +441,9 @@ export function consumeEcologyMaterial(e,id,amount=.02,{actorId,accept}={}){
   const material={energyKcal,waterMl,massGrams,digestHours:m.digestHours,toxicity:m.toxicity+(m.spoiled?.3:0),objectId:m.id};
   const ingestion=typeof accept==='function'?accept({...material}):null;
   if(ingestion&&ingestion.ok!==true)return{ok:false,code:ingestion.code||'cannot_swallow',ingestion};
+  recordAquaticIngestion(e,m,{massGrams,energyKcal,waterMl});
   m.energyKcal-=energyKcal;m.waterMl-=waterMl;m.massGrams-=massGrams;e.ledger.humanRemovedKcal+=energyKcal;
-  if(m.massGrams<.1){e.ledger.discardedKcal+=m.energyKcal;removeMaterial(e,m);}
+  if(m.massGrams<.1){recordAquaticDiscard(e,m,{massGrams:m.massGrams,energyKcal:m.energyKcal,waterMl:m.waterMl});e.ledger.discardedKcal+=m.energyKcal;removeMaterial(e,m);}
   return{ok:true,code:'object_sampled',material,materialId:id,remaining:!!lookupEcologyObject(e,id),...(ingestion?{ingestion}:{})};
 }
 function season(e,environment){const absolute=R.startSeasonDay+e.elapsed/CONFIG.dayRealSeconds/getWorldRule(environment,'seasonLengthMultiplier');return{day:absolute%R.yearDays,index:Math.floor(absolute/R.yearDays)};}
@@ -632,6 +670,7 @@ function travel(a,destination,dt,stopDistance=0,elapsed=0){
   return moved;
 }
 function consumeForAnimal(e,a,source,grams){
+  if(source.materialType&&!['apple','berry','grass','flesh'].includes(source.materialType))return false;
   let energy=0,water=0,mass=0;
   if(source.kind==='grass'){
     mass=Math.min(grams,source.biomassGrams);energy=mass*R.grassKcalPerGram;water=mass*R.grassWaterPerGram;
@@ -652,7 +691,7 @@ function consumeForAnimal(e,a,source,grams){
 }
 function selectFood(e,a,environment){
   const rules=SPECIES[a.species],sight=rules.sight*getWorldRule(environment,'animalForagingRangeMultiplier'),local=nearby(e,a.position,a.scene,sight),availablePlants=p=>p.kind==='grass'?p.biomassGrams>10:p.quantity>0;
-  const availableMaterials=m=>!m.heldBy&&m.massGrams>1&&(a.species==='rabbit'?m.materialType!=='flesh':a.species==='bobcat'?m.materialType==='flesh':m.materialType!=='grass');
+  const availableMaterials=m=>!m.heldBy&&m.massGrams>1&&(a.species==='rabbit'?['apple','berry','grass'].includes(m.materialType):a.species==='bobcat'?m.materialType==='flesh':['apple','berry','flesh'].includes(m.materialType));
   const detachedFood=nearest(local,a,o=>o.materialType&&availableMaterials(o),sight);
   if(a.species==='bobcat')return detachedFood;
   const growingFood=nearest(local,a,p=>['grass','apple_tree','bramble'].includes(p.kind)&&availablePlants(p)&&(a.species==='rabbit'?p.kind==='grass':p.kind!=='grass'),sight);
@@ -781,6 +820,7 @@ export function tickEcology(e,dt,environment={},agents=[],callbacks={}){
 }
 /** Bounded data-only disk restoration; no arbitrary species, scripts or nutrition. */
 export function validateEcology(raw,{seed=CONFIG.seed,elapsed=0,connectedEcology=false}={}){
+  if(raw&&hasAquaticPayload(raw))throw new Error('Protected historical save: aquatic payload is not enabled');
   const lifecyclePresent=hasLifecyclePayload(raw);
   if(connectedEcology&&raw?.ecosystemModelVersion!==1)throw new Error('Protected connected ecology save: missing model marker');
   if(!connectedEcology&&raw?.ecosystemModelVersion!=null)throw new Error('Protected connected ecology save: unexpected model marker');

@@ -127,7 +127,7 @@ export function requestNpcAction(npc,raw,environment={}){
   if(npc.lifecycle!=='AWAKE')return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   if(npc.mode==='discovery'&&isSleeping(npc))return{ok:false,code:'ASLEEP'};
-  if(npc.mode==='discovery'&&DISCOVERY_RULES.primitives.includes(raw?.type))return requestDiscoveryAction(npc,raw,environment,{complete});
+  if(npc.mode==='discovery'&&DISCOVERY_RULES.allPrimitives.includes(raw?.type))return requestDiscoveryAction(npc,raw,environment,{complete});
   const request=cleanRequest(raw,npc),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
   if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
   if(['swim','climb'].includes(request.type)&&!ozarkPersistentWorldAgent(npc))return complete(npc,request,{ok:false,code:'UNSUPPORTED_TERRAIN_ACTION'},context,startPosition);

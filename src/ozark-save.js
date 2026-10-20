@@ -12,7 +12,8 @@ import { retainedProofIntegrityError } from './proof-retention.js';
 import { ozarkWaterSource } from './ozark-water-sources.js';
 
 export const OZARK_SAVE_KEY = 'aincrad.ozark.v1';
-export const OZARK_SAVE_VERSION = 9;
+export const OZARK_SAVE_VERSION = 10;
+export const OZARK_PRE_AQUATIC_SAVE_VERSION = 9;
 const MAX_ELAPSED = 3600 * 100000;
 const MAX_DISTANCE = 1e12;
 const AGENT_IDS = Object.freeze(['aster', 'mira']);
@@ -256,13 +257,80 @@ function validateWaypoint(point, geometry) {
   return { x: point.x, y: point.y };
 }
 
+function finiteAquaticMode(raw) {
+  if (raw?.version === OZARK_PRE_AQUATIC_SAVE_VERSION &&
+      exactKeys(raw.features, ['plantLifecycle']) &&
+      raw.features.plantLifecycle === 1) return false;
+  if (raw?.version === OZARK_SAVE_VERSION &&
+      exactKeys(raw.features, ['plantLifecycle', 'finiteAquatic']) &&
+      raw.features.plantLifecycle === 1 && raw.features.finiteAquatic === 1) return true;
+  fail('unsupported version or feature combination');
+}
+
+function hasCatchEvidence(actor) {
+  return actor?.active?.request?.type === 'catch' ||
+    Object.hasOwn(actor?.discovery?.practice || {}, 'catch') ||
+    Object.keys(actor?.discovery?.trials || {}).some(key => key.endsWith('|catch')) ||
+    (actor?.discovery?.experiments || []).some(row => row?.primitive === 'catch') ||
+    (actor?.memory?.experience || []).some(row => row?.details?.action?.type === 'catch') ||
+    (actor?.discovery?.reports || []).some(row =>
+      (row?.proposed || []).some(step => step?.type === 'catch'));
+}
+
+// Cross the physical and experiential boundaries in one direction only: proof
+// validates actual possession; it can never create an object or supply a catch.
+function assertAquaticOwnership(ecology, actors) {
+  const materials = new Map(ecology.materials.map(item => [item.id, item]));
+  const owners = new Map();
+  for (const actor of actors) {
+    for (const id of actor.inventory.items) {
+      const item = materials.get(id);
+      if (!item || item.heldBy !== actor.id || owners.has(id))
+        fail('inventory and physical material ownership disagree');
+      owners.set(id, actor.id);
+    }
+  }
+  for (const item of ecology.materials) {
+    if (item.heldBy !== null && owners.get(item.id) !== item.heldBy)
+      fail('a held material lacks exactly one matching inventory');
+    if (!item.fishOrigin || item.heldBy === null) continue;
+    const actor = actors.find(row => row.id === item.heldBy);
+    const acquisitions = actor.discovery.experiments.filter(row => row.ok &&
+      row.materialId === item.id &&
+      (row.primitive === 'grasp' && row.targetId === item.id ||
+       item.kind === 'fish_specimen' && row.primitive === 'catch' && row.targetId === item.id ||
+       item.materialType === 'fish_tissue' && row.primitive === 'pull' &&
+         row.targetId === item.originFishId));
+    const acquisition = acquisitions.sort((a, b) => a.actionId - b.actionId).at(-1);
+    const receipt = actor.memory.experience.find(row => row.id === acquisition?.actionId);
+    const result = receipt?.details?.result;
+    if (!acquisition || receipt?.type !== 'action' || receipt.at !== acquisition.at ||
+        receipt.details.action?.type !== acquisition.primitive ||
+        receipt.details.action?.targetId !== acquisition.targetId ||
+        result?.ok !== true || result.code !== acquisition.code ||
+        result.code !== ({ catch: 'object_caught', grasp: 'object_held',
+          pull: 'piece_detached' })[acquisition.primitive] ||
+        result.materialId !== item.id ||
+        !finite(acquisition.durationSeconds, Number.MIN_VALUE, 30) ||
+        acquisition.at + 1e-8 < acquisition.durationSeconds ||
+        result.durationSeconds !== acquisition.durationSeconds ||
+        result.handling?.source !== 'experienced' ||
+        result.handling.activeActionSeconds !== acquisition.durationSeconds ||
+        !['rising', 'steady'].includes(result.handling.effort) ||
+        actor.memory.experience.some(row => row.id > acquisition.actionId &&
+          row.type === 'action' && row.details?.action?.type === 'release' &&
+          row.details.action.targetId === item.id && row.details.result?.ok === true)) {
+      fail('held aquatic material lacks its owner’s actual timed acquisition proof');
+    }
+  }
+}
+
 function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   assertGeometry(geometry);
+  const finiteAquatic = finiteAquaticMode(raw);
   const keys = Object.hasOwn(raw || {}, 'npc') ? [...ENVELOPE_KEYS, 'npc'] : ENVELOPE_KEYS;
-  if (!exactKeys(raw, keys) || raw.version !== OZARK_SAVE_VERSION ||
+  if (!exactKeys(raw, keys) ||
       raw.geometryIdentity !== OZARK_WORLD_PROFILE.identity ||
-      !exactKeys(raw.features, ['plantLifecycle']) ||
-      raw.features.plantLifecycle !== 1 ||
       raw.simulationMode !== 'discovery' || raw.scene !== 'valley' ||
       !finite(raw.elapsed, 0, MAX_ELAPSED) ||
       !finite(raw.distance, 0, MAX_DISTANCE) ||
@@ -273,7 +341,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
       raw.environment.seed !== OZARK_WORLD_PROFILE.seed ||
       raw.environment.elapsed !== raw.elapsed ||
       !plain(raw.environment.ecology)) {
-    fail('world identity or physical envelope does not match Ozark version 9');
+    fail('world identity or physical envelope does not match its Ozark save version');
   }
   if (Object.hasOwn(raw, 'npc') && raw.npc !== raw.agents[0]) {
     fail('the live historical Aster alias is inconsistent');
@@ -283,6 +351,8 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   const records = new Map(raw.agents.map(actor => [actor?.id, actor]));
   if (records.size !== AGENT_IDS.length ||
       AGENT_IDS.some(id => !records.has(id))) fail('both original agents are required');
+  if (!finiteAquatic && raw.agents.some(hasCatchEvidence))
+    fail('aquatic action evidence is not supported in a version 9 world');
   const agents = AGENT_IDS.map(id =>
     checkActor(records.get(id), id, raw.elapsed, geometry, restoring));
   const environment = validateEnvironment(raw.environment, {
@@ -291,17 +361,20 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
       validateOzarkEcology(rawEcology, geometry, {
         seed: context.seed ?? OZARK_WORLD_PROFILE.seed,
         elapsed: context.elapsed ?? raw.elapsed,
+        finiteAquatic,
       }),
   });
   if (!environment.ecology ||
       environment.ecology.geometryIdentity !== OZARK_WORLD_PROFILE.identity) {
     fail('ecology identity does not match the playable world');
   }
+  if (finiteAquatic) assertAquaticOwnership(environment.ecology, agents);
   const community = validateCommunity(raw.community);
   return {
-    version: OZARK_SAVE_VERSION,
+    version: raw.version,
     geometryIdentity: OZARK_WORLD_PROFILE.identity,
-    features: { plantLifecycle: 1 }, simulationMode: 'discovery',
+    features: finiteAquatic ? { plantLifecycle: 1, finiteAquatic: 1 } :
+      { plantLifecycle: 1 }, simulationMode: 'discovery',
     scene: 'valley', player: { x: raw.player.x, y: raw.player.y },
     playerBody, elapsed: raw.elapsed, distance: raw.distance,
     agents, npc: agents[0], environment, community,
@@ -319,11 +392,11 @@ export function createOzarkState(geometry) {
     return actor;
   });
   const environment = createEnvironment(seed, { mode: 'discovery', populate: false });
-  environment.ecology = createOzarkEcology(geometry, seed, 0);
+  environment.ecology = createOzarkEcology(geometry, seed, 0, { finiteAquatic: true });
   const state = {
     version: OZARK_SAVE_VERSION,
     geometryIdentity: OZARK_WORLD_PROFILE.identity,
-    features: { plantLifecycle: 1 }, simulationMode: 'discovery',
+    features: { plantLifecycle: 1, finiteAquatic: 1 }, simulationMode: 'discovery',
     scene: 'valley', player: { ...geometry.spawn },
     playerBody: { wetness: 0, effort: 0, stamina: 100, health: 100 },
     elapsed: 0, distance: 0, agents, npc: agents[0], environment,

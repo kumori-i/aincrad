@@ -1,0 +1,74 @@
+name: Finite aquatic native QA
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/finite-aquatic-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/verify-aquatic-desktop.mjs'
+      - 'scripts/build.mjs'
+      - 'tests/aquatic-*.test.mjs'
+      - 'tests/fixtures/finite-fishing.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-aquatic:
+    strategy:
+      fail-fast: false
+      # Same bounded sandbox-preserving Linux runner as the existing recovered
+      # profile native gate. Replace before the runner's announced retirement.
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Install a real Linux test window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Exercise sandboxed Linux capture, rendering, lifecycle and disk reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-aquatic-openbox.log" 2>&1 & node scripts/verify-aquatic-desktop.mjs'
+      - name: Exercise Windows capture, rendering, lifecycle and disk reopen
+        if: runner.os == 'Windows'
+        run: node scripts/verify-aquatic-desktop.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finite-aquatic-native-${{ runner.os }}
+          path: test-results/aquatic-desktop/
+          if-no-files-found: warn
+          retention-days: 7
+  native-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify the declared native local-policy chain and earned same-piece reuse
+        shell: bash
+        env:
+          AINCRAD_NATIVE_AQUATIC: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/aquatic-policy
+          node --test tests/aquatic-discovery.test.mjs 2>&1 | tee test-results/aquatic-policy/native-policy.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finite-aquatic-native-policy
+          path: test-results/aquatic-policy/
+          if-no-files-found: warn
+          retention-days: 7

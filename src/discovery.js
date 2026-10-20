@@ -8,7 +8,7 @@ import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { recordEvent, withProofTransaction } from './npc-events.js';
 import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
-import { ozarkAgentWorld, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { ozarkAgentWorld, ozarkPersistentWorldAgent, ozarkFiniteAquaticAgent } from './ozark-agent-world.js';
 import { explorationFrontier } from './cognition.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
@@ -21,7 +21,19 @@ export function rememberDirectDiscoveryObject(npc,raw){
   const object=cleanSensoryObject({...raw,observedAt:npc.elapsed});if(!object)return;
   memory(npc).observations[object.id]=object;
   let sightings=firsthandSightings.get(npc);if(!sightings){sightings=new Map();firsthandSightings.set(npc,sightings);}
-  sightings.set(object.id,{at:object.observedAt,scene:object.scene,count:object.count,position:object.position});
+  sightings.set(object.id,{at:object.observedAt,scene:object.scene,count:object.count,position:{...object.position}});
+}
+// Only an actual observation in this runtime can supply a fixed interception aim.
+// Saves, testimony and externally supplied coordinates cannot recreate it.
+export function recentDiscoveryAim(npc,id){
+  const sight=firsthandSightings.get(npc)?.get(id),object=npc.discovery?.observations?.[id];
+  if(!sight||!object||sight.scene!==npc.scene||object.scene!==sight.scene||
+    !Number.isFinite(sight.at)||sight.at>npc.elapsed||npc.elapsed-sight.at>DISCOVERY_RULES.catchObservationMaxAge||
+    object.observedAt!==sight.at||object.position.x!==sight.position.x||object.position.y!==sight.position.y)return null;
+  return {...sight.position};
+}
+export function discoveryPrimitives(npc){
+  return ozarkFiniteAquaticAgent(npc)?DISCOVERY_RULES.allPrimitives:DISCOVERY_RULES.primitives;
 }
 export function rememberDiscoveryObservation(npc,objects=[]){
   const d=memory(npc);if(!d.search.home)d.search.home={...npc.position};
@@ -34,7 +46,7 @@ export function recordDiscoveryOutcome(npc,action,result,event){
   return withProofTransaction(npc,()=>recordDiscoveryOutcomeLinked(npc,action,result,event));
 }
 function recordDiscoveryOutcomeLinked(npc,action,result,event){
-  if(!DISCOVERY_RULES.primitives.includes(action?.type))return;
+  if(!DISCOVERY_RULES.allPrimitives.includes(action?.type))return;
   const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
@@ -50,7 +62,7 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   return experiment;
 }
 function sampleAcquisition(d,sample){
-  return d.experiments.filter(e=>e.ok&&e.materialId===sample.targetId&&e.id<sample.id).at(-1)||d.experiments.filter(e=>e.ok&&e.primitive==='grasp'&&e.targetId===sample.targetId&&e.id<sample.id).at(-1);
+  return d.experiments.filter(e=>e.ok&&e.id<sample.id&&(e.primitive==='pull'&&e.materialId===sample.targetId||e.primitive==='grasp'&&e.targetId===sample.targetId)).at(-1);
 }
 const processingFeedback=new WeakSet();
 function seenFeedback(d,key){d.seenFeedback.push(key);d.seenFeedback=d.seenFeedback.slice(-128);}
@@ -239,6 +251,8 @@ function recentlyFailed(npc,type,id){
 }
 function availabilityBlocked(npc,type,id){
   const d=memory(npc),sight=firsthandSightings.get(npc)?.get(id),object=d.observations[id];
+  // A visibly bare object has no exposed parts to pull. This is perception, not nutrition.
+  if(type==='pull'&&ozarkFiniteAquaticAgent(npc)&&object?.count===0)return true;
   const cache=availabilityScans.get(npc);let failure=cache?.get(id);
   if(!failure){
     let gone=-1,depleted=-1;
@@ -250,7 +264,7 @@ function availabilityBlocked(npc,type,id){
       if(code==='OBJECT_GONE')gone=Math.max(gone,at);
       if(code==='nothing_detached'&&primitive==='pull')depleted=Math.max(depleted,at);
     };
-    for(const primitive of DISCOVERY_RULES.primitives){
+    for(const primitive of DISCOVERY_RULES.allPrimitives){
       const trial=d.trials?.[`${id}|${primitive}`];
       if(trial)consider(trial.lastAt,trial.lastCode,primitive,trial.lastOk);
     }
@@ -415,16 +429,19 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       'My mouth is dry; I can search another edge of ground I have actually seen.','water');
   }
   const traversal=waterEscape||terrainTraversalDecision(npc);
-  if(traversal)return wrap(traversal.action,traversal.reason,traversal.need);
-  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
+  if(traversal&&(!ozarkFiniteAquaticAgent(npc)||traversal.need!=='understanding'))return wrap(traversal.action,traversal.reason,traversal.need);
+  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(discoveryPrimitives(npc).includes(step.type)&&!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||actorLineOfSight(npc,npc.position,o.position)));
   const choices=[];
   for(const object of objects){
     const held=npc.inventory.items.includes(object.id),near=held||distance(npc.position,object.position)<=DISCOVERY_RULES.reach;
     if(!near)continue;
-    for(const type of DISCOVERY_RULES.primitives){
+    for(const type of discoveryPrimitives(npc)){
       if(['release','sample'].includes(type)&&!held)continue;
-      if(['grasp','pull'].includes(type)&&(held||npc.inventory.items.length>=DISCOVERY_RULES.capacity))continue;
+      if(['grasp','catch'].includes(type)&&held)continue;
+      if(type==='pull'&&held&&!ozarkFiniteAquaticAgent(npc))continue;
+      if(['grasp','pull','catch'].includes(type)&&npc.inventory.items.length>=DISCOVERY_RULES.capacity)continue;
+      if(type==='catch'&&!recentDiscoveryAim(npc,object.id))continue;
       const trial=d.trials?.[`${object.id}|${type}`]||{attempts:0,failures:0,lastAt:0,lastCode:''},failures=trial.failures;
       if(recentlyFailed(npc,type,object.id)||availabilityBlocked(npc,type,object.id))continue;
       if(type==='sample'&&!sampleEligible(npc,object.id,body,foodLearning))continue;
@@ -432,6 +449,10 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       choices.push({action:{type,targetId:object.id},score:novelty-failures*3+(type==='inspect_object'&&!trial.attempts?1:0)+random(npc)*(trial.attempts?.2:2)});
     }
   }
+  // Only optional terrain curiosity yields to generic nearby body operations
+  // in the new feature. Safety escapes and bodily care already returned above;
+  // no target kind, food benefit or catch-specific score participates here.
+  if(traversal&&!choices.length)return wrap(traversal.action,traversal.reason,traversal.need);
   // Movement competes with object trials. Repeatedly striking/inspecting a familiar
   // patch cannot block an unfamiliar nearby object or a remembered frontier forever.
   const targets=objects.filter(o=>distance(o.position,npc.position)>DISCOVERY_RULES.reach&&!availabilityBlocked(npc,'inspect_object',o.id)).map(o=>({o,score:5/(1+Object.entries(d.trials||{}).filter(([key])=>key.startsWith(`${o.id}|`)).reduce((sum,[,t])=>sum+t.attempts,0))-distance(o.position,npc.position)/1500+random(npc)})).sort((a,b)=>b.score-a.score);

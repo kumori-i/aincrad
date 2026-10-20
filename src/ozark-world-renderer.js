@@ -89,6 +89,23 @@ function objectsNear(state, bounds) {
     object.y >= bounds.top - 180 && object.y <= bounds.bottom + 100);
 }
 
+/** Private presentation projection for actual possessions, never remembered
+ * objects. A live fish cannot appear in a hand; no inventory-only ghost draws. */
+export function heldAquaticSprites(state, actor) {
+  if (state?.environment?.ecology?.aquatic?.version !== 1 || !actor?.inventory?.items) return [];
+  const held = new Set(actor.inventory.items);
+  return (state.environment.ecology.materials || []).filter(item =>
+    item.heldBy === actor.id && held.has(item.id) && item.scene === actor.scene &&
+    (item.kind === 'fish_specimen' || item.materialType === 'fish_tissue'))
+    .map((item, index) => ({ id: item.id, kind: item.kind,
+      materialType: item.materialType, x: actor.position.x + 18 + index * 7,
+      y: actor.position.y - 29 + index * 7,
+      stage: item.kind === 'fish_specimen' && !(item.fishTissue?.massGrams > 0) ?
+        'bare' : item.spoiled ? 'spoiled' : 'fresh',
+      quantity: item.kind === 'fish_specimen' ? (item.fishTissue?.massGrams > 0 ? 1 : 0) : 1,
+    }));
+}
+
 /** The new-world renderer never reads historical valley art or landmarks. */
 export class OzarkWorldRenderer {
   constructor(target, geometry) {
@@ -307,7 +324,11 @@ export class OzarkWorldRenderer {
       else if (object.kind === 'player') drawAvatar(g, state.player,
         anim.facing ?? DEFAULT_ANIM.facing, anim.time ?? time,
         Boolean(anim.moving), 'valley');
-      else drawNpc(g, object.agent, time);
+      else {
+        drawNpc(g, object.agent, time);
+        for (const held of heldAquaticSprites(state, object.agent))
+          drawEcologyObject(g, held, time, subject);
+      }
     }
     const footing = this.geometry.classify(state.player.x, state.player.y,
       CONFIG.playerRadius, 'walk');

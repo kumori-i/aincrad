@@ -3,13 +3,13 @@ import { distance, canStand } from './world.js';
 import { tileKey, rememberedCells, rememberedEdges } from './perception.js';
 import { knownRoute } from './navigation.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
-import { ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { ozarkPersistentWorldAgent, ozarkFiniteAquaticAgent } from './ozark-agent-world.js';
 
 export const DRIVE_NAMES=['survival','safety','belonging','competence','understanding','creativity','purpose','contribution'];
 const text=(value,max=240)=>typeof value==='string'?value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').slice(0,max):'';
 const number=(value,fallback=0,max=1e10)=>Number.isFinite(value)?Math.max(0,Math.min(max,value)):fallback;
 const point=value=>value&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Math.abs(value.x)<=24000&&Math.abs(value.y)<=24000?{x:value.x,y:value.y}:null;
-const PHYSICAL=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','inspect_object','grasp','release','pull','sample','strike']);
+const PHYSICAL=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','inspect_object','grasp','release','pull','sample','strike','catch']);
 const SOCIAL=new Set(['say','ask_human','journal_reply','write_note','read_note']);
 
 /** Motives, claims and intentions are persistent data, never executable instructions. */
@@ -77,9 +77,10 @@ export function cognitiveObservation(npc){const c=updateCognition(npc);return {d
 export function cognitiveAction(npc,raw,{restoring=false}={}){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||!PHYSICAL.has(raw.type)&&!SOCIAL.has(raw.type))return null;const out={type:raw.type};
   if(npc.mode==='discovery'){
+    if(raw.type==='catch'&&!ozarkFiniteAquaticAgent(npc))return null;
     if(['gather_food','eat'].includes(raw.type)||raw.foodId!==undefined)return null;
-    if(['inspect_object','grasp','release','pull','sample','strike'].includes(raw.type))return typeof raw.targetId==='string'&&/^object:\d{1,9}$/.test(raw.targetId)&&(npc.discovery?.observations?.[raw.targetId]||npc.inventory?.items?.includes(raw.targetId))?{type:raw.type,targetId:raw.targetId}:null;
-  }else if(['inspect_object','grasp','release','pull','sample','strike'].includes(raw.type))return null;
+    if(['inspect_object','grasp','release','pull','sample','strike','catch'].includes(raw.type))return typeof raw.targetId==='string'&&/^object:\d{1,9}$/.test(raw.targetId)&&(npc.discovery?.observations?.[raw.targetId]||npc.inventory?.items?.includes(raw.targetId))?{type:raw.type,targetId:raw.targetId}:null;
+  }else if(['inspect_object','grasp','release','pull','sample','strike','catch'].includes(raw.type))return null;
   const refs=['sourceId','foodId','shelterId'].filter(key=>raw[key]!==undefined);if(refs.length>1)return null;
   if(['swim','climb'].includes(raw.type)&&(!ozarkPersistentWorldAgent(npc)||refs.length))return null;
   for(const key of refs){const table=key==='sourceId'?'sources':key==='foodId'?'foods':'shelters';if(typeof raw[key]!=='string'||!npc.memory[table]?.[raw[key]])return null;out[key]=raw[key];}
@@ -109,6 +110,9 @@ function routeSeconds(npc,route){let previous=npc.position,total=0;for(const p o
 function planArchive(npc,plan,status,reason){const c=cognition(npc);plan.status=status;plan.stepsFinished=plan.cursor>=plan.steps.length;plan.goalVerified=status==='completed'&&plan.verification!=='model';plan.outcome=text(reason,180);c.history.push({id:plan.id,goal:plan.goal,status,at:npc.elapsed,reason:plan.outcome});c.history=c.history.slice(-12);}
 export function cancelPlan(npc,reason='Conditions changed'){const plan=cognition(npc).plan;if(plan?.status==='active')planArchive(npc,plan,'interrupted',reason);}
 export function adoptPlan(npc,raw,{supplied=false}={}){
+  // V1 interception is direct-only: a persisted plan cannot carry the recent
+  // runtime observation/work witness or establish a reusable capture recipe.
+  if(Array.isArray(raw?.steps)&&raw.steps.some(step=>step?.type==='catch'))return null;
   const c=cognition(npc);if(!raw||!Array.isArray(raw.steps)||raw.steps.length<3||raw.steps.length>6||!DRIVE_NAMES.includes(raw.need)||!text(raw.goal,160))return null;
   const steps=raw.steps.map(a=>cognitiveAction(npc,a));if(steps.some(a=>!a))return null;
   const cells=rememberedCells(npc),lastTarget=steps.filter(a=>a.type==='move'&&a.target).map(a=>a.target).sort((a,b)=>distance(b,npc.position)-distance(a,npc.position))[0]||npc.position;

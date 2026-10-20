@@ -8,6 +8,7 @@ import { environmentConditions } from './environment.js';
 
 const worlds = new WeakMap();
 const persistentWorlds = new WeakSet();
+const finiteAquaticWorlds = new WeakSet();
 
 export function bindOzarkAgentWorld(npc, geometry, { position = geometry?.spawn } = {}) {
   if (npc?.mode !== 'discovery' || npc.scene !== 'valley' || npc.elapsed !== 0 ||
@@ -59,11 +60,20 @@ export function bindOzarkWorldAgent(npc, geometry, state) {
   if (bound && bound !== geometry) throw new TypeError('Ozark agent is already bound to another physical world');
   worlds.set(npc, geometry);
   persistentWorlds.add(npc);
+  // Engine-only capability. It conveys a supplied motor menu, never a target,
+  // position, nutritional value, or recipe to the actor. Old v9 worlds retain
+  // their old menu even though this release knows aquatic material types.
+  if (state.version === 10 && state.features?.plantLifecycle === 1 &&
+      state.features?.finiteAquatic === 1 &&
+      Object.keys(state.features).length === 2 &&
+      state.environment?.ecology?.aquatic?.version === 1) finiteAquaticWorlds.add(npc);
+  else finiteAquaticWorlds.delete(npc);
   return npc;
 }
 
 export function ozarkAgentWorld(npc) { return worlds.get(npc) || null; }
 export function ozarkPersistentWorldAgent(npc) { return persistentWorlds.has(npc); }
+export function ozarkFiniteAquaticAgent(npc) { return finiteAquaticWorlds.has(npc); }
 
 export function ozarkAgentLineOfSight(npc, from, to) {
   const geometry = ozarkAgentWorld(npc);

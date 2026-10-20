@@ -2,6 +2,7 @@
  * old materials acquire no seed opportunity. This is an engine/save contract. */
 import { CONFIG, CAVES } from './config.js';
 import { ECOLOGY_RULES as R, ECOLOGY_MATERIALS as MATERIALS } from './ecology-config.js';
+import { aquaticMaterialError, aquaticEnabled, isAquaticMaterial } from './aquatic-state.js';
 import { JUVENILE_RULES as J } from './plant-lifecycle.js';
 export const PLANT_FIELDS = Object.freeze(['lifecycleStage','structureMassGrams','structureKcal','structureWaterMl','recruitedAt','parentMaterialId']);
 export const MATERIAL_FIELDS = Object.freeze(['seedOpportunity','nextGerminationAt']);
@@ -39,7 +40,7 @@ export function lifecycleError(e){
  if(Object.keys(l).some(k=>k!=='version'&&!LIFE_COUNTERS.includes(k)))return 'Unsupported lifecycle field';
  if(LIFE_COUNTERS.some(k=>!own(l,k)||!valid(l[k]))||integerCounters.some(k=>!Number.isSafeInteger(l[k])))return 'Invalid lifecycle accounting';
  const seen=new Set(),parents=new Set();
- for(const o of [...e.plants,...e.materials,...e.animals]){if(!id(o?.id)||seen.has(o.id))return 'Invalid or duplicate object identity';seen.add(o.id);}
+ for(const o of [...e.plants,...e.materials,...e.animals,...(Array.isArray(e.aquatic?.fish)?e.aquatic.fish:[])]){if(!id(o?.id)||seen.has(o.id))return 'Invalid or duplicate object identity';seen.add(o.id);}
  for(const p of e.plants){
   const capacity=p.lifecycleStage==='juvenile'?0:p.kind==='grass'?R.grassCapacityGrams:p.kind==='apple_tree'?10:28;
   if(p.scene!=='valley'||!point(p.position)||p.capacity!==capacity||!Number.isSafeInteger(p.quantity)||p.quantity<0||p.quantity>(p.kind==='grass'?0:capacity)||!bounded(p.biomassGrams,0,p.kind==='grass'?capacity:0)||!bounded(p.moisture,0,1)||!bounded(p.growth,0,100)||!Number.isSafeInteger(p.seasonIndex)||p.seasonIndex<0||p.seasonIndex>100000||!bounded(p.fallHours,0,R.fruitFallDays*24)||!bounded(p.ageDays,0,100000))return 'Invalid retained plant';
@@ -52,7 +53,9 @@ export function lifecycleError(e){
  }
  for(const m of e.materials){
   const def=MATERIALS[m.materialType],cap=m.kind==='carcass'?30000:def?.massGrams;
-  if(!def||!['material','carcass'].includes(m.kind)||!scenes.has(m.scene)||!point(m.position)||!bounded(m.massGrams,0,cap)||!bounded(m.energyKcal,0,m.kind==='carcass'?m.massGrams*1.5:def.energyKcal*m.massGrams/def.massGrams)||!bounded(m.waterMl,0,m.massGrams)||!bounded(m.createdAt,0,e.elapsed)||!bounded(m.ageHours,0,100000)||typeof m.spoiled!=='boolean'||![null,'aster','mira'].includes(m.heldBy)||(m.kind==='carcass'&&m.heldBy!==null))return 'Invalid retained material';
+  if(!def||!['material','carcass','fish_specimen'].includes(m.kind)||!scenes.has(m.scene)||!point(m.position)||!bounded(m.massGrams,0,cap)||!bounded(m.energyKcal,0,m.kind==='carcass'?m.massGrams*1.5:def.energyKcal*m.massGrams/def.massGrams)||!bounded(m.waterMl,0,m.massGrams)||!bounded(m.createdAt,0,e.elapsed)||!bounded(m.ageHours,0,100000)||typeof m.spoiled!=='boolean'||![null,'aster','mira'].includes(m.heldBy)||(m.kind==='carcass'&&m.heldBy!==null))return 'Invalid retained material';
+  const fishError=aquaticMaterialError(m);if(fishError)return fishError;
+  if(isAquaticMaterial(m)&&!aquaticEnabled(e))return 'Fish material outside aquatic mode';
   if(MATERIAL_FIELDS.some(k=>!own(m,k))||typeof m.seedOpportunity!=='boolean')return 'Missing material lifecycle fields';
   if(m.seedOpportunity){if(parents.has(m.id)||m.kind!=='material'||m.materialType!=='apple'||!valid(m.createdAt)||!valid(m.nextGerminationAt)||m.nextGerminationAt<m.createdAt||m.nextGerminationAt>e.elapsed+J.germinationAgeHours/24*CONFIG.dayRealSeconds+stockTolerance(e.elapsed))return 'Invalid seed opportunity';}
   else if(m.nextGerminationAt!==null)return 'Consumed seed has a pending attempt';

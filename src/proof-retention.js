@@ -1,7 +1,7 @@
 import { CAVES, NPC_RULES } from './config.js';
 import { BIOLOGY_PROFILES, BIOLOGY_RULES } from './biology-config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { cleanSensoryObject, deriveDiscoveryPractice, objectId } from './discovery-state.js';
+import { cleanSensoryObject, deriveDiscoveryPractice, objectId, discoveryAcquires, validCaptureExperiment } from './discovery-state.js';
 
 // These are derived obligations, not additional persisted buffers. A biological
 // feedback append must finish its own FIFO trim before entering this module.
@@ -54,8 +54,8 @@ function uniqueIndex(rows, key) {
 // with the same target or result text is not a substitute for the original ID.
 function validExperiment(experiment, receipt) {
   return positiveId(experiment?.id) && positiveId(experiment.actionId) && time(experiment.at) &&
-    DISCOVERY_RULES.primitives.includes(experiment.primitive) && objectId(experiment.targetId) &&
-    receipt?.type === 'action' && receipt.at === experiment.at &&
+    DISCOVERY_RULES.allPrimitives.includes(experiment.primitive) && objectId(experiment.targetId) &&
+    validCaptureExperiment(experiment,receipt) && receipt?.type === 'action' && receipt.at === experiment.at &&
     receipt.details?.action?.type === experiment.primitive && receipt.details.action.targetId === experiment.targetId &&
     receipt.details.result?.ok === experiment.ok && typeof experiment.ok === 'boolean' &&
     receipt.details.result?.code === experiment.code &&
@@ -342,8 +342,7 @@ export function retainedProofIntegrityError(npc) {
   for (const id of held) {
     const observation = npc.discovery?.observations?.[id];
     if (!objectId(id) || observation?.id !== id || !cleanSensoryObject(observation) ||
-        ![...index.valid.values()].some(e => e.ok &&
-          (e.primitive === 'pull' && e.materialId === id || e.primitive === 'grasp' && e.targetId === id)))
+        ![...index.valid.values()].some(e => discoveryAcquires(e,id)))
       return 'incomplete-held-provenance';
   }
   if (npc.flask?.fillEventId != null) {
@@ -462,9 +461,9 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
   diagnostics.pending = pending.size;
   if (pending.size > pendingLimit) return fail('malformed-proof-input');
 
-  const acquisitions = [...valid.values()].filter(e => e.ok && (e.primitive === 'pull' || e.primitive === 'grasp'));
+  const acquisitions = [...valid.values()].filter(e => e.ok && ['pull','grasp','catch'].includes(e.primitive));
   const acquired = (id, before = null) => acquisitions.filter(e =>
-    (e.materialId === id || e.primitive === 'grasp' && e.targetId === id) &&
+    discoveryAcquires(e,id) &&
     (!before || e.id < before.id && e.at <= before.at)).at(-1);
   const observations = retainHeldObservations(npc, source.observations);
   const held = new Set(array(npc.inventory?.items));
@@ -607,7 +606,7 @@ export function applyProofRetention(npc, plan) {
   let nextTrials = null;
   for (const key of Object.keys(trials)) {
     const [id, type] = key.split('|');
-    if (key !== `${id}|${type}` || !objectId(id) || !DISCOVERY_RULES.primitives.includes(type) ||
+    if (key !== `${id}|${type}` || !objectId(id) || !DISCOVERY_RULES.allPrimitives.includes(type) ||
         kept.observations[id] || retainedTrials.has(key)) continue;
     nextTrials ??= { ...trials };
     delete nextTrials[key];
