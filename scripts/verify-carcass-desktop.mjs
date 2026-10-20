@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
 import { createCarcassDiskFixture } from '../tests/fixtures/carcass-encounter.mjs';
+import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptySlots, ordinaryRouteSnapshot, assertOrdinaryRoute } from './carcass-native-contract.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2), prepareOnly = args.includes('--prepare-only');
@@ -22,7 +23,8 @@ assert.ok(flags.length === 0 || flags.length === 2 && flags[0] === '--output',
 const scratch = await mkdtemp(join(tmpdir(), 'ac-h1-'));
 const output = flags.length ? resolve(flags[1]) : join(scratch, 'evidence');
 await mkdir(output, { recursive: true });
-const appRoot = join(scratch, 'app'), built = await buildApplication(appRoot);
+const requestedAppRoot = join(scratch, 'app');
+const appRoot = await canonicalApplicationRoot(scratch), built = await buildApplication(appRoot);
 const fixturePaths = {};
 for (const stage of ['relation', 'pulled', 'processing']) {
   const fixture = createCarcassDiskFixture(stage);
@@ -31,7 +33,7 @@ for (const stage of ['relation', 'pulled', 'processing']) {
   await writeFile(join(output, `${stage}-fixture.json`), JSON.stringify(fixture, null, 2) + '\n');
   await writeFile(join(output, `${stage}-input-save.json`), fixture.raw + '\n');
 }
-const context = { root, scratch, output, appRoot, fixturePaths,
+const context = { root, scratch, output, requestedAppRoot, appRoot, fixturePaths,
   sourceFingerprint: built.sourceFingerprint };
 const harness = join(scratch, 'run.cjs');
 await writeFile(harness, `
@@ -48,7 +50,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const oldKey = 'aincrad.save.v1', key = 'aincrad.ozark.v1';
 const oldSentinel = JSON.stringify({ syntheticH1OriginalSlot: 'preserve-exactly' });
 let running = false, closeObserved = false, allowQuit = false;
-const events = [];
+const events = [], rendererEvents = [];
+const installEmptySlots = ${installEmptySlots.toString()};
+const ordinaryRouteSnapshot = ${ordinaryRouteSnapshot.toString()};
+const assertOrdinaryRoute = ${assertOrdinaryRoute.toString()};
 const timeout = setTimeout(() => {
   console.error('Carcass native QA timed out: ' + stage + '/' + phase);
   app.exit(1);
@@ -60,6 +65,22 @@ app.on('will-quit', event => {
   if (!closeObserved) { console.error('Missing actual window closed event'); process.exitCode = 1; }
   else console.log('H1_NATIVE_WILL_QUIT ' + stage + '/' + phase);
 });
+
+async function captureFailure(win, error) {
+  const evidence = { stage, phase, error: String(error?.stack || error),
+    url: win.webContents.getURL(), rendererEvents, appPathEvidence };
+  try { evidence.document = await win.webContents.executeJavaScript(
+    '({url:location.href,title:document.title,text:document.body?.innerText?.slice(0,12000),' +
+    'playHook:Boolean(window.__aincrad),ozarkHook:Boolean(window.__ozarkWorld)})'); }
+  catch (failure) { evidence.documentError = String(failure); }
+  try { evidence.ordinary = await win.webContents.executeJavaScript(
+    '(' + ordinaryRouteSnapshot.toString() + ')(window,document)'); }
+  catch (failure) { evidence.ordinaryError = String(failure); }
+  await fs.writeFile(path.join(context.output, stage + '-' + phase + '-failure.json'),
+    JSON.stringify(evidence, null, 2));
+  try { await fs.writeFile(path.join(context.output, stage + '-' + phase + '-failure.png'),
+    (await win.webContents.capturePage()).toPNG()); } catch {}
+}
 
 async function waitFor(win, expression, label) {
   for (let i = 0; i < 400; i++) {
@@ -88,6 +109,15 @@ async function closeNormally(win) {
 }
 
 app.on('browser-window-created', (_event, win) => {
+  win.webContents.on('console-message', (_event, ...details) => {
+    rendererEvents.push({ kind: 'console', details });
+  });
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    rendererEvents.push({ kind: 'load-failure', errorCode, errorDescription, validatedURL });
+  });
+  win.webContents.on('render-process-gone', (_event, details) => {
+    rendererEvents.push({ kind: 'renderer-gone', details });
+  });
   win.webContents.on('did-finish-load', async () => {
     if (running) return; running = true;
     try {
@@ -98,7 +128,16 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(prefs.webSecurity, true);
       assert.equal(process.argv.includes('--no-sandbox'), false);
       assert.equal(process.argv.includes('--disable-setuid-sandbox'), false);
-      await waitFor(win, 'Boolean(window.__aincrad)', 'ordinary test route');
+      await waitFor(win, 'Boolean(window.__aincrad) || ' +
+        '(document.getElementById(\"recovery-panel\") && ' +
+        '!document.getElementById(\"recovery-panel\").classList.contains(\"hidden\") && ' +
+        'Boolean(document.getElementById(\"recovery-diagnosis\")?.textContent))',
+        'ordinary bootstrap or protected recovery');
+      const ordinary = await win.webContents.executeJavaScript(
+        '(' + ordinaryRouteSnapshot.toString() + ')(window,document)');
+      assertOrdinaryRoute(ordinary, phase);
+      await fs.writeFile(path.join(context.output, stage + '-' + phase + '-ordinary-boot.json'),
+        JSON.stringify(ordinary, null, 2));
       assert.match(win.webContents.getURL(), /^aincrad:\\/\\/app\\/index\\.html\\?test=1$/);
       const fixture = JSON.parse(await fs.readFile(context.fixturePaths[stage], 'utf8'));
       if (phase === 'write') {
@@ -108,11 +147,8 @@ app.on('browser-window-created', (_event, win) => {
         const inputRaw = stage === 'processing' ? JSON.parse(await fs.readFile(
           context.fixturePaths.relation, 'utf8')).raw : fixture.raw;
         let installed = await win.webContents.executeJavaScript(
-          '(() => { const key=' + JSON.stringify(key) + ', oldKey=' + JSON.stringify(oldKey) +
-          '; if(localStorage.getItem(key)!==null) throw new Error("Disposable Ozark slot unexpectedly occupied");' +
-          'localStorage.setItem(oldKey,' + JSON.stringify(oldSentinel) + ');' +
-          'localStorage.setItem(key,' + JSON.stringify(inputRaw) + ');' +
-          'return localStorage.getItem(key); })()');
+          '(' + installEmptySlots.toString() + ')(localStorage,' +
+          JSON.stringify({ key, oldKey, oldSentinel, inputRaw }) + ')');
         if (stage === 'processing') {
           const native = await win.webContents.executeJavaScript(
             '(async()=>{' +
@@ -172,7 +208,10 @@ app.on('browser-window-created', (_event, win) => {
         const timer = setTimeout(() => reject(new Error('Native Ozark route did not load')), 30000);
         win.webContents.once('did-finish-load', () => { clearTimeout(timer); resolve(); });
       });
-      void win.webContents.executeJavaScript("void window.aincradWorld.open('ozark'); true").catch(() => {});
+      // The invoking frame can be replaced before its JS promise resolves.
+      // Require the actual destination URL/hook below, not that old-frame reply.
+      void win.webContents.executeJavaScript("void window.aincradWorld.open('ozark'); true")
+        .catch(error => rendererEvents.push({ kind: 'world-switch-frame', error: String(error) }));
       await navigated;
       await waitFor(win, 'Boolean(window.__ozarkWorld)', 'Ozark runtime hook');
       assert.match(win.webContents.getURL(), /^aincrad:\\/\\/app\\/index\\.html\\?test=1&ozarkWorld=1$/);
@@ -251,17 +290,42 @@ app.on('browser-window-created', (_event, win) => {
         passed: true, stage, sourceFingerprint: checkpoint.fingerprint,
         exactDiskBytesAfterClosedProcess: true, actualRuntimeEvidenceEqual: true,
         exactEcologyOnResave: true, noClosedOrPausedProgress: true,
-        terminalRelationPreserved: true, successfulPulls: successfulPulls.length,
+        terminalRelationPreserved: true, originalSlotProtectedOnBoot: true, successfulPulls: successfulPulls.length,
         restartInterruptedReceipts: interrupted.length, sandboxPreserved: true,
         nativeProcessingPreparation: fixture.nativeProcessingPreparation || null,
         screenshotBytes: png.length, rawBeforeSha256: digest(persisted.raw),
         rawAfterSha256: digest(checkpoint.raw), fixture: fixture.fixture,
       }, null, 2));
       await closeNormally(win);
-    } catch (error) { console.error(error); clearTimeout(timeout); app.exit(1); }
+    } catch (error) {
+      console.error(error);
+      try { await captureFailure(win, error); } catch (failure) { console.error('Failure capture:', failure); }
+      clearTimeout(timeout); app.exit(1);
+    }
   });
 });
-require(path.join(context.appRoot, 'desktop', 'main.cjs'));
+// Keep production scheme registration synchronous, before Electron is ready.
+// This preflight reports both the requested alias and actual canonical app.
+const fsSync = require('node:fs');
+const mainPath = require.resolve(path.join(context.appRoot, 'desktop', 'main.cjs'));
+const rendererRoot = path.resolve(path.dirname(mainPath), '..', 'renderer');
+const requestedMainPath = require.resolve(path.join(context.requestedAppRoot, 'desktop', 'main.cjs'));
+const requestedRendererRoot = path.resolve(path.dirname(requestedMainPath), '..', 'renderer');
+const assetPath = fsSync.realpathSync.native(path.join(rendererRoot, 'index.html'));
+const assetRelative = path.relative(rendererRoot, assetPath);
+const requestedAssetRelative = path.relative(requestedRendererRoot, assetPath);
+const appPathEvidence = { requestedAppRoot: context.requestedAppRoot, appRoot: context.appRoot,
+  mainPath, rendererRoot, assetPath, assetRelative, requestedMainPath,
+  requestedRendererRoot, requestedAssetRelative,
+  requestedProtocolWouldReject: requestedAssetRelative.startsWith('..'),
+  protocolWouldReject: assetRelative.startsWith('..') };
+try {
+  fsSync.writeFileSync(path.join(context.output, stage + '-' + phase + '-app-path.json'),
+    JSON.stringify(appPathEvidence, null, 2));
+  assert.equal(appPathEvidence.protocolWouldReject, false,
+    'Harness application root must satisfy the unchanged native asset containment guard');
+  require(mainPath);
+} catch (error) { console.error(error); clearTimeout(timeout); app.exit(1); }
 `);
 await writeFile(join(output, 'generated-runner.cjs'), await readFile(harness));
 
@@ -282,15 +346,24 @@ else {
       '--stage=' + stage, '--phase=' + phase];
     if (process.platform === 'linux') launch.push('--ozone-platform=headless', '--disable-gpu');
     const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-    let stdout = '', stderr = '';
-    const code = await new Promise((resolveExit, reject) => {
-      const child = spawn(electron, launch, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env });
-      child.stdout.on('data', bytes => { stdout += bytes; process.stdout.write(bytes); });
-      child.stderr.on('data', bytes => { stderr += bytes; process.stderr.write(bytes); });
-      child.on('error', reject); child.on('exit', resolveExit);
-    });
+    const { code, signal, stdout, stderr, spawnError } = await captureNativeChild(
+      spawn, electron, launch, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env },
+      bytes => process.stdout.write(bytes), bytes => process.stderr.write(bytes));
+    await writeFile(join(output, stage + '-' + phase + '-process.json'),
+      JSON.stringify({ code, signal, spawnError: spawnError ? String(spawnError) : null,
+        processCloseObserved: true }, null, 2));
     await writeFile(join(output, stage + '-' + phase + '-stdout.txt'), stdout);
     await writeFile(join(output, stage + '-' + phase + '-stderr.txt'), stderr);
+    // Preserve the real synthetic profile only after its process exits, also on
+    // failure. Fixtures alone are not evidence of Chromium disk persistence.
+    try {
+      const archive = await archiveNativeProfile(profile, join(output, stage + '-' + phase + '-profile'));
+      await writeFile(join(output, stage + '-' + phase + '-profile-copy.json'), JSON.stringify(archive, null, 2));
+    } catch (error) {
+      await writeFile(join(output, stage + '-' + phase + '-profile-copy-error.txt'), String(error));
+      if (code === 0 && !spawnError) throw error;
+    }
+    if (spawnError) throw spawnError;
     assert.equal(code, 0, stage + '/' + phase + ' exited unsuccessfully; evidence retained at ' + output);
     assert.ok(stdout.includes('H1_NATIVE_CLOSED ' + stage + '/' + phase));
     assert.ok(stdout.includes('H1_NATIVE_WILL_QUIT ' + stage + '/' + phase));

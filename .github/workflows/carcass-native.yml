@@ -8,6 +8,8 @@ on:
       - 'desktop/**'
       - 'scripts/build.mjs'
       - 'scripts/verify-carcass-desktop.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'tests/carcass-native-harness.test.mjs'
       - 'tests/fixtures/carcass-encounter.mjs'
       - 'package*.json'
   workflow_dispatch:
