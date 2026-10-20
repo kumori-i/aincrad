@@ -352,7 +352,12 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     const sources=Object.values(npc.memory.sources).filter(s=>s.available!==false&&(s.retryAfter||0)<=npc.elapsed).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
     for(const source of ozarkPersistentWorldAgent(npc)?sources:sources.slice(0,1)){
       if(distance(source,npc.position)<=NPC_RULES.collectionRange)return wrap({type:'fill_flask',sourceId:source.id},'I can reach the water I actually observed.','water');
-      const move=routeTarget(npc,source);if(move)return wrap(move,'I am approaching remembered water.','water');
+      const move=routeTarget(npc,source);if(move){
+        // Do not let a remembered-water walk bypass an existing local safety action.
+        const safety=terrainTraversalDecision(npc);
+        if(safety?.need==='safety')return wrap(safety.action,safety.reason,'safety');
+        return wrap(move,'I am approaching remembered water.','water');
+      }
     }
   }
   const dangerous=body.thermal.startsWith('dangerously')||['overheated','shivering'].includes(body.thermal);
