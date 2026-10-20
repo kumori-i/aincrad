@@ -27,6 +27,26 @@ const baselineSource = source
 assert.equal(sha(baselineSource), '94247f8faebf22de63cc1b5f58437ba012b599e5f7700a044022cb356fad449c', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
+// The frozen historical action below predates the producer-pending contrast.
+// Reverse only that reviewed delta, then require the complete original policy
+// bytes. The current-policy observer controls still use the current module.
+const historicalDiscovery = readFileSync(new URL('../src/discovery.js', import.meta.url), 'utf8')
+  .replace("import { repeatedProducerProofView } from './repeated-producer-proof.js';\n", '')
+  .replace("      if(run.cursor===0&&['pull','grasp'].includes(action.type))delete run.pendingProducerExemption;\n", '')
+  .replace('function admitLearnedRun(npc,technique,sourceFeedbackWait=false,handView=null,pendingProducerExemption=false){', 'function admitLearnedRun(npc,technique,sourceFeedbackWait=false,handView=null){')
+  .replace('    ...(pendingProducerExemption?{pendingProducerExemption:true}:{}),\n', '')
+  .replace('function learnedStep(npc,handView=null,producerProof=()=>repeatedProducerProofView(npc)){', 'function learnedStep(npc,handView=null){')
+  .replace('  // Only an unstarted acquisition may need the ordinary pending-source exception.\n  // Loss of retained support is uncertainty, not a failed learned operation.\n  if(acquisition&&run.cursor===0&&run.pendingProducerExemption&&sourceFeedbackPending(npc,id)&&\n    !producerProof().proofFor(technique)){d.run=null;return null;}\n', '')
+  .replace('      object?.scene!==npc.scene){d.run=null;return null;}\n    if(run.preparation?.sourceFeedbackWait&&sourceFeedbackPending(npc,id)){\n      if(!producerProof().proofFor(technique)){d.run=null;return null;}\n      run.pendingProducerExemption=true;\n    }', '      object?.scene!==npc.scene||run.preparation?.sourceFeedbackWait&&sourceFeedbackPending(npc,id)){d.run=null;return null;}')
+  .replace('  let producerView;const producerProof=()=>producerView??=repeatedProducerProofView(npc);\n', '')
+  .replaceAll('learnedStep(npc,handView,producerProof)', 'learnedStep(npc,handView)')
+  .replace('&&(!sourceFeedbackPending(npc,t.sourceId)||producerProof().proofFor(t))).sort', '&&!sourceFeedbackPending(npc,t.sourceId)).sort')
+  .replace('admitLearnedRun(npc,technique,true,handView,sourceFeedbackPending(npc,technique.sourceId))', 'admitLearnedRun(npc,technique,true,handView)');
+assert.equal(sha(historicalDiscovery), 'd46e08ea2c4d9c797732863b8ceda29d40cf4afb262bf271c94dedb178141b76', 'complete pre-contrast discovery policy bytes');
+const historicalDiscoveryImports = historicalDiscovery.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
+const historicalDiscoveryUrl = `data:text/javascript;base64,${Buffer.from(historicalDiscoveryImports).toString('base64')}`;
+const historicalControllerImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${path === './discovery.js' ? historicalDiscoveryUrl : new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
+const { NpcController: HistoricalController } = await import(`data:text/javascript;base64,${Buffer.from(historicalControllerImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));
 const receipt = (n, id) => n.memory.experience.find(row => row.id === id);
 function assertFrozenDetached(report, actor) {
@@ -410,7 +430,7 @@ function historicalSourceBlocked(actor, type, targetId, sightings) {
   return !direct || sight.at <= gone || type === 'pull' && depleted >= 0 && (sight.at <= depleted || !(sight.count > 0));
 }
 
-test('exact retained historical v2 actor: bounded zero-time current-main controller counterfactual preserves baseline behavior', () => {
+test('exact historical actor preserves pinned pre-contrast action and current-policy observer parity', () => {
   const bytes = readFileSync(new URL('./fixtures/discovery-candidates/portable-native-regrasp.json.gz', import.meta.url));
   assert.equal(sha(bytes), '6a5641fb2fad297beaf6f777965a6aa8b4c6bef2737abfe5ad666603dd5b7773');
   const fixture = JSON.parse(gunzipSync(bytes)), native = restoreNativeActor(fixture.actor, fixture.rawRestoration);
@@ -419,18 +439,25 @@ test('exact retained historical v2 actor: bounded zero-time current-main control
   assert.equal(fixture.provenance.rawActorSha256, '917ee33956d0ed8da232713a9a8fdfbc9380224f6f0feb46020ad55bb094d39d');
   const sightings = new Map(fixture.firsthandSightings);
   for (const technique of native.discovery.techniques) assert.equal(historicalSourceBlocked(native, technique.steps[0].type, technique.sourceId, sightings), historicalSourceBlocked(native, technique.steps[0].type, technique.sourceId, new Map()));
-  const geometry = createOzarkWorldGeometry(), variants = [BaselineController, NpcController, NpcController].map(Controller => {
+  const geometry = createOzarkWorldGeometry(), [historical, ...variants] = [HistoricalController, BaselineController, NpcController, NpcController].map(Controller => {
     const n = structuredClone(native); bindOzarkWorldAgent(n, geometry, { geometryIdentity: geometry.profile.identity, agents: [n] });
     assert.deepEqual(n, native, 'runtime geometry binding leaves exact captured data unchanged');
     return controller(n, Controller);
   });
   variants[1].setDiscoveryCandidateCapture(false); variants[2].setDiscoveryCandidateCapture(true);
   const expectedBoundary = collect(native); assert.equal(expectedBoundary.status, 'captured'); assert.deepEqual(expectedBoundary.body, bodySignals(native));
-  for (const c of variants) c.tick(0);
+  historical.tick(0); for (const c of variants) c.tick(0);
   const report = variants[2].takeDiscoveryCandidateSnapshot(); assert.deepEqual(report, expectedBoundary, 'exact input observed before physical policy mutates run/RNG');
   assert.equal(report.phase, 'before-discoveryDecision'); assert.equal(report.actorEpoch, native.epoch); assert.equal(report.observedAt, native.elapsed); assert.equal(variants[1].takeDiscoveryCandidateSnapshot(), null);
-  assert.deepEqual(variants[0].npc.active?.request, { type: 'move', target: { x: 560, y: 880 } }, 'diagnostic current-main action on historical input');
-  assert.equal(variants[0].npc.discovery.run?.techniqueId, 'technique:aster:173');
+  assert.deepEqual(historical.npc.active?.request, { type: 'move', target: { x: 560, y: 880 } }, 'diagnostic pre-contrast action on historical input');
+  assert.equal(historical.npc.discovery.run?.techniqueId, 'technique:aster:173');
+  // This portable actor has no continuing ecology. The newly eligible native
+  // pull is honestly refused, not counted as a successful acquisition.
+  assert.equal(variants[0].npc.lastResult.action, 'pull');
+  assert.equal(variants[0].npc.lastResult.code, 'OBJECT_GONE');
+  assert.equal(variants[0].npc.lastResult.ok, false);
+  assert.deepEqual(variants[0].npc.memory.experience.find(e => e.id === variants[0].npc.lastResult.eventId).details.action, { type: 'pull', targetId: 'object:684' });
+  assert.equal(variants[0].npc.active, null);
   for (const c of variants.slice(1)) {
     assert.equal(c.npc.rng, variants[0].npc.rng); assert.deepEqual(c.npc.active, variants[0].npc.active);
     assert.deepEqual(c.npc.discovery.run, variants[0].npc.discovery.run); assert.deepEqual(c.npc.discovery.effects, variants[0].npc.discovery.effects);
@@ -438,7 +465,7 @@ test('exact retained historical v2 actor: bounded zero-time current-main control
     assert.deepEqual(c.npc, variants[0].npc); assert.equal(c.npc.elapsed, native.elapsed, 'no physical time advanced');
   }
   assert.deepEqual(native, restoreNativeActor(fixture.actor, fixture.rawRestoration)); assertFrozenDetached(report, native); assert.deepEqual(forbiddenPaths(report), []);
-  for (const c of variants) c.dispose();
+  historical.dispose(); for (const c of variants) c.dispose();
 });
 
 test('frozen native-shaped evidence is read-only and ordinary ledger order does not alter the report', () => {

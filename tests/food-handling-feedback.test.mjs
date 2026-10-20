@@ -69,8 +69,8 @@ function withContractHandling() {
   return n;
 }
 function withoutHandling(n) {
-  const out = clone(n); if (out.lastResult) delete out.lastResult.handling;
-  for (const e of out.memory.experience) if (e.type === 'action' && e.details.result) delete e.details.result.handling;
+  const out = clone(n); if (out.lastResult) { delete out.lastResult.handling; delete out.lastResult.ownHand; }
+  for (const e of out.memory.experience) if (e.type === 'action' && e.details.result) { delete e.details.result.handling; delete e.details.result.ownHand; }
   return out;
 }
 
@@ -84,6 +84,21 @@ const hashes = {
 };
 function baselineModule(name, replacements = {}) {
   let source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
+  // Remove the later additive own-hand sensor before reconstructing the exact
+  // historical handling baseline. Its original byte hashes remain unchanged.
+  if (name === 'discovery-actions.js') source = source
+    .replace(/^import .* from '\.\/own-hand-memory\.js';\n/m, '')
+    .replace(/^\/\/ A separate sensor witness[\s\S]*?\n}\n(?=export function takeDiscoveryActionFeedback)/m, '')
+    .replace(/^  if\(request\.type==='sample'&&handlingWitnesses\.has\(npc\.active\)\)[\s\S]*?physiology:npc\.physiology,seconds}\);\n/m, '')
+    .replace('let terminal=false,handObservation=null;', 'let terminal=false;')
+    .replace(/^    if\(ownHandWitnesses\.has\(active\)\)ownHandWitness\(npc,active\);\n/m, '')
+    .replace('let result,handBefore=false,sampleActionId;', 'let result;')
+    .replace(/^      const hand=ownHandWitness\(npc,active\);[\s\S]*?check\.physical\.heldBy===npc\.id\);\n/m, '')
+    .replace(/^      sampleActionId=npc\.memory\?\.nextId\|\|0;\n/m, '')
+    .replace('actionId:sampleActionId', 'actionId:npc.memory?.nextId||0')
+    .replace(/^    if\(handBefore&&ownHandWitness[\s\S]*?\n    }\n/m, '')
+    .replace(/^    retireNativeOwnHand\(handObservation\);\n/m, '')
+    .replace(/^    if\(terminal\|\|npc\.active!==active\)ownHandWitnesses\.delete\(active\);\n/m, '');
   if (name === 'discovery-actions.js') source = source
     .replace(/\/\/ Runtime-only witnesses\.[\s\S]*?\n};\n(?=function allowed)/,
       'const done=(complete,npc,request,result,active)=>complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;\n')
@@ -91,7 +106,6 @@ function baselineModule(name, replacements = {}) {
     .replace(/^    \/\/ A throwing or synchronously cancelling hook[\s\S]*?witness\.worked\+=worked;\n/m, '')
     .replace(/^    if\(terminal\|\|npc\.active!==active\)handlingWitnesses\.delete\(active\);\n/m, '');
   else source = source
-    // Remove the later drink projection while preserving the original hash.
     .replace('relievePhysiology, projectPhysiology', 'relievePhysiology')
     .replace('      // The immediate transfer changes fullness, not absorbed relief. Keep the\n      // derived body display and original receipt consistent before any save.\n      projectPhysiology(npc);\n', '')
     .replace('requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback', 'requestDiscoveryAction, tickDiscoveryAction')
