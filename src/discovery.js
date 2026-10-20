@@ -43,7 +43,21 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   // A rejected command is not practice. Successful inspection cannot improve pulling.
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;
   d.lastAttemptAt=npc.elapsed;
-  if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}
+  if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){
+    const run=d.run;run.awaiting=false;
+    if(run.preparation?.phase==='release'){
+      // A real placement changes capacity, never the learned food cursor or its
+      // evidence. Refusal/cancellation is handling evidence, not source failure.
+      if(result.ok&&!npc.inventory.items.includes(action.targetId)&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
+        run.preparation={...run.preparation,phase:'ready',releaseId:experiment.id,releaseActionId:event.id};
+      }else d.run=null;
+    }else if(!result.ok){const t=d.techniques.find(t=>t.id===run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;d.run=null;
+    }else{
+      if(result.materialId||action.type==='grasp')run.materialId=result.materialId||action.targetId;
+      if(run.preparation?.phase==='ready'&&['pull','grasp'].includes(action.type))run.preparation.phase='acquired';
+      run.cursor++;
+    }
+  }}
   for(const report of d.reports.filter(r=>r.sourceId==='human'&&r.status==='unverified')){
     const expected=report.proposed[report.cursor];if(expected?.type===action.type&&expected.targetId===action.targetId){report.evidence.push(experiment.id);report.cursor++;if(result.materialId)for(const step of report.proposed.slice(report.cursor))if(['sample','release'].includes(step.type)&&step.targetId===action.targetId)step.targetId=result.materialId;if(!result.ok){report.status='contradicted';report.cursor=report.proposed.length;}}
   }
@@ -285,6 +299,99 @@ function sampleEligible(npc,id,body=bodySignals(npc),foodLearning=true){
   if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds&&!(foodLearning&&supportedHeldMaterial(npc,id)))return false;
   return !recentlyFailed(npc,'sample',id);
 }
+function usefulHeld(npc,id){
+  const d=memory(npc);
+  return d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&
+    !d.effects.some(e=>e.objectId===id&&e.effect==='discomfort');
+}
+function preparationProofIndex(npc){
+  // One selection-local view, not saved knowledge or a persistent cache.
+  // Ambiguous identities stay invalid even when one duplicate looks genuine.
+  const unique=(rows,key)=>{
+    const index=new Map();
+    for(const row of rows)index.set(row[key],index.has(row[key])?null:row);
+    return index;
+  };
+  const experiments=memory(npc).experiments;
+  return {receipts:unique(npc.memory.experience,'id'),experiments:unique(experiments,'id'),
+    actions:unique(experiments,'actionId'),
+    ingestions:unique(experiments.filter(e=>e.primitive==='sample'&&e.ok&&e.ingestionId),'ingestionId'),
+    validated:new Map()};
+}
+function retainedAction(npc,experiment,index){
+  if(index.validated.has(experiment))return index.validated.get(experiment);
+  if(!experiment?.ok||!(experiment.durationSeconds>0)||experiment.at>npc.elapsed)return null;
+  if(index.experiments.get(experiment.id)!==experiment||index.actions.get(experiment.actionId)!==experiment)return null;
+  const receipt=index.receipts.get(experiment.actionId),action=receipt?.details?.action,result=receipt?.details?.result;
+  const retained=receipt?.type==='action'&&receipt.at===experiment.at&&action?.type===experiment.primitive&&
+    action.targetId===experiment.targetId&&result?.ok===true&&result.code===experiment.code&&
+    result.durationSeconds===experiment.durationSeconds&&
+    result.materialId===experiment.materialId&&
+    (result.ingestionId||undefined)===(experiment.ingestionId||undefined)?receipt:null;
+  index.validated.set(experiment,retained);return retained;
+}
+function retainedFoodTechnique(npc,technique,index){
+  const d=memory(npc);
+  if(!Array.isArray(technique.evidence)||!['pull','grasp'].includes(technique.steps[0]?.type)||technique.steps[0].targetId!=='$source'||
+    technique.steps[1]?.type!=='sample'||technique.steps[1].targetId!=='$material')return false;
+  const recognized=effect=>{
+    const receipt=index.receipts.get(effect.proofEventId);
+    return effect.source==='experienced'&&receipt&&receipt.at<=npc.elapsed&&conditionMatches(receipt,effect);
+  };
+  return d.experiments.some(sample=>technique.evidence.includes(sample.id)&&sample.primitive==='sample'&&
+    sample.ingestionId&&index.ingestions.get(sample.ingestionId)===sample&&retainedAction(npc,sample,index)&&d.effects.some(effect=>
+      effect.effect==='sustained'&&effect.objectId===sample.targetId&&effect.actionId===sample.actionId&&
+      effect.ingestionId===sample.ingestionId&&effect.at>=sample.at&&effect.at<=npc.elapsed&&
+      recognized(effect))&&
+    d.experiments.some(acquired=>technique.evidence.includes(acquired.id)&&
+      acquired.id<sample.id&&acquired.at<=sample.at&&acquired.targetId===technique.sourceId&&
+      acquired.primitive===technique.steps[0].type&&retainedAction(npc,acquired,index)&&
+      (acquired.primitive==='pull'&&acquired.materialId===sample.targetId||
+       acquired.primitive==='grasp'&&acquired.targetId===sample.targetId&&
+       (acquired.materialId===undefined||acquired.materialId===acquired.targetId))));
+}
+function preparationDonor(npc,technique,run=null){
+  const d=memory(npc);if(npc.active)return null;
+  const index=preparationProofIndex(npc);if(!retainedFoodTechnique(npc,technique,index))return null;
+  let chosen=null;
+  for(const id of npc.inventory.items){
+    if(id===technique.sourceId||id===run?.materialId||usefulHeld(npc,id)||npc.active?.request?.targetId===id)continue;
+    const grasps=d.experiments.filter(e=>e.targetId===id&&e.primitive==='grasp'&&
+      e.materialId===id&&retainedAction(npc,e,index)).sort((a,b)=>b.actionId-a.actionId);
+    const releases=d.experiments.filter(e=>e.targetId===id&&e.primitive==='release'&&retainedAction(npc,e,index));
+    for(const grasp of grasps){
+      const release=releases.findLast(e=>e.id<grasp.id&&e.actionId<grasp.actionId&&e.at<=grasp.at);
+      if(!release)continue;
+      if(!chosen||grasp.actionId>chosen.grasp.actionId)chosen={id,release,grasp};
+      break; // Only this object's most recent intact pair can win.
+    }
+  }
+  // Select by handling recency first. A refusal of that donor cannot be evaded
+  // by cycling through older donors on subsequent source-selection decisions.
+  return chosen&&!recentlyFailed(npc,'release',chosen.id)&&!availabilityBlocked(npc,'release',chosen.id)?chosen:null;
+}
+function sensedDryPlacement(npc){
+  const geometry=ozarkAgentWorld(npc);
+  if(geometry?.observe)return geometry.observe(npc.position).ground==='dry-land';
+  // Older maps do not supply exact live footing. Fail closed unless the current
+  // point itself has a fresh dry sensory record, rather than probe private terrain.
+  return Object.values(rememberedCells(npc)).some(c=>c.scene===npc.scene&&c.walkable&&
+    c.x===npc.position.x&&c.y===npc.position.y&&c.observedAt<=npc.elapsed&&npc.elapsed-c.observedAt<2&&
+    ['meadow','forest','cave-floor','dry-ground'].includes(c.terrain));
+}
+function sourceFeedbackPending(npc,sourceId){
+  const d=memory(npc);
+  return d.experiments.some(e=>e.materialId&&e.targetId===sourceId&&d.samplesPending[e.materialId]!==undefined&&
+    npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds);
+}
+function admitLearnedRun(npc,technique,sourceFeedbackWait=false){
+  const full=npc.inventory.items.length>=DISCOVERY_RULES.capacity;
+  const donor=full?preparationDonor(npc,technique):null;
+  if(full&&!donor)return false;
+  memory(npc).run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed,
+    ...(full?{preparation:{phase:'approach',donorId:donor.id,priorReleaseId:donor.release.id,priorGraspId:donor.grasp.id,sourceFeedbackWait}}:{})};
+  return true;
+}
 function unfinishedHeldTrial(npc,body){
   const d=memory(npc);
   for(const id of npc.inventory.items){
@@ -322,8 +429,28 @@ function learnedStep(npc){
   const step=technique.steps[run.cursor],id=step.targetId==='$source'?technique.sourceId:run.materialId;
   if(!id){d.run=null;return null;}
   if(availabilityBlocked(npc,step.type,id)){d.run=null;return null;}
+  const acquisition=['pull','grasp'].includes(step.type),full=npc.inventory.items.length>=DISCOVERY_RULES.capacity;
+  let donor=null;
+  if(acquisition&&(full||run.preparation)){
+    const body=bodySignals(npc),object=d.observations[id];
+    const needsFood=body.hunger!=='content'||deferRestRetry(npc,body)&&body.energy==='depleted';
+    if(!needsFood||samplingBlocked(npc,body)||technique.failures>technique.successes+2||
+      object?.scene!==npc.scene||run.preparation?.sourceFeedbackWait&&sourceFeedbackPending(npc,id)){d.run=null;return null;}
+    // Feedback may arrive while approaching. Use an already helpful held item
+    // before placing anything, even though ordinary run continuation comes first.
+    const held=npc.inventory.items.find(id=>usefulHeld(npc,id)&&sampleEligible(npc,id,body));
+    if(held){d.run=null;return {type:'sample',targetId:held};}
+    if(full&&run.preparation?.phase==='ready')return null;
+    if(full){donor=preparationDonor(npc,technique,run);if(!donor){d.run=null;return null;}}
+  }
   if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return null;const object=d.observations[id];
   if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return move;d.run=null;return null;}
+  if(acquisition&&full){
+    if(!donor||!object||distance(npc.position,object.position)>DISCOVERY_RULES.reach||!sensedDryPlacement(npc)){d.run=null;return null;}
+    run.preparation={...run.preparation,phase:'release',donorId:donor.id,priorReleaseId:donor.release.id,priorGraspId:donor.grasp.id};
+    run.awaiting=true;run.expectedType='release';run.expectedId=donor.id;
+    return {type:'release',targetId:donor.id};
+  }
   run.awaiting=true;run.expectedType=step.type;run.expectedId=id;return {type:step.type,targetId:id};
 }
 /** Pain from actual observed contact supports avoidance; appearance alone predicts no threat. */
@@ -343,7 +470,8 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   // Evaluation can ablate positive food associations without erasing perception,
   // navigation, practice, novelty, failures, or experienced discomfort.
   if(!foodLearning)d.run=null;
-  const wrap=(action,reason,need='understanding')=>({action,reason,need,provider:'discovery-learner'});
+  const wrap=(action,reason,need='understanding')=>({action,reason:need==='food'&&action.type==='release'&&d.run?.preparation?.phase==='release'&&action.targetId===d.run.preparation.donorId?
+    'I have put this held object down and picked it up before. I can try putting it down here to make room for the source sequence that previously brought bodily relief.':reason,need,provider:'discovery-learner'});
   const escape=contactEscape(npc);if(escape)return wrap(escape.action,'A contact I actually experienced hurt; I can move away through terrain I observed.','safety');
   const thirsty=['thirsty','parched','desperate thirst'].includes(body.thirst)||
     ozarkPersistentWorldAgent(npc)&&body.thirst==='dry mouth';
@@ -369,11 +497,11 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     if(trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
     const reason=depletedAfterRefusal?'Rest was refused while I felt depleted; I can try an observed route and operation sequence that previously brought bodily relief.':'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.';
     if(d.run){const action=learnedStep(npc);if(action)return wrap(action,reason,'food');}
-    if(!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
+    if(!d.run){
       const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&(depletedAfterRefusal||distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach));
       if(depletedAfterRefusal)candidates.sort((a,b)=>distance(npc.position,d.observations[a.sourceId].position)-distance(npc.position,d.observations[b.sourceId].position));
       for(const technique of candidates){
-        d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
+        if(!admitLearnedRun(npc,technique))continue;
         const action=learnedStep(npc);if(action)return wrap(action,reason,'food');
         // An observed source without a usable observed route must not conceal a
         // later viable source. Retain genuinely pending sequences, however.
@@ -389,10 +517,10 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
-  if(hungry&&!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
-    const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+  if(hungry&&!d.run){
+    const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!sourceFeedbackPending(npc,t.sourceId)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
     for(const technique of candidates){
-      d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
+      if(!admitLearnedRun(npc,technique,true))continue;
       const action=learnedStep(npc);
       if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');
       // A source without an observed route must not conceal another earned source.
@@ -411,7 +539,8 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   }
   const traversal=waterEscape||terrainTraversalDecision(npc);
   if(traversal)return wrap(traversal.action,traversal.reason,traversal.need);
-  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
+  const preparedSlot=d.run?.preparation?.phase==='ready';
+  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(!(preparedSlot&&['grasp','pull'].includes(step.type))&&!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||actorLineOfSight(npc,npc.position,o.position)));
   const choices=[];
   for(const object of objects){
@@ -419,7 +548,7 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
     if(!near)continue;
     for(const type of DISCOVERY_RULES.primitives){
       if(['release','sample'].includes(type)&&!held)continue;
-      if(['grasp','pull'].includes(type)&&(held||npc.inventory.items.length>=DISCOVERY_RULES.capacity))continue;
+      if(['grasp','pull'].includes(type)&&(held||npc.inventory.items.length>=DISCOVERY_RULES.capacity||preparedSlot))continue;
       const trial=d.trials?.[`${object.id}|${type}`]||{attempts:0,failures:0,lastAt:0,lastCode:''},failures=trial.failures;
       if(recentlyFailed(npc,type,object.id)||availabilityBlocked(npc,type,object.id))continue;
       if(type==='sample'&&!sampleEligible(npc,object.id,body,foodLearning))continue;
