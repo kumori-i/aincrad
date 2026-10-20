@@ -8,7 +8,7 @@ import { perceive, tileKey, tilePoint, actorLineOfSight, rememberedCells, rememb
 import { knownRoute } from './navigation.js';
 import { recordEvent, rememberObservation, policyContext, learnOutcome, recoveryLesson, learningCostTick } from './npc-memory.js';
 import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
-import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology } from './biology.js';
+import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology, projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback } from './discovery-actions.js';
 import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
@@ -192,6 +192,9 @@ export function requestNpcAction(npc,raw,environment={}){
       if(!ingestion.ok)return complete(npc,request,ingestion,context,startPosition);
       npc.flask.water=Math.max(0,npc.flask.water-consumed);const independent=provenance==='collected'&&npc.flask.fillEventId!==null&&npc.flask.fillEventId!==npc.flask.creditedFillId;
       if(independent){npc.stats.independentDrinks++;npc.flask.creditedFillId=npc.flask.fillEventId;npc.stats.firstWaterAt??=npc.elapsed;}
+      // The immediate transfer changes fullness, not absorbed relief. Keep the
+      // derived body display and original receipt consistent before any save.
+      projectPhysiology(npc);
       npc.presentation.drinkUntil=npc.elapsed+2;return complete(npc,request,{ok:true,code:'DRANK',waterConsumed:consumed,hydrationGain:0,delayed:true,ingestionId:ingestion.ingestionId,provenance,independent},context,startPosition);
     }
     if(npc.hydration>=99.999)return complete(npc,request,{ok:false,code:'ALREADY_HYDRATED'},context,startPosition);

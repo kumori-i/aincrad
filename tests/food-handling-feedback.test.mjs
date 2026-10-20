@@ -91,6 +91,9 @@ function baselineModule(name, replacements = {}) {
     .replace(/^    \/\/ A throwing or synchronously cancelling hook[\s\S]*?witness\.worked\+=worked;\n/m, '')
     .replace(/^    if\(terminal\|\|npc\.active!==active\)handlingWitnesses\.delete\(active\);\n/m, '');
   else source = source
+    // Remove the later drink projection while preserving the original hash.
+    .replace('relievePhysiology, projectPhysiology', 'relievePhysiology')
+    .replace('      // The immediate transfer changes fullness, not absorbed relief. Keep the\n      // derived body display and original receipt consistent before any save.\n      projectPhysiology(npc);\n', '')
     .replace('requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback', 'requestDiscoveryAction, tickDiscoveryAction')
     .replace(/^  const handling=takeDiscoveryActionFeedback\(npc,active\);\n  if\(handling\)result\.handling=handling;\n/m, '');
   assert.equal(createHash('sha256').update(source).digest('hex'), hashes[name], `frozen ${name} bytes`);
