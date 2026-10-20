@@ -12,7 +12,9 @@ export const guardedWaterReturn = `      const move=routeTarget(npc,source);if(m
         return wrap(move,'I am approaching remembered water.','water');
       }`;
 const source = readFileSync(new URL('../../src/discovery.js', import.meta.url), 'utf8');
-const baseline = source.replace(guardedWaterReturn, originalWaterReturn);
+const baseline = source.replace(guardedWaterReturn, originalWaterReturn)
+  // Remove only H1's later recorded successor field; keep original policy hash.
+  .replace(",...(Object.hasOwn(result,'resultObjectId')?{resultObjectId:result.resultObjectId}:{})", '');
 assert.equal(createHash('sha256').update(baseline).digest('hex'),
   'edb12cf185592b313f8a24a0c84528519872c91257e243a3067c3586b3479b2a', 'complete original main discovery policy bytes');
 const imports = baseline.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../../src/${path.slice(2)}`, import.meta.url).href}'`);

@@ -10,7 +10,7 @@ import { recordEvent, rememberObservation, policyContext, learnOutcome, recovery
 import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
 import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology, projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback } from './discovery-actions.js';
+import { requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback, retireDiscoveryAction } from './discovery-actions.js';
 import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 const allowedActions=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
@@ -45,6 +45,7 @@ export function observeNpc(npc,environment={}){
 }
 function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene){
   const active=npc.active;
+  retireDiscoveryAction(npc,active);
   const handling=takeDiscoveryActionFeedback(npc,active);
   if(handling)result.handling=handling;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);

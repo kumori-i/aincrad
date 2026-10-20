@@ -1,0 +1,50 @@
+name: Witnessed carcass native QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/carcass-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/build.mjs'
+      - 'scripts/verify-carcass-desktop.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'tests/carcass-native-harness.test.mjs'
+      - 'tests/fixtures/carcass-encounter.mjs'
+      - 'package*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-carcass-persistence:
+    strategy:
+      fail-fast: false
+      # Same bounded sandbox-preserving runner as existing native QA. The image
+      # retires 2027-04-17; this is not an OS sandbox bypass or permanent pin.
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Verify Windows native close and reopen
+        if: runner.os == 'Windows'
+        run: node scripts/verify-carcass-desktop.mjs --output test-results/carcass-native
+      - name: Verify Linux native close and reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-carcass-desktop.mjs --output test-results/carcass-native
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: carcass-native-${{ runner.os }}
+          path: test-results/carcass-native
+          if-no-files-found: warn
+          retention-days: 7

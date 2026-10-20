@@ -214,7 +214,7 @@ export function validateNpc(raw,{restoring=true,canStandAt=canStand,
   n.memory.nextId=Math.max(1,Math.floor(finite(m.nextId,1)));
   n.memory.experience=(Array.isArray(m.experience)?m.experience:[]).filter(e=>Number.isInteger(e?.id)&&e.id>0&&EVENT_TYPES.has(e.type)).slice(-NPC_RULES.maxExperience).map(e=>({id:e.id,at:finite(e.at),type:e.type,details:compact(e.details)||{}}));
   const ids=new Set(n.memory.experience.map(e=>e.id));if(!n.memory.experience.some(e=>e.id===n.flask.fillEventId&&e.details.action?.type==='fill_flask'&&e.details.result?.ok)){n.flask.fillEventId=null;n.flask.provenance=null;}n.memory.nextId=Math.max(n.memory.nextId,1+Math.max(0,...ids));
-  if(n.mode==='discovery')n.discovery=validateDiscoveryMemory(raw.discovery,n);
+  if(n.mode==='discovery')n.discovery=validateDiscoveryMemory(raw.discovery,n,m.experience);
   function restoreCells(input,scene){const out={};for(const [key,c] of Object.entries(input||{}).slice(-NPC_RULES.maxCells)){if(!/^-?\d{1,3},-?\d{1,3}$/.test(key)||typeof c.walkable!=='boolean'||!Number.isFinite(c.x)||!Number.isFinite(c.y))continue;const [x,y]=key.split(',').map(Number);if(c.x!==x*NPC_RULES.tileSize||c.y!==y*NPC_RULES.tileSize||!withinWorld(c))continue;out[key]={key,x:c.x,y:c.y,walkable:c.walkable,terrain:str(c.terrain,20),observedAt:finite(c.observedAt),visits:finite(c.visits)};}return out;}
   function restoreEdges(input){const out={};for(const [key,edge] of Object.entries(input||{}).slice(-512))if(/^-?\d{1,3},-?\d{1,3}>-?\d{1,3},-?\d{1,3}$/.test(key))out[key]={observedAt:finite(edge.observedAt),retryAfter:Math.min(n.elapsed+60,finite(edge.retryAfter))};return out;}
   n.memory.cells=restoreCells(m.cells,'valley');n.memory.blockedEdges=restoreEdges(m.blockedEdges);

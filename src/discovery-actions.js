@@ -12,6 +12,10 @@ export function primitiveDuration(npc,type){
 }
 // Action identity belongs to this runtime only; saves interrupt active commands.
 const ticking = new WeakSet(), settled = new WeakSet();
+const actionActors = new WeakMap();
+export function retireDiscoveryAction(npc,active){
+  if(active&&actionActors.get(active)===npc)settled.add(active);
+}
 // Runtime-only witnesses. Restarted/copied active commands have no measured
 // work witness, and neither old receipts nor primitive constants can supply one.
 const handlingWitnesses = new WeakMap();
@@ -56,6 +60,7 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   if(['grasp','pull'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity)return done(options.complete,npc,request,{ok:false,code:'HANDS_FULL'});
   const seconds=primitiveDuration(npc,request.type);
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+seconds+.05,seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
+  actionActors.set(npc.active,npc);
   if(Number.isFinite(npc.physiology?.fatigue)&&Number.isFinite(npc.physiology?.stamina))
     handlingWitnesses.set(npc.active,{actor:npc,physiology:npc.physiology,discovery:npc.discovery,
       type:request.type,targetId:request.targetId,seconds,
@@ -64,6 +69,7 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
 }
 export function tickDiscoveryAction(npc,dt,environment={},options={}){
   const active=npc.active;if(active?.kind!=='interaction'||!Number.isFinite(dt)||dt<=0)return false;
+  if(actionActors.get(active)!==npc){if(npc.active===active)npc.active=null;return false;}
   if(ticking.has(active))return false;
   if(settled.has(active)){if(npc.active===active)npc.active=null;return false;}
   ticking.add(active);let terminal=false;
@@ -83,6 +89,9 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     settled.add(active);terminal=true;
     const request=active.request,check=allowed(npc,request.targetId,environment,request.type==='inspect_object');
     if(!check.ok){done(options.complete,npc,request,{...check,durationSeconds:active.worked},active);return true;}
+    if(['grasp','pull'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity){
+      done(options.complete,npc,request,{ok:false,code:'HANDS_FULL',durationSeconds:active.worked},active);return true;
+    }
     let result;
     if(request.type==='inspect_object'){
       const object=describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id});
@@ -101,7 +110,11 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     }else {
       const response=interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02});
       const materialId=response?.materialId||response?.material?.id;
-      result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{})};
+      result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{}),...(objectId(response?.resultObjectId)?{resultObjectId:response.resultObjectId}:{})};
+      if(result.ok&&result.resultObjectId){
+        const object=describeEcologyObject(environment.ecology,result.resultObjectId,{actorId:npc.id});
+        if(object)rememberDirectDiscoveryObject(npc,object);
+      }
       if(result.ok&&['grasp','pull'].includes(request.type)){
         const id=materialId||request.targetId;if(!npc.inventory.items.includes(id))npc.inventory.items.push(id);
         const object=describeEcologyObject(environment.ecology,id,{actorId:npc.id});if(object)rememberDirectDiscoveryObject(npc,object);

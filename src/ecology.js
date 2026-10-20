@@ -332,8 +332,8 @@ function removeMaterial(e,m){const i=e.materials.indexOf(m);if(i>=0){e.materials
 function death(e,a){
   if(!e.animals.includes(a))return;
   const energy=a.structureKcal+bodyEnergy(a.physiology),mass=energy/MATERIALS.flesh.energyKcal*MATERIALS.flesh.massGrams;
-  addMaterial(e,'flesh',a.position,{kind:'carcass',massGrams:mass,energyKcal:energy,waterMl:mass*.7});
-  e.animals.splice(e.animals.indexOf(a),1);e.deaths++;invalidateIndex(e);
+  const carcass=addMaterial(e,'flesh',a.position,{kind:'carcass',massGrams:mass,energyKcal:energy,waterMl:mass*.7});
+  e.animals.splice(e.animals.indexOf(a),1);e.deaths++;invalidateIndex(e);return carcass;
 }
 /** Engine interaction. Reach and ownership are checked again at completion. */
 export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley',power=1,amount=.02}={}){
@@ -359,11 +359,26 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
   if(verb==='pull'){
     if(o.species)return{ok:false,code:'object_resists_pull',targetId:id};
     if(o.kind==='carcass'){
-      const grams=Math.min(100,o.massGrams),fraction=grams/o.massGrams;
-      if(grams<1)return{ok:false,code:'nothing_detached',targetId:id};
-      const m=addMaterial(e,'flesh',o.position,{heldBy:actorId,massGrams:grams,energyKcal:o.energyKcal*fraction,waterMl:o.waterMl*fraction});
-      o.massGrams-=grams;o.energyKcal*=1-fraction;o.waterMl*=1-fraction;if(o.massGrams<1){addDetritus(e,o.massGrams,o.energyKcal,o.position,o.scene);removeMaterial(e,o);}
-      if(!m)return{ok:false,code:'object_limit',targetId:id};m.spoiled=o.spoiled;m.ageHours=o.ageHours;
+      // Preflight this finite transfer without invoking addMaterial's destructive
+      // overflow path. Refusal changes no source, ID, material or ledger stock.
+      if(![o.massGrams,o.energyKcal,o.waterMl].every(v=>Number.isFinite(v)&&v>=0)||o.massGrams<1)
+        return{ok:false,code:'nothing_detached',targetId:id};
+      const ozark=geometryForOzarkEcology(e),pos=o.position;
+      if(!pos||!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||
+          (e.ozarkEcologyVersion===1?(!ozark||o.scene!=='valley'||!ozark.canOccupy(pos.x,pos.y,7)):
+          !(o.scene==='valley'?canStandOutside(pos.x,pos.y,7):canStandCave(pos.x,pos.y,7))))
+        return{ok:false,code:'object_out_of_reach',targetId:id};
+      if(e.materials.length>=R.maxMaterials||!Number.isSafeInteger(e.nextId)||e.nextId<1||e.nextId>=1e9||
+          [...e.plants,...e.animals,...e.materials].some(row=>Number(row.id.split(':')[1])>=e.nextId))
+        return{ok:false,code:'object_limit',targetId:id};
+      const grams=Math.min(100,o.massGrams),fraction=grams/o.massGrams,
+        energyKcal=o.energyKcal*fraction,waterMl=o.waterMl*fraction,
+        remainder={massGrams:o.massGrams-grams,energyKcal:o.energyKcal-energyKcal,waterMl:o.waterMl-waterMl};
+      // No callbacks occur between the preflight, allocation and source commit.
+      const m=addMaterial(e,'flesh',pos,{heldBy:actorId,massGrams:grams,energyKcal,waterMl});
+      if(!m)return{ok:false,code:'object_limit',targetId:id};
+      m.scene=o.scene;m.spoiled=o.spoiled;m.ageHours=o.ageHours;
+      Object.assign(o,remainder);if(o.massGrams<1){addDetritus(e,o.massGrams,o.energyKcal,o.position,o.scene);removeMaterial(e,o);}
       return{ok:true,code:'piece_detached',targetId:id,materialId:m.id,material:{id:m.id}};
     }
     const m=detached(e,o,actorId);
@@ -389,8 +404,8 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
         o.targetPosition=[4,2,1].map(scale=>({x:o.position.x+ox*scale,y:o.position.y+oy*scale}))
           .find(point=>ozark.classify(point.x,point.y,SPECIES[o.species].radius).reason==='dry-ground')||null;
       }else o.targetPosition=safePoint(o.position.x+ox*4,o.position.y+oy*4,SPECIES[o.species].radius);
-      if(o.health<=0)death(e,o);
-      return{ok:true,code:o.health<=0?'object_stopped_moving':'object_recoiled',targetId:id};
+      const carcass=o.health<=0?death(e,o):null;
+      return{ok:true,code:o.health<=0?'object_stopped_moving':'object_recoiled',targetId:id,...(carcass?{resultObjectId:carcass.id}:{})};
     }
     return{ok:true,code:'object_struck',targetId:id};
   }
