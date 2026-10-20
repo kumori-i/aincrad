@@ -38,6 +38,8 @@ test('native discovery drink projects fullness before its original receipt witho
   const receipt = actor.memory.experience.find(row => row.id === result.eventId);
   assert.equal(receipt.id, actionId);
   assert.equal(receipt.details.nourishment, actor.nourishment);
+  assert.equal(result.ownHand, undefined);
+  assert.equal(receipt.details.result.ownHand, undefined);
   assert.equal(actor.rng, before.rng);
   assert.equal(actor.stats.independentMeals, before.stats.independentMeals);
   assert.deepEqual(actor.discovery.effects, before.discovery.effects);
@@ -77,6 +79,7 @@ test('a refused empty discovery drink does not change derived or physical body s
   const before = structuredClone(actor);
   const result = requestNpcAction(actor, { type: 'drink' });
   assert.equal(result.code, 'EMPTY_FLASK');
+  assert.equal(result.ownHand, undefined);
   assert.deepEqual(actor.physiology, before.physiology);
   assert.equal(actor.nourishment, before.nourishment);
 });
