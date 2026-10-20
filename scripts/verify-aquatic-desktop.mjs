@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,9 +21,14 @@ const output = await mkdtemp(join(outputRoot, 'run-'));
 const isolated = join(output, 'isolated-state');
 for (const name of ['home', 'config', 'cache'])
   await mkdir(join(isolated, name), { recursive: true });
-const profile = join(isolated, 'profile');
 const built = await buildApplication();
+// The desktop guard requires the actual test profile inside the child's OS
+// temp root. Keep both the profile and Chromium's Unix socket root short.
+const temporary = await mkdtemp(join(tmpdir(), 'aq-'));
+const profile = join(temporary, 'profile');
 const context = { root, output, profile, sourceFingerprint: built.sourceFingerprint };
+try {
+await mkdir(profile, { recursive: true });
 
 async function setupFixture() {
   const { createOzarkWorldGeometry } = await import('./src/ozark-world-geometry.js');
@@ -276,11 +281,6 @@ app.on('browser-window-created',(_event,win)=>win.webContents.once('did-finish-l
 require(path.join(context.root,'dist/desktop/main.cjs'));
 `);
 const electron = createRequire(import.meta.url)('electron');
-// Chromium creates a Unix socket beneath TMPDIR. Deep checkout/artifact paths
-// exceed that socket's path limit, so only disposable runtime temp goes here.
-// The real profile and all persistent evidence stay in the output directory.
-const temporary = await mkdtemp(join(tmpdir(), 'aq-'));
-try {
 for (const phase of ['write', 'reopen']) {
   const flags = [harness, '--test', `--test-profile=${profile}`, `--phase=${phase}`];
   if (process.platform === 'linux') flags.push('--disable-gpu');
@@ -288,16 +288,32 @@ for (const phase of ['write', 'reopen']) {
     XDG_CONFIG_HOME: join(isolated, 'config'), XDG_CACHE_HOME: join(isolated, 'cache') }; delete env.ELECTRON_RUN_AS_NODE;
   const status = await new Promise((resolveStatus, reject) => {
     const child = spawn(electron, flags, { cwd: root, stdio: 'inherit', env });
-    child.on('error', reject); child.on('exit', (code, signal) => resolveStatus({ code, signal }));
+    let spawnError = null;
+    child.on('error', error => { spawnError = error; });
+    child.on('close', (code, signal) => spawnError ? reject(spawnError) : resolveStatus({ code, signal }));
   });
   assert.deepEqual(status, { code: 0, signal: null }, `Native ${phase} failed; evidence retained at ${output}`);
 }
 console.log(await readFile(join(output, 'result.json'), 'utf8'));
 } finally {
-  // Both child processes have exited (or spawning failed). Never remove the
-  // output/profile, including on failure. Retries tolerate Windows file release.
-  await rm(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(error => {
-    console.error(`Could not clean disposable runtime temp ${temporary}; native evidence remains at ${output}:`, error);
-    process.exitCode = 1; // Report cleanup trouble without masking a native failure.
+  // Copy useful profile evidence only after the native children close. Do not
+  // follow Chromium socket symlinks or copy special files into CI artifacts.
+  // If preservation fails, retain the original scratch profile for diagnosis.
+  const profileEvidence = join(output, 'profile-evidence');
+  let preserved = false;
+  try {
+    await cp(profile, profileEvidence, { recursive: true, force: false, errorOnExist: true,
+      filter: async source => { const entry = await lstat(source); return entry.isDirectory() || entry.isFile(); } });
+    await writeFile(join(output, 'profile-evidence.json'), JSON.stringify({ runtimeProfile: profile,
+      evidenceDirectory: profileEvidence, copiedAfterProcessesClosed: true,
+      omittedEntries: 'symlinks and nonregular files' }, null, 2));
+    preserved = true;
+  } catch (error) {
+    console.error(`Could not preserve profile evidence; original retained at ${temporary}:`, error);
+    process.exitCode = 1; // Do not mask an original native failure.
+  }
+  if (preserved) await rm(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(error => {
+    console.error(`Could not clean disposable runtime temp ${temporary}; profile evidence is at ${profileEvidence}:`, error);
+    process.exitCode = 1;
   });
 }
