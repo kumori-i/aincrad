@@ -1,3 +1,6 @@
+import { subscribeConsumption } from './consumption-events.js';
+import { witnessConsumption } from './observational-learning.js';
+import { rememberDiscoveryObservation } from './discovery.js';
 import { NpcController } from './controller.js';
 import { tickEnvironment } from './environment.js';
 import { SocialCoordinator } from './social.js';
@@ -20,6 +23,7 @@ export class PopulationRuntime {
     this.providerFactory=providerFactory;
     this.controllers=new Map();
     this.observedAt=new Map();
+    this.unsubscribeConsumption=state.environment.ecology?subscribeConsumption(state.environment.ecology,event=>{for(const npc of state.agents)witnessConsumption(npc,event,(actor,object)=>rememberDiscoveryObservation(actor,[object]));}):null;
     this.turn=0;
     this.disposed=false;
     this.social=new SocialCoordinator({getAgents:()=>this.state.agents,getCommunity:()=>this.state.community,getEnvironment:()=>this.state.environment});
@@ -105,6 +109,7 @@ export class PopulationRuntime {
   dispose(){
     if(this.disposed)return;
     this.disposed=true;
+    this.unsubscribeConsumption?.();
     for(const controller of this.controllers.values())controller.dispose();
     this.social.dispose?.();
     this.cardinal?.dispose();

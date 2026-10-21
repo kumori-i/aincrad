@@ -1,3 +1,5 @@
+import { publishConsumption } from './consumption-events.js';
+import { describeEcologyObject } from './ecology.js';
 // The fresh Ozark ecosystem uses the same finite object, physiology, and
 // transfer records as the historical valley. Its geography is selected only
 // by the saved Ozark identity and the authoritative full-map geometry.
@@ -552,6 +554,7 @@ function bite(e,a,target){
     energy=target.energyKcal*fraction;water=target.waterMl*fraction;
   }
   if(!mass)return false;
+  const witnessedSource=describeEcologyObject(e,target.id);
   const ingestion=ingestMaterial(a,{massGrams:mass,energyKcal:energy,waterMl:water,digestHours:a.species==='rabbit'?2:3,toxicity:target.spoiled?.08:0},{objectId:target.id,source:'instinct'});
   if(ingestion?.ok!==true)return false;
   if(target.kind==='grass')target.biomassGrams-=mass;
@@ -559,6 +562,7 @@ function bite(e,a,target){
   else{target.massGrams-=mass;target.energyKcal-=energy;target.waterMl-=water;
     if(target.massGrams<.1){e.ledger.discardedKcal+=target.energyKcal;e.materials.splice(e.materials.indexOf(target),1);}}
   a.cooldownHours=rules.biteHours;e.ledger.waterConsumedMl+=water;
+  publishConsumption(e,a,witnessedSource);
   return true;
 }
 function animalDeath(e,a){

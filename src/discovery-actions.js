@@ -1,3 +1,4 @@
+import { publishConsumption } from './consumption-events.js';
 import { recordAquaticCaptureFailure } from './aquatic-ecology.js';
 import { CONFIG } from './config.js';
 import { ozarkAgentWorld,ozarkFiniteAquaticAgent } from './ozark-agent-world.js';
@@ -159,13 +160,15 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       result=object?{ok:true,code:'OBJECT_OBSERVED'}:{ok:false,code:'OBJECT_GONE'};
     }else if(request.type==='sample'){
       // A synchronous authoritative transfer commits finite matter only after swallowing succeeds.
+      const witnessedSource=describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id});
+      if(witnessedSource)witnessedSource.position={...npc.position};
       const fraction=Math.min(1,DISCOVERY_RULES.sampleGrams/Math.max(.001,check.physical.massGrams||0));
       const material=consumeEcologyMaterial(environment.ecology,request.targetId,fraction,{actorId:npc.id,accept:portion=>ingestMaterial(npc,portion,{objectId:request.targetId,actionId:npc.memory?.nextId||0,provenance:'sampled',at:npc.elapsed})});
       if(!material?.ok)result={ok:false,code:material?.code||'CANNOT_SAMPLE'};
       else {
         const ingestion=material.ingestion;
         result={ok:ingestion.ok===true,code:ingestion.code||'SWALLOWED',delayed:ingestion.delayed===true,...(ingestion.ingestionId?{ingestionId:ingestion.ingestionId}:{})};
-        if(result.ok){npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
+        if(result.ok){publishConsumption(environment.ecology,npc,witnessedSource);npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
       }
     }else {
       const response=sharing?transferEcologyMaterial(environment.ecology,request.targetId,sharing.donor,npc):interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02,inventory:npc.inventory.items});

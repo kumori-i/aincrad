@@ -61,3 +61,16 @@ test('the real discovery controller observation crosses the bridge without legac
   assert.ok(output.discovery.observations.length>0);assert.deepEqual(output.discovery.experiments,[]);assert.deepEqual(output.discovery.techniques,[]);assert.equal('knownFoods' in output,false);assert.equal('skills' in output,false);assert.equal('actions' in output,false);assert.equal('apples' in output.condition.inventory,false);
   assert.equal('physiology' in output,false);assert.equal('nutrition' in (output.discovery.observations[0]??{}),false);
 });
+
+
+test('observational inquiry bridge stays bounded and rejects hidden ecological metadata',()=>{
+  const input=observation();input.discovery.inquiries=[{sourceId:'object:17',actorId:'mira',at:1,actorPosition:{x:278,y:760},sourcePosition:{x:278,y:760},attempts:[],retired:false,deferredReason:null,priorAdverse:false,provenance:'witnessed consumption',status:'uncertain',question:'Could a small sample ease my hunger?',ownAttempts:[],ownEffects:[]}];
+  assert.deepEqual(validateObservation(input).discovery.inquiries,input.discovery.inquiries);
+  input.discovery.inquiries[0].diet='omnivore';assert.throws(()=>validateObservation(input),/private/);delete input.discovery.inquiries[0].diet;
+  input.discovery.inquiries[0].ownAttempts=[{id:{nested:'payload'},actionId:1,at:1,primitive:'grasp',targetId:'object:17',ok:true,code:'object_held',durationSeconds:2.5}];assert.throws(()=>validateObservation(input),/attempt/);input.discovery.inquiries[0].ownAttempts=[];
+  input.discovery.inquiries[0].ownEffects=[{id:'feedback:1',at:{nested:'payload'},actionId:1,ingestionId:'ingestion:1',objectId:'object:17',effect:'sustained',source:'experienced',hunger:'easing',energy:'easing',thirst:'unchanged',pain:'none'}];assert.throws(()=>validateObservation(input),/feedback/);input.discovery.inquiries[0].ownEffects=[];
+  input.discovery.inquiries[0].unapproved='data';assert.throws(()=>validateObservation(input),/inquiry/);delete input.discovery.inquiries[0].unapproved;
+  input.discovery.inquiries[0].ownAttempts=Array.from({length:4},()=>({}));assert.throws(()=>validateObservation(input),/inquiry/);input.discovery.inquiries[0].ownAttempts=[];
+  input.discovery.inquiries[0].ownEffects=Array.from({length:65},()=>({}));assert.throws(()=>validateObservation(input),/inquiry/);input.discovery.inquiries[0].ownEffects=[];
+  input.discovery.inquiries=Array.from({length:17},()=>({}));assert.throws(()=>validateObservation(input),/inquiries/);
+});

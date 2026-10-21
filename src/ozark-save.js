@@ -1,3 +1,4 @@
+import { validInquiries } from './observational-inquiry-state.js';
 // The sole current-world save boundary. Historical save keys are not read,
 // migrated, deleted or overwritten; corrupt current bytes remain protected.
 import { CONFIG, NPC_RULES } from './config.js';
@@ -230,6 +231,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if(raw.discovery.inquiries!==undefined && (!validInquiries(raw.discovery.inquiries,raw.discovery,raw.elapsed,id)||!raw.discovery.inquiries.every(q=>[q.sourcePosition,q.actorPosition].every(point=>observationReachable(point,q.at,id,raw.position,raw.elapsed,geometry))))) fail(`${id} has invalid observational inquiries`);
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
   if (canonical.scene !== 'valley' || !sameExact(canonical.position, raw.position) ||
@@ -237,7 +239,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
       !sameExact(canonical.memory.blockedEdges, raw.memory.blockedEdges) ||
       ACTOR_PHYSICAL_FIELDS.some(field => !sameExact(raw[field], canonical[field])) ||
       AUTHORED_MEMORY_FIELDS.some(field => !sameExact(raw.memory[field], canonical.memory[field])) ||
-      !actorEvidenceExact(raw, canonical) || retainedProofIntegrityError(canonical)) {
+      !actorEvidenceExact(raw, canonical) || (raw.discovery.inquiries!==undefined&&!sameExact(raw.discovery.inquiries,canonical.discovery.inquiries)) || retainedProofIntegrityError(canonical)) {
     fail(`${id} would lose physical or learned evidence during validation`);
   }
   if (!restoring) return canonical;
@@ -248,6 +250,12 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
       !sameExact(resumed.memory.blockedEdges, raw.memory.blockedEdges) ||
       retainedProofIntegrityError(resumed)) {
     fail(`${id} could not be restored without losing evidence`);
+  }
+  // The disk form deliberately strips active action identity. Conservatively
+  // retire uncompleted observation trials on restart rather than guessing which
+  // acquisition/sample was in flight; completed personal proof is untouched.
+  if(raw.interrupted||raw.active)for(const q of resumed.discovery.inquiries||[]){
+    if(!q.attempts.some(id=>resumed.discovery.experiments.some(e=>e.id===id&&e.primitive==='sample'&&e.ok))){q.retired=true;q.attempts=[];}
   }
   return resumed;
 }
