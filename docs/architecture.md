@@ -36,6 +36,10 @@ Expiry, unavailable source and a failed physical attempt do not by themselves pr
 
 `npc-panel.js` exposes qualitative sensations, nearby messages, teaching provenance and actual action outcomes. Exact physiology stays in developer inspection. Optional local language models serve conversation rather than generating trusted physical results.
 
+## Observation-driven inquiry
+
+A runtime-only consumption transport admits actual accepted bites/samples, not feeding activity labels or post-hoc reconstruction. Event-time perception gates a bounded separate inquiry ledger. A sequential generic experiment scaffold can influence ordinary action selection, while outcomes and delayed feedback remain linked to the observer's own canonical receipts. Rendering only projects that state. This is an initial observation-to-experiment cycle, not learned pursuit, broad causal reasoning, parallel deliberation or human cognition. See [the scope and evidence boundaries](OBSERVATIONAL-LEARNING.md).
+
 ## Presentation and remaining work
 
 `ozark-world-renderer.js` and `art.js` draw the same authoritative state, with original pixel artwork, habitat substrates, water/banks, trees, rocks, cast shadows and maps. Camera canopy cutaways improve readability without removing objects or changing agent sight/shade.

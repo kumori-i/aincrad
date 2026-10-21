@@ -1,4 +1,5 @@
 import { peerTeachingLabel } from './peer-teaching.js';
+import { observationalInquiries } from './observational-learning.js';
 import { NPC_RULES } from './config.js';
 import { demonstrateCollapse } from './npc.js';
 import { DesktopModelProvider, LocalLearnerProvider } from './controller.js';
@@ -12,6 +13,43 @@ const serial=id=>Number(String(id||'').split(':').pop())||0;
 function add(parent,tag,text,className=''){const node=document.createElement(tag);node.textContent=text;if(className)node.className=className;parent.append(node);return node;}
 function objectDescription(object){const a=object?.appearance||{};return [a.size,a.color,a.shape,a.texture].filter(Boolean).join(' · ')||'An unfamiliar object';}
 function describeRemembered(n,id){return objectDescription(n.discovery?.observations?.[id]);}
+const inquiryStatus = {
+  uncertain: 'Uncertain · own test not completed',
+  waiting: 'Own sample taken · awaiting bodily feedback',
+  supported: 'Expected hunger benefit supported by own bodily feedback',
+  contradicted: 'Own adverse bodily feedback · do not assume this is beneficial or safe',
+  inconclusive: 'Own bodily feedback did not establish hunger benefit',
+  unavailable: 'Procedure unavailable · food benefit remains untested',
+  retired: 'Question retired · no new test implied',
+  expired: 'Experiment window elapsed · no conclusion about food benefit',
+};
+// This projection and renderer only read existing evidence. UI refreshes cannot
+// select actions, advance inquiry state, or reconstruct missing bodily proof.
+export function renderObservationalInquiries(parent, npc, agents = []) {
+  const rows = observationalInquiries(npc);
+  if (!rows.length) return;
+  add(parent, 'p', 'Observation-led questions', 'eyebrow');
+  const pending = q => !q.priorAdverse && ['uncertain', 'waiting'].includes(q.status);
+  const ordered = [...rows].reverse().sort((a, b) => Number(pending(b)) - Number(pending(a)));
+  for (const q of ordered.slice(0, 4)) {
+    const entry = add(parent, 'div', '', 'knowledge-entry');
+    entry.dataset.inquirySource = q.sourceId;
+    entry.dataset.inquiryStatus = q.status;
+    add(entry, 'p', q.question);
+    add(entry, 'p', describeRemembered(npc, q.sourceId), 'small');
+    const actor = agents.find(a => a.id === q.actorId)?.name || 'another visible creature';
+    add(entry, 'p', `Witnessed ${actor} consume from this exact source. Observation alone does not establish benefit to me.`, 'provenance');
+    add(entry, 'p', inquiryStatus[q.status] || 'Uncertain', 'small');
+    if (q.priorAdverse) add(entry, 'p', 'Earlier own adverse experience with this source prevents a new observation-led test.', 'small');
+    if (!q.ownAttempts.length) add(entry, 'p', q.retired ? 'No own experiment is linked to this retired question; no outcome inferred.' : q.status === 'expired' || q.priorAdverse ? 'No own experiment retained for this question.' : 'No own experiment retained. A test can wait for bodily care or access; that is not evidence against food benefit.', 'small');
+    for (const attempt of q.ownAttempts.slice(-3)) {
+      add(entry, 'p', `Own experiment: ${title(attempt.primitive)} · ${attempt.ok ? 'executed' : 'attempt failed'} · ${title(attempt.code)}`, 'provenance');
+    }
+    if (q.ownAttempts.some(a => !a.ok) && !q.ownEffects.length) add(entry, 'p', 'A failed physical attempt does not contradict food benefit.', 'small');
+    for (const effect of q.ownEffects.slice(-2)) add(entry, 'p', `Own bodily feedback: ${title(effect.effect)}${['aching', 'hurting'].includes(effect.pain) ? ' · ' + effect.pain : ''}`, 'provenance');
+  }
+  if (rows.length > 4) add(parent, 'p', `Showing 4 of ${rows.length} retained questions, with pending tests first. Older questions remain in memory.`, 'small');
+}
 export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCommunity,selectAgent,renderer,getEnvironment,save,notify}){
   const panel=$('npc-panel'),bridge=window.aincradAgent;
   let visible=false,lastRefresh=-1,tab='character',seenMessageId=0,replyTo=null,lastMessageSignature='';
@@ -58,6 +96,7 @@ export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCom
   }
   function renderDiscovery(n,skills){
     const d=n.discovery||{},knowledge=$('npc-object-knowledge'),experiments=$('npc-experiments');knowledge.replaceChildren();experiments.replaceChildren();
+    renderObservationalInquiries(knowledge,n,getAgents());
     const effects=d.effects||[],reports=d.reports||[];
     if(!effects.length&&!reports.length)add(knowledge,'p','No bodily effects or reported techniques retained yet.','small');
     for(const effect of effects.slice(-8).reverse()){const entry=add(knowledge,'div','', 'knowledge-entry');add(entry,'p',describeRemembered(n,effect.objectId));add(entry,'p',`Experienced: ${effect.effect}${effect.hunger==='easing'?' · hunger easing':''}${effect.thirst==='easing'?' · thirst easing':''}${effect.energy==='easing'?' · energy easing':''}`,'small');add(entry,'p','Supported by a physically executed sample and later bodily feedback.','provenance');}

@@ -1,0 +1,57 @@
+name: Observation-led learning cycle native QA
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/learning-cycle.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/verify-learning-cycle-desktop.mjs'
+      - 'tests/fixtures/learning-cycle-native.mjs'
+      - 'tests/learning-cycle-native-fixture.test.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'scripts/build.mjs'
+      - 'scripts/record-native-host.mjs'
+      - 'index.html'
+      - 'style.css'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-learning-cycle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Record actual native host and architecture
+        run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Install Linux test display and window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Verify sandboxed Linux observation-led inquiry close/reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-learning-openbox.log" 2>&1 & node scripts/verify-learning-cycle-desktop.mjs'
+      - name: Verify sandboxed macOS observation-led inquiry close/reopen
+        if: runner.os == 'macOS'
+        run: node scripts/verify-learning-cycle-desktop.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: learning-cycle-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/learning-cycle-desktop/
+          if-no-files-found: warn
+          retention-days: 7

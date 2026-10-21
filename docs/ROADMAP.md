@@ -17,6 +17,13 @@ These are engineering deliverables, not claims that a short free-running trial l
 - One current schema 12 / v2 storage slot, without loading or deleting previous saves.
 - Explicit long-run ecological and physical-transfer evidence, separately from autonomous adoption.
 
+## Initial observation-led learning cycle
+
+- Actual visible consumption can create an uncertain, exact-source inquiry.
+- A supplied bounded experiment scaffold selects paid actions through the normal controller; own bodily outcomes remain distinct from witnessed events.
+- Sequential attention, strict bounded persistence, qualitative inquiry UI and paired witness controls.
+- No bear-fishing behavior, general learned hunt plan, broad object generalization, parallel deliberation or language acquisition implied.
+
 ## Next separate capabilities
 
 1. Broader habitat/ecological interactions and measured harvest capacity; no claim of a complete renewable nutrient cycle.

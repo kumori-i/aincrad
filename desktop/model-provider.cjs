@@ -49,6 +49,28 @@ function boundedArrays(raw,contracts){
   for(const [name,limit] of contracts){const value=raw[name]??[];if(!Array.isArray(value)||value.length>limit)throw new Error('Invalid '+name+'.');result[name]=value;}
   return result;
 }
+function validateInquiries(rows){
+  const keys=['sourceId','actorId','at','actorPosition','sourcePosition','attempts','retired','deferredReason','question','status','provenance','priorAdverse','ownAttempts','ownEffects'];
+  const objectId=v=>typeof v==='string'&&/^object:\d{1,9}$/.test(v);
+  const point=v=>isObject(v)&&Object.keys(v).length===2&&['x','y'].every(k=>Number.isFinite(v[k])&&Math.abs(v[k])<24000);
+  const boundedText=(v,n)=>typeof v==='string'&&v.length<=n;
+  const positive=v=>Number.isSafeInteger(v)&&v>0;
+  const time=v=>Number.isFinite(v)&&v>=0;
+  const ingestion=v=>typeof v==='string'&&/^ingestion:\d{1,16}$/.test(v);
+  const optional=(v,key,check)=>!Object.hasOwn(v,key)||check(v[key]);
+  for(const q of rows){
+    if(!isObject(q)||Object.keys(q).length!==keys.length||keys.some(k=>!Object.hasOwn(q,k))||!objectId(q.sourceId)||
+      !(AGENTS.has(q.actorId)||objectId(q.actorId))||q.actorId===q.sourceId||!Number.isFinite(q.at)||q.at<0||
+      !point(q.actorPosition)||!point(q.sourcePosition)||typeof q.retired!=='boolean'||typeof q.priorAdverse!=='boolean'||
+      q.provenance!=='witnessed consumption'||!['uncertain','waiting','supported','contradicted','inconclusive','unavailable','expired','retired'].includes(q.status)||
+      !boundedText(q.question,160)||!(q.deferredReason===null||boundedText(q.deferredReason,200))||
+      !Array.isArray(q.attempts)||q.attempts.length>3||q.attempts.some(id=>!Number.isSafeInteger(id)||id<1)||
+      !Array.isArray(q.ownAttempts)||q.ownAttempts.length>3||!Array.isArray(q.ownEffects)||q.ownEffects.length>64)throw new Error('Invalid observational inquiry.');
+    for(const e of q.ownAttempts)if(!isObject(e)||Object.keys(e).some(k=>!['id','at','primitive','targetId','ok','code','durationSeconds','materialId','resultObjectId','actionId','ingestionId'].includes(k))||!['grasp','pull','sample'].includes(e.primitive)||!objectId(e.targetId)||typeof e.ok!=='boolean'||!boundedText(e.code,60)||!positive(e.id)||!positive(e.actionId)||!time(e.at)||!time(e.durationSeconds)||e.durationSeconds>30||!optional(e,'materialId',objectId)||!optional(e,'resultObjectId',objectId)||!optional(e,'ingestionId',ingestion))throw new Error('Invalid inquiry attempt.');
+    for(const e of q.ownEffects)if(!isObject(e)||Object.keys(e).some(k=>!['id','at','objectId','actionId','ingestionId','effect','hunger','thirst','energy','pain','source','proofEventId'].includes(k))||e.source!=='experienced'||!objectId(e.objectId)||!['sustained','water relief','discomfort','no noticeable change'].includes(e.effect)||!boundedText(e.id,80)||!e.id.length||!time(e.at)||!positive(e.actionId)||!ingestion(e.ingestionId)||!['hunger','thirst','energy'].every(k=>['easing','unchanged'].includes(e[k]))||!['none','aching','hurting'].includes(e.pain)||!optional(e,'proofEventId',positive))throw new Error('Invalid inquiry feedback.');
+  }
+  return rows;
+}
 function validateObservation(raw){
   if(!isObject(raw))throw new Error('Observation is missing or exceeds its size limit.');
   let encoded;try{encoded=JSON.stringify(raw);}catch{throw new Error('Observation must be serializable data.');}
@@ -68,7 +90,7 @@ function validateObservation(raw){
   const condition={scene:c.scene,lifecycle:c.lifecycle,position:{x:c.position.x,y:c.position.y},body:qualitative(c.body,discovery?DISCOVERY_BODY_SIGNALS:BODY_SIGNALS,'body'),senses:qualitative(c.senses,SENSES,'senses'),inventory:{...inventory}};
   const arrays=boundedArrays(raw,discovery?[['knownSources',12],['knownShelters',12],['knownTiles',140]]:[['knownSources',12],['knownFoods',12],['knownShelters',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12],['procedureCandidates',12]]);
   let discoveryData;
-  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports'].includes(key)))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16]]);}
+  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports','inquiries'].includes(key)))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16],['inquiries',16]]);validateInquiries(discoveryData.inquiries);}
   for(const [name,contract] of [['innerLife',{drives:8,beliefs:16,predictions:12,questions:8}],['social',{peers:2,journal:12,notes:12}]]){
     if(raw[name]!==undefined&&!isObject(raw[name]))throw new Error('Invalid '+name+'.');
     for(const [key,limit] of Object.entries(contract))if(raw[name]?.[key]!==undefined&&(!Array.isArray(raw[name][key])||raw[name][key].length>limit))throw new Error('Invalid '+name+' '+key+'.');

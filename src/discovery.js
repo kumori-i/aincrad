@@ -1,3 +1,5 @@
+import { observationalInquiries, observationalExperiment } from './observational-learning.js';
+import { linkInquiryOutcome } from './observational-inquiry-state.js';
 import { cleanPeerTeaching, isPeerTeaching, teachingExpired } from './peer-teaching.js';
 import { CONFIG,NPC_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
@@ -51,7 +53,7 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(Object.hasOwn(result,'resultObjectId')?{resultObjectId:result.resultObjectId}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
-  d.experiments.push(experiment); // The enclosing action transaction links before shared compaction.
+  d.experiments.push(experiment); linkInquiryOutcome(d,experiment); // The enclosing action transaction links before shared compaction.
   const practice=d.practice[action.type]||=( {successes:0,failures:0,seconds:0});
   // A rejected command is not practice. Successful inspection cannot improve pulling.
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;
@@ -153,7 +155,7 @@ export function recordPeerTechnique(npc,content,teaching,options={}){
   });
 }
 export function discoveryObservation(npc){
-  const d=memory(npc);return {observations:Object.values(d.observations).slice(-40),experiments:d.experiments.slice(-24),effects:d.effects.slice(-24),techniques:d.techniques.slice(-16).map(t=>({...t,proficiency:(d.practice[t.steps[0].type]?.successes||0)>=25?'efficient':(d.practice[t.steps[0].type]?.successes||0)>=7?'practiced':'novice'})),reports:d.reports.slice(-16)};
+  const d=memory(npc);return {inquiries:observationalInquiries(npc),observations:Object.values(d.observations).slice(-40),experiments:d.experiments.slice(-24),effects:d.effects.slice(-24),techniques:d.techniques.slice(-16).map(t=>({...t,proficiency:(d.practice[t.steps[0].type]?.successes||0)>=25?'efficient':(d.practice[t.steps[0].type]?.successes||0)>=7?'practiced':'novice'})),reports:d.reports.slice(-16)};
 }
 function routeTarget(npc,point){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc);
@@ -451,6 +453,8 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       const move=routeTarget(npc,object.position);if(move)return wrap(move,`I can approach a source I recognize to try ${author}'s reported procedure.`);
     }
   }
+  const inquiry=observationalExperiment(npc,{body,currentlySeen:id=>{const o=d.observations[id],s=firsthandSightings.get(npc)?.get(id);return !!s&&s.at===o?.observedAt&&s.scene===npc.scene;},eligible:id=>sampleEligible(npc,id,body,foodLearning),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});
+  if(inquiry)return wrap(inquiry,'I saw another body consume from this exact source. A small paid experiment may test its effect on me; the observed act is not proof of benefit.');
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||actorLineOfSight(npc,npc.position,o.position)));
   const choices=[];
   for(const object of objects){

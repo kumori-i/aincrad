@@ -41,6 +41,8 @@ An agent can communicate an actually learned, exact-source procedure through nea
 
 Human journal advice can suggest actions against something the agent has observed. A vague phrase such as “kill the animals” does not identify a target or guarantee a hunting sequence. The interface distinguishes unresolved advice from a usable suggestion. Existing qualitative feeling reports describe modeled bodily sensations, not a claim of humanlike consciousness or complete social reasoning. Nearby food requests and voluntary offers can lead to a real timed handoff of an exact held item. The recipient must independently accept and grasp it; ownership, capacity and proximity are rechecked, and learning still requires their own subsequent experience. Broad skill generalization and richer social relationships remain future work.
 
+An initial observation-led learning cycle lets a genuinely witnessed eating event motivate an uncertain, exact-source question. When access and bodily priorities permit, the observer can try a paid acquisition-and-sampling experiment and revise its expectation from its own delayed feedback. The knowledge panel keeps witnessed consumption separate from personal evidence. This uses a supplied bounded experiment scaffold, not an invented hunting recipe, species-wide food knowledge, or parallel humanlike reasoning. See [observation-driven inquiry](docs/OBSERVATIONAL-LEARNING.md).
+
 The optional local model assists conversation only. It is not required for offline learning, and text never bypasses the physical action engine.
 
 ## Controls
