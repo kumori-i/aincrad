@@ -10,6 +10,8 @@ The current increment extends the detailed single-world terrain, practical hunti
 
 The owner explicitly does not require short autonomous learning trials to succeed before releasing usable physical capabilities. Retain those failures as diagnostic evidence, not falsely green assertions. Reliable living, social generalization, indefinitely sustainable aquatic harvest and automatic pursuit are not implied by the ability to execute actions. Aquatic renewal has explicit finite inputs/caps; ordinary river current can carry fish beyond sparse feeding patches. Sharing uses starter social choices, not a claim of learned humanlike cooperation.
 
+Desktop targets are Linux and macOS only. Do not add Windows compatibility or CI rows. Other Unix systems are unverified. Use host-architecture builds and report the architecture actually tested; do not imply signed/notarized macOS distribution. Preserve historical platform evidence as history.
+
 ## Authority and boundaries
 
 - ozark-world-geometry.js and its structural helpers own authoritative movement, collision and sight. Player and NPC adapters share that geometry.

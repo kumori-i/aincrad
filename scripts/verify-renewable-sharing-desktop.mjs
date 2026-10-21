@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
-import { captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute,
+import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute,
   installEmptyCurrentSlot } from './carcass-native-contract.mjs';
 import { createRenewableSharingFixture } from './renewable-sharing-native-fixture.mjs';
 
@@ -27,7 +27,7 @@ await mkdir(profile);
 const isolated = join(output, 'isolated-state');
 for (const name of ['home', 'config', 'cache']) await mkdir(join(isolated, name), { recursive: true });
 const built = await buildApplication();
-const context = { root, output, profile, sourceFingerprint: built.sourceFingerprint };
+const context = { root, output, profile, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
 const harness = join(output, 'runner.cjs');
 let nativeProcessesClosed = true, nativeProcessesStarted = 0;
 try {
@@ -42,10 +42,11 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const currentRouteSnapshot = ${currentRouteSnapshot.toString()};
 const assertCurrentRoute = ${assertCurrentRoute.toString()};
 const installEmptyCurrentSlot = ${installEmptyCurrentSlot.toString()};
-let running = false, closeObserved = false, allowQuit = false;
+let running = false, closeObserved = false, allowQuit = false, quitRequests = 0;
 const rendererEvents = [], closeEvents = [];
 const deadline = setTimeout(() => { console.error('Renewable native QA timed out: ' + phase); app.exit(1); }, 600000);
 app.on('will-quit', event => {
+  quitRequests++;
   if (!allowQuit) { event.preventDefault(); return; }
   if (!closeObserved) process.exitCode = 1;
   else console.log('RENEWABLE_NATIVE_WILL_QUIT ' + phase);
@@ -145,6 +146,7 @@ async function reopenPhase(win) {
   console.log('PASS: native separate-process reopen retained renewal, ownership and distinct personal evidence.');
 }
 async function closeNormally(win) {
+  const saved = await win.webContents.executeJavaScript("if(window.__ozarkWorld.snapshot().started)window.__ozarkWorld.save(); localStorage.getItem('aincrad.world.v2')");
   await session.defaultSession.flushStorageData(); await delay(250);
   const closed = new Promise(resolve => win.once('closed', () => {
     closeObserved = true; closeEvents.push('closed'); resolve();
@@ -153,6 +155,34 @@ async function closeNormally(win) {
   assert.deepEqual(closeEvents, ['close', 'closed']); assert.equal(win.isDestroyed(), true);
   await fs.writeFile(path.join(context.output, phase + '-close.json'), JSON.stringify({phase, events:closeEvents, destroyed:true}, null, 2));
   console.log('RENEWABLE_NATIVE_CLOSED ' + phase);
+  if (process.platform === 'darwin') {
+    // Exercise production macOS retention and activation before explicit quit.
+    // No preventDefault branch may mask an unexpected quit request here.
+    await delay(350);
+    assert.equal(quitRequests, 0, 'Closing the last macOS window must not request quit');
+    const { BrowserWindow, Menu } = require('electron');
+    assert.equal(BrowserWindow.getAllWindows().length, 0);
+    const menu = Menu.getApplicationMenu();
+    const roles = menu.items.flatMap(item => item.submenu?.items.map(child => child.role) || []);
+    assert.ok(roles.includes('quit')); assert.ok(roles.includes('close'));
+    const opened = new Promise(resolve => app.once('browser-window-created', (_event, next) => {
+      next.webContents.once('did-finish-load', () => resolve(next));
+    }));
+    app.emit('activate');
+    const reopened = await opened;
+    await waitFor(reopened, 'Boolean(window.__ozarkWorld)');
+    const prefs = reopened.webContents.getLastWebPreferences();
+    assert.equal(prefs.sandbox, true); assert.equal(prefs.contextIsolation, true); assert.equal(prefs.nodeIntegration, false);
+    assert.equal(await reopened.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"), saved);
+    assert.equal(await reopened.webContents.executeJavaScript('window.__ozarkWorld.snapshot().elapsed'), JSON.parse(saved).elapsed);
+    const closedAgain = new Promise(resolve => reopened.once('closed', resolve));
+    reopened.close(); await closedAgain;
+    assert.equal(quitRequests, 0);
+    await fs.writeFile(path.join(context.output, phase + '-mac-lifecycle.json'), JSON.stringify({
+      lastWindowRetainsApp:true, activationRecreatesSandboxedWindow:true, exactSavedBytes:true,
+      noClosedTimeProgression:true, quitAndCloseMenuRoles:true, quitRequestsBeforeExplicitQuit:quitRequests,
+      sourceIdentity:context.sourceIdentity,platform:process.platform,arch:process.arch,electron:process.versions.electron},null,2));
+  }
   clearTimeout(deadline); allowQuit = true; app.quit();
 }
 app.on('browser-window-created', (_event, win) => {
@@ -168,7 +198,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(process.argv.includes('--no-sandbox'), false);
       assert.equal(process.argv.includes('--disable-setuid-sandbox'), false);
       await fs.writeFile(path.join(context.output, phase + '-sandbox.json'), JSON.stringify({
-        nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,sandbox:prefs.sandbox,webSecurity:prefs.webSecurity}, null, 2));
+        sourceIdentity:context.sourceIdentity,platform:process.platform,arch:process.arch,electron:process.versions.electron,nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,sandbox:prefs.sandbox,webSecurity:prefs.webSecurity}, null, 2));
       await waitFor(win, 'Boolean(window.__ozarkWorld)');
       assert.equal(await win.webContents.executeJavaScript("import('./src/build-info.js').then(module => module.BUILD_SOURCE_FINGERPRINT)"), context.sourceFingerprint,
         'Native renderer must match the exact built source fingerprint');
@@ -191,7 +221,7 @@ app.on('browser-window-created', (_event, win) => {
 require(path.join(context.root, 'dist/desktop/main.cjs'));
 `);
 await writeFile(join(output, 'prepared.json'), JSON.stringify({output,harness,
-  sourceFingerprint:built.sourceFingerprint,nativeExecutionPerformed:false,sandboxBypassFlags:[]},null,2));
+  sourceIdentity:nativeSourceIdentity(root), sourceFingerprint:built.sourceFingerprint,nativeExecutionPerformed:false,sandboxBypassFlags:[]},null,2));
 if (prepareOnly) console.log(JSON.stringify({output,harness,nativeExecutionPerformed:false}));
 else {
   const electron = createRequire(import.meta.url)('electron');

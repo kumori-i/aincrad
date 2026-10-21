@@ -2,11 +2,19 @@
  * sandboxed renderer; they never replace the application's save/boot guards. */
 import { cp, lstat, mkdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+
+export function nativeSourceIdentity(root) {
+  const git = (...args) => execFileSync('git', args, {cwd:root,encoding:'utf8'}).trim();
+  return {commit:git('rev-parse','HEAD'),tree:git('rev-parse','HEAD^{tree}'),
+    worktreeStatus:git('status','--porcelain')};
+}
+
 
 export async function canonicalApplicationRoot(scratch, fs = { mkdir, realpath }) {
   const requested = join(scratch, 'app');
   await fs.mkdir(requested, { recursive: true });
-  // Windows TEMP can use an 8.3 alias. The unchanged application protocol
+  // macOS temporary directories can use /var and /private/var aliases. The unchanged application protocol
   // compares its lexical renderer root with realpath(asset), so build/load the
   // temporary app by its canonical path. Keep the profile argument under the
   // original os.tmpdir spelling required by the separate profile validator.

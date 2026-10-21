@@ -13,7 +13,7 @@ Run `npm run check`, `npm run build`, then `npm run smoke` in a supported sandbo
 - Real controller peer teaching: sender actually earns a technique, recipient gets attributed guidance, pays for its own actions and receives its own delayed feedback. No copied proof, benefit at speech, or replay after reload.
 - Human hints with known/unknown targets, explicit attempted primitives and honest unresolved advice.
 - Current rendering checkpoints and native screenshots for world, map, journal/teaching and dense-forest readability. Profile frame time, cold generation and bounded cache memory; cloud timings are not a guarantee for a user's laptop.
-- Actual native close/reopen, partial paid action interruption, raw disk preservation, pause and background window behavior on Windows/Linux. JSON/Canvas tests are useful but do not replace these native rows.
+- Actual native close/reopen, partial paid action interruption, raw disk preservation, pause and background window behavior on Linux/macOS. JSON/Canvas tests are useful but do not replace these native rows.
 - Strict desktop sandbox, context isolation, Node-disabled renderer, navigation/permission denial, canonical allowlisted assets and narrow IPC. Do not add `--no-sandbox` to obtain a pass.
 
 Run `node scripts/verify-renewable-sharing-desktop.mjs` for the new two-process feeding/handoff evidence, alongside the existing aquatic and carcass native harnesses. Its short run does not establish multi-day reproduction; see [renewable native QA](RENEWABLE-SHARING-NATIVE-QA.md) and [ecology evidence](RENEWABLE-AQUATIC-ECOLOGY.md).
@@ -25,3 +25,13 @@ Keep fixed ordinary-controller discovery/adoption results and failures. Do not s
 When deleting old-world test files, preserve codec-independent proof mutation, delayed feedback, ownership and retention coverage in current tests. Report skipped and not-run tests separately from passes.
 
 Publication/merge requires the exact reviewed source tree, terminal CI evidence and a verified resulting main tree. Historical reports in this directory are source-specific evidence, not an assertion that their retired worlds or workflows remain supported.
+
+## Platform-specific evidence
+
+The desktop and three native capability workflows target Linux and macOS, never Windows. `test-results/host.json` records actual `process.platform`, `process.arch`, OS release, Node version, git commit/tree and worktree status. The renderer source fingerprint remains renderer-only: it is not proof of the desktop/harness source tree. Archive host metadata alongside native process logs and results; parent publication checks must reconcile the tested tree with the published head.
+
+The renewable native harness also checks macOS last-window retention, standard Close/Quit menu roles, programmatic `activate` recreation of a sandboxed window, exact save bytes and no closed-time progression before another close and explicit `app.quit()`. This is actual Electron lifecycle coverage, not a physical Dock click or menu-keypress test. The recreated native QA window uses the explicit inert test route to compare the saved clock exactly; it does not establish normal automatic simulation restart after a Dock click. Separate-process reopening remains required on both OSes.
+
+Filesystem checks retain canonical asset containment, temporary-root alias handling, symlink-suffix refusal and product-profile overlap guards. A case-sensitive host tests distinct-cased paths as distinct; a case-insensitive host must reject a differently cased alias into the product profile. Existing directory overlap is also checked by device/inode identity because realpath does not normalize case. No path is blindly lowercased. Unix backup mode 0600 is asserted, not skipped.
+
+Packaging uses the actual host architecture. Linux produces an unpacked application directory; macOS produces an unsigned, unnotarized development `.app`. CI archives the bundles with tar to preserve executable modes and symlinks. Packaging success does not establish installation, Gatekeeper acceptance, or support for a different architecture. Other Unix systems are not tested desktop targets. Historical Windows artifacts remain unchanged and are not current support claims.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, win32 } from 'node:path';
+import { join, relative } from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -48,13 +48,11 @@ test('only the application root is canonicalized; the temp profile spelling is r
   assert.equal(join(scratch, 'p-0'), join('/disposable/alias/ac-h1-test', 'p-0'));
   assert.deepEqual(calls, [['mkdir', join(scratch, 'app'), { recursive: true }],
     ['realpath', join(scratch, 'app')]]);
-  // Exact production containment rule, with the Windows 8.3 behavior already
-  // documented in native-profile-qa-driver.test.mjs. This is a path model,
-  // not a claim that the prior native failure captured a 403.
-  const alias = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\ac-h1-test\\app\\renderer';
-  const long = alias.replace('RUNNER~1', 'runneradmin'), asset = win32.join(long, 'index.html');
-  assert.equal(win32.relative(alias, asset).startsWith('..'), true);
-  assert.equal(win32.relative(long, asset).startsWith('..'), false);
+  // macOS /var aliases must be canonicalized before asset containment checks.
+  const alias = '/var/folders/ac-h1-test/app/renderer';
+  const canonicalRoot = '/private' + alias, asset = join(canonicalRoot, 'index.html');
+  assert.equal(relative(alias, asset).startsWith('..'), true);
+  assert.equal(relative(canonicalRoot, asset).startsWith('..'), false);
 });
 
 test('process capture waits for close, retains spawn errors and drains final output', async () => {
@@ -84,9 +82,8 @@ test('profile evidence copies only regular files/directories, never replacing ex
     const profile = join(root, 'profile'), archive = join(root, 'archive');
     await mkdir(join(profile, 'Local Storage'), { recursive: true });
     await writeFile(join(profile, 'Local Storage', 'bytes'), 'exact synthetic saved bytes');
-    // Directory junction creation works without Windows symlink privilege.
     await mkdir(join(root, 'outside')); await writeFile(join(root, 'outside', 'not-profile'), 'exclude');
-    await symlink(join(root, 'outside'), join(profile, 'link'), process.platform === 'win32' ? 'junction' : 'dir');
+    await symlink(join(root, 'outside'), join(profile, 'link'), 'dir');
     const result = await archiveNativeProfile(profile, archive);
     assert.equal(result.regularFilesAndDirectoriesOnly, true);
     assert.deepEqual(result.skipped, [join(profile, 'link')]);

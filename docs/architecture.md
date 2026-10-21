@@ -6,6 +6,8 @@
 
 `desktop/main.cjs` owns the sandboxed window, allowlisted application asset protocol and narrow local-model/raw-backup IPC. `desktop/profile-route.cjs` confines native test profiles beneath OS temporary storage, rejects symlink suffixes and product-profile aliases, and rejects retired launch options. The renderer has no Node or arbitrary filesystem access. Asset containment uses canonical paths.
 
+Desktop primary targets are Linux and macOS, with host-architecture builds. Other Unix platforms are unverified. macOS retains the app after last-window closure and recreates its sandboxed window on activation; normal Quit closes the app. Simulation remains renderer-owned and cannot progress while no window exists.
+
 ## Authoritative state and geometry
 
 `ozark-world-geometry.js`, the Ozark terrain profile and structural helpers define the single watershed, water, collision and sight. Structural objects are deterministic, biome-appropriate and bounded by local caches. A visible tree/rock obstacle must match its physical geometry. Forest canopy coverage derives from structural oak/pine crowns (not mutable fruit-tree growth), while solar shade derives from those crowns and the saved environment time. Ground textures and cutaway visibility do not change physical shade or obstruction.

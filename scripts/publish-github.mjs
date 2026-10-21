@@ -15,7 +15,7 @@ const TOP=['.gitattributes','.gitignore','.github','AGENTS.md','README.md','desk
 const REMOVED=['play.html','tests/browser_smoke.py'];
 let worktree;
 function run(cmd,args,{cwd=ROOT,capture=false,allowFail=false}={}){
- const r=spawnSync(cmd,args,{cwd,encoding:'utf8',stdio:capture?'pipe':'inherit',windowsHide:true});
+ const r=spawnSync(cmd,args,{cwd,encoding:'utf8',stdio:capture?'pipe':'inherit'});
  if(r.error)throw new Error(`Could not run ${cmd}. Install it and ensure it is on PATH.`);
  if(r.status!==0&&!allowFail)throw new Error(`${cmd} failed (exit ${r.status}). No force push or automatic retry will occur.`);
  return r;
