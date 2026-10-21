@@ -20,7 +20,7 @@ const inquiryStatus = {
   contradicted: 'Own adverse bodily feedback · do not assume this is beneficial or safe',
   inconclusive: 'Own bodily feedback did not establish hunger benefit',
   unavailable: 'Procedure unavailable · food benefit remains untested',
-  retired: 'Older evidence retired · no new test implied',
+  retired: 'Question retired · no new test implied',
   expired: 'Experiment window elapsed · no conclusion about food benefit',
 };
 // This projection and renderer only read existing evidence. UI refreshes cannot
@@ -41,7 +41,7 @@ export function renderObservationalInquiries(parent, npc, agents = []) {
     add(entry, 'p', `Witnessed ${actor} consume from this exact source. Observation alone does not establish benefit to me.`, 'provenance');
     add(entry, 'p', inquiryStatus[q.status] || 'Uncertain', 'small');
     if (q.priorAdverse) add(entry, 'p', 'Earlier own adverse experience with this source prevents a new observation-led test.', 'small');
-    if (!q.ownAttempts.length) add(entry, 'p', q.retired ? 'Own experiment evidence is no longer retained; no outcome inferred.' : q.status === 'expired' || q.priorAdverse ? 'No own experiment retained for this question.' : 'No own experiment retained. A test can wait for bodily care or access; that is not evidence against food benefit.', 'small');
+    if (!q.ownAttempts.length) add(entry, 'p', q.retired ? 'No own experiment is linked to this retired question; no outcome inferred.' : q.status === 'expired' || q.priorAdverse ? 'No own experiment retained for this question.' : 'No own experiment retained. A test can wait for bodily care or access; that is not evidence against food benefit.', 'small');
     for (const attempt of q.ownAttempts.slice(-3)) {
       add(entry, 'p', `Own experiment: ${title(attempt.primitive)} · ${attempt.ok ? 'executed' : 'attempt failed'} · ${title(attempt.code)}`, 'provenance');
     }

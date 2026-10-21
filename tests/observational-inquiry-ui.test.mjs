@@ -52,7 +52,7 @@ test('own sample waits for matching feedback and adverse feedback remains explic
   assert.match(render(fixture({ attempts, effects: [effect('sustained')] })).text, /benefit supported by own bodily feedback/);
   assert.match(render(fixture({ attempts, effects: [effect('sustained'), effect('discomfort')] })).text, /Own adverse bodily feedback · do not assume this is beneficial or safe/);
   assert.match(render(fixture({ attempts, effects: [effect('refreshing')] })).text, /did not establish hunger benefit/);
-  assert.match(render(fixture({ retired: true })).text, /Older evidence retired/);
+  assert.match(render(fixture({ retired: true })).text, /Question retired/);
 });
 
 test('panel renders untrusted names and descriptions only as literal text', () => {
@@ -88,4 +88,15 @@ test('expired and prior-adverse questions explain why another test is not pendin
   assert.match(node.text, /Earlier own adverse experience with this source prevents a new observation-led test/);
   assert.doesNotMatch(node.text, /A test can wait/);
   assert.deepEqual(adverse, before);
+});
+
+
+test('retired inquiry does not imply preserved physical experiment receipts were lost', () => {
+  const npc = fixture({ retired: true });
+  npc.discovery.experiments.push(acquire);
+  const before = structuredClone(npc), node = render(npc);
+  assert.match(node.text, /Question retired · no new test implied/);
+  assert.match(node.text, /No own experiment is linked to this retired question; no outcome inferred/);
+  assert.doesNotMatch(node.text, /Older evidence|evidence is no longer retained/);
+  assert.deepEqual(npc, before);
 });
