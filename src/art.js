@@ -407,6 +407,37 @@ export function drawEcologyObject(g,object,time,subject=null){
       else{pixelOval(g,-2,-9,11,6,dark);pixelOval(g,-3,-11,9,4,fur);pixelOval(g,9,-13,6,4,fur);pixelPoly(g,[[11,-12],[18,-10],[12,-8]],light);rect(g,17,-10,2,1,'#3c392f');rect(g,11,-14,1,1,'#343d2e');pixelPoly(g,[[5,-15],[5,-22],[10,-17]],dark);pixelPoly(g,[[12,-16],[14,-21],[16,-15]],dark);rect(g,6,-20,1,3,light);for(const [x,offset] of [[-9,step],[-3,-step],[5,-step],[10,step]])rect(g,x,-5+offset,2,6-offset,dark);if(fox){pixelLine(g,[[-12,-9],[-20,-6],[-22,-1]],fur,5);pixelLine(g,[[-22,-3],[-22,-1]],'#e5d7ac',4);}else{rect(g,-15,-10,4,2,dark);for(const [x,y] of [[-8,-13],[-3,-11],[2,-13],[7,-16]])rect(g,x,y,2,1,'#615646');}}
     }
     if(object.sleeping){rect(g,0,-24,3,1,'#d7dfbb');rect(g,2,-23,1,1,'#d7dfbb');rect(g,1,-22,1,1,'#d7dfbb');rect(g,0,-21,3,1,'#d7dfbb');}
+  }else if(kind==='fish'){
+    // Position and heading come from a live authoritative record. The clock
+    // changes only a fin pixel, never location, stock, or a physical action.
+    const flip=(object.facing?.x??1)<0?-1:1;
+    g.scale(flip,1);
+    pixelPoly(g,[[-6,0],[-3,-3],[3,-3],[7,0],[3,3],[-3,2]],'#24566a');
+    pixelPoly(g,[[-6,0],[-9,-3],[-9,3]],'#397e91');
+    pixelPoly(g,[[-3,-2],[3,-2],[5,0],[2,1],[-3,1]],'#87bcc0');
+    rect(g,4,-1,1,1,'#193f50');rect(g,-2,-2,4,1,'#c0ded3');
+    if(Math.floor(time*6)%2)rect(g,-8,0,2,1,'#94c6c4');
+  }else if(kind==='fish_specimen'){
+    const bare=object.stage==='bare'||object.quantity===0;
+    pixelOval(g,0,2,10,3,'#253b3355');
+    if(!bare){
+      pixelPoly(g,[[-7,0],[-3,-4],[4,-3],[8,0],[3,3],[-3,2]],object.stage==='spoiled'?'#7f8970':'#779d9e');
+      pixelPoly(g,[[-7,0],[-10,-3],[-10,3]],'#687f76');
+      pixelPoly(g,[[-3,-2],[3,-2],[5,0],[1,2],[-4,1]],object.stage==='spoiled'?'#a3947c':'#c48e85');
+      rect(g,5,-1,1,1,'#39423d');rect(g,-1,-2,3,1,'#ead1b0');
+    }else{
+      // Exhaustion remains an actual still skeleton, not a disappearing body
+      // or a decorative fresh fish at the same location.
+      pixelLine(g,[[-8,0],[5,0]],'#d5c7a0',1);
+      for(const x of [-5,-2,1]){pixelLine(g,[[x-1,-3],[x,0],[x-1,3]],'#c1b48e',1);}
+      pixelPoly(g,[[4,-2],[7,-1],[8,1],[4,2]],'#d9c9a0');rect(g,6,-1,1,1,'#4e5649');
+      pixelPoly(g,[[-8,0],[-11,-2],[-11,2]],'#b6aa89');
+    }
+  }else if(object.materialType==='fish_tissue'){
+    pixelOval(g,0,2,6,2,'#2d423444');
+    pixelPoly(g,[[-6,0],[-4,-4],[2,-5],[6,-2],[2,2],[-2,1]],object.stage==='spoiled'?'#9c8e77':'#d3a397');
+    pixelLine(g,[[-3,-2],[2,-3],[4,-1]],object.stage==='spoiled'?'#b9ab8b':'#f0d0b6',1);
+    rect(g,-4,0,5,1,'#9e7270');
   }else if(kind==='carcass'){
     pixelOval(g,0,2,13,3,'#283b2b66');pixelOval(g,0,-2,10,4,'#71634f');pixelOval(g,-2,-3,8,3,['decaying','spoiled'].includes(object.stage)?'#88836b':'#aa906b');rect(g,8,-3,4,3,'#b8a37e');rect(g,-7,1,3,2,'#534b3c');rect(g,3,1,4,2,'#534b3c');
   }else{

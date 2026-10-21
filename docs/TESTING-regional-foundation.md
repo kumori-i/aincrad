@@ -1,6 +1,8 @@
+> Historical, source-specific report. Retired world/version documents are available in Git history; current runtime guidance is in README.md and docs/TESTING.md.
+
 # Regional ecology foundation: measured evidence
 
-Date: 2026-10-15. Scope: the first bounded implementation of [milestone A](DEVELOPMENT-v08.md), with a diagnostic baseline for B. Package version remains 0.7.0; ecology distribution is 3 and regional metadata is 1. This is not a completed survival, migration, regional Cardinal or seasonal-sustainability release.
+Date: 2026-10-15. Scope: the first bounded implementation of milestone A (retired; see Git history), with a diagnostic baseline for B. Package version remains 0.7.0; ecology distribution is 3 and regional metadata is 1. This is not a completed survival, migration, regional Cardinal or seasonal-sustainability release.
 
 ## Reproducible evidence
 

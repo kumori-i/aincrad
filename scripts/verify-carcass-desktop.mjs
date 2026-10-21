@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
 import { createCarcassDiskFixture } from '../tests/fixtures/carcass-encounter.mjs';
-import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptySlots, ordinaryRouteSnapshot, assertOrdinaryRoute } from './carcass-native-contract.mjs';
+import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptyCurrentSlot, currentRouteSnapshot, assertCurrentRoute } from './carcass-native-contract.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2), prepareOnly = args.includes('--prepare-only');
@@ -47,13 +47,12 @@ const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
 const stage = process.argv.find(arg => arg.startsWith('--stage='))?.slice(8);
 const digest = raw => createHash('sha256').update(raw).digest('hex');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const oldKey = 'aincrad.save.v1', key = 'aincrad.ozark.v1';
-const oldSentinel = JSON.stringify({ syntheticH1OriginalSlot: 'preserve-exactly' });
+const key = 'aincrad.world.v1';
 let running = false, closeObserved = false, allowQuit = false;
 const events = [], rendererEvents = [];
-const installEmptySlots = ${installEmptySlots.toString()};
-const ordinaryRouteSnapshot = ${ordinaryRouteSnapshot.toString()};
-const assertOrdinaryRoute = ${assertOrdinaryRoute.toString()};
+const installEmptyCurrentSlot = ${installEmptyCurrentSlot.toString()};
+const currentRouteSnapshot = ${currentRouteSnapshot.toString()};
+const assertCurrentRoute = ${assertCurrentRoute.toString()};
 const timeout = setTimeout(() => {
   console.error('Carcass native QA timed out: ' + stage + '/' + phase);
   app.exit(1);
@@ -71,10 +70,10 @@ async function captureFailure(win, error) {
     url: win.webContents.getURL(), rendererEvents, appPathEvidence };
   try { evidence.document = await win.webContents.executeJavaScript(
     '({url:location.href,title:document.title,text:document.body?.innerText?.slice(0,12000),' +
-    'playHook:Boolean(window.__aincrad),ozarkHook:Boolean(window.__ozarkWorld)})'); }
+    'ozarkHook:Boolean(window.__ozarkWorld)})'); }
   catch (failure) { evidence.documentError = String(failure); }
   try { evidence.ordinary = await win.webContents.executeJavaScript(
-    '(' + ordinaryRouteSnapshot.toString() + ')(window,document)'); }
+    '(' + currentRouteSnapshot.toString() + ')(window,document)'); }
   catch (failure) { evidence.ordinaryError = String(failure); }
   await fs.writeFile(path.join(context.output, stage + '-' + phase + '-failure.json'),
     JSON.stringify(evidence, null, 2));
@@ -128,17 +127,12 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(prefs.webSecurity, true);
       assert.equal(process.argv.includes('--no-sandbox'), false);
       assert.equal(process.argv.includes('--disable-setuid-sandbox'), false);
-      await waitFor(win, 'Boolean(window.__aincrad) || ' +
-        '(document.getElementById(\"recovery-panel\") && ' +
-        '!document.getElementById(\"recovery-panel\").classList.contains(\"hidden\") && ' +
-        'Boolean(document.getElementById(\"recovery-diagnosis\")?.textContent))',
-        'ordinary bootstrap or protected recovery');
-      const ordinary = await win.webContents.executeJavaScript(
-        '(' + ordinaryRouteSnapshot.toString() + ')(window,document)');
-      assertOrdinaryRoute(ordinary, phase);
-      await fs.writeFile(path.join(context.output, stage + '-' + phase + '-ordinary-boot.json'),
-        JSON.stringify(ordinary, null, 2));
-      assert.match(win.webContents.getURL(), /^aincrad:\\/\\/app\\/index\\.html\\?test=1$/);
+      await waitFor(win, 'Boolean(window.__ozarkWorld)', 'current world bootstrap');
+      const current = await win.webContents.executeJavaScript(
+        '(' + currentRouteSnapshot.toString() + ')(window,document)');
+      assertCurrentRoute(current);
+      await fs.writeFile(path.join(context.output, stage + '-' + phase + '-current-boot.json'),
+        JSON.stringify(current, null, 2));
       const fixture = JSON.parse(await fs.readFile(context.fixturePaths[stage], 'utf8'));
       if (phase === 'write') {
         // Processing starts from the valid completed-relation save, then does
@@ -147,8 +141,8 @@ app.on('browser-window-created', (_event, win) => {
         const inputRaw = stage === 'processing' ? JSON.parse(await fs.readFile(
           context.fixturePaths.relation, 'utf8')).raw : fixture.raw;
         let installed = await win.webContents.executeJavaScript(
-          '(' + installEmptySlots.toString() + ')(localStorage,' +
-          JSON.stringify({ key, oldKey, oldSentinel, inputRaw }) + ')');
+          '(' + installEmptyCurrentSlot.toString() + ')(localStorage,' +
+          JSON.stringify({ key, inputRaw }) + ')');
         if (stage === 'processing') {
           const native = await win.webContents.executeJavaScript(
             '(async()=>{' +
@@ -200,21 +194,9 @@ app.on('browser-window-created', (_event, win) => {
       }
       assert.equal(phase, 'read');
       const persisted = await win.webContents.executeJavaScript(
-        '({raw:localStorage.getItem(' + JSON.stringify(key) + '),old:localStorage.getItem(' + JSON.stringify(oldKey) + ')})');
+        '({raw:localStorage.getItem(' + JSON.stringify(key) + ')})');
       assert.equal(persisted.raw, fixture.raw, 'Disk bytes must survive an actual process exit exactly');
-      assert.equal(persisted.old, oldSentinel);
       await fs.writeFile(path.join(context.output, stage + '-reopened-save.json'), persisted.raw);
-      const navigated = new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Native Ozark route did not load')), 30000);
-        win.webContents.once('did-finish-load', () => { clearTimeout(timer); resolve(); });
-      });
-      // The invoking frame can be replaced before its JS promise resolves.
-      // Require the actual destination URL/hook below, not that old-frame reply.
-      void win.webContents.executeJavaScript("void window.aincradWorld.open('ozark'); true")
-        .catch(error => rendererEvents.push({ kind: 'world-switch-frame', error: String(error) }));
-      await navigated;
-      await waitFor(win, 'Boolean(window.__ozarkWorld)', 'Ozark runtime hook');
-      assert.match(win.webContents.getURL(), /^aincrad:\\/\\/app\\/index\\.html\\?test=1&ozarkWorld=1$/);
       const actual = await win.webContents.executeJavaScript('window.__ozarkWorld.snapshot()');
       assert.equal(actual.blocked, false); assert.equal(actual.started, false);
       assert.equal(actual.elapsed, fixture.expectedRestored.elapsed);
@@ -249,7 +231,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(checkpoint.snapshot.elapsed, actual.elapsed);
       const disk = JSON.parse(checkpoint.raw), expected = fixture.expectedRestored;
       await fs.writeFile(path.join(context.output, stage + '-runtime-checkpoint.json'), checkpoint.raw);
-      assert.equal(disk.version, 9); assert.deepEqual(disk.features, { plantLifecycle: 1 });
+      assert.equal(disk.version, 11); assert.deepEqual(disk.features, { plantLifecycle: 1, finiteAquatic: 1, worldStructures: 1 });
       assert.deepEqual(disk.environment, expected.environment, 'Finite ecology, clocks, stocks, IDs and ownership must survive the runtime load/save');
       const savedActor = disk.agents.find(row => row.id === 'aster');
       assert.equal(savedActor.active, null);
@@ -278,8 +260,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(afterPause.elapsed, checkpoint.snapshot.elapsed);
       const pausedDisk = await win.webContents.executeJavaScript(
         '(() => { if(!window.__ozarkWorld.save())throw new Error("paused save failed");' +
-        'return {raw:localStorage.getItem(' + JSON.stringify(key) + '),old:localStorage.getItem(' + JSON.stringify(oldKey) + ')};})()');
-      assert.equal(pausedDisk.old, oldSentinel);
+        'return {raw:localStorage.getItem(' + JSON.stringify(key) + ')};})()');
       assert.deepEqual(JSON.parse(pausedDisk.raw), disk,
         'Paused rendering must preserve full stocks, ledger, next ID and actor state, not only counts');
       await fs.writeFile(path.join(context.output, stage + '-paused-save.json'), pausedDisk.raw);
@@ -290,7 +271,7 @@ app.on('browser-window-created', (_event, win) => {
         passed: true, stage, sourceFingerprint: checkpoint.fingerprint,
         exactDiskBytesAfterClosedProcess: true, actualRuntimeEvidenceEqual: true,
         exactEcologyOnResave: true, noClosedOrPausedProgress: true,
-        terminalRelationPreserved: true, originalSlotProtectedOnBoot: true, successfulPulls: successfulPulls.length,
+        terminalRelationPreserved: true, singleCurrentWorldBoot: true, successfulPulls: successfulPulls.length,
         restartInterruptedReceipts: interrupted.length, sandboxPreserved: true,
         nativeProcessingPreparation: fixture.nativeProcessingPreparation || null,
         screenshotBytes: png.length, rawBeforeSha256: digest(persisted.raw),

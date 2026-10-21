@@ -1,5 +1,6 @@
 name: Desktop application
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
@@ -10,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -24,11 +25,12 @@ jobs:
       - name: Exercise the Windows desktop window
         if: runner.os == 'Windows'
         run: npm run smoke
+      - name: Install sandbox-preserving Linux desktop
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
       - name: Exercise the Linux desktop window
         if: runner.os == 'Linux'
-        # Hosted Ubuntu runners cannot use Electron's downloaded SUID helper.
-        # This flag applies only to an isolated smoke process.
-        run: npm run smoke -- --no-sandbox
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-openbox.log" 2>&1 & npm run smoke'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

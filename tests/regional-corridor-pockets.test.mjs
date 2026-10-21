@@ -11,7 +11,7 @@ import {corridorSegmentClear, sampleCorridor} from '../src/ecology-corridors.js'
 import {tickPhysiology, exertPhysiology} from '../src/biology.js';
 import {createNpc} from '../src/npc-state.js';
 import {freshState, distance, moveActor, canStandOutside, waterDistance} from '../src/world.js';
-import {loadSave, writeSave} from '../src/save.js';
+
 import {SocialCoordinator} from '../src/social.js';
 
 const POCKETS=[
@@ -158,33 +158,4 @@ test('depletion spends finite stock and clear weather does not instantly refill 
     e.ledger.initialKcal+e.ledger.photosynthesisKcal+e.ledger.externalKcal,1e-4);
 });
 
-test('an existing depleted world keeps exact stock, body, notes and time through two disk reopenings',()=>{
-  const state=freshState({connectedEcology:false}),e=state.environment.ecology,removed=POCKETS.map(entry=>pocket(e,entry));
-  e.plants=e.plants.filter(p=>!removed.includes(p));
-  state.elapsed=state.environment.elapsed=e.elapsed=123.5;
-  for(const agent of state.agents)agent.elapsed=123.5;
-  const surviving=e.plants.find(p=>p.kind==='bramble');surviving.quantity=0;
-  tickPhysiology(state.agents[0],25,{feltTemperature:18,hour:8});
-  e.ledger.initialKcal=ecologyEnergy(e);
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,
-    getEnvironment:()=>state.environment});
-  assert.ok(social.action(state.agents[1],{type:'write_note',title:'Earlier field record',
-    text:'Observed before this save was reopened.',beliefIds:[]}).ok);
-  const directory=mkdtempSync(join(tmpdir(),'aincrad-corridor-save-')),path=join(directory,'save.json');
-  const storage={getItem:()=>readFileSync(path,'utf8'),setItem:(_key,value)=>writeFileSync(path,value)};
-  try{
-    writeFileSync(path,JSON.stringify(state));
-    const first=loadSave(storage);assert.equal(first.blocked,false);
-    assert.equal(first.state.environment.ecology.plants.length,e.plants.length);
-    assert.ok(removed.every(p=>!first.state.environment.ecology.plants.some(q=>q.id===p.id)));
-    assert.equal(first.state.environment.ecology.plants.find(p=>p.id===surviving.id).quantity,0);
-    const snapshot=JSON.stringify({ecology:first.state.environment.ecology,agents:first.state.agents,
-      community:first.state.community,elapsed:first.state.elapsed});
-    assert.equal(writeSave(storage,first.state),true);
-    const second=loadSave(storage);assert.equal(second.blocked,false);
-    assert.equal(writeSave(storage,second.state),true);
-    const third=loadSave(storage);assert.equal(third.blocked,false);
-    for(const reopened of [second,third])assert.equal(JSON.stringify({ecology:reopened.state.environment.ecology,
-      agents:reopened.state.agents,community:reopened.state.community,elapsed:reopened.state.elapsed}),snapshot);
-  }finally{rmSync(directory,{recursive:true,force:true});}
-});
+

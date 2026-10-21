@@ -18,8 +18,8 @@ test('loopback renderer QA serves only built game assets, never desktop or repos
     assert.equal((await fetch(url+'/desktop/preload.cjs')).status,404);
     assert.equal((await fetch(url+'/asset-manifest.json')).status,404);
     assert.equal((await fetch(url+'/../etc/passwd')).status,404);
-    assert.equal((await fetch(url+'/src/main.js',{method:'POST'})).status,405);
-    const head=await fetch(url+'/src/main.js',{method:'HEAD'});assert.equal(head.status,200);assert.equal(await head.text(),'');
+    assert.equal((await fetch(url+'/src/entry.js',{method:'POST'})).status,405);
+    const head=await fetch(url+'/src/entry.js',{method:'HEAD'});assert.equal(head.status,200);assert.equal(await head.text(),'');
     assert.equal((await fetch(url+'/%FF')).status,400);
   }finally{await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
 });

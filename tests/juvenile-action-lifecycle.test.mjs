@@ -8,7 +8,7 @@ import {lookupEcologyObject,interactEcologyObject} from '../src/ecology.js';
 import {beginSleep} from '../src/biology.js';
 import {canStand,freshState,CAVE_OBJECTS} from '../src/world.js';
 import {lineOfSight} from '../src/perception.js';
-import {loadSave,writeSave} from '../src/save.js';
+
 
 const clone=structuredClone,near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 function fixture(){
@@ -130,15 +130,4 @@ test('completion revalidates exact target scene, range, visibility and disappear
   }
 });
 
-test('save before completion interrupts work; save after completion retains exact damage and continuation',()=>{
-  const f=fixture(),before=clone(f.e);start(f);tickNpc(f.n,.25,f.env);const d=disk();assert.equal(writeSave(d,saveState(f)),true);
-  const loaded=loadSave(d);assert.equal(loaded.blocked,false);const n=loaded.state.npc;assert.equal(n.active,null);assert.equal(n.memory.experience.filter(e=>e.details.result?.code==='RESTART_INTERRUPTED').length,1);assert.deepEqual(loaded.state.environment.ecology,before);
-  for(let i=0;i<20;i++)tickNpc(n,.25,loaded.state.environment);assert.deepEqual(loaded.state.environment.ecology,before);
-  observeNpc(n,loaded.state.environment);assert.equal(requestNpcAction(n,f.request,loaded.state.environment).code,'ACTION_STARTED');
-  const g={...f,n,env:loaded.state.environment,e:loaded.state.environment.ecology};finish(g);const damaged=clone(g.e);near(lookupEcologyObject(g.e,f.juvenile.id).structureMassGrams,f.juvenile.structureMassGrams-10);
-  loaded.state.agents[0]=n;loaded.state.npc=n;assert.equal(writeSave(d,loaded.state),true);
-  for(let i=0;i<3;i++){const reopen=loadSave(d);assert.equal(reopen.blocked,false);assert.deepEqual(reopen.state.environment.ecology,damaged);assert.equal(reopen.state.npc.active,null);assert.equal(reopen.state.npc.lastResult.code,'object_damaged');assert.equal(writeSave(d,reopen.state),true);}
-  const a=loadSave(d).state,b=loadSave(d).state;
-  for(const s of [a,b]){observeNpc(s.npc,s.environment);assert.equal(requestNpcAction(s.npc,f.request,s.environment).code,'ACTION_STARTED');finish({n:s.npc,env:s.environment});}
-  assert.deepEqual(a,b);near(lookupEcologyObject(a.environment.ecology,f.juvenile.id).structureMassGrams,f.juvenile.structureMassGrams-20);
-});
+

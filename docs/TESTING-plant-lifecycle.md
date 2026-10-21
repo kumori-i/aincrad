@@ -107,7 +107,7 @@ removed. It uses fixed noon/clear conditions, three four-game-day clock jumps,
 and an unsuitable point for the deferred material. Actor bodies are held static
 while the ecology is stepped. These interventions are recorded in its report.
 It tests native rendering/storage contracts, not human survival or natural time.
-[The actual native screenshot](plant-lifecycle-native.png) shows both young
+[The actual native screenshot](https://github.com/kumori-i/aincrad/blob/1e81cdbd2d8ca439ce9f4ad97ada354bb4a8e3e3/docs/plant-lifecycle-native.png) shows both young
 stages beside their retained fruit.
 A separate native verifier covers genuine old distribution-2 save migration.
 

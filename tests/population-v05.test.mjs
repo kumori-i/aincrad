@@ -4,7 +4,7 @@ import { CONFIG, CAVE_SPAWN } from '../src/config.js';
 import { freshState as createWorldState, canStand } from '../src/world.js';
 const freshState=()=>createWorldState({mode:'legacy'});
 import { PopulationRuntime } from '../src/population.js';
-import { validateSave, writeSave, loadSave } from '../src/save.js';
+
 import { createNpc } from '../src/npc-state.js';
 import { observeNpc, requestNpcAction, collapseNpc } from '../src/npc.js';
 import { foodSource } from '../src/resources.js';
@@ -22,53 +22,17 @@ test('a new world has two independent characters and one historical Aster alias'
   state.agents[0].memory.lessons.push({verified:'Aster alone'});assert.equal(state.agents[1].memory.lessons.length,0);
 });
 
-test('legacy v1 through v3 saves retain Aster progress and add fresh Mira',()=>{
-  for(const version of [1,2,3]){
-    const aster=createNpc(),environment=freshState().environment;observeNpc(aster,environment);const water=Object.values(aster.memory.sources).find(source=>Math.hypot(source.x-aster.position.x,source.y-aster.position.y)<=80);assert.ok(water);
-    for(let cycle=0;cycle<2;cycle++){aster.hydration=25;assert.ok(requestNpcAction(aster,{type:'fill_flask',sourceId:water.id},environment).ok);assert.ok(requestNpcAction(aster,{type:'drink'},environment).ok);}
-    assert.ok(aster.memory.skills.length);const acquired=aster.memory.skills.map(skill=>skill.id);aster.version=version;aster.scene='refuge';aster.position={...CAVE_SPAWN};aster.elapsed=321;aster.hydration=62;aster.stats.independentDrinks=7;aster.memory.lessons=[{at:320,verified:'The flask contains collected water.',hypothesis:'Another spring may exist.'}];
-    const migrated=validateSave({version,npc:aster,elapsed:321});assert.equal(migrated.version,8);assert.equal(migrated.npc,migrated.agents[0]);assert.equal(migrated.npc.scene,'refuge');assert.deepEqual(migrated.npc.position,CAVE_SPAWN);assert.equal(migrated.npc.hydration,62);assert.equal(migrated.npc.stats.independentDrinks,7);assert.equal(migrated.npc.memory.lessons[0].verified,aster.memory.lessons[0].verified);
-    assert.deepEqual(migrated.npc.memory.skills.map(skill=>skill.id),acquired);assert.equal(migrated.agents[1].id,'mira');assert.equal(migrated.agents[1].elapsed,321);assert.equal(migrated.agents[1].hydration,createNpc({id:'mira'}).hydration);assert.equal(migrated.agents[1].stats.independentDrinks,0);assert.equal(migrated.agents[1].memory.lessons.length,0);assert.equal(migrated.environment.elapsed,321);
-  }
-});
 
-test('population saves preserve independent bodies, cave progress, selection, and shared resources',()=>{
-  const state=freshState();state.elapsed=123;state.environment.elapsed=123;state.environment.foodStocks[0].stock=0;
-  state.agents[0].nourishment=51;state.agents[1].nourishment=77;state.agents[1].scene='refuge';state.agents[1].position={...CAVE_SPAWN};state.agents[1].stats.independentMeals=4;state.selectedAgentId='mira';
-  const store=storage();assert.ok(writeSave(store,state));const disk=JSON.parse(store.getItem(CONFIG.saveKey));assert.equal('npc' in disk,false);assert.equal(disk.agents.length,2);const saved=loadSave(store);assert.ok(saved.exists);assert.equal(saved.state.npc,saved.state.agents[0]);assert.equal(saved.state.agents[0].nourishment,51);assert.equal(saved.state.agents[1].nourishment,77);assert.equal(saved.state.agents[1].scene,'refuge');assert.equal(saved.state.agents[1].stats.independentMeals,4);assert.equal(saved.state.selectedAgentId,'mira');assert.equal(saved.state.environment.foodStocks[0].stock,0);
-});
 
-test('duplicate identities, unknown characters, and invalid selection are repaired without shared memory',()=>{
-  const mira=createNpc({id:'mira'});mira.health=76;
-  const state=validateSave({version:4,agents:[mira,{...mira,health:1},{...mira,id:'intruder'}],selectedAgentId:'intruder',unexpected:'discard'});
-  assert.deepEqual(state.agents.map(n=>n.id),['aster','mira']);assert.equal(state.agents[1].health,76);assert.equal(state.selectedAgentId,'aster');assert.equal('unexpected' in state,false);assert.notEqual(state.agents[0].memory,state.agents[1].memory);
-});
 
-test('explicit historical npc replacements override only Aster and preserve Mira',()=>{
-  const state=freshState();state.agents[1].health=75;const replacement=createNpc();replacement.health=63;state.npc=replacement;
-  const restored=validateSave(state,{restoring:false});assert.equal(restored.npc.health,63);assert.equal(restored.agents[1].health,75);assert.equal(restored.npc,restored.agents[0]);
-});
 
-test('a new character joins an existing world clock without retroactive physiological depletion',()=>{
-  const aster=createNpc();aster.elapsed=1200;aster.hydration=61;
-  const state=validateSave({version:3,elapsed:1200,npc:aster}),mira=state.agents[1],fresh=createNpc({id:'mira'});
-  assert.equal(state.npc.elapsed,1200);assert.equal(state.npc.hydration,61);assert.equal(mira.elapsed,1200);assert.equal(mira.lifecycleAt,1200);assert.equal(mira.nextDecisionAt,1200);assert.equal(mira.bodyFeedback.since,1200);assert.equal(mira.modelBudget.since,1200);
-  for(const key of ['hydration','nourishment','health','energy','stamina','fatigue','sleepPressure'])assert.equal(mira[key],fresh[key],key);
-  const runtime=new PopulationRuntime(state,{providerFactory:waitingProvider});step(runtime,2);assert.ok(Math.abs(mira.elapsed-1202)<1e-8);assert.ok(Math.abs(state.environment.elapsed-1202)<1e-8);runtime.dispose();
-});
 
-test('migration and human contact use personal elapsed time for belonging rather than freezing at world time',()=>{
-  const aster=createNpc();aster.elapsed=50;const state=validateSave({version:3,elapsed:1200,npc:aster});
-  state.environment.settings.hourOverride=8;state.environment.settings.weatherOverride='cloudy';
-  const runtime=new PopulationRuntime(state,{providerFactory:waitingProvider}),mira=state.agents[1],restoredAster=state.npc;
-  assert.equal(mira.cognition.bornAt,1200);assert.equal(updateCognition(mira).drives.belonging.tension,'quiet');
-  assert.ok(runtime.social.postHuman('Hello, you can keep exploring while I am away.','mira').ok);assert.equal(mira.social.lastContactAt,1200);
-  // Isolate the motivation clock from body depletion; physiology remains safe.
-  mira.elapsed+=200;state.elapsed+=200;state.environment.elapsed+=200;
-  assert.notEqual(updateCognition(mira).drives.belonging.tension,'quiet');
-  assert.ok(runtime.social.postHuman('Hello Aster.','aster').ok);assert.equal(restoredAster.social.lastContactAt,50);
-  restoredAster.elapsed+=200;assert.notEqual(updateCognition(restoredAster).drives.belonging.tension,'quiet');runtime.dispose();
-});
+
+
+
+
+
+
 
 test('one shared clock advances both independent bodies exactly once and pauses without mutation',()=>{
   const state=freshState(),runtime=new PopulationRuntime(state,{providerFactory:waitingProvider});const before=state.agents.map(n=>({hydration:n.hydration,nourishment:n.nourishment}));
@@ -93,6 +57,4 @@ test('provider factories create separate clients and targeted cancellation leave
   assert.notEqual(runtime.controller('aster').provider,runtime.controller('mira').provider);runtime.cancel('aster');assert.equal(clients.get('aster').cancelled,1);assert.equal(clients.get('mira').cancelled,0);runtime.setProviderFactory(undefined);assert.equal(runtime.controller('aster').provider.kind,'local-learner');assert.equal(runtime.controller('mira').provider.kind,'local-learner');runtime.dispose();
 });
 
-test('unsupported future population saves stay intact and report incompatibility',()=>{
-  const store=storage();store.setItem(CONFIG.saveKey,'{"version":99,"agents":[]}');const loaded=loadSave(store);assert.equal(loaded.exists,false);assert.ok(loaded.error);assert.equal(store.getItem(CONFIG.saveKey),'{"version":99,"agents":[]}');
-});
+

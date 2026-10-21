@@ -1,10 +1,11 @@
-// A versioned, playable geometry for a separately identified fresh Ozark world.
+// Versioned physical geometry for the single playable Ozark world.
 // The descriptor remains private to physical rules. Perception exposes only
 // local qualitative observations, never the drainage graph or a safe route.
 import { CONFIG, SPAWN, STARTER_NPC_SPAWN, SECOND_NPC_SPAWN } from './config.js';
 import { OZARK_PREVIEW_PROFILE } from './geometry-profile.js';
 import { generateOzarkPreview } from './ozark-preview-model.js';
 import { createOzarkPreviewSampler } from './ozark-preview-geometry.js';
+import { createOzarkStructures } from './ozark-structures.js';
 
 const PROFILE_PAYLOAD = Object.freeze({
   kind: 'ozark-world-v1',
@@ -82,8 +83,10 @@ function segmentDistanceSquared(x, y, ax, ay, bx, by) {
 let canonical;
 
 /** Construct once per process; the returned geometry and policy are immutable. */
-export function createOzarkWorldGeometry() {
+export function createOzarkWorldGeometry({ structures = true } = {}) {
+  if (structures !== true) throw new TypeError('Aincrad has one structural Ozark world');
   if (canonical) return canonical;
+  let structuralLayer = null;
   if (CONFIG.playerRadius !== 10 || CONFIG.walkSpeed !== 150 ||
       SPAWN.x !== PLAYER_SPAWN.x || SPAWN.y !== PLAYER_SPAWN.y ||
       STARTER_NPC_SPAWN.x !== SPAWNS.aster.x || STARTER_NPC_SPAWN.y !== SPAWNS.aster.y ||
@@ -166,7 +169,7 @@ export function createOzarkWorldGeometry() {
     return null;
   }
 
-  function sample(x, y) {
+  function sampleTerrain(x, y) {
     const site = raw(x, y);
     const paint = paintFor(site);
     const waterBand = paint === 'surface-water' || paint === 'internal-pond' ?
@@ -183,6 +186,23 @@ export function createOzarkWorldGeometry() {
     });
   }
 
+  function sample(x, y) {
+    const site = sampleTerrain(x, y);
+    if (!structuralLayer) return site;
+    const canopy = structuralLayer.canopyAt(x, y);
+    // Recover open-sky aspect potential from the authored descriptor, then
+    // apply only real crown coverage. This is stable sky access, not sunshine.
+    const skyLight = Math.max(0, Math.min(1, site.light + .75 * site.canopy));
+    return Object.freeze({ ...site, canopy, light: Math.max(0, skyLight - .75 * canopy) });
+  }
+
+  function lightAt(point, hour) {
+    if (!finitePoint(point) || !inside(point.x, point.y)) throw new RangeError('Light requires an in-bounds point');
+    const canopy = structuralLayer.canopyAt(point.x, point.y);
+    const shade = structuralLayer.shadowAt(point.x, point.y, hour);
+    return Object.freeze({ canopy, shade });
+  }
+
   function localGrade(x, y, radius, site) {
     const probe = Math.min(radius, 20);
     // The actor's valid footprint includes every probe. Never query beyond the
@@ -196,7 +216,7 @@ export function createOzarkWorldGeometry() {
   }
 
   /** Physical footprint and grade. A mode is an attempted motion, not a skill. */
-  function classify(x, y, radius = CONFIG.playerRadius, mode = 'walk') {
+  function classifyTerrain(x, y, radius = CONFIG.playerRadius, mode = 'walk') {
     const r = actorRadius(radius);
     movementMode(mode);
     if (!inside(x, y, r)) return Object.freeze({
@@ -241,6 +261,14 @@ export function createOzarkWorldGeometry() {
       reason: grade > PROFILE.walkGrade ? 'steep-ground' : 'dry-ground',
       mode, grade,
     });
+  }
+
+  function classify(x, y, radius = CONFIG.playerRadius, mode = 'walk') {
+    const terrain = classifyTerrain(x, y, radius, mode);
+    if (!terrain.walkable || !structuralLayer) return terrain;
+    const obstacle = structuralLayer.obstruction(x, y, radius);
+    return obstacle ? Object.freeze({ ...terrain, walkable: false,
+      reason: obstacle.kind === 'rock' ? 'solid-rock' : 'tree-trunk' }) : terrain;
   }
 
   // Save validation must retain an actor who was actually climbing or
@@ -387,7 +415,7 @@ export function createOzarkWorldGeometry() {
         (end.elevation + PROFILE.eyeHeight) * fraction;
       if (raw(x, y).elevation > sightLine) return false;
     }
-    return true;
+    return !structuralLayer || !structuralLayer.blocksSight(from, to);
   }
 
   function groundName(point, site) {
@@ -422,6 +450,13 @@ export function createOzarkWorldGeometry() {
     });
   }
 
+  // The structural policy is selected only for an explicitly versioned fresh
+  // world. Generation reads terrain-only classification to avoid recursion.
+  if (structures) structuralLayer = createOzarkStructures(Object.freeze({
+    profile: PROFILE, bounds: BOUNDS, spawn: PLAYER_SPAWN,
+    agentSpawns: SPAWNS, sample: sampleTerrain, classify: classifyTerrain,
+  }));
+
   for (const [name, point] of [['player', PLAYER_SPAWN],
     ...Object.entries(SPAWNS)]) {
     const standing = classify(point.x, point.y);
@@ -429,10 +464,13 @@ export function createOzarkWorldGeometry() {
       throw new Error(`Ozark ${name} spawn is no longer dry and passable`);
     }
   }
-  canonical = Object.freeze({
+  const result = Object.freeze({
     profile: PROFILE, bounds: BOUNDS, spawn: PLAYER_SPAWN,
-    agentSpawns: SPAWNS, sample, classify, canOccupy, advance, move,
+    agentSpawns: SPAWNS, sample, cartographicSample: sampleTerrain, classify, canOccupy, advance, move,
     lineOfSight, observe,
+    ...(structures ? { structureVersion: 1,
+      structureContract: structuralLayer.profileContract, structures: structuralLayer, lightAt } : {}),
   });
-  return canonical;
+  canonical = result;
+  return result;
 }

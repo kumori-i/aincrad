@@ -104,7 +104,8 @@ export function environmentConditions(env = {}, actor = {}) {
   const effect = WEATHER_EFFECTS[weather];
   const rainfall=getWorldRule(env,'rainfallMultiplier');
   const wind = sheltered ? 0 : (WEATHER_KINDS.includes(override) ? effect.wind : finite(env.weather?.wind, effect.wind))*getWorldRule(env,'windMultiplier');
-  const shade = ozarkSite ? ozarkSite.canopy >= .58 && ozarkSite.light < .55 :
+  const physicalLight = ozark?.lightAt && scene === 'valley' ? ozark.lightAt(position, hour) : null;
+  const shade = physicalLight ? physicalLight.shade >= .35 : ozarkSite ? ozarkSite.canopy >= .58 && ozarkSite.light < .55 :
     !sheltered && objectsInRect(position.x - 145, position.y - 145, 290, 290)
       .some(o => ['oak', 'pine'].includes(o.kind) && distance(o, position) < 85 * o.scale);
   const localOffset = ozarkSite

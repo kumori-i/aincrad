@@ -16,5 +16,7 @@ export const ECOLOGY_MATERIALS = Object.freeze({
   apple:Object.freeze({massGrams:180,energyKcal:95,waterMl:153,digestHours:2,texture:'smooth',color:'red-green',shape:'round',smell:'sweet',spoilDays:12}),
   berry:Object.freeze({massGrams:35,energyKcal:19,waterMl:28,digestHours:1.5,texture:'soft',color:'purple',shape:'small round clusters',smell:'faintly sweet',spoilDays:4}),
   grass:Object.freeze({massGrams:45,energyKcal:0,waterMl:14,digestHours:4,texture:'fibrous',color:'green',shape:'long narrow blades',smell:'fresh green',spoilDays:8,toxicity:.015}),
+  fish_body:Object.freeze({massGrams:200,energyKcal:150,waterMl:126,digestHours:4,texture:'scales and soft tissue',color:'silver-grey',shape:'still tapered body with fins',smell:'strong',spoilDays:3,toxicity:.025}),
+  fish_tissue:Object.freeze({massGrams:80,energyKcal:80,waterMl:56,digestHours:4,texture:'soft and fibrous',color:'pale pink',shape:'irregular torn piece',smell:'strong',spoilDays:3,toxicity:.025}),
   flesh:Object.freeze({massGrams:100,energyKcal:140,waterMl:70,digestHours:4,texture:'soft and fibrous',color:'dark red',shape:'irregular',smell:'strong',spoilDays:3,toxicity:.025}),
 });

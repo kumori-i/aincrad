@@ -7,7 +7,8 @@ import { requestNpcAction, tickNpc, observeNpc } from '../src/npc.js';
 import { processDiscoveryFeedback } from '../src/discovery.js';
 import { ingestMaterial, canIngestMaterial } from '../src/biology.js';
 import { recordEvent } from '../src/npc-memory.js';
-import { saveProtectionReason } from '../src/save.js';
+import { retainedProofIntegrityError } from '../src/proof-retention.js';
+const proofIntegrityProblem=state=>state.agents.map(retainedProofIntegrityError).find(Boolean)||null;
 import { BIOLOGY_RULES } from '../src/biology-config.js';
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { NPC_RULES, CAVES } from '../src/config.js';
@@ -83,7 +84,7 @@ test('65 actual delayed feedback emissions roll the biological FIFO; 64 unseen l
   for (const effect of npc.discovery.effects) completeEffect(npc, effect);
   assert.ok(npc.discovery.experiments.length <= DISCOVERY_RULES.maxExperiments);
   assert.ok(npc.memory.experience.length <= NPC_RULES.maxExperience);
-  assert.equal(saveProtectionReason(state), null, `live proof error: ${npc.proofRetentionError}`);
+  assert.equal(proofIntegrityProblem(state), null, `live proof error: ${npc.proofRetentionError}`);
 });
 
 test('24 real digestive input slots refuse only physical swallowing under full memory logs', () => {

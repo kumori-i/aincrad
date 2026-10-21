@@ -18,7 +18,10 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'utf8');
 // Exact baseline f5f13c3e tree 1c9ae7ad (= main 4a3952a), not a second hand-written
 // controller. Fail before importing if any unrelated runtime edit is introduced.
+// The approved peer-teaching change updates explanatory objective copy only.
+// Normalize that copy for this frozen capture-disabled controller comparison.
 const baselineSource = source
+  .replace('Words do not establish physical effects. Attributed procedures shared by a nearby peer may guide ordinary physical trials; they are not personal proof.', 'Your words do not establish physical effects or teach your experimental controller.')
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
   .replace(/^  setDiscoveryCandidateCapture\(enabled\)\{setDiscoveryCandidateCapture\(this,enabled\);\}\n/m, '')
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')

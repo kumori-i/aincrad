@@ -1,34 +1,14 @@
 // The walking pilot can lend its physical world to one fresh discovery actor.
 // This binding deliberately lives outside actor data and therefore cannot be
 // mistaken for a saved-world identity or carried into a restored expedition.
-import { OZARK_WALKING_PILOT_PROFILE } from './geometry-profile.js';
 import { OZARK_WORLD_PROFILE } from './ozark-world-geometry.js';
 import { CONFIG, ENV_RULES } from './config.js';
+import { ozarkWorldMode, ozarkGeometryMatchesMode } from './ozark-world-features.js';
 import { environmentConditions } from './environment.js';
 
 const worlds = new WeakMap();
 const persistentWorlds = new WeakSet();
-
-export function bindOzarkAgentWorld(npc, geometry, { position = geometry?.spawn } = {}) {
-  if (npc?.mode !== 'discovery' || npc.scene !== 'valley' || npc.elapsed !== 0 ||
-      npc.active || npc.memory?.experience?.length || Object.keys(npc.memory?.cells || {}).length) {
-    throw new TypeError('Ozark agent binding requires a fresh discovery actor');
-  }
-  if (geometry?.profile !== OZARK_WALKING_PILOT_PROFILE ||
-      typeof geometry.classify !== 'function' ||
-      typeof geometry.advance !== 'function' ||
-      typeof geometry.lineOfSight !== 'function') {
-    throw new TypeError('Expected the approved Ozark walking pilot geometry');
-  }
-  if (!Number.isFinite(position?.x) || !Number.isFinite(position?.y) ||
-      geometry.classify(position.x, position.y, CONFIG.playerRadius).reason !== 'dry-ground') {
-    throw new RangeError('Ozark agent needs a dry reachable fresh spawn');
-  }
-  if (worlds.has(npc)) throw new TypeError('Ozark agent is already bound to a physical world');
-  npc.position = { x: position.x, y: position.y };
-  worlds.set(npc, geometry);
-  return npc;
-}
+const finiteAquaticWorlds = new WeakSet();
 
 /**
  * Attach a validated fresh or restored actor to the separately identified
@@ -59,11 +39,18 @@ export function bindOzarkWorldAgent(npc, geometry, state) {
   if (bound && bound !== geometry) throw new TypeError('Ozark agent is already bound to another physical world');
   worlds.set(npc, geometry);
   persistentWorlds.add(npc);
+  // Engine-only capability. It conveys a supplied motor menu, never a target,
+  // position, nutritional value, or recipe to the actor.
+  const mode = ozarkWorldMode(state);
+  if (mode?.finiteAquatic && ozarkGeometryMatchesMode(geometry, mode) &&
+      state.environment?.ecology?.aquatic?.version === 1) finiteAquaticWorlds.add(npc);
+  else finiteAquaticWorlds.delete(npc);
   return npc;
 }
 
 export function ozarkAgentWorld(npc) { return worlds.get(npc) || null; }
 export function ozarkPersistentWorldAgent(npc) { return persistentWorlds.has(npc); }
+export function ozarkFiniteAquaticAgent(npc) { return finiteAquaticWorlds.has(npc); }
 
 export function ozarkAgentLineOfSight(npc, from, to) {
   const geometry = ozarkAgentWorld(npc);

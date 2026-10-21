@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { OzarkWorldRenderer } from '../src/ozark-world-renderer.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
 import { previewGroundColor } from '../src/preview-ground-dispatch.js';
+import { landscapeGroundColor } from '../src/ozark-landscape-art.js';
 
 class Canvas {
   constructor(width = 96, height = 72) {
@@ -13,7 +14,7 @@ class Canvas {
     this.context = {
       fillStyle: '',
       save() {}, restore() {}, scale() {}, setTransform() {}, beginPath() {},
-      rect() {}, clip() {},
+      rect() {}, clip() {}, moveTo() {}, lineTo() {}, stroke() {}, clearRect() {},
       translate(x, y) { calls.push(['translate', x, y]); },
       fillRect(...args) { calls.push(['fillRect', this.fillStyle, ...args]); },
       strokeRect(...args) { calls.push(['strokeRect', ...args]); },
@@ -93,9 +94,9 @@ test('new-world terrain uses physical water and climb classes, never samples bey
   withCanvases(() => {
     const { geometry, sampled, classified } = fixture();
     const renderer = new OzarkWorldRenderer(new Canvas(), geometry);
-    assert.deepEqual(renderer.terrainColor(16, 16), [187, 229, 211]);
+    assert.deepEqual(renderer.terrainColor(16, 16), [113, 182, 176]);
     assert.deepEqual(renderer.terrainColor(50, 0),
-      previewGroundColor('surface-water'), 'deep water keeps its darker palette');
+      [40, 110, 136], 'deep water keeps its darker palette');
     assert.notDeepEqual(renderer.terrainColor(90, 0),
       previewGroundColor('open-clearing'), 'climbable grade is marked');
     assert.notDeepEqual(renderer.terrainColor(120, 0),
@@ -182,10 +183,10 @@ test('production geometry drives matching water, pond, and climbing cues', () =>
     const deep = geometry.sample(-1200, 220);
     assert.equal(deep.waterBand, 'deep-water');
     assert.deepEqual(renderer.terrainColor(-1200, 220),
-      previewGroundColor(deep.paint));
+      landscapeGroundColor(deep, -1200, 220, {cellPixels:geometry.profile.cellPixels}));
     assert.equal(geometry.classify(-11800, 11800).reason, 'internal-pond');
     assert.deepEqual(renderer.terrainColor(-11800, 11800),
-      previewGroundColor('internal-pond'));
+      landscapeGroundColor(geometry.sample(-11800,11800), -11800,11800, {cellPixels:geometry.profile.cellPixels}));
     const climbable = renderer.terrainColor(-12000, 9800);
     const cliff = renderer.terrainColor(-12000, 9900);
     assert.notDeepEqual(climbable, cliff);
@@ -201,16 +202,65 @@ test('production geometry drives matching water, pond, and climbing cues', () =>
       }
     }
     const shades = nearSpawn.map(color => color[1]);
-    assert.ok(new Set(nearSpawn.map(color => color.join(','))).size > 25,
-      'the immediate native spawn view should have varied substrate colors');
-    assert.ok(Math.max(...shades) - Math.min(...shades) >= 12,
-      'nearby wet terrace variation should be visible at desktop scale');
+    assert.ok(new Set(nearSpawn.map(color => color.join(','))).size < 300,
+      'surface colors should form broad readable areas, not per-pixel noise');
+    assert.ok(Math.max(...shades) - Math.min(...shades) < 100,
+      'nearby wet terrace variation stays within its restrained palette');
     assert.deepEqual(renderer.terrainColor(-680, 380),
       renderer.terrainColor(-680, 380), 'substrate texture is deterministic');
     const overview = renderer.atlasBaseImage();
-    assert.equal(overview.width, 192);
-    assert.equal(overview.height, 144);
+    assert.equal(overview.width, 384);
+    assert.equal(overview.height, 288);
     assert.equal(renderer.atlasBaseImage(), overview,
       'whole-map image is sampled once and reused');
+  });
+});
+
+test('new chunks refine under a bounded queue without changing the authoritative state',()=>{
+  withCanvases(()=>{
+    const{geometry}=fixture();const renderer=new OzarkWorldRenderer(new Canvas(),geometry),world=state();
+    const before=JSON.stringify(world);renderer.draw(world);
+    assert.ok(renderer.pendingChunks.size<=renderer.chunks.size);
+    renderer.refineChunks(Infinity);
+    assert.equal(renderer.pendingChunks.size,0);
+    const sizes=renderer.chunks.size;renderer.draw(world);
+    assert.equal(renderer.chunks.size,sizes);assert.equal(renderer.pendingChunks.size,0);
+    for(let i=0;i<80;i++)renderer.chunk(i,0,true);
+    assert.ok(renderer.chunks.size<=64&&renderer.pendingChunks.size<=64);
+    assert.equal(JSON.stringify(world),before);
+  });
+});
+
+
+test('atlas can be prepared cooperatively during loading and is then reused',async()=>{
+  const priorDocument=globalThis.document,priorWindow=globalThis.window;
+  globalThis.document={createElement:()=>new Canvas()};
+  globalThis.window={innerWidth:96,innerHeight:72,devicePixelRatio:1};
+  try {
+    const{geometry,sampled}=fixture(),renderer=new OzarkWorldRenderer(new Canvas(),geometry);
+    let yields=0;const image=await renderer.prepareAtlas(async()=>{yields++;});
+    assert.ok(yields>0);assert.equal(image.width,384);assert.equal(image.height,288);
+    const count=sampled.length;
+    assert.equal(await renderer.prepareAtlas(),image);
+    assert.equal(renderer.atlasBaseImage(),image);assert.equal(sampled.length,count);
+  } finally {
+    if(priorDocument===undefined)delete globalThis.document;else globalThis.document=priorDocument;
+    if(priorWindow===undefined)delete globalThis.window;else globalThis.window=priorWindow;
+  }
+});
+
+
+test('atlas edge labels remain separate when all three people are beyond view',()=>{
+  withCanvases(()=>{
+    const{geometry}=fixture(),renderer=new OzarkWorldRenderer(new Canvas(),geometry),world=state();
+    world.player={x:-1000,y:-1000};
+    world.agents.forEach((agent,index)=>agent.position={x:-990+index,y:-990+index});
+    renderer.drawAtlas(new Canvas(480,360),world);
+    const labels=renderer.atlasMarkers.map(marker=>marker.label);
+    for(let i=0;i<labels.length;i++)for(let j=i+1;j<labels.length;j++) {
+      const a=labels[i],b=labels[j];
+      assert.ok(a.x+a.w<=b.x||b.x+b.w<=a.x||a.y+a.h<=b.y||b.y+b.h<=a.y,
+        'offscreen actor labels must not conceal each other');
+    }
   });
 });

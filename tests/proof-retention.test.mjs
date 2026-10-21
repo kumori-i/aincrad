@@ -11,10 +11,10 @@ import { BIOLOGY_RULES } from '../src/biology-config.js';
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { requestNpcAction, tickNpc, observeNpc } from '../src/npc.js';
 import { processDiscoveryFeedback, discoveryDecision } from '../src/discovery.js';
-import { recordEvent } from '../src/npc-memory.js';
+import { recordEvent, validateNpc } from '../src/npc-memory.js';
 import { beginSleep, wakePhysiology, projectPhysiology } from '../src/biology.js';
-import { loadSave, writeSave, saveProtectionReason, validateSave } from '../src/save.js';
-import { PROOF_RETENTION_BOUNDS, planProofRetention, applyProofRetention, retainedEffectProofError } from '../src/proof-retention.js';
+
+import { PROOF_RETENTION_BOUNDS, planProofRetention, applyProofRetention, retainedEffectProofError, retainedProofIntegrityError } from '../src/proof-retention.js';
 
 const archiveRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../handoff/recovered/evidence/extracted');
 const archivedBaseline = resolve(archiveRoot, 'measured-v1/seed74193-baseline');
@@ -136,113 +136,15 @@ for (const kind of ['water relief', 'sustained', 'discomfort', 'no noticeable ch
   });
 }
 
-test('real water effect and its exact proof survive both capped logs and write/load', () => {
-  const { state, npc, environment, plant } = sampleFixture('water relief');
-  const effect = awaitEffect(npc, environment, 'water relief');
-  const before = structuredClone(effect);
-  for (let i = 0; i < 190; i++) assert.equal(finish(npc, environment, { type: 'inspect_object', targetId: plant.id }).ok, true);
-  for (let i = 0; i < 500; i++) recordEvent(npc, 'decision', { summary: 'Unrelated bounded history.' });
-  assert.equal(npc.discovery.experiments.length, DISCOVERY_RULES.maxExperiments);
-  assert.equal(npc.memory.experience.length, NPC_RULES.maxExperience);
-  assertCompleteEffect(npc, before);
-  const disk = storage();
-  assert.equal(writeSave(disk, state), true);
-  const loaded = loadSave(disk);
-  assert.equal(loaded.blocked, false);
-  assert.deepEqual(loaded.state.agents[0].discovery.effects.find(row => row.id === before.id), before);
-  assertCompleteEffect(loaded.state.agents[0], before);
-});
 
-test('save refuses uncommitted staged row and observation caps before validation can trim proof', () => {
-  const { state, npc, environment, plant } = sampleFixture('water relief');
-  const effect = awaitEffect(npc, environment, 'water relief');
-  assertCompleteEffect(npc, effect);
-  assert.equal(finish(npc, environment, { type: 'inspect_object', targetId: plant.id }).ok, true);
-  const inspect = npc.discovery.experiments.at(-1);
-  const receipt = npc.memory.experience.find(row => row.id === inspect.actionId);
-  const base = structuredClone(state);
-  const check = raw => {
-    const disk = storage(), bytes = JSON.stringify(raw);
-    disk.setItem(CONFIG.saveKey, bytes);
-    assert.ok(saveProtectionReason(raw));
-    assert.equal(loadSave(disk).blocked, true);
-    assert.equal(writeSave(disk, raw), false);
-    assert.equal(writeSave(disk, validateSave(raw)), false);
-    assert.equal(disk.getItem(CONFIG.saveKey), bytes);
-  };
-  const stagedExperiments = structuredClone(base), a = stagedExperiments.agents[0];
-  while (a.discovery.experiments.length <= DISCOVERY_RULES.maxExperiments) {
-    const actionId = a.memory.nextId++, experimentId = a.discovery.nextId++;
-    a.memory.experience.push({ ...receipt, id: actionId });
-    a.discovery.experiments.push({ ...inspect, id: experimentId, actionId });
-  }
-  assert.equal(a.discovery.experiments.length, DISCOVERY_RULES.maxExperiments + 1);
-  check(stagedExperiments);
-  const stagedExperience = structuredClone(base), b = stagedExperience.agents[0];
-  while (b.memory.experience.length <= NPC_RULES.maxExperience)
-    b.memory.experience.push({ id: b.memory.nextId++, at: b.elapsed, type: 'decision', details: {} });
-  assert.equal(b.memory.experience.length, NPC_RULES.maxExperience + 1);
-  check(stagedExperience);
-  const stagedObservations = structuredClone(base), c = stagedObservations.agents[0];
-  for (let i = 0; Object.keys(c.discovery.observations).length <= DISCOVERY_RULES.maxObjects; i++) {
-    const id = `object:${900000 + i}`;
-    c.discovery.observations[id] = { id, scene: 'valley', position: { x: 0, y: 0 }, appearance: {}, observedAt: c.elapsed };
-  }
-  check(stagedObservations);
-});
 
-test('a historical orphan effect protects original save bytes on load and direct validation', () => {
-  const { state, npc, environment } = sampleFixture('water relief');
-  const effect = awaitEffect(npc, environment, 'water relief');
-  npc.discovery.experiments = npc.discovery.experiments.filter(row => row.actionId !== effect.actionId);
-  const bytes = JSON.stringify(state), disk = storage();
-  disk.setItem(CONFIG.saveKey, bytes);
-  const loaded = loadSave(disk);
-  assert.equal(loaded.blocked, true);
-  assert.match(loaded.error, /original save has been preserved/i);
-  assert.equal(loaded.state.saveBlocked, true);
-  assert.equal(writeSave(disk, loaded.state), false);
-  assert.equal(disk.getItem(CONFIG.saveKey), bytes);
-  const direct = validateSave(state);
-  assert.equal(direct.saveBlocked, true);
-  assert.equal(writeSave(disk, direct), false);
-  assert.equal(disk.getItem(CONFIG.saveKey), bytes);
-});
 
-test('orphaned sampled stomach or unseen feedback protects exact historical bytes', () => {
-  for (const stage of ['stomach', 'unseen feedback']) {
-    const { state, npc, environment, sample } = sampleFixture('water relief');
-    if (stage === 'unseen feedback') {
-      awaitFeedback(npc, environment, 'water relief');
-      for (let i = 0; i < 1600 && npc.physiology.stomach.length; i++) tickNpc(npc, .25, environment);
-      assert.equal(npc.physiology.stomach.length, 0);
-      assert.ok(npc.physiology.feedback.some(row => row.ingestionId === sample.ingestionId));
-    } else assert.ok(npc.physiology.stomach.some(row => row.id === sample.ingestionId));
-    npc.memory.experience = npc.memory.experience.filter(row => row.id !== sample.actionId);
-    assert.match(saveProtectionReason(state), /incomplete or depends on an older feedback queue/i);
-    const bytes = JSON.stringify(state), disk = storage();
-    disk.setItem(CONFIG.saveKey, bytes);
-    assert.equal(loadSave(disk).blocked, true);
-    assert.equal(writeSave(disk, state), false);
-    assert.equal(disk.getItem(CONFIG.saveKey), bytes);
-  }
-});
 
-test('a held item with missing original acquisition or sensory identity protects save bytes', () => {
-  for (const missing of ['acquisition', 'observation']) {
-    const { state, npc, environment, plant } = fixture();
-    assert.equal(finish(npc, environment, { type: 'pull', targetId: plant.id }).ok, true);
-    const id = npc.inventory.items[0];
-    assert.ok(npc.discovery.observations[id]);
-    if (missing === 'acquisition') npc.discovery.experiments = npc.discovery.experiments.filter(row => row.materialId !== id);
-    else delete npc.discovery.observations[id];
-    const bytes = JSON.stringify(state), disk = storage();
-    disk.setItem(CONFIG.saveKey, bytes);
-    assert.equal(loadSave(disk).blocked, true);
-    assert.equal(writeSave(disk, state), false);
-    assert.equal(disk.getItem(CONFIG.saveKey), bytes);
-  }
-});
+
+
+
+
+
 
 test('feedback callback reentry and failure never replay a physical sample or invent an effect', () => {
   const { npc, environment, sample } = sampleFixture('water relief');
@@ -280,64 +182,9 @@ test('feedback callback reentry and failure never replay a physical sample or in
   assert.equal(npc.discovery.effects.filter(row => row.id === emitted.id).length, 1);
 });
 
-test('sleep-delayed recognition remains exact after the physiology feedback FIFO rolls over', () => {
-  const { state, npc, environment } = sampleFixture('water relief');
-  assert.equal(beginSleep(npc, { hours: 2 }).ok, true);
-  const emitted = awaitFeedback(npc, environment, 'water relief');
-  assert.notEqual(npc.physiology.sleep.state, 'awake');
-  for (let i = 0; i < 60 * 8; i++) tickNpc(npc, 1 / 60, environment);
-  wakePhysiology(npc, 'distress');
-  processDiscoveryFeedback(npc);
-  const effect = npc.discovery.effects.find(row => row.id === emitted.id);
-  assert.ok(effect);
-  const receipt = npc.memory.experience.find(row => row.id === effect.proofEventId);
-  assert.ok(receipt.at > emitted.at, 'recognition time is later than physiological emission');
-  assert.equal(receipt.details.feedback.at, emitted.at);
-  npc.physiology.feedback = Array.from({ length: BIOLOGY_RULES.maxFeedback }, (_, i) => ({
-    id: `feedback:fixture:${i}`, ingestionId: '', at: npc.elapsed, objectId: null,
-    actionId: null, provenance: 'fixture', effect: 'no noticeable change',
-    hunger: 'unchanged', thirst: 'unchanged', energy: 'unchanged', pain: 'none',
-  }));
-  assertCompleteEffect(npc, effect);
-  const disk = storage();
-  assert.equal(writeSave(disk, state), true);
-  assertCompleteEffect(loadSave(disk).state.agents[0], effect);
-});
 
-test('forged action, result, object, ingestion, timestamp and condition provenance links protect knowledge', () => {
-  const { state, npc, environment } = sampleFixture('water relief');
-  const original = awaitEffect(npc, environment, 'water relief');
-  const alter = [
-    ['action target', (actor, sample, action) => { action.details.action.targetId = 'object:999999'; }],
-    ['action result', (actor, sample, action) => { action.details.result.ok = false; }],
-    ['action ingestion', (actor, sample, action) => { action.details.result.ingestionId = 'ingestion:999999'; }],
-    ['sample identity', (actor, sample) => { sample.targetId = 'object:999999'; }],
-    ['sample result', (actor, sample) => { sample.ok = false; }],
-    ['sample timestamp', (actor, sample) => { sample.at += 1; }],
-    ['effect object', actor => { actor.discovery.effects[0].objectId = 'object:999999'; }],
-    ['effect ingestion', actor => { actor.discovery.effects[0].ingestionId = 'ingestion:999999'; }],
-    ['effect timestamp', (actor, sample) => { actor.discovery.effects[0].at = sample.at - 1; }],
-    ['proof identity', actor => { actor.discovery.effects[0].proofEventId = 999999; }],
-    ['proof provenance', (actor, sample, action, proof) => { proof.details.feedback.source = 'reported'; }],
-    ['proof embedded timestamp', (actor, sample, action, proof) => { proof.details.feedback.at += 1; }],
-    ['proof receipt chronology', (actor, sample, action, proof) => { proof.at = actor.discovery.effects[0].at - 1; }],
-  ];
-  for (const [name, mutate] of alter) {
-    const actor = structuredClone(npc);
-    const sample = actor.discovery.experiments.find(row => row.actionId === original.actionId);
-    const action = actor.memory.experience.find(row => row.id === original.actionId);
-    const proof = actor.memory.experience.find(row => row.id === original.proofEventId);
-    mutate(actor, sample, action, proof);
-    assert.ok(retainedEffectProofError(actor), `${name} must fail original proof inspection`);
-    assert.ok(saveProtectionReason({ ...state, agents: [actor], npc: actor }), `${name} must protect disk bytes`);
-  }
-  for (const kind of ['action', 'experiment']) {
-    const actor = structuredClone(npc);
-    if (kind === 'action') actor.memory.experience.push(structuredClone(actor.memory.experience.find(row => row.id === original.actionId)));
-    else actor.discovery.experiments.push(structuredClone(actor.discovery.experiments.find(row => row.actionId === original.actionId)));
-    assert.ok(retainedEffectProofError(actor), `duplicate ${kind} ID must fail closed`);
-  }
-});
+
+
 
 test('malformed optional owner rows produce fixed planner reasons without throwing', () => {
   const { npc, environment } = sampleFixture('water relief');
@@ -351,48 +198,7 @@ test('malformed optional owner rows produce fixed planner reasons without throwi
   }
 });
 
-test('archived failed L/C/R snapshots retain exact original failure and protect the raw L bytes', {
-  skip: !existsSync(resolve(archivedBaseline, 'checkpoint-error-l.json.gz')),
-}, () => {
-  const hashes = {
-    l: 'fe97662ecd148335446499d014aa2d867880f333a2abc13e7f44511a358395c9',
-    c: 'c2700da5de7265eba97536e691d2956e1f9256bd18a1093ba343a526ecacf9bf',
-    r: '0f2ed070cef68b1aac76323a4dafe24e98f5e9d1a194f82cd9d7ccf081ef156d',
-  };
-  const snapshots = {};
-  for (const [key, expected] of Object.entries(hashes)) {
-    const archive = readFileSync(resolve(archivedBaseline, `checkpoint-error-${key}.json.gz`));
-    assert.equal(createHash('sha256').update(archive).digest('hex'), expected, `${key} archived bytes`);
-    const text = gunzipSync(archive).toString('utf8');
-    snapshots[key] = { text, state: JSON.parse(text) };
-  }
-  const losses = JSON.parse(readFileSync(resolve(archiveRoot, 'retained-baseline-summary.json'))).failure.checkpoint.losses;
-  assert.equal(losses.length, 4);
-  for (const loss of losses) {
-    const hasEffect = snapshot => snapshot.state.agents.find(actor => actor.id === loss.actorId).discovery.effects
-      .some(effect => effect.id === loss.effect.id);
-    assert.equal(hasEffect(snapshots.l), true);
-    assert.equal(hasEffect(snapshots.c), false);
-    assert.equal(hasEffect(snapshots.r), false);
-  }
-  assert.ok(saveProtectionReason(snapshots.l.state));
-  assert.equal(saveProtectionReason(snapshots.c.state), null);
-  assert.equal(saveProtectionReason(snapshots.r.state), null);
-  const disk = storage();
-  disk.setItem(CONFIG.saveKey, snapshots.l.text);
-  assert.equal(loadSave(disk).blocked, true);
-  assert.equal(writeSave(disk, snapshots.l.state), false);
-  assert.equal(disk.getItem(CONFIG.saveKey), snapshots.l.text);
-  const modeForged = structuredClone(snapshots.l.state);
-  for (const actor of modeForged.agents) actor.mode = 'legacy';
-  if (modeForged.npc) modeForged.npc.mode = 'legacy';
-  const forgedBytes = JSON.stringify(modeForged);
-  disk.setItem(CONFIG.saveKey, forgedBytes);
-  assert.ok(saveProtectionReason(modeForged), 'the discovery envelope controls proof inspection');
-  assert.equal(loadSave(disk).blocked, true);
-  assert.equal(writeSave(disk, modeForged), false);
-  assert.equal(disk.getItem(CONFIG.saveKey), forgedBytes);
-});
+
 
 test('65 real water effects retire only the oldest effect and preserve all 64 surviving proofs', () => {
   const { npc, environment, plant } = fixture();
@@ -442,6 +248,141 @@ test('65 real water effects retire only the oldest effect and preserve all 64 su
   assert.equal(npc.rng, rng);
 });
 
+
+
+test('real water effect and its exact proof survive both capped logs and actor normalization', () => {
+  const { state, npc, environment, plant } = sampleFixture('water relief');
+  const effect = awaitEffect(npc, environment, 'water relief');
+  const before = structuredClone(effect);
+  for (let i = 0; i < 190; i++) assert.equal(finish(npc, environment, { type: 'inspect_object', targetId: plant.id }).ok, true);
+  for (let i = 0; i < 500; i++) recordEvent(npc, 'decision', { summary: 'Unrelated bounded history.' });
+  assert.equal(npc.discovery.experiments.length, DISCOVERY_RULES.maxExperiments);
+  assert.equal(npc.memory.experience.length, NPC_RULES.maxExperience);
+  assertCompleteEffect(npc, before);
+  const reopened = validateNpc(structuredClone(npc));
+  assert.deepEqual(reopened.discovery.effects.find(row => row.id === before.id), before);
+  assertCompleteEffect(reopened, before);
+});
+
+test('proof boundary refuses uncommitted staged row and observation caps before validation can trim proof', () => {
+  const { state, npc, environment, plant } = sampleFixture('water relief');
+  const effect = awaitEffect(npc, environment, 'water relief');
+  assertCompleteEffect(npc, effect);
+  assert.equal(finish(npc, environment, { type: 'inspect_object', targetId: plant.id }).ok, true);
+  const inspect = npc.discovery.experiments.at(-1);
+  const receipt = npc.memory.experience.find(row => row.id === inspect.actionId);
+  const base = structuredClone(state);
+  const check = raw => assert.ok(retainedProofIntegrityError(raw.agents[0]));
+  const stagedExperiments = structuredClone(base), a = stagedExperiments.agents[0];
+  while (a.discovery.experiments.length <= DISCOVERY_RULES.maxExperiments) {
+    const actionId = a.memory.nextId++, experimentId = a.discovery.nextId++;
+    a.memory.experience.push({ ...receipt, id: actionId });
+    a.discovery.experiments.push({ ...inspect, id: experimentId, actionId });
+  }
+  assert.equal(a.discovery.experiments.length, DISCOVERY_RULES.maxExperiments + 1);
+  check(stagedExperiments);
+  const stagedExperience = structuredClone(base), b = stagedExperience.agents[0];
+  while (b.memory.experience.length <= NPC_RULES.maxExperience)
+    b.memory.experience.push({ id: b.memory.nextId++, at: b.elapsed, type: 'decision', details: {} });
+  assert.equal(b.memory.experience.length, NPC_RULES.maxExperience + 1);
+  check(stagedExperience);
+  const stagedObservations = structuredClone(base), c = stagedObservations.agents[0];
+  for (let i = 0; Object.keys(c.discovery.observations).length <= DISCOVERY_RULES.maxObjects; i++) {
+    const id = `object:${900000 + i}`;
+    c.discovery.observations[id] = { id, scene: 'valley', position: { x: 0, y: 0 }, appearance: {}, observedAt: c.elapsed };
+  }
+  check(stagedObservations);
+});
+
+test('an orphan effect fails the current retained proof boundary', () => {
+  const { state, npc, environment } = sampleFixture('water relief');
+  const effect = awaitEffect(npc, environment, 'water relief');
+  npc.discovery.experiments = npc.discovery.experiments.filter(row => row.actionId !== effect.actionId);
+  assert.ok(retainedProofIntegrityError(npc));
+});
+
+test('orphaned sampled stomach or unseen feedback fails current retained proof integrity', () => {
+  for (const stage of ['stomach', 'unseen feedback']) {
+    const { state, npc, environment, sample } = sampleFixture('water relief');
+    if (stage === 'unseen feedback') {
+      awaitFeedback(npc, environment, 'water relief');
+      for (let i = 0; i < 1600 && npc.physiology.stomach.length; i++) tickNpc(npc, .25, environment);
+      assert.equal(npc.physiology.stomach.length, 0);
+      assert.ok(npc.physiology.feedback.some(row => row.ingestionId === sample.ingestionId));
+    } else assert.ok(npc.physiology.stomach.some(row => row.id === sample.ingestionId));
+    npc.memory.experience = npc.memory.experience.filter(row => row.id !== sample.actionId);
+    assert.ok(retainedProofIntegrityError(npc));
+  }
+});
+
+test('a held item with missing original acquisition or sensory identity fails current retained proof integrity', () => {
+  for (const missing of ['acquisition', 'observation']) {
+    const { state, npc, environment, plant } = fixture();
+    assert.equal(finish(npc, environment, { type: 'pull', targetId: plant.id }).ok, true);
+    const id = npc.inventory.items[0];
+    assert.ok(npc.discovery.observations[id]);
+    if (missing === 'acquisition') npc.discovery.experiments = npc.discovery.experiments.filter(row => row.materialId !== id);
+    else delete npc.discovery.observations[id];
+    assert.ok(retainedProofIntegrityError(npc));
+  }
+});
+
+test('sleep-delayed recognition remains exact after the physiology feedback FIFO rolls over', () => {
+  const { state, npc, environment } = sampleFixture('water relief');
+  assert.equal(beginSleep(npc, { hours: 2 }).ok, true);
+  const emitted = awaitFeedback(npc, environment, 'water relief');
+  assert.notEqual(npc.physiology.sleep.state, 'awake');
+  for (let i = 0; i < 60 * 8; i++) tickNpc(npc, 1 / 60, environment);
+  wakePhysiology(npc, 'distress');
+  processDiscoveryFeedback(npc);
+  const effect = npc.discovery.effects.find(row => row.id === emitted.id);
+  assert.ok(effect);
+  const receipt = npc.memory.experience.find(row => row.id === effect.proofEventId);
+  assert.ok(receipt.at > emitted.at, 'recognition time is later than physiological emission');
+  assert.equal(receipt.details.feedback.at, emitted.at);
+  npc.physiology.feedback = Array.from({ length: BIOLOGY_RULES.maxFeedback }, (_, i) => ({
+    id: `feedback:fixture:${i}`, ingestionId: '', at: npc.elapsed, objectId: null,
+    actionId: null, provenance: 'fixture', effect: 'no noticeable change',
+    hunger: 'unchanged', thirst: 'unchanged', energy: 'unchanged', pain: 'none',
+  }));
+  assertCompleteEffect(npc, effect);
+  assertCompleteEffect(validateNpc(structuredClone(npc)), effect);
+});
+
+test('forged action, result, object, ingestion, timestamp and condition provenance links protect knowledge', () => {
+  const { state, npc, environment } = sampleFixture('water relief');
+  const original = awaitEffect(npc, environment, 'water relief');
+  const alter = [
+    ['action target', (actor, sample, action) => { action.details.action.targetId = 'object:999999'; }],
+    ['action result', (actor, sample, action) => { action.details.result.ok = false; }],
+    ['action ingestion', (actor, sample, action) => { action.details.result.ingestionId = 'ingestion:999999'; }],
+    ['sample identity', (actor, sample) => { sample.targetId = 'object:999999'; }],
+    ['sample result', (actor, sample) => { sample.ok = false; }],
+    ['sample timestamp', (actor, sample) => { sample.at += 1; }],
+    ['effect object', actor => { actor.discovery.effects[0].objectId = 'object:999999'; }],
+    ['effect ingestion', actor => { actor.discovery.effects[0].ingestionId = 'ingestion:999999'; }],
+    ['effect timestamp', (actor, sample) => { actor.discovery.effects[0].at = sample.at - 1; }],
+    ['proof identity', actor => { actor.discovery.effects[0].proofEventId = 999999; }],
+    ['proof provenance', (actor, sample, action, proof) => { proof.details.feedback.source = 'reported'; }],
+    ['proof embedded timestamp', (actor, sample, action, proof) => { proof.details.feedback.at += 1; }],
+    ['proof receipt chronology', (actor, sample, action, proof) => { proof.at = actor.discovery.effects[0].at - 1; }],
+  ];
+  for (const [name, mutate] of alter) {
+    const actor = structuredClone(npc);
+    const sample = actor.discovery.experiments.find(row => row.actionId === original.actionId);
+    const action = actor.memory.experience.find(row => row.id === original.actionId);
+    const proof = actor.memory.experience.find(row => row.id === original.proofEventId);
+    mutate(actor, sample, action, proof);
+    assert.ok(retainedEffectProofError(actor), `${name} must fail original proof inspection`);
+  }
+  for (const kind of ['action', 'experiment']) {
+    const actor = structuredClone(npc);
+    if (kind === 'action') actor.memory.experience.push(structuredClone(actor.memory.experience.find(row => row.id === original.actionId)));
+    else actor.discovery.experiments.push(structuredClone(actor.discovery.experiments.find(row => row.actionId === original.actionId)));
+    assert.ok(retainedEffectProofError(actor), `duplicate ${kind} ID must fail closed`);
+  }
+});
+
 test('a source technique keeps an alternate complete real witness when its oldest effect retires', () => {
   const { state, npc, environment, id, sample: first } = sampleFixture('ordinary');
   let firstEffect = awaitEffect(npc, environment, 'sustained');
@@ -487,9 +428,7 @@ test('a source technique keeps an alternate complete real witness when its oldes
   npc.discovery.run = null;
   const beforeAction = discoveryDecision(npc).action;
   assert.deepEqual(beforeAction, { type: 'sample', targetId: id });
-  const disk = storage();
-  assert.equal(writeSave(disk, state), true);
-  const reopened = loadSave(disk).state.agents[0];
+  const reopened = validateNpc(structuredClone(npc));
   assertCompleteEffect(reopened, secondEffect);
   assert.deepEqual(discoveryDecision(reopened).action, beforeAction, 'effect-driven held sampling remains eligible');
   const normalized = reopened.discovery.techniques.find(row => row.id === technique.id);

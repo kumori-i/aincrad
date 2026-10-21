@@ -1,3 +1,4 @@
+import { validateNpc } from '../src/npc-memory.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CONFIG} from '../src/config.js';
@@ -10,7 +11,7 @@ import {juvenileStrikeLoss} from '../src/plant-lifecycle.js';
 import {measureCardinalWorld} from '../src/cardinal-metrics.js';
 import {observeNpc,requestNpcAction,tickNpc} from '../src/npc.js';
 import {freshState,canStandOutside} from '../src/world.js';
-import {writeSave,loadSave} from '../src/save.js';
+
 import {createJuvenileFixture} from './fixtures/juvenile-interactions.mjs';
 
 const clone=structuredClone;
@@ -37,7 +38,7 @@ function complete(state){
   assert.equal(actor.active,null);return actor.lastResult;
 }
 function disk(){let bytes=null;return{getItem:()=>bytes,setItem:(_,value)=>{bytes=value;},get bytes(){return bytes;}};}
-function reopen(state){const storage=disk();assert.equal(writeSave(storage,state),true);const result=loadSave(storage);assert.equal(result.blocked,false,result.error);assert.equal(JSON.parse(storage.bytes).version,8);return result.state;}
+
 function secondJuvenile(f){
   const pulled=interactEcologyObject(f.e,f.tree.id,'pull',{actorId:'aster',position:f.tree.position});assert.equal(pulled.ok,true);
   const material=lookupEcologyObject(f.e,pulled.materialId),point={x:f.point.x+40,y:f.point.y};assert.equal(canStandOutside(point.x,point.y,10),true);
@@ -178,7 +179,19 @@ test('shared drought loss defers array removals so the next recruited juvenile s
   const released=f.e.lifecycle.lostMassGrams;step(f);assert.equal(f.e.lifecycle.lostMassGrams,released);audit(f.e);
 });
 
-test('checkpoint before strike completion reopens undamaged and interrupts rather than replaying work',()=>{
+
+
+
+
+// Shared-model checkpoint validation, not a historical world codec or native disk claim.
+function reopen(state) {
+  const raw = JSON.parse(JSON.stringify(state));
+  const agents = raw.agents.map(actor => validateNpc(actor));
+  return { ...raw, agents, npc: agents[0], environment: { ...raw.environment,
+    ecology: validateEcology(raw.environment.ecology, {seed:raw.environment.seed,elapsed:raw.environment.ecology.elapsed}) } };
+}
+
+test('checkpoint before strike completion normalizes undamaged and interrupts rather than replaying work',()=>{
   const f=createJuvenileFixture({grown:true}),state=asState(f),actor=state.agents[0],before=clone(f.e);
   assert.equal(requestNpcAction(actor,{type:'strike',targetId:f.juvenile.id},f.env).ok,true);tickNpc(actor,1/60,f.env);
   assert.ok(actor.active);assert.deepEqual(f.e,before);

@@ -3,7 +3,9 @@ import { actorLineOfSight } from './perception.js';
 import { recordClaim } from './cognition.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
-import { recordTechniqueReport, recordDiscoveryClaim } from './discovery.js';
+import { recordTechniqueReport, recordDiscoveryClaim, recordPeerTechnique } from './discovery.js';
+import { validateDiscoveryMemory } from './discovery-state.js';
+import { cleanPeerTeaching, peerTeachingText } from './peer-teaching.js';
 
 const AGENT_IDS = new Set(['aster', 'mira']);
 const SENDERS = new Set([...AGENT_IDS, 'human']);
@@ -53,6 +55,7 @@ function validMessage(raw) {
     ...(token(raw.replyTo) ? { replyTo: token(raw.replyTo) } : {}),
     ...(raw.offline === true ? { offline: true } : {}),
     ...(raw.model === true && raw.senderId!=='human' ? { model: true } : {}),
+    ...(raw.channel==='peer'&&cleanPeerTeaching(raw.teaching)?{teaching:cleanPeerTeaching(raw.teaching)}:{}),
     ...(['pending', 'answered', 'superseded'].includes(raw.questionState) ? {questionState: raw.questionState} : {}),
   };
 }
@@ -219,9 +222,9 @@ export class SocialCoordinator {
     memory.lastContactAt = finite(npc.elapsed);
   }
 
-  append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false,model=false}, at) {
+  append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false,model=false,teaching=null}, at) {
     const community = this.community();
-    const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {}),...(model&&senderId!=='human'?{model:true}:{})};
+    const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {}),...(model&&senderId!=='human'?{model:true}:{}),...(channel==='peer'&&cleanPeerTeaching(teaching)?{teaching:cleanPeerTeaching(teaching)}:{})};
     community.messages.push(message); community.messages = bounded(community.messages, SOCIAL_RULES.maxMessages);
     return message;
   }
@@ -297,16 +300,25 @@ export class SocialCoordinator {
   }
 
   say(npc, action) {
-    const text = textValue(action.text), target = this.agents().find(peer => peer.id === action.targetId);
+    let text = textValue(action.text);const target = this.agents().find(peer => peer.id === action.targetId);
     if (!text || typeof action.text !== 'string' || action.text.length > SOCIAL_RULES.maxText) return {ok: false, code: 'INVALID_TEXT'};
     if (!target || target.id === npc.id) return {ok: false, code: 'UNKNOWN_PEER'};
     if (!this.nearby(npc).includes(target)) return {ok: false, code: 'PEER_OUT_OF_REACH'};
     if (!aliveAndAwake(target)) return {ok: false, code: 'PEER_UNAVAILABLE'};
     const memory = this.ensure(npc), at = nowFor(npc, this.getEnvironment?.());
     if (memory.lastSpokeAt !== null && at - memory.lastSpokeAt < SOCIAL_RULES.speechCooldown) return {ok: false, code: 'CONVERSATION_COOLDOWN'};
+    let teaching=null;
+    if(action.techniqueId!==undefined){
+      if(npc.mode!=='discovery'||target.mode!=='discovery')return {ok:false,code:'TEACHING_UNAVAILABLE'};
+      const verified=validateDiscoveryMemory(npc.discovery,npc),technique=verified.techniques.find(t=>t.id===action.techniqueId);
+      if(!technique||technique.confidence==='revised'||technique.failures>technique.successes+2||technique.at>npc.elapsed||!verified.observations[technique.sourceId]||verified.experiments.some(e=>technique.evidence.includes(e.id)&&e.at>npc.elapsed)||verified.effects.some(e=>e.at>npc.elapsed))return {ok:false,code:'TECHNIQUE_NOT_ESTABLISHED'};
+      teaching={version:1,senderTechniqueId:technique.id,sourceObjectId:technique.sourceId,acquisition:technique.steps[0].type,receivedAt:target.elapsed,state:'ready'};
+      if(!cleanPeerTeaching(teaching))return {ok:false,code:'TECHNIQUE_NOT_SHAREABLE'};
+      text=peerTeachingText(teaching.sourceObjectId,teaching.acquisition);
+    }
     const key = `${target.id}:${fingerprint(text)}`;
     if (memory.conversationKeys.some(item => item.key === key && at - item.at < SOCIAL_RULES.topicCooldown)) return {ok: false, code: 'REPEATED_CONVERSATION'};
-    const message = this.append({senderId: npc.id, recipientId: target.id, channel: 'peer', text, offline: action.offline === true}, at);
+    const message = this.append({senderId: npc.id, recipientId: target.id, channel: 'peer', text, offline: action.offline === true,teaching}, at);
     memory.lastSpokeAt = at; memory.conversationKeys = bounded([...memory.conversationKeys, {key, at}], 32);
     this.receive(npc, message); this.receive(target, message);
     const claims = matchingClaims(npc, text);
@@ -316,11 +328,12 @@ export class SocialCoordinator {
       memory.sharedClaims = bounded([...memory.sharedClaims, {to: target.id, resourceId: claim.resourceId, observedAt: resource.observedAt, signature: resourceSignature(resource)}], 48);
     }
     if (!claims.length) recordClaim(target, {subject: npc.name, kind: 'general', text}, {sourceId: npc.id, at, channel: 'peer', messageId: message.id});
-    if(npc.mode==='discovery'&&target.mode==='discovery'&&action.offline===true){
-      const effect=npc.discovery?.effects.find(effect=>effect.id===action.effectId);
+    if(teaching)recordPeerTechnique(target,text,teaching,{sourceId:npc.id,channel:'peer',messageId:message.id,at});
+    if(!teaching&&npc.mode==='discovery'&&target.mode==='discovery'&&action.offline===true){
+      const effect=validateDiscoveryMemory(npc.discovery,npc).effects.find(effect=>effect.id===action.effectId);
       if(effect)recordDiscoveryClaim(target,{objectId:effect.objectId,effect:effect.effect},{sourceId:npc.id,channel:'peer',messageId:message.id,at});
     }
-    this.contact(npc, target.id, at, claims.length > 0); this.contact(target, npc.id, at, claims.length > 0);
+    this.contact(npc, target.id, at, claims.length > 0||Boolean(teaching)); this.contact(target, npc.id, at, claims.length > 0||Boolean(teaching));
     npc.presentation ??= {}; npc.presentation.speakUntil = npc.elapsed + 4; npc.presentation.speakText = text;
     return {ok: true, code: 'SAID', message, deliveredTo: target.id, reportedClaims: claims.length, reward: claims.length ? .5 : .15};
   }
@@ -402,7 +415,7 @@ export class SocialCoordinator {
     const note = {id: `note:${community.nextId++}`, authorId: npc.id, at, scene: npc.scene, position: {...npc.position}, title, text, beliefIds, readers: [npc.id], claims: matchingClaims(npc, text).map(claim => ({...claim, text: textValue(claim.text, 300)}))};
     if(npc.mode==='discovery'&&action.offline===true){
       const effect=npc.discovery?.effects.find(effect=>effect.id===action.effectId);
-      if(effect)note.effectClaims=[{objectId:effect.objectId,effect:effect.effect,experienceId:effect.id}];
+      if(effect&&validateDiscoveryMemory(npc.discovery,npc).effects.some(e=>e.id===effect.id))note.effectClaims=[{objectId:effect.objectId,effect:effect.effect,experienceId:effect.id}];
     }
     community.notes.push(note); community.notes = bounded(community.notes, SOCIAL_RULES.maxNotes);
     if (npc.cognition) npc.cognition.lastNoteAt = npc.elapsed;
@@ -436,7 +449,10 @@ export class SocialCoordinator {
     if(observation.pendingHumanTurn&&(memory.lastJournalAt===null||at-memory.lastJournalAt>=SOCIAL_RULES.speechCooldown)){
       const turn=observation.pendingHumanTurn,query=turn.text.toLowerCase();
       let response;
-      if(/how.*(feel|doing)|are you (okay|ok|well)|hungry|thirsty|tired/.test(query))response=`I feel ${body.overall}. My body feels ${body.hunger}, ${body.thirst}, and ${body.fatigue}.`;
+      if(/\b(kill|catch|strike|pull|sample)\b/.test(query)){
+        const advice=discovery.reports.find(report=>report.sourceId==='human'&&report.messageId===turn.id);
+        response=advice?.proposed.length?`I can attempt ${advice.proposed.map(step=>step.type).join(', then ')} on ${advice.proposed[0].targetId}. A strike or catch can fail; no outcome or food benefit is guaranteed.`:'I have kept your suggestion, but I cannot identify a specific observed target and supported operation from it. Name one object I have observed by its object ID or a unique visible description, and an operation to try.';
+      }else if(/how.*(feel|doing)|are you (okay|ok|well)|hungry|thirsty|tired/.test(query))response=`I feel ${body.overall}. My body feels ${body.hunger}, ${body.thirst}, and ${body.fatigue}.`;
       else if(/what.*(find|found|discover|learn)|food|apple|hunt|forag|eat/.test(query))response=effects.length?`${describeEffect(effects.at(-1))} I am comparing repeated experiences; unfamiliar materials remain uncertain.`:'I have not established which unfamiliar materials sustain me. I can try small, physical interactions and compare what happens. Your suggestions would be reports for me to test.';
       else if(/where.*(going|go|headed)|what.*(plan|doing|next)|your goal/.test(query))response=npc.cognition?.plan?.status==='active'?`My intention is ${npc.cognition.plan.goal}. I will revise it if conditions or my body change.`:'I am investigating what I can reach and comparing the consequences. I have no confirmed food technique yet.';
       else response='I have read your message. I will treat any suggested method as something to test, and continue living whether you reply again or not.';
@@ -446,6 +462,14 @@ export class SocialCoordinator {
     if(note)return {type:'read_note',noteId:note.id,offline:true};
     if(memory.lastSpokeAt===null||at-memory.lastSpokeAt>=SOCIAL_RULES.speechCooldown){
       for(const peer of observation.peers.filter(peer=>!['sleeping','resting','unconscious','recovering'].includes(peer.appearance.activity))){
+        // Only the speaker's own retained closure supplies a procedure. Do not
+        // inspect the listener's private knowledge to decide what to say.
+        const learned=validateDiscoveryMemory(discovery,npc).techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2);
+        for(const technique of learned.slice(-4).reverse()){
+          const text=peerTeachingText(technique.sourceId,technique.steps[0].type);
+          const key=`${peer.id}:${fingerprint(text)}`;
+          if(!memory.conversationKeys.some(item=>item.key===key&&at-item.at<SOCIAL_RULES.topicCooldown))return {type:'say',targetId:peer.id,text,techniqueId:technique.id,offline:true};
+        }
         const effect=effects.at(-1);
         const text=effect?`${describeEffect(effect)} That is my experience, rather than a promise about every similar object.`:`Hello, ${peer.name}. I am still learning what the things around us do. We can compare what actually happens.`;
         const key=`${peer.id}:${fingerprint(text)}`;

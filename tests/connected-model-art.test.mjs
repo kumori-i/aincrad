@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {drawEcologyObject,groundColor} from '../src/art.js';
-import {Renderer} from '../src/renderer.js';
+
 
 test('historical ground colors keep the original default model',()=>{
   // Recorded from the reviewed base before the connected model was introduced.
@@ -18,34 +18,7 @@ test('historical ground colors keep the original default model',()=>{
   assert.notDeepEqual(groundColor(-16400,-11600,false,0),groundColor(-16400,-11600,false,1));
 });
 
-test('renderer keys cached ground chunks by the saved ecology model',()=>{
-  const original=globalThis.document;
-  globalThis.document={createElement:()=>{
-    const result={width:0,height:0};
-    result.getContext=()=>({
-      fillStyle:'',createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
-      putImageData(image){result.basePixels=image.data;},fillRect(){},
-    });
-    return result;
-  }};
-  try{
-    const renderer=Object.create(Renderer.prototype);
-    renderer.chunks=new Map();
-    const oldState={environment:{ecology:{}}};
-    const newState={environment:{ecology:{ecosystemModelVersion:1}}};
-    assert.equal(renderer.ecologyModel(oldState),0);
-    assert.equal(renderer.ecologyModel(newState),1);
-    const legacy=renderer.chunk(-26,-19,renderer.ecologyModel(oldState));
-    const connected=renderer.chunk(-26,-19,renderer.ecologyModel(newState));
-    assert.notStrictEqual(legacy,connected);
-    assert.notEqual(Buffer.compare(Buffer.from(legacy.basePixels),Buffer.from(connected.basePixels)),0);
-    assert.strictEqual(renderer.chunk(-26,-19,0),legacy);
-    assert.strictEqual(renderer.chunk(-26,-19,1),connected);
-    assert.deepEqual([...renderer.chunks.keys()].sort(),['0:-26,-19','1:-26,-19']);
-  }finally{
-    if(original===undefined)delete globalThis.document;else globalThis.document=original;
-  }
-});
+
 
 test('only projected dry vegetation uses the dry sprite palette',()=>{
   const paint=object=>{

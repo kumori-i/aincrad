@@ -1,9 +1,9 @@
-// A separate, persistent fresh world. The original and recovered valley boot
-// modules are never imported here, and their save key is never opened.
+// The single supported Ozark world. Launch resumes valid current progress;
+// historical save slots are never read, migrated, deleted or overwritten.
 import { CONFIG } from './config.js';
 import { clockTime } from './world.js';
 import { createOzarkWorldGeometry } from './ozark-world-geometry.js';
-import { createOzarkState, loadOzarkSave, writeOzarkSave } from './ozark-save.js';
+import { loadOzarkSave, writeOzarkSave } from './ozark-save.js';
 import { bindOzarkWorldAgent } from './ozark-agent-world.js';
 import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
@@ -16,9 +16,20 @@ const $ = id => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const title = value => String(value || '').replaceAll('-', ' ')
   .replace(/\b\w/g, letter => letter.toUpperCase());
-const geometry = createOzarkWorldGeometry();
+// Paint the noninteractive loading status before deterministic world generation.
+await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 const storage = window.localStorage;
-const loaded = loadOzarkSave(storage, geometry);
+let geometry, loaded;
+try {
+  geometry = createOzarkWorldGeometry();
+  loaded = loadOzarkSave(storage, geometry);
+} catch (error) {
+  hide('world-loading'); show('recovery-panel');
+  text('recovery-title', 'The world could not finish loading.');
+  text('recovery-diagnosis', String(error?.message || error));
+  text('recovery-note', 'No simulation has started and no saved bytes have been changed.');
+  throw error;
+}
 let state = loaded.state;
 let population = null;
 let renderer = null;
@@ -35,6 +46,11 @@ let lastMini = 0;
 let lastAtlas = 0;
 let toastUntil = 0;
 let lastPlayerResult = null;
+let previewPoint = null;
+let previewHour = null;
+let previewVersion = 0;
+let renderedPreviewVersion = -1;
+const previewViews = Object.freeze({spawn:geometry.spawn,forest:{x:0,y:3600},glade:{x:-11080.04,y:-6786.96},shore:{x:-1400,y:-400}});
 const keys = new Set();
 const anim = { time: 0, moving: false, facing: { x: 0, y: 1 } };
 const movementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD',
@@ -55,8 +71,8 @@ function save(explicit = false) {
   if (loaded.blocked || !state) return false;
   const ok = writeOzarkSave(storage, state, geometry);
   text('save-status', ok ? 'Ozark world saved locally' : 'Ozark save unavailable');
-  if (explicit) notify(ok ? 'The separate Ozark world was saved.' :
-    'Saving failed. The previous Ozark save remains protected.', 8);
+  if (explicit) notify(ok ? 'The world was saved.' :
+    'Saving failed. The previous world save remains protected.', 8);
   if (!ok && started) {
     paused = true;
     keys.clear();
@@ -64,25 +80,8 @@ function save(explicit = false) {
   }
   return ok;
 }
-async function openOriginal() {
-  if (started && !save(true)) return;
-  try {
-    const result = await window.aincradWorld?.open('original');
-    if (result?.ok !== true) throw new Error(result?.reason || 'The original world could not open.');
-  } catch (error) {
-    notify(error?.message || 'The original world could not open.', 8);
-  }
-}
-
-document.title = 'Aincrad — Separate Ozark wilderness';
-text('welcome-profile-label', loaded.blocked ?
-  'Separate Ozark save protected · original world untouched' :
-  loaded.exists ? 'Separate Ozark wilderness · saved world' :
-    'Separate Ozark wilderness · fresh world');
-text('active-profile-label', 'Ozark wilderness · separate local save');
-text('begin', loaded.exists ? 'Continue the Ozark wilderness ↗' :
-  'Begin a fresh Ozark wilderness ↗');
-text('watch-aster', 'Watch Aster in Ozark ↗');
+document.title = 'Aincrad — Ozark wilderness';
+text('active-profile-label', 'Ozark wilderness · local save');
 text('expedition-mode', 'OZARK · DISCOVERY');
 text('nav-label', 'OZARK WILDERNESS');
 text('location-kicker', 'A NEW LANDSCAPE');
@@ -91,68 +90,40 @@ text('atlas-fit', 'Whole watershed');
 text('map-hint', 'The full landform is visible to you; agents remember only what they sense.');
 text('pause-title', 'The Ozark world is paused.');
 text('resume', 'Return to Ozark ↗');
-const welcomeMode = $('welcome')?.querySelector('.welcome-mode');
-if (welcomeMode) welcomeMode.textContent =
-  'This new world has its own save. Your original and recovered expeditions are separate and unchanged.';
-const welcomeCopy = $('welcome')?.querySelector('.welcome-copy > p:nth-of-type(2)');
-if (welcomeCopy) welcomeCopy.textContent =
-  'Explore an entire modeled watershed with Aster and Mira. They choose from local observations and learn only from their own actions.';
-const welcomeControls = $('welcome')?.querySelector('.welcome-controls');
-if (welcomeControls) welcomeControls.textContent =
-  'WASD or arrows walk · hold Space to attempt swimming · hold G to attempt climbing · M opens the map';
-const welcomeDetail = $('welcome')?.querySelector('.welcome-detail');
-if (welcomeDetail) welcomeDetail.textContent = 'OZARK · FRESH WORLD · SEPARATE SAVE';
-const help = $('help-panel')?.querySelector('.guide');
-if (help) {
-  const terms = help.querySelectorAll('dl dt');
-  const entries = help.querySelectorAll('dl dd');
-  if (entries[0]) entries[0].textContent = 'Walk through the Ozark watershed.';
-  if (terms[2]) terms[2].textContent = 'Space / G';
-  if (entries[2]) entries[2].textContent = 'Hold Space while moving to attempt swimming; hold G to attempt climbing. Both cost effort.';
-  if (entries[3]) entries[3].textContent = 'Open the full watershed map. It shows the landform and all three people, and lets you place a waypoint.';
-  terms[6]?.remove(); entries[6]?.remove();
-  if (entries[7]) entries[7].textContent = 'Open the journal for Aster and Mira. Their own maps contain only their observations.';
-  const paragraph = help.querySelector('dl + p');
-  if (paragraph) paragraph.textContent =
-    'River depth, current and slope are modeled game rules. Shallow water can be waded; deep water and steep ground require physical attempts. No bridges or camps are supplied.';
-  const detail = help.querySelector('p.small');
-  if (detail) detail.textContent =
-    'Aster and Mira experiment with nearby objects and learn from physical outcomes. Their memories and the finite ecosystem save with this separate world.';
-}
 const atlasNote = $('map-panel')?.querySelector('.atlas-note');
 if (atlasNote) atlasNote.textContent =
   'You can inspect the whole watershed. Aster and Mira use only their own observed and remembered local cells.';
 $('atlas-map').setAttribute('aria-label',
   'Whole Ozark watershed map with live human locations. Scroll to zoom, drag to pan, and click to place a waypoint.');
-const legend = $('map-panel')?.querySelector('.legend');
-if (legend) for (const item of [...legend.children].slice(3, 5)) item.remove();
-hide('open-cardinal'); hide('cardinal-panel'); hide('interaction');
-hide('return-camp'); hide('new-expedition'); hide('pause-open-copy');
-hide('welcome-ozark'); hide('welcome-open-copy');
-show('welcome-original'); show('pause-original');
-$('welcome-original').addEventListener('click', openOriginal);
-$('pause-original').addEventListener('click', openOriginal);
+hide('interaction');
 
 if (loaded.blocked) {
   // A corrupt, unsupported or concurrently changed Ozark slot cannot create a
   // fresh replacement, run controllers or write another save over its bytes.
   state = { player: { ...geometry.spawn }, agents: [], selectedAgentId: 'aster',
     environment: { ecology: null }, elapsed: 0, waypoint: null };
-  $('begin').disabled = true;
-  $('watch-aster').disabled = true;
-  show('recovery-panel'); show('recovery-original');
-  text('recovery-title', 'The separate Ozark save is protected.');
-  text('recovery-profile-label', 'Original world and recovered copy remain separate.');
+  show('recovery-panel');
+  text('recovery-title', 'The current world save is protected.');
+  text('recovery-profile-label', 'No saved bytes were changed.');
   text('recovery-diagnosis', loaded.error || 'The Ozark save could not be safely validated.');
   text('recovery-migration', 'No Ozark simulation or save writes will run.');
-  text('recovery-note', 'Keep this save for inspection. Return to the original world without replacing either world.');
+  text('recovery-note', 'Keep this save for inspection. Nothing will overwrite or reset it.');
   text('save-status', 'Ozark save protected');
-  $('recovery-original').addEventListener('click', openOriginal);
 } else {
   for (const npc of state.agents) bindOzarkWorldAgent(npc, geometry, state);
   population = new PopulationRuntime(state, { cardinal: false });
 }
 renderer = new OzarkWorldRenderer($('world'), geometry);
+try {
+  await renderer.prepareAtlas();
+} catch (error) {
+  hide('world-loading'); show('recovery-panel');
+  text('recovery-title', 'The world could not finish loading.');
+  text('recovery-diagnosis', String(error?.message || error));
+  text('recovery-note', 'No simulation has started. Existing saved bytes have not been changed.');
+  throw error;
+}
+hide('world-loading');
 renderer.followId = 'aster';
 renderer.snap(state.player);
 if (population) {
@@ -173,10 +144,10 @@ if (population) {
 function begin() {
   if (loaded.blocked || started || !save()) return false;
   started = true;
-  hide('welcome'); show('hud');
+  show('hud');
   keys.clear(); $('world').focus({ preventScroll: true });
   clock.reset(performance.now() / 1000);
-  notify('Ozark is saved separately. Aster and Mira begin with no learned crossing skill.');
+  if (!loaded.exists) notify('Aster and Mira begin exploring. Press N to talk with them or read their journals.');
   return true;
 }
 function closePanel() {
@@ -292,7 +263,11 @@ function frame(now) {
   const dt = clamp((now - lastFrame) / 1000, 0, .25);
   lastFrame = now;
   if (started && !paused) anim.time += dt;
-  renderer.draw(state, anim);
+  const renderState = previewPoint && paused ? { ...state, player: previewPoint,
+    environment: previewHour === null ? state.environment : { ...state.environment,
+      settings: { ...state.environment.settings, hourOverride: previewHour } } } : state;
+  renderer.draw(renderState, anim);
+  renderedPreviewVersion = previewVersion;
   if (started) {
     npcPanel?.update(now / 1000);
     if (now - lastMini > 700) { lastMini = now; renderer.drawMini($('minimap'), state); }
@@ -314,11 +289,6 @@ setInterval(() => {
   }
 }, 1000 / 60);
 
-$('begin').addEventListener('click', begin);
-$('watch-aster').addEventListener('click', () => {
-  if (begin()) { renderer.followNpc = true; renderer.followId = 'aster';
-    renderer.snap(state.agents[0].position); }
-});
 $('open-map').addEventListener('click', () => togglePanel('map'));
 $('close-map').addEventListener('click', closePanel);
 $('help-button').addEventListener('click', () => togglePanel('help'));
@@ -420,11 +390,11 @@ for (const id of ['you', 'aster', 'mira'])
   });
 
 // Local test hooks exist only in a disposable native test profile.
-if (location.search === '?test=1&ozarkWorld=1') {
+if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
   window.__ozarkWorld = Object.freeze({
-    start: begin, save: () => save(true),
+    start: begin, pause: () => setPause(true), save: () => save(true),
     step: (seconds, dx = 0, dy = 0, mode = 'walk') => {
-      if (!started || !Number.isFinite(seconds) || seconds < 0 || seconds > 30 ||
+      if (!started || paused || !Number.isFinite(seconds) || seconds < 0 || seconds > 30 ||
           !Number.isFinite(dx) || !Number.isFinite(dy) ||
           Math.abs(dx) > 1 || Math.abs(dy) > 1 ||
           !['walk', 'climb', 'swim'].includes(mode)) return false;
@@ -434,7 +404,17 @@ if (location.search === '?test=1&ozarkWorld=1') {
       }
       return true;
     },
-    snapshot: () => ({ geometryIdentity: state.geometryIdentity,
+    preview: (name, hour = null) => {
+      if (!paused || name !== null && !Object.hasOwn(previewViews,name) ||
+          hour !== null && (!Number.isFinite(hour) || hour < 0 || hour >= 24)) return false;
+      previewPoint = name === null ? null : {...previewViews[name]};
+      previewHour = name === null ? null : hour;
+      previewVersion++;
+      renderer.followNpc = false; renderer.snap(previewPoint || state.player); return true;
+    },
+    detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
+    fullSnapshot: () => structuredClone(state),
+    snapshot: () => ({ version:state.version,features:structuredClone(state.features),geometryIdentity: state.geometryIdentity,
       player: { ...state.player }, playerBody: { ...state.playerBody },
       agents: state.agents.map(npc => ({ id: npc.id, position: { ...npc.position },
         elapsed: npc.elapsed, memory: structuredClone(npc.memory),
@@ -443,7 +423,12 @@ if (location.search === '?test=1&ozarkWorld=1') {
         plants: state.environment.ecology.plants.length,
         animals: state.environment.ecology.animals.length,
         materials: state.environment.ecology.materials.length,
+        fish: state.environment.ecology.aquatic.fish.length,
       }, elapsed: state.elapsed, saveStatus: $('save-status').textContent,
-      started, paused, blocked: loaded.blocked }),
+      ready: true, started, paused, blocked: loaded.blocked }),
   });
 }
+
+// Ordinary launches run immediately, without a world or start chooser. The
+// disposable native test route waits for start() to inspect exact disk state.
+if (location.search !== '?test=1' && !loaded.blocked) begin();

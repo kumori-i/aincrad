@@ -10,7 +10,7 @@ import {freshState,canStandOutside} from '../src/world.js';
 import {regionAt,plantSuitability,regionalResourceAudit} from '../src/ecology-regions.js';
 import {freshPlantLifecycle,PLANT_FIELDS,MATERIAL_FIELDS,lifecycleError} from '../src/plant-lifecycle-state.js';
 import {measureCardinalWorld} from '../src/cardinal-metrics.js';
-import {validateSave,loadSave,writeSave} from '../src/save.js';
+
 const clone=structuredClone,near=(a,b,eps=1e-8)=>assert.ok(Math.abs(a-b)<=eps,`${a} != ${b}`);
 const storage=()=>{let bytes=null,writes=0;return {getItem:()=>bytes,setItem:(_,v)=>{bytes=v;writes++;},get bytes(){return bytes;},get writes(){return writes;}};};
 function fixture(){
@@ -74,29 +74,11 @@ test('juvenile appearances are public qualitative shapes and rendering remains r
  const f=aged(fixture());step(f);const p=f.e.plants.find(p=>p.lifecycleStage==='juvenile'),before=clone(f.e),publicRow=senseEcology(f.e,p.position,'valley',100).find(o=>o.id===p.id),sprite=renderEcology(f.e).find(o=>o.id===p.id);
  assert.match(publicRow.appearance.shape,/stem/);assert.equal(publicRow.structureKcal,undefined);assert.equal(publicRow.seedOpportunity,undefined);assert.equal(sprite.stage,'seedling');assert.equal(sprite.quantity,0);assert.deepEqual(f.e,before);
 });
-test('new saves restore structure, seed timing, identity and ledger losslessly',()=>{
- const f=aged(fixture());step(f);for(let i=0;i<100;i++)step(f);const state=asState(f),disk=storage();assert.equal(writeSave(disk,state),true);assert.equal(JSON.parse(disk.bytes).version,8);const loaded=loadSave(disk);assert.equal(loaded.blocked,false);assert.deepEqual(loaded.state.environment.ecology,f.e);balances(loaded.state.environment.ecology);
-});
-test('v6 migration preserves stocks and identities without giving historical material a seed',()=>{
- const f=fixture(),raw=legacy(clone(asState(f))),old=clone(raw.environment.ecology),state=validateSave(raw);assert.equal(state.version,8);assert.equal(state.environment.ecology.materials[0].seedOpportunity,false);assert.equal(state.environment.ecology.lifecycle.seededPlants,0);
- const plain=legacy(clone(state)).environment.ecology;assert.deepEqual(plain,old);assert.deepEqual(state.agents.map(a=>a.id),raw.agents.map(a=>a.id));
-});
-test('damaged v8 metadata is protected before normalization and original disk bytes survive',()=>{
- const f=aged(fixture());step(f);const base=asState(f);
- for(const change of [s=>delete s.features,s=>s.environment.ecology.version=0,s=>s.environment.ecology.distributionVersion=1,s=>s.environment.ecology.lifecycle.unbounded='unknown',s=>delete s.environment.ecology.lifecycle,s=>delete s.environment.ecology.plants[1].structureKcal,s=>s.environment.ecology.plants[1].quantity=1,s=>s.environment.ecology.plants[1].structureKcal+=.01,s=>s.environment.ecology.materials[0].seedOpportunity=true,s=>s.environment.ecology.lifecycle.growthMassGrams=-1]){
-  const raw=clone(base);change(raw);const disk=storage();disk.setItem(CONFIG.saveKey,JSON.stringify(raw));const original=disk.bytes,result=loadSave(disk);assert.equal(result.blocked,true);assert.equal(writeSave(disk,result.state),false);assert.equal(disk.bytes,original);assert.equal(disk.writes,1);
- }
-});
-test('research temporal payloads and lifecycle data disguised as legacy cannot be erased',()=>{
- for(const version of [1,5,6,7])for(const payload of ['temporal','lifecycle']){
-  const raw=clone(freshState());raw.version=version;if(payload==='temporal'){legacy(raw);raw.version=version;raw.agents[0].discovery.temporal={version:1,model:{rows:[{q:123}]}};}
-  const disk=storage();disk.setItem(CONFIG.saveKey,JSON.stringify(raw));const original=disk.bytes;const result=loadSave(disk);assert.equal(result.blocked,true,`${version}/${payload}`);assert.equal(writeSave(disk,result.state),false);assert.equal(disk.bytes,original);
- }
-});
-test('small floating stock roundoff is preserved; meaningful structural corruption protects save',()=>{
- const f=aged(fixture());step(f);const m=f.material,cap=95*m.massGrams/180;m.energyKcal=cap+8e-14;const restored=validateEcology(clone(f.e));assert.equal(restored.materials[0].energyKcal,m.energyKcal);
- const raw=asState(f);raw.environment.ecology.plants[1].structureWaterMl=3;const disk=storage();disk.setItem(CONFIG.saveKey,JSON.stringify(raw));assert.equal(loadSave(disk).blocked,true);
-});
+
+
+
+
+
 
 
 test('real partial ingestion leaves a conserved source remainder, including sub-tenth-gram germination remainder',()=>{
@@ -143,27 +125,9 @@ test('four-attempt bound has deterministic deadline/ID order and a freed cap ret
  const e=validateEcology(clone(f.e)),target=e.materials.find(m=>m.id===ids[0]),deadline=target.nextGerminationAt;
  e.plants.pop();f.e=f.env.ecology=e;f.e.elapsed=f.env.elapsed=deadline-1;step(f);assert.equal(e.lifecycle.attempts,6);step(f);assert.equal(e.lifecycle.seededPlants,1);assert.equal(e.plants.length,R.maxPlants);assert.equal(target.seedOpportunity,false);assert.equal(target.massGrams,178);
 });
-test('raw world corruption and direct validation cannot authorize replacement of source bytes',()=>{
- const f=aged(fixture());step(f);const base=asState(f),changes=[
-  s=>s.environment.ecology.materials[0].massGrams=null,s=>s.environment.ecology.materials[0].energyKcal=null,s=>s.environment.ecology.materials[0].kind='unknown',
-  s=>s.environment.ecology.plants[0].position=null,s=>s.environment.ecology.plants[1].scene='amber',s=>s.environment.ecology.plants[0].stage='seedling',
-  s=>s.environment.ecology.detritus.nutrients=null,s=>s.environment.ecology.regions[0].massGrams=null,s=>s.environment.ecology.pending=-1,s=>s.environment.ecology.elapsed=null,s=>s.environment.ecology.nextId=1,
-  s=>{legacy(s);s.environment.ecology.plants[1].stage='juvenile';},s=>s.version=7,s=>{legacy(s);s.agents[0].discovery.temporal={version:1};}
- ];
- for(const change of changes){const raw=clone(base);change(raw);const disk=storage();disk.setItem(CONFIG.saveKey,JSON.stringify(raw));const before=disk.bytes;assert.equal(loadSave(disk).blocked,true);let direct;try{direct=validateSave(raw);}catch{}if(direct)assert.equal(writeSave(disk,direct),false);assert.equal(disk.bytes,before);assert.equal(disk.writes,1);}
-});
 
-test('legitimate rabbit carcass and detached flesh retain radius-seven coordinates through disk reopen',()=>{
- const state=freshState(),e=state.environment.ecology,rabbit=e.animals.find(a=>a.species==='rabbit'),position={x:52.649477692507205,y:947.4402736977675};
- assert.equal(canStandOutside(position.x,position.y,7),true);assert.equal(canStandOutside(position.x,position.y,10),false);rabbit.position={...position};rabbit.homePosition={...position};const actorPosition={x:position.x+10,y:position.y};assert.equal(canStandOutside(actorPosition.x,actorPosition.y,CONFIG.playerRadius),true);
- for(let i=0;i<4;i++)assert.ok(interactEcologyObject(e,rabbit.id,'strike',{actorId:'aster',position:actorPosition,power:4}).ok);
- const carcass=e.materials.find(m=>m.kind==='carcass');assert.ok(carcass);assert.deepEqual(carcass.position,position);
- const actor=state.agents[0];actor.position=actorPosition;observeNpc(actor,state.environment);assert.ok(requestNpcAction(actor,{type:'pull',targetId:carcass.id},state.environment).ok);for(let i=0;i<1000&&actor.active;i++)tickNpc(actor,1/60,state.environment);const piece=actor.lastResult;assert.ok(piece.ok);assert.ok(actor.inventory.items.includes(piece.materialId));
- const original=e.materials.map(m=>({id:m.id,position:m.position,mass:m.massGrams,energy:m.energyKcal,water:m.waterMl})),disk=storage();assert.equal(writeSave(disk,state),true);
- const reopened=loadSave(disk);assert.equal(reopened.blocked,false);assert.deepEqual(reopened.state.environment.ecology.materials.map(m=>({id:m.id,position:m.position,mass:m.massGrams,energy:m.energyKcal,water:m.waterMl})),original);
- assert.ok(consumeEcologyMaterial(reopened.state.environment.ecology,piece.materialId,.3,{actorId:'aster',accept:p=>ingestMaterial(reopened.state.agents[0],p,{objectId:piece.materialId})}).ok);
- assert.equal(writeSave(disk,reopened.state),true);
-});
+
+
 test('actual juvenile growth contributes only structural total and photosynthetic input, never available food',()=>{
  const f=aged(fixture());step(f);f.tree.quantity=0;f.tree.growth=0;f.e.ledger.initialKcal=ecologyEnergy(f.e);const state=asState(f),before=measureCardinalWorld(state),photo=f.e.ledger.photosynthesisKcal;
  for(let i=0;i<100;i++)step(f);state.elapsed=f.e.elapsed;const after=measureCardinalWorld(state),growth=f.e.ledger.photosynthesisKcal-photo;

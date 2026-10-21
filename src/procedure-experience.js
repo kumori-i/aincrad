@@ -50,8 +50,8 @@ export function createProcedureExperience(npc) {
     const proofCounts = new Map();
     for (const e of effectsInput) proofCounts.set(e?.proofEventId, (proofCounts.get(e?.proofEventId) || 0) + 1);
     const effects = ledger.effects.filter(e => e.valid && validActions.has(e.sample.actionId) && proofCounts.get(e.effect.proofEventId) === 1);
-    const acquisitions = experiments.filter(e => e.ok && (e.primitive === 'grasp' || e.primitive === 'pull' && objectId(e.materialId)));
-    const material = e => e.primitive === 'grasp' ? e.targetId : e.materialId;
+    const acquisitions = experiments.filter(e => e.ok && (['grasp','catch'].includes(e.primitive) || e.primitive === 'pull' && objectId(e.materialId)));
+    const material = e => ['grasp','catch'].includes(e.primitive) ? e.targetId : e.materialId;
     const episodes = acquisitions.map(e => ({ acquisition: identity(e), materialId: material(e), samples: [],
       proofStatus: 'retained-acquisition-only', admissionContext: 'unknown', ...unknown() }));
     const byAcquisition = new Map(acquisitions.map((e, i) => [e.actionId, episodes[i]]));
@@ -59,7 +59,8 @@ export function createProcedureExperience(npc) {
       // Latest own handling episode wins, never an earlier producer through a
       // later unrelated grasp. Missing intervening receipts leave chain unknown.
       const acquired = acquisitions.filter(e => e.actionId < sample.actionId && e.id < sample.id && e.at <= sample.at && material(e) === sample.targetId).at(-1);
-      const intact = acquired && continuity(acquired, sample, receipts);
+      // Same-ID capture remains acquisition-only, never catch -> sample food proof.
+      const intact = acquired && acquired.primitive!=='catch' && continuity(acquired, sample, receipts);
       let episode = intact ? byAcquisition.get(acquired.actionId) : null;
       if (!episode) {
         episode = { acquisition: null, materialId: sample.targetId, samples: [],

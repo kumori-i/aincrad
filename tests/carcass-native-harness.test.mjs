@@ -7,73 +7,35 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
-import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptySlots, ordinaryRouteSnapshot,
-  assertOrdinaryRoute } from '../scripts/carcass-native-contract.mjs';
-import { inspectProfileBoot } from '../src/recovered-profile-boot.js';
-import { loadSave, prepareLegacyPendingMigration } from '../src/save.js';
-import { CONFIG } from '../src/config.js';
-
-const oldKey = CONFIG.saveKey, key = 'aincrad.ozark.v1';
-const oldSentinel = JSON.stringify({ syntheticH1OriginalSlot: 'preserve-exactly' });
-const inputRaw = 'synthetic Ozark fixture bytes';
+import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptyCurrentSlot, currentRouteSnapshot,
+  assertCurrentRoute } from '../scripts/carcass-native-contract.mjs';
+const key='aincrad.world.v1';
 const storage = entries => {
-  const rows = new Map(entries), writes = [];
-  return { rows, writes, getItem: key => rows.has(key) ? rows.get(key) : null,
-    setItem(key, value) { writes.push([key, value]); rows.set(key, value); } };
+ const rows=new Map(entries),writes=[];
+ return {rows,writes,getItem:key=>rows.has(key)?rows.get(key):null,
+  setItem(key,value){writes.push([key,value]);rows.set(key,value);}};
 };
-const profile = supported => ({ kind: 'original', phase: 'none', available: false,
-  recoveredCopySupported: supported, sourceSha256: null, createdAt: null });
-
-for (const supported of [false, true]) for (const occupied of [false, true]) {
-  test(`real bootstrap preserves ${occupied ? 'protected' : 'empty'} original slot; recovery support ${supported}`, async () => {
-    const local = storage(occupied ? [[oldKey, oldSentinel]] : []);
-    const before = [...local.rows];
-    const boot = await inspectProfileBoot({ profileApi: { status: async () => profile(supported) },
-      getStorage: () => local, loadSave, prepareMigration: prepareLegacyPendingMigration,
-      saveKey: oldKey, hashRaw: () => { throw new Error('Original boot must not migrate'); } });
-    assert.equal(boot.gate, occupied ? 'original-protected' : 'play');
-    assert.deepEqual([...local.rows], before); assert.deepEqual(local.writes, []);
-    const nodes = {
-      'recovery-panel': { classList: { contains: () => !occupied } },
-      'recovery-title': { textContent: occupied ? 'Your original world needs recovery.' : '' },
-      'recovery-diagnosis': { textContent: boot.reason || '' },
-      'recovery-ozark': { classList: { contains: () => false } },
-      begin: { disabled: occupied },
-    };
-    const snapshot = await ordinaryRouteSnapshot({
-      location: { href: 'aincrad://app/index.html?test=1' },
-      __aincrad: occupied ? undefined : {}, aincradWorld: { open() {} },
-      aincradProfile: { status: async () => boot.status },
-    }, { getElementById: id => nodes[id] });
-    assertOrdinaryRoute(snapshot, occupied ? 'read' : 'write');
-    assert.throws(() => assertOrdinaryRoute(snapshot, occupied ? 'write' : 'read'));
-  });
-}
-
-test('fixture installation verifies both empty slots before touching either', () => {
-  for (const slot of [oldKey, key]) for (const bytes of ['', 'existing world', oldSentinel]) {
-    const local = storage([[slot, bytes], ['unrelated', 'keep']]), before = [...local.rows];
-    assert.throws(() => installEmptySlots(local, { oldKey, key, oldSentinel, inputRaw }), /occupied/);
-    assert.deepEqual([...local.rows], before); assert.deepEqual(local.writes, []);
-  }
-  const local = storage([['unrelated', 'keep']]);
-  assert.equal(installEmptySlots(local, { oldKey, key, oldSentinel, inputRaw }), inputRaw);
-  assert.equal(local.getItem(oldKey), oldSentinel); assert.equal(local.getItem('unrelated'), 'keep');
+test('current fixture installation refuses occupied slots and leaves unrelated bytes untouched',()=>{
+ for(const bytes of ['', 'existing world']) {
+  const local=storage([[key,bytes],['unrelated','keep']]);
+  assert.throws(()=>installEmptyCurrentSlot(local,{key,inputRaw:'fixture'}),/occupied/);
+  assert.deepEqual(local.writes,[]);
+ }
+ const local=storage([['unrelated','keep']]);
+ assert.equal(installEmptyCurrentSlot(local,{key,inputRaw:'fixture'}),'fixture');
+ assert.equal(local.getItem('unrelated'),'keep');
+ assert.throws(()=>installEmptyCurrentSlot(storage([]),{key:'retired',inputRaw:'fixture'}));
 });
-
-test('serialized renderer helpers retain both occupancy guards and recovery assertions', async () => {
-  const local = storage([[oldKey, 'keep me']]);
-  const install = vm.runInNewContext('(' + installEmptySlots.toString() + ')');
-  assert.throws(() => install(local, { oldKey, key, oldSentinel, inputRaw }), /original slot/);
-  assert.deepEqual(local.writes, []);
-  const verify = vm.runInNewContext('(' + assertOrdinaryRoute.toString() + ')');
-  const valid = { url: 'aincrad://app/index.html?test=1', worldBridge: true, profile: profile(false),
-    playHook: false, recoveryVisible: true, beginDisabled: true,
-    recoveryTitle: 'Your original world needs recovery.', recoveryDiagnosis: 'protected', recoveryOzarkVisible: true };
-  verify(valid, 'read');
-  for (const patch of [{ playHook: true }, { beginDisabled: false }, { recoveryVisible: false },
-    { recoveryDiagnosis: '' }, { recoveryOzarkVisible: false }, { profile: { ...profile(false), kind: 'recovered' } }])
-    assert.throws(() => verify({ ...valid, ...patch }, 'read'));
+test('serialized current route contract rejects retired bridges, choosers and invalid current saves',()=>{
+ const assertRoute=vm.runInNewContext('('+assertCurrentRoute.toString()+')');
+ const valid={url:'aincrad://app/index.html?test=1',hook:true,retiredWorldBridge:false,
+  retiredProfileBridge:false,chooserPresent:false,snapshot:{blocked:false,started:false,
+   version:11,features:{plantLifecycle:1,finiteAquatic:1,worldStructures:1}}};
+ assertRoute(valid);
+ for(const patch of [{hook:false},{retiredWorldBridge:true},{retiredProfileBridge:true},
+  {chooserPresent:true},{url:'aincrad://app/index.html?ozarkWorld=1'},
+  {snapshot:{...valid.snapshot,version:10}},{snapshot:{...valid.snapshot,blocked:true}}])
+   assert.throws(()=>assertRoute({...valid,...patch}));
 });
 
 test('only the application root is canonicalized; the temp profile spelling is retained', async () => {
@@ -159,12 +121,12 @@ test('prepare-only runner retains synchronous native bootstrap and strict produc
     assert.equal(loaded.length, 1, 'Production main must load synchronously before app ready');
     const pathEvidence = JSON.parse(await readFile(join(output, 'relation-write-app-path.json'), 'utf8'));
     assert.equal(pathEvidence.protocolWouldReject, false);
-    const { resolveProfileRoute } = require('../desktop/recovered-profile.cjs');
+    const { resolveProfileRoute } = require('../desktop/profile-route.cjs');
     for (let index = 0; index < 3; index++) {
       const route = resolveProfileRoute({ argv: ['--test', '--test-profile=' + join(scratch, 'p-' + index)],
         isPackaged: false, appDataPath: join(tmpdir(), 'product-data-unread'),
         defaultUserDataPath: join(tmpdir(), 'product-profile-unread') });
-      assert.equal(route.kind, 'original'); assert.equal(route.usesTestPaths, true);
+      assert.equal(route.isTest,true); assert.ok(route.userDataPath.endsWith('p-'+index));
     }
   } finally {
     await rm(output, { recursive: true, force: true });

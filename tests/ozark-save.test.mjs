@@ -21,7 +21,7 @@ test('fresh Ozark world creates both distinct lives and writes only its own slot
   assert.equal(opened.blocked, false);
   assert.equal(opened.exists, false);
   const state = opened.state;
-  assert.equal(state.version, 9);
+  assert.equal(state.version, 11);
   assert.equal(state.geometryIdentity, OZARK_WORLD_PROFILE.identity);
   assert.deepEqual(state.agents.map(actor => actor.id), ['aster', 'mira']);
   assert.strictEqual(state.npc, state.agents[0]);
@@ -230,7 +230,8 @@ test('Ozark agent clocks and discovery observation times cannot exceed the share
   }
 });
 
-test('complete learned water effect keeps its exact sample and action proof through Ozark write/load', () => {
+// Deliberately constructed codec proof, not paid-controller capability evidence.
+function learnedWaterFixture() {
   const disk = storage(), state = createOzarkState(geometry);
   state.elapsed = 20;
   state.environment.elapsed = 20;
@@ -266,6 +267,11 @@ test('complete learned water effect keeps its exact sample and action proof thro
       code: 'DISCOVERY_EFFECT', feedback: { ...effect },
     } },
   );
+  return { disk, state, actor, sample, effect };
+}
+
+test('complete learned water effect keeps its exact sample and action proof through Ozark write/load', () => {
+  const { disk, state, actor, sample, effect } = learnedWaterFixture();
   assert.equal(writeOzarkSave(disk, state, geometry), true);
   const reopened = loadOzarkSave(disk, geometry);
   assert.equal(reopened.blocked, false, reopened.error);
@@ -275,4 +281,81 @@ test('complete learned water effect keeps its exact sample and action proof thro
   assert.deepEqual(restored.memory.experience, actor.memory.experience);
   assert.equal(writeOzarkSave(disk, reopened.state, geometry), true);
   assert.equal(loadOzarkSave(disk, geometry).blocked, false);
+});
+
+test('current save protects the entire authoritative body and learned state against normalization', () => {
+  const state = createOzarkState(geometry), disk = storage();
+  assert.equal(writeOzarkSave(disk,state,geometry),true);
+  const good = JSON.parse(disk.getItem(OZARK_SAVE_KEY));
+  for (const mutate of [
+    a => { delete a.physiology.availableEnergyKcal; },
+    a => { a.physiology.version = 99; },
+    a => { a.physiology.profile = 'unknown'; },
+    a => { a.physiology.totals.metabolizedKcal = -1; },
+    a => { a.memory.features['unknown-category:thirst'] = 0; },
+    a => { a.memory.values['invalid::wait'] = {attempts:1,value:99}; },
+    a => { a.memory.effects.forged = {samples:1,hydration:1,nourishment:1}; },
+    a => { a.stats.collapses = -1; },
+  ]) {
+    const bad = structuredClone(good); mutate(bad.agents[0]);
+    const bytes = JSON.stringify(bad); disk.setItem(OZARK_SAVE_KEY,bytes);
+    const opened = loadOzarkSave(disk,geometry);
+    assert.equal(opened.blocked,true); assert.equal(opened.state,null);
+    assert.equal(writeOzarkSave(disk,state,geometry),false);
+    assert.equal(disk.getItem(OZARK_SAVE_KEY),bytes);
+  }
+});
+
+test('current codec preserves exact bytes for every forged effect provenance link and duplicate ID', () => {
+  const { disk, state } = learnedWaterFixture();
+  assert.equal(writeOzarkSave(disk,state,geometry),true);
+  const good = JSON.parse(disk.getItem(OZARK_SAVE_KEY));
+  const changes = [
+    (a,s,r) => {r.details.action.targetId='object:999999';},
+    (a,s,r) => {r.details.result.ok=false;},
+    (a,s,r) => {r.details.result.ingestionId='ingestion:999999';},
+    (a,s) => {s.targetId='object:999999';}, (a,s) => {s.ok=false;}, (a,s) => {s.at++;},
+    a => {a.discovery.effects[0].objectId='object:999999';},
+    a => {a.discovery.effects[0].ingestionId='ingestion:999999';},
+    a => {a.discovery.effects[0].at=9;}, a => {a.discovery.effects[0].proofEventId=999999;},
+    (a,s,r,p) => {p.details.feedback.source='reported';},
+    (a,s,r,p) => {p.details.feedback.at++;}, (a,s,r,p) => {p.at=11;},
+    (a,s,r) => {a.memory.experience.push(structuredClone(r));},
+    (a,s) => {a.discovery.experiments.push(structuredClone(s));},
+  ];
+  for (const change of changes) {
+    const bad=structuredClone(good), a=bad.agents[0];
+    change(a,a.discovery.experiments[0],a.memory.experience[0],a.memory.experience[1]);
+    const bytes=JSON.stringify(bad);disk.setItem(OZARK_SAVE_KEY,bytes);
+    assert.equal(loadOzarkSave(disk,geometry).blocked,true);
+    assert.equal(writeOzarkSave(disk,state,geometry),false);
+    assert.equal(disk.getItem(OZARK_SAVE_KEY),bytes);
+  }
+});
+
+test('current thermal, flask, lifecycle and world settings cannot be silently repaired', () => {
+  const state=createOzarkState(geometry),disk=storage();
+  assert.equal(writeOzarkSave(disk,state,geometry),true);
+  const good=JSON.parse(disk.getItem(OZARK_SAVE_KEY));
+  for(const mutate of [
+    raw=>{delete raw.agents[0].thermal.wetness;},
+    raw=>{raw.agents[0].thermal.hot=-1;},
+    raw=>{raw.agents[0].flask.water=2;},
+    raw=>{raw.agents[0].lifecycle='unknown';},
+    raw=>{raw.agents[0].memory.explorationCredit=-1;},
+    raw=>{raw.agents[0].discovery.version=99;},
+    raw=>{raw.agents[0].cognition.version=99;},
+    raw=>{raw.agents[0].social.version=99;},
+    raw=>{raw.community.version=99;},
+    raw=>{raw.environment.schemaVersion=99;},
+    raw=>{raw.environment.worldRules.version=99;},
+    raw=>{raw.environment.worldRules.values.rainfallMultiplier=-1;},
+    raw=>{delete raw.environment.worldRules.values.temperatureOffsetC;},
+    raw=>{raw.environment.settings.hourOverride=25;},
+    raw=>{raw.environment.settings.weatherOverride='invented';},
+  ]) {
+    const bad=structuredClone(good);mutate(bad);const bytes=JSON.stringify(bad);
+    disk.setItem(OZARK_SAVE_KEY,bytes);assert.equal(loadOzarkSave(disk,geometry).blocked,true);
+    assert.equal(writeOzarkSave(disk,state,geometry),false);assert.equal(disk.getItem(OZARK_SAVE_KEY),bytes);
+  }
 });

@@ -16,7 +16,7 @@ import {cognitiveAction, searchBounds, searchReturn} from '../src/cognition.js';
 import {knownRoute} from '../src/navigation.js';
 import {rememberedCells, tileKey} from '../src/perception.js';
 import {bodySignals} from '../src/interoception.js';
-import {loadSave, writeSave} from '../src/save.js';
+
 
 // Bounded selection/lifecycle fixtures, not autonomous migration or survival trials.
 // The corridor is a deliberately retained subset of actual local perception.
@@ -222,62 +222,11 @@ for(const constraint of ['slow body','learned travel cost'])test(`${constraint} 
 });
 
 function fileStorage(path) {return {getItem:key=>{assert.equal(key,CONFIG.saveKey);return readFileSync(path,'utf8');},setItem:(key,value)=>{assert.equal(key,CONFIG.saveKey);writeFileSync(path,value);}};}
-function reopen(state,check) {
-  const directory=mkdtempSync(join(tmpdir(),'aincrad-local-exploration-')),path=join(directory,'save.json');
-  try{
-    assert.equal(writeSave(fileStorage(path),state),true);
-    const text=readFileSync(path,'utf8'),json=JSON.parse(text);
-    assert.equal(json.npc,undefined,'only canonical actors are serialized');
-    const reopened=loadSave(fileStorage(path));assert.equal(reopened.exists,true);assert.equal(reopened.blocked,false);assert.equal(reopened.error,null);
-    check(reopened.state,json);
-    assert.equal(writeSave(fileStorage(path),reopened.state),true);
-    const again=loadSave(fileStorage(path));assert.equal(again.blocked,false);
-    assert.deepEqual(again.state.environment.ecology,reopened.state.environment.ecology);
-  }finally{rmSync(directory,{recursive:true,force:true});}
-}
 
-test('fresh JSON write/reopen preserves empty knowledge, next decision/RNG and finite ecology',()=>{
-  const state=freshState(),ecology=clone(state.environment.ecology);
-  reopen(state,(restored,json)=>{
-    assert.deepEqual(restored.environment.ecology,ecology);
-    assert.deepEqual(json.agents[0].discovery.search,{home:null,startedAt:0});
-    assert.deepEqual(restored.agents.map(n=>n.id),['aster','mira']);
-    for(let i=0;i<2;i++){
-      const live=clone(state.agents[i]),saved=restored.agents[i];
-      assert.deepEqual(saved.discovery,live.discovery);
-      assert.deepEqual(discoveryDecision(saved),discoveryDecision(live));assert.equal(saved.rng,live.rng);
-    }
-    assert.equal(restored.environment.ecology.nextId,ecology.nextId);
-  });
-});
 
-test('actual depleted ecology and outward next decision/RNG survive JSON disk reopen without refilling',()=>{
-  const state=freshState({connectedEcology:false}),n=state.agents[0],e=state.environment;
-  const {object}=remoteObjectFixture({n,e}),beforeQuantity=object.quantity;
-  finish(n,e,{type:'pull',targetId:object.id});assert.equal(object.quantity,beforeQuantity-1);
-  const materialId=n.inventory.items[0];assert.ok(lookupEcologyObject(e.ecology,materialId));
-  finish(n,e,{type:'release',targetId:materialId});assert.equal(n.inventory.items.length,0);
-  for(let i=0;i<540;i++)tickNpc(n,1/60,e); // Expire current visibility without erasing its evidence.
-  const retained=clone(n.discovery.observations);
-  retainObservedCorridor(n,e);n.discovery.observations=retained;
-  n.rng=74193;state.elapsed=e.elapsed=n.elapsed;
-  const ecology=clone(e.ecology),energy=ecologyEnergy(e.ecology),home=clone(n.discovery.search.home);
-  const expected=clone(n),decision=discoveryDecision(expected);
-  assert.deepEqual(decision,moveDecision({x:4480,y:1600}));
-  assert.deepEqual(home,HOME);assert.equal(expected.rng,99226005);
-  reopen(state,(restored,json)=>{
-    const saved=restored.agents[0];
-    assert.deepEqual(restored.environment.ecology,ecology,'no stocks, objects, populations, IDs or regional allocations change');
-    assert.equal(ecologyEnergy(restored.environment.ecology),energy);
-    assert.equal(lookupEcologyObject(restored.environment.ecology,object.id).quantity,beforeQuantity-1);
-    assert.deepEqual(lookupEcologyObject(restored.environment.ecology,materialId),lookupEcologyObject(e.ecology,materialId));
-    assert.deepEqual(saved.discovery.search.home,home);
-    assert.deepEqual(Object.keys(saved.discovery).sort(),Object.keys(n.discovery).sort(),'no new saved graph or policy fields');
-    assert.deepEqual(Object.keys(json.agents[0].discovery.search).sort(),['home','startedAt']);
-    assert.deepEqual(discoveryDecision(saved),decision);assert.equal(saved.rng,expected.rng);
-    assert.deepEqual(saved.position,n.position);assert.equal(saved.elapsed,n.elapsed);
-  });
-});
+
+
+
 
 test('observed cave exit behavior and its unchanged RNG still complete the real scene transition',()=>{
   const n=createNpc({mode:'discovery',seed:74193}),e=createEnvironment();

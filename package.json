@@ -18,12 +18,10 @@
     "publish:github": "node scripts/publish-github.mjs",
     "bundle": "node scripts/bundle.mjs",
     "smoke": "npm run build && node scripts/start.mjs --smoke-test",
-    "evaluate": "node scripts/evaluate-npc.mjs",
+    "evaluate": "node scripts/evaluate-world.mjs",
     "package:win": "npm run build && electron-builder --win zip --x64 --publish never",
     "package:linux": "npm run build && electron-builder --linux dir --x64 --publish never",
-    "evaluate:cardinal": "node scripts/evaluate-cardinal.mjs",
-    "evaluate:regions": "node scripts/evaluate-regional.mjs",
-    "verify:regions": "node scripts/verify-regional-desktop.mjs"
+    "verify:capabilities": "node scripts/verify-aquatic-desktop.mjs"
   },
   "productName": "Aincrad",
   "build": {
