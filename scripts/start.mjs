@@ -15,7 +15,8 @@ if(!existsSync(cli)){
   const flags=process.argv.slice(2);
   // These flags are confined to an isolated test process, never a normal launch.
   if(flags.includes('--smoke-test')&&process.platform==='linux'){
-    flags.push('--ozone-platform=headless','--disable-gpu');
+    if(!process.env.DISPLAY&&!process.env.WAYLAND_DISPLAY)flags.push('--ozone-platform=headless');
+    flags.push('--disable-gpu');
   }
   const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
   // The Electron package resolves (and, if needed, downloads) its own binary.

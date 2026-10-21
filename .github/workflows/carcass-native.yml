@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'desktop/**'
       - 'scripts/build.mjs'
+      - 'scripts/record-native-host.mjs'
       - 'scripts/verify-carcass-desktop.mjs'
       - 'scripts/carcass-native-contract.mjs'
       - 'tests/carcass-native-harness.test.mjs'
@@ -24,7 +25,7 @@ jobs:
       # Same bounded sandbox-preserving runner as existing native QA. The image
       # retires 2027-04-17; this is not an OS sandbox bypass or permanent pin.
       matrix:
-        os: [windows-latest, ubuntu-22.04]
+        os: [macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -33,18 +34,25 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Record actual native host and architecture
+        run: node scripts/record-native-host.mjs
       - run: npm ci
       - run: npm run build
-      - name: Verify Windows native close and reopen
-        if: runner.os == 'Windows'
+      - name: Verify macOS native close and reopen
+        if: runner.os == 'macOS'
         run: node scripts/verify-carcass-desktop.mjs --output test-results/carcass-native
+      - name: Install Linux test display and window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
       - name: Verify Linux native close and reopen
         if: runner.os == 'Linux'
-        run: xvfb-run -a node scripts/verify-carcass-desktop.mjs --output test-results/carcass-native
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-carcass-openbox.log" 2>&1 & node scripts/verify-carcass-desktop.mjs --output test-results/carcass-native'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: carcass-native-${{ runner.os }}
-          path: test-results/carcass-native
+          name: carcass-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/carcass-native
           if-no-files-found: warn
           retention-days: 7

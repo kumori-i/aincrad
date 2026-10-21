@@ -11,6 +11,7 @@ on:
       - 'index.html'
       - 'style.css'
       - 'scripts/build.mjs'
+      - 'scripts/record-native-host.mjs'
       - 'tests/aquatic-*.test.mjs'
       - 'tests/fixtures/finite-fishing.mjs'
       - 'package.json'
@@ -24,7 +25,7 @@ jobs:
       fail-fast: false
       # Bounded sandbox-preserving Linux runner for current native QA. Replace before the runner's announced retirement.
       matrix:
-        os: [windows-latest, ubuntu-22.04]
+        os: [macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -33,6 +34,8 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Record actual native host and architecture
+        run: node scripts/record-native-host.mjs
       - run: npm ci
       - run: npm run check
       - run: npm run build
@@ -42,14 +45,16 @@ jobs:
       - name: Exercise sandboxed Linux capture, rendering, lifecycle and disk reopen
         if: runner.os == 'Linux'
         run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-aquatic-openbox.log" 2>&1 & node scripts/verify-aquatic-desktop.mjs'
-      - name: Exercise Windows capture, rendering, lifecycle and disk reopen
-        if: runner.os == 'Windows'
+      - name: Exercise macOS capture, rendering, lifecycle and disk reopen
+        if: runner.os == 'macOS'
         run: node scripts/verify-aquatic-desktop.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: finite-aquatic-native-${{ runner.os }}
-          path: test-results/aquatic-desktop/
+          name: finite-aquatic-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/aquatic-desktop/
           if-no-files-found: warn
           retention-days: 7
   autonomous-diagnostic:

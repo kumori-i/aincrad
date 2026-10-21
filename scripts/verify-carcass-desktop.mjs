@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
 import { createCarcassDiskFixture } from '../tests/fixtures/carcass-encounter.mjs';
-import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptyCurrentSlot, currentRouteSnapshot, assertCurrentRoute } from './carcass-native-contract.mjs';
+import { nativeSourceIdentity, canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptyCurrentSlot, currentRouteSnapshot, assertCurrentRoute } from './carcass-native-contract.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2), prepareOnly = args.includes('--prepare-only');
@@ -34,7 +34,7 @@ for (const stage of ['relation', 'pulled', 'processing']) {
   await writeFile(join(output, `${stage}-input-save.json`), fixture.raw + '\n');
 }
 const context = { root, scratch, output, requestedAppRoot, appRoot, fixturePaths,
-  sourceFingerprint: built.sourceFingerprint };
+  sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
 const harness = join(scratch, 'run.cjs');
 await writeFile(harness, `
 const { app, session } = require('electron');
@@ -127,6 +127,9 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(prefs.webSecurity, true);
       assert.equal(process.argv.includes('--no-sandbox'), false);
       assert.equal(process.argv.includes('--disable-setuid-sandbox'), false);
+      await fs.writeFile(path.join(context.output, stage + '-' + phase + '-sandbox.json'), JSON.stringify({
+        sourceIdentity:context.sourceIdentity,platform:process.platform,arch:process.arch,electron:process.versions.electron,
+        nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,sandbox:prefs.sandbox,webSecurity:prefs.webSecurity},null,2));
       await waitFor(win, 'Boolean(window.__ozarkWorld)', 'current world bootstrap');
       const current = await win.webContents.executeJavaScript(
         '(' + currentRouteSnapshot.toString() + ')(window,document)');
@@ -311,7 +314,7 @@ try {
 await writeFile(join(output, 'generated-runner.cjs'), await readFile(harness));
 
 const prepared = { status: prepareOnly ? 'prepared-not-executed' : 'pending',
-  scratch, output, harness, sourceFingerprint: built.sourceFingerprint,
+  scratch, output, harness, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint,
   syntheticFixtureStages: Object.keys(fixturePaths),
   sandboxBypassFlags: [], nativeExecutionPerformed: false,
   harnessSha256: createHash('sha256').update(await readFile(harness)).digest('hex') };
@@ -325,7 +328,10 @@ else {
     const profile = join(scratch, 'p-' + Object.keys(fixturePaths).indexOf(stage));
     const launch = [harness, '--test', '--test-profile=' + profile,
       '--stage=' + stage, '--phase=' + phase];
-    if (process.platform === 'linux') launch.push('--ozone-platform=headless', '--disable-gpu');
+    if (process.platform === 'linux') {
+      if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) launch.push('--ozone-platform=headless');
+      launch.push('--disable-gpu');
+    }
     const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
     const { code, signal, stdout, stderr, spawnError } = await captureNativeChild(
       spawn, electron, launch, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env },
@@ -353,8 +359,8 @@ else {
     JSON.parse(await readFile(join(output, stage + '-read.json'), 'utf8'))));
   const result = { passed: true, nativeExecutionPerformed: true,
     sixIndependentProcesses: true, isolatedProfiles: true, actualCloseEvents: true,
-    sourceFingerprint: built.sourceFingerprint, reports };
+    sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint, reports };
   await writeFile(join(output, 'result.json'), JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify({ passed: true, output,
-    sourceFingerprint: built.sourceFingerprint }));
+    sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint }));
 }

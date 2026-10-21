@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
-import { captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute, installEmptyCurrentSlot } from './carcass-native-contract.mjs';
+import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute, installEmptyCurrentSlot } from './carcass-native-contract.mjs';
 
 import { createPeerTeachingUiFixture, presentPeerTeachingUi } from './peer-teaching-ui-fixture.mjs';
 
@@ -31,7 +31,7 @@ const built = await buildApplication();
 const temporary = await mkdtemp(join(tmpdir(), 'aq-'));
 const profile = join(temporary, 'profile');
 const socialProfile = join(temporary, 'social-profile');
-const context = { root, output, profile, socialProfile, sourceFingerprint: built.sourceFingerprint };
+const context = { root, output, profile, socialProfile, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
 try {
 await mkdir(profile, { recursive: true });
 await mkdir(socialProfile, { recursive: true });
@@ -386,7 +386,7 @@ app.on('browser-window-created',(_event,win)=>{
    assert.equal(process.argv.includes('--no-sandbox'),false);
    assert.equal(process.argv.includes('--disable-setuid-sandbox'),false);
    await fs.writeFile(path.join(context.output,phase+'-sandbox.json'),JSON.stringify({
-    nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,
+    sourceIdentity:context.sourceIdentity,platform:process.platform,arch:process.arch,electron:process.versions.electron,nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,
     sandbox:prefs.sandbox,webSecurity:prefs.webSecurity},null,2));
    await ({write:writePhase,reopen:reopenPhase,'social-write':socialWritePhase,'social-reopen':socialReopenPhase}[phase])(win); await closeNormally(win);
   } catch(error) {
@@ -397,7 +397,7 @@ app.on('browser-window-created',(_event,win)=>{
 });
 require(path.join(context.root,'dist/desktop/main.cjs'));
 `);
-await writeFile(join(output, 'prepared.json'), JSON.stringify({output,harness,sourceFingerprint:built.sourceFingerprint,nativeExecutionPerformed:false,sandboxBypassFlags:[]},null,2));
+await writeFile(join(output, 'prepared.json'), JSON.stringify({output,harness,sourceIdentity:nativeSourceIdentity(root), sourceFingerprint:built.sourceFingerprint,nativeExecutionPerformed:false,sandboxBypassFlags:[]},null,2));
 if (prepareOnly) console.log(JSON.stringify({output,harness,nativeExecutionPerformed:false}));
 else {
 const electron = createRequire(import.meta.url)('electron');

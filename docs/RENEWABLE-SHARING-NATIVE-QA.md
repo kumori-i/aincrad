@@ -1,6 +1,6 @@
 # Renewable ecology and food sharing native QA
 
-Run `node scripts/verify-renewable-sharing-desktop.mjs` from an installed checkout on a supported desktop. Linux requires an unprivileged account, a display and window manager; CI uses Xvfb plus Openbox. Windows uses its native desktop. Chromium sandbox bypass flags are prohibited.
+Run `node scripts/verify-renewable-sharing-desktop.mjs` from an installed checkout on a supported desktop. Linux requires an unprivileged account, a display and window manager; CI uses Xvfb plus Openbox. macOS uses its native desktop. Chromium sandbox bypass flags are prohibited.
 
 `node scripts/verify-renewable-sharing-desktop.mjs --prepare-only` builds the application and writes the generated runner without executing Electron. Preparation is not a native test pass. Artifacts default to `test-results/renewable-sharing-desktop/run-*`; `AINCRAD_RENEWABLE_QA_OUTPUT` may select another artifact root. Profiles remain disposable directories under the operating system's temporary root, independent of the real user profile.
 
@@ -25,4 +25,4 @@ Two independent Electron processes write and reopen the sole current `aincrad.wo
 - Escape pause and view-only camera previews do not advance or mutate the world.
 - Actual native screenshots of the restored held material, saved attributed food offer conversation and watershed view.
 
-Process logs, failure screenshots and regular profile files are retained. Profile archival excludes symlinks and special files and runs only after child processes close. Reports distinguish preparation from actual native execution. The new workflow runs independently on Windows and Linux; both native jobs must pass before claiming platform coverage.
+Process logs, failure screenshots and regular profile files are retained. Profile archival excludes symlinks and special files and runs only after child processes close. Reports distinguish preparation from actual native execution. The new workflow runs independently on macOS and Linux; both native jobs must pass before claiming platform coverage.

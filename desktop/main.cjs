@@ -47,7 +47,9 @@ async function createWindow(){
   await win.loadURL('aincrad://app/index.html'+query);
 }
 app.whenReady().then(async()=>{
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(process.platform==='darwin'?Menu.buildFromTemplate([
+    {role:'appMenu'}, {role:'fileMenu'}, {role:'editMenu'}, {role:'windowMenu'},
+  ]):null);
   app.on('second-instance',()=>{
     if(win&&!win.isDestroyed()){
       if(win.isMinimized())win.restore();
@@ -145,6 +147,7 @@ async function runSmoke(){
   win.hide();await new Promise(r=>setTimeout(r,450));
   const hidden=await win.webContents.executeJavaScript('window.__ozarkWorld.snapshot()');
   if(hidden.paused||hidden.elapsed-before<.2)throw new Error('Hidden desktop paused world');
+  result.runtime={platform:process.platform,arch:process.arch,electron:process.versions.electron};
   result.hiddenWindowContinues=true;win.show();
   const output=path.join(process.cwd(),'test-results');await mkdir(output,{recursive:true});
   await writeFile(path.join(output,'desktop-smoke.png'),(await win.webContents.capturePage()).toPNG());

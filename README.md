@@ -4,7 +4,7 @@ A local-first, original pixel-art desktop simulation with **one world: the Ozark
 
 ## Run locally
 
-Requires Node.js 22.12.0 or newer:
+Primary desktop targets are Linux and macOS. Windows compatibility, packaging and testing are intentionally retired; other Unix systems are unverified, not promised targets. Requires Node.js 22.12.0 or newer:
 
 ```sh
 git clone https://github.com/kumori-i/aincrad.git
@@ -55,7 +55,7 @@ The optional local model assists conversation only. It is not required for offli
 | N | Character journal, observations and conversation |
 | H | Guide |
 | Escape | Pause / resume |
-| Ctrl+S | Save the current world |
+| Ctrl+S / ⌘S | Save the current world |
 
 The player avatar explores and observes. Agent hunting/fishing actions are not a separate player-inventory game.
 
@@ -73,3 +73,11 @@ Cardinal diagnostic/supervision building blocks remain development work; the uni
 - [Contributor boundaries](AGENTS.md)
 
 Run `npm run check` and `npm run build` for source checks, then `npm run smoke` in a supported **sandboxed** Electron environment. Actual desktop screenshots and isolated close/reopen evidence are required for visual and persistence claims; a Canvas fixture or JSON roundtrip alone is insufficient. Keep failed diagnostics distinct from passing physical tests.
+
+## Desktop platform verification and packaging
+
+CI runs sandboxed native smoke and isolated capability close/reopen on Linux and macOS, recording the actual host architecture and checkout commit/tree. A passing row covers that runner's architecture only, not both Intel and Apple Silicon or every Unix system. Linux window lifecycle checks use Xvfb with a window manager; macOS uses its native desktop session.
+
+On macOS, closing the last window stops simulation while the application remains open. Activating it recreates the window from the current save without closed-time catch-up. The standard application, File, Edit and Window menus provide Close, Quit and clipboard shortcuts. Native QA exercises the framework activation event programmatically, not a literal Dock click.
+
+`npm run package:linux` and `npm run package:mac` create unpacked host-architecture development bundles in `release/`. The macOS `.app` is unsigned and not notarized; CI packaging is not an installation or Gatekeeper-distribution claim. `npm start` remains the primary local development route. No signing credentials are needed.
