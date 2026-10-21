@@ -172,7 +172,7 @@ async function checkpoint() {
   if (q.actor.active?.request.type !== 'catch') throw new Error('Interrupted catch settled too early');
   if (!q.save()) throw new Error('Native current-world checkpoint did not pass strict save validation');
   q.draw('Checkpoint: bare residue, 20g tissue, real pending ingestion, learned exact proof, interrupted catch.');
-  return { raw: localStorage.getItem('aincrad.world.v1'),
+  return { raw: localStorage.getItem('aincrad.world.v2'),
     specimenId: q.specimenId,
     tissueId: q.tissueId, interruptedTarget: next.id, sample, second, preFeedback,
     effects, technique, metrics: q.metrics() };
@@ -239,7 +239,7 @@ async function capture(win, name) {
 }
 async function writePhase(win) {
  await assertCurrentBoot(win);
- assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v1')"), null,'Only an empty disposable slot can receive the fixture');
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"), null,'Only an empty disposable slot can receive the fixture');
  const setup = await win.webContents.executeJavaScript('(' + ${JSON.stringify(setupFixture.toString())} + ')()');
  const screenshots = [await capture(win, '01-live-fish.png')];
  const caught = await win.webContents.executeJavaScript('(' + ${JSON.stringify(acquire.toString())} + ')()');
@@ -248,7 +248,7 @@ async function writePhase(win) {
  const pulled = await win.webContents.executeJavaScript('(' + ${JSON.stringify(processSpecimen.toString())} + ')()');
  screenshots.push(await capture(win, '03-held-tissue-bare-residue.png'));
  const saved = await win.webContents.executeJavaScript('(' + ${JSON.stringify(checkpoint.toString())} + ')()');
- assert.equal(JSON.parse(saved.raw).version, 11);
+ assert.equal(JSON.parse(saved.raw).version, 12);
  assert.equal(saved.preFeedback, 0);
  screenshots.push(await capture(win, '04-partial-pending-checkpoint.png'));
  await fs.writeFile(path.join(context.output, 'checkpoint.json'), JSON.stringify({ setup, caught, pulled, saved, screenshots }, null, 2));
@@ -258,7 +258,7 @@ async function writePhase(win) {
 async function reopenPhase(win) {
  await assertCurrentBoot(win);
  const expected = JSON.parse(await fs.readFile(path.join(context.output, 'checkpoint.json'), 'utf8'));
- const bytes = await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v1')");
+ const bytes = await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')");
  assert.equal(bytes, expected.saved.raw, 'A separate process must read the exact previously written disk bytes');
  const reopened = await win.webContents.executeJavaScript('window.__ozarkWorld.snapshot()');
  assert.equal(reopened.blocked, false); assert.equal(reopened.started, false);
@@ -282,9 +282,9 @@ async function reopenPhase(win) {
  assert.equal(restore.environment.ecology.materials.find(row=>row.id===expected.saved.tissueId).massGrams, 20);
  assert.equal(restore.environment.ecology.materials.find(row=>row.id===expected.saved.specimenId).fishTissue.massGrams, 0);
  assert.equal(await win.webContents.executeJavaScript("window.__ozarkWorld.start(); window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'})); window.__ozarkWorld.snapshot().paused"), true);
- const pauseBefore = await win.webContents.executeJavaScript("window.__ozarkWorld.save(); localStorage.getItem('aincrad.world.v1')");
+ const pauseBefore = await win.webContents.executeJavaScript("window.__ozarkWorld.save(); localStorage.getItem('aincrad.world.v2')");
  await delay(700);
- const pauseAfter = await win.webContents.executeJavaScript("window.__ozarkWorld.save(); localStorage.getItem('aincrad.world.v1')");
+ const pauseAfter = await win.webContents.executeJavaScript("window.__ozarkWorld.save(); localStorage.getItem('aincrad.world.v2')");
  assert.deepEqual(JSON.parse(pauseAfter).environment.ecology, JSON.parse(pauseBefore).environment.ecology);
  assert.equal(JSON.parse(pauseAfter).elapsed, JSON.parse(pauseBefore).elapsed);
  await win.webContents.executeJavaScript("document.getElementById('pause-panel').classList.add('hidden')");
@@ -323,7 +323,7 @@ async function reopenPhase(win) {
  assert.ok(afterHidden>afterBlur, 'Unpaused clock must continue while hidden/minimize requested');
  win.restore();win.show();win.focus();
  await win.webContents.executeJavaScript("window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'})); window.__ozarkWorld.save()");
- const final = JSON.parse(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v1')"));
+ const final = JSON.parse(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"));
  assert.ok(final.environment.ecology.aquatic.ledger.metabolizedKcal > stored.environment.ecology.aquatic.ledger.metabolizedKcal);
  const report={passed:true,twoIndependentElectronProcesses:true,exactDiskBytesAcrossClosedProcess:true,
    noClosedTimeProgression:true,sandboxPreferencesVerified:true,partialTissueGrams:20,bareResiduePreserved:true,pendingIngestionPreserved:true,
@@ -341,16 +341,16 @@ async function reopenPhase(win) {
 }
 async function socialWritePhase(win) {
  await assertCurrentBoot(win);
- assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v1')"),null);
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),null);
  const fixture=await win.webContents.executeJavaScript('(' + ${JSON.stringify(createPeerTeachingUiFixture.toString())} + ')(document.baseURI)');
- assert.equal(fixture.saveKey,'aincrad.world.v1'); assert.equal(JSON.parse(fixture.raw).version,11);
+ assert.equal(fixture.saveKey,'aincrad.world.v2'); assert.equal(JSON.parse(fixture.raw).version,12);
  await win.webContents.executeJavaScript('(' + installEmptyCurrentSlot.toString() + ')(localStorage,' + JSON.stringify({key:fixture.saveKey,inputRaw:fixture.raw}) + ')');
  await fs.writeFile(path.join(context.output,'social-checkpoint.json'),JSON.stringify(fixture,null,2));
 }
 async function socialReopenPhase(win) {
  await assertCurrentBoot(win);
  const expected=JSON.parse(await fs.readFile(path.join(context.output,'social-checkpoint.json'),'utf8'));
- assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v1')"),expected.raw);
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.raw);
  const present = async stage => {
    const evidence = await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentPeerTeachingUi.toString())} + ')(' + JSON.stringify(stage) + ',' + JSON.stringify(expected.summary) + ')');
    await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');

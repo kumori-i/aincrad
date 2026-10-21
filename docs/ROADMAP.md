@@ -10,11 +10,18 @@
 
 These are engineering deliverables, not claims that a short free-running trial learns all skills. Required correctness, resource accounting, save safety, security, performance and native visual checks remain release gates. Ordinary behavior trials remain honestly reported diagnostics.
 
+## Renewable ecology and sharing increment
+
+- Bounded local aquatic production, feeding, resource-funded growth and parent-funded reproduction.
+- Qualitative local food requests, voluntary exact-item offers and paid recipient handoff.
+- One current schema 12 / v2 storage slot, without loading or deleting previous saves.
+- Explicit long-run ecological and physical-transfer evidence, separately from autonomous adoption.
+
 ## Next separate capabilities
 
-1. Aquatic feeding, then resource-funded growth/reproduction and basal production. Finite feeding alone extends reserves; it does not replace captured fish or renew their fixed edible tissue.
+1. Broader habitat/ecological interactions and measured harvest capacity; no claim of a complete renewable nutrient cycle.
 2. Practical interception/pursuit opportunities and reusable skills informed by observed failures, without endless priority tuning.
-3. Physical food transfer, storage and processing/preservation; no duplicated ownership or free stock.
+3. Food storage and processing/preservation, building on physical transfer without duplicated ownership or free stock.
 4. Richer social needs/feeling reports, cooperation and carefully supported skill generalization.
 5. Bounded Cardinal supervision integrated into the one current runtime.
 6. Return to measured sustained living once the supporting capabilities exist.

@@ -34,7 +34,7 @@ function straightWater({pond=false,dry=false,noBank=false}={}){
   classify(x){return {walkable:true,reason:!noBank&&x>10?'dry-ground':'shallow-water'};},lineOfSight(){return true;}};
 }
 
-test('pretrial physical coefficients remain fixed and explicitly finite',()=>{
+test('renewal retains fixed adult compartments and physical capture coefficients',()=>{
  assert.ok(Object.isFrozen(A));assert.ok(Object.isFrozen(A.tissue));
  assert.deepEqual(A.tissue,{massGrams:80,energyKcal:80,waterMl:56});
  assert.deepEqual(A.residue,{massGrams:100,energyKcal:30,waterMl:60});
@@ -180,12 +180,14 @@ test('capture preserves each remaining reserve gram, kcal and water rather than 
  assert.equal(e.deaths,1);assert.equal(e.aquatic.ledger.captures,1);audit(e);
 });
 
-test('all finite individuals can die, and empty native ticks never repopulate or refill them',()=>{
+test('all fish can die; primary food renewal never respawns extinct individuals',()=>{
  const e=fresh();for(const f of e.aquatic.fish)reserveFixture(e,f,.001);
  tickAquaticEcology(e,.5,geometry,{deposit:deposit(e)});
  assert.equal(e.aquatic.fish.length,0);assert.equal(e.aquatic.ledger.naturalDeaths,32);assert.equal(e.materials.length,32);
- const snapshot=JSON.stringify(e.aquatic),next=e.nextId;
+ const snapshot=JSON.stringify({fish:e.aquatic.fish,origins:e.aquatic.origins,initialIds:e.aquatic.initialIds}),next=e.nextId,produced=e.aquatic.ledger.primaryProducedKcal;
  for(let n=0;n<120;n++)tickAquaticEcology(e,.5,geometry,{deposit:deposit(e)});
- assert.equal(JSON.stringify(e.aquatic),snapshot);assert.equal(e.nextId,next);audit(e);
+ assert.equal(JSON.stringify({fish:e.aquatic.fish,origins:e.aquatic.origins,initialIds:e.aquatic.initialIds}),snapshot);assert.equal(e.nextId,next);
+ assert.equal(e.aquatic.ledger.births,0);assert.ok(e.aquatic.ledger.primaryProducedKcal>produced);
+ for(const patch of e.aquatic.patches)assert.ok(patch.food.energyKcal>=0&&patch.food.energyKcal<=A.foodCapacityKcal);audit(e);
  for(const m of e.materials)assert.equal(aquaticMaterialError(m),null);
 });

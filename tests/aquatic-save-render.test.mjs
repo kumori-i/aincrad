@@ -35,10 +35,10 @@ function protectedBytes(raw) {
 
 test('fresh current exact aquatic envelope and stock survive schema roundtrip without refilling', () => {
   const { disk, state, raw } = canonicalFresh();
-  assert.equal(OZARK_SAVE_VERSION, 11);
-  assert.equal(raw.version, 11);
-  assert.deepEqual(raw.features, { plantLifecycle: 1, finiteAquatic: 1, worldStructures: 1 });
-  assert.equal(raw.environment.ecology.aquatic.version, 1);
+  assert.equal(OZARK_SAVE_VERSION, 12);
+  assert.equal(raw.version, 12);
+  assert.deepEqual(raw.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1 });
+  assert.equal(raw.environment.ecology.aquatic.version, 2);
   assert.ok(raw.environment.ecology.aquatic.fish.length > 0);
   const reopened = loadOzarkSave(disk, geometry);
   assert.equal(reopened.blocked, false, reopened.error);
@@ -50,20 +50,20 @@ test('fresh current exact aquatic envelope and stock survive schema roundtrip wi
 
 test('retired schema in the current slot is protected, while old keys are never read or changed',()=>{
  const {raw}=canonicalFresh();
- for(const version of [9,10]) {const old=structuredClone(raw);old.version=version;protectedBytes(old);}
- const disk=storage();disk.setItem('aincrad.ozark.v1','retired bytes');disk.setItem('aincrad.save.v1','original bytes');
+ for(const version of [9,10,11]) {const old=structuredClone(raw);old.version=version;protectedBytes(old);}
+ const disk=storage();disk.setItem('aincrad.world.v1','previous single-world bytes');disk.setItem('aincrad.ozark.v1','retired bytes');disk.setItem('aincrad.save.v1','original bytes');
  const current=loadOzarkSave(disk,geometry);assert.equal(current.exists,false);assert.equal(current.blocked,false);
  assert.equal(writeOzarkSave(disk,current.state,geometry),true);
- assert.equal(disk.getItem('aincrad.ozark.v1'),'retired bytes');assert.equal(disk.getItem('aincrad.save.v1'),'original bytes');
+ assert.equal(disk.getItem('aincrad.world.v1'),'previous single-world bytes');assert.equal(disk.getItem('aincrad.ozark.v1'),'retired bytes');assert.equal(disk.getItem('aincrad.save.v1'),'original bytes');
 });
 
 test('version, feature, payload, physical location, and cross-array identity mismatches protect bytes', () => {
   const { raw } = canonicalFresh();
   for (const change of [
-    value => { value.version = 12; },
+    value => { value.version = 13; },
     value => { value.version = 9; },
     value => { value.features = { plantLifecycle: 1 }; },
-    value => { value.features.finiteAquatic = 2; },
+    value => { value.features.finiteAquatic = 3; },
     value => { value.features.unrecognized = 1; },
     value => { delete value.environment.ecology.aquatic; },
     value => { value.environment.ecology.aquatic.fish[0].position = { ...geometry.spawn }; },

@@ -411,7 +411,8 @@ export function drawEcologyObject(g,object,time,subject=null){
     // Position and heading come from a live authoritative record. The clock
     // changes only a fin pixel, never location, stock, or a physical action.
     const flip=(object.facing?.x??1)<0?-1:1;
-    g.scale(flip,1);
+    const size=Number.isFinite(object.fishSizeRatio)?Math.max(.35,Math.cbrt(Math.max(0,Math.min(1,object.fishSizeRatio)))):1;
+    g.scale(flip*size,size);
     pixelPoly(g,[[-6,0],[-3,-3],[3,-3],[7,0],[3,3],[-3,2]],'#24566a');
     pixelPoly(g,[[-6,0],[-9,-3],[-9,3]],'#397e91');
     pixelPoly(g,[[-3,-2],[3,-2],[5,0],[2,1],[-3,1]],'#87bcc0');

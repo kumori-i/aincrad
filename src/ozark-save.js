@@ -12,8 +12,8 @@ import { createCommunity, validateCommunity } from './social.js';
 import { retainedProofIntegrityError } from './proof-retention.js';
 import { ozarkWaterSource } from './ozark-water-sources.js';
 
-export const OZARK_SAVE_KEY = 'aincrad.world.v1';
-export const OZARK_SAVE_VERSION = 11;
+export const OZARK_SAVE_KEY = 'aincrad.world.v2';
+export const OZARK_SAVE_VERSION = 12;
 const MAX_ELAPSED = 3600 * 100000;
 const MAX_DISTANCE = 1e12;
 const AGENT_IDS = Object.freeze(['aster', 'mira']);

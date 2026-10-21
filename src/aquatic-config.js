@@ -1,8 +1,10 @@
-/** Engine-only fixed v1 coefficients. Frozen 2026-10-20, before behavioral
- * trials. An engineered shore-fish phenotype, not calibrated biology.
+/** Engine-only bounded v2 ecology coefficients. An engineered shore-fish phenotype, not calibrated biology.
  * Wet-mass compartments already include their water; none is added twice. */
 export const AQUATIC_RULES = Object.freeze({
-  version:1, phenotype:'shore_fish_v1', maxInitialFish:32, maxLiveFish:32, fishPerPatch:4,
+  version:2, phenotype:'shore_fish_v1', maxInitialFish:32, maxLiveFish:64, fishPerPatch:4,
+  foodCapacityKcal:240, foodProductionKcalPerHour:12, feedingKcalPerHour:8,
+  feedingRadius:240, growthFractionPerHour:.012, birthFraction:.2,
+  maturityHours:72, birthIntervalHours:96, lifespanHours:720,
   radius:3, minInsidePixels:5, maxInsidePixels:35, shoreReach:80, contactPixels:12,
   scanPixels:160, patchSeparation:200, sweptStepPixels:2,
   cruisePixelsPerSecond:6, dartPixelsPerSecond:18, cruiseSeconds:3, dartSeconds:1,
@@ -26,3 +28,5 @@ export const AQUATIC_LEDGER_FIELDS=Object.freeze([
   'captureAttempts','captureMisses','captureFailures','captures','naturalDeaths',
   'pulls','ingestions','decayTransfers','cleanupTransfers',
 ]);
+
+export const AQUATIC_RENEWAL_LEDGER_FIELDS=Object.freeze(['primaryProducedMassGrams','primaryProducedKcal','primaryProducedWaterMl','fedKcal','growthTransferredKcal','birthTransferredKcal','births']);

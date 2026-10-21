@@ -21,7 +21,7 @@ test('fresh Ozark world creates both distinct lives and writes only its own slot
   assert.equal(opened.blocked, false);
   assert.equal(opened.exists, false);
   const state = opened.state;
-  assert.equal(state.version, 11);
+  assert.equal(state.version, 12);
   assert.equal(state.geometryIdentity, OZARK_WORLD_PROFILE.identity);
   assert.deepEqual(state.agents.map(actor => actor.id), ['aster', 'mira']);
   assert.strictEqual(state.npc, state.agents[0]);

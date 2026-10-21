@@ -1,0 +1,52 @@
+name: Renewable ecology and food sharing native QA
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/renewable-sharing-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/verify-renewable-sharing-desktop.mjs'
+      - 'scripts/renewable-sharing-native-fixture.mjs'
+      - 'tests/renewable-sharing-native-fixture.test.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'scripts/build.mjs'
+      - 'index.html'
+      - 'style.css'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-renewable-sharing:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Install Linux test display and window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Verify sandboxed Linux renewal and food handoff close/reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-renewable-openbox.log" 2>&1 & node scripts/verify-renewable-sharing-desktop.mjs'
+      - name: Verify sandboxed Windows renewal and food handoff close/reopen
+        if: runner.os == 'Windows'
+        run: node scripts/verify-renewable-sharing-desktop.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renewable-sharing-native-${{ runner.os }}
+          path: test-results/renewable-sharing-desktop/
+          if-no-files-found: warn
+          retention-days: 7

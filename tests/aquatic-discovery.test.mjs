@@ -47,7 +47,7 @@ function fixture(seed=74193,{observe=true}={}){
   const environment=createEnvironment(seed,{mode:'discovery',populate:false});
   environment.ecology=createOzarkEcology(geometry,seed,0,{finiteAquatic:true});
   const agents=['aster','mira'].map(id=>{const npc=createNpc({id,mode:'discovery',seed});npc.position={...geometry.agentSpawns[id]};return npc;});
-  const state={version:11,features:{plantLifecycle:1,finiteAquatic:1,worldStructures:1},
+  const state={version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1},
     geometryIdentity:OZARK_WORLD_PROFILE.identity,simulationMode:'discovery',elapsed:0,scene:'valley',
     player:{...geometry.spawn},agents,npc:agents[0],environment,community:createCommunity()};
   const fish=[...environment.ecology.aquatic.fish].sort((a,b)=>dist(a.position,geometry.spawn)-dist(b.position,geometry.spawn)||a.id.localeCompare(b.id))[0];

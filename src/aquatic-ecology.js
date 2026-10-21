@@ -1,10 +1,9 @@
-/** Finite water-contained physical population. No births, food, growth,
- * immigration, catch RNG, fallback placement or replenishment exists here. */
+/** Bounded local primary production and resource-funded fish life cycles. */
 import { CONFIG } from './config.js';
 import { ECOLOGY_RULES as R } from './ecology-config.js';
 import { AQUATIC_RULES as A, AQUATIC_STOCK_FIELDS as STOCK } from './aquatic-config.js';
-import { aquaticEnabled, aquaticHabitat, aquaticEnergy, aquaticStockAudit, aquaticError, freshAquaticState, fishStock, isAquaticMaterial } from './aquatic-state.js';
-export { aquaticEnabled, aquaticHabitat, aquaticEnergy, aquaticStockAudit, aquaticError };
+import { aquaticEnabled, aquaticHabitat, aquaticEnergy, aquaticFoodEnergy, aquaticStockAudit, aquaticError, freshAquaticState, fishStock, isAquaticMaterial } from './aquatic-state.js';
+export { aquaticEnabled, aquaticHabitat, aquaticEnergy, aquaticFoodEnergy, aquaticStockAudit, aquaticError };
 const revisions=new WeakMap();
 export const aquaticRevision=e=>revisions.get(e)||0;
 const changed=e=>revisions.set(e,aquaticRevision(e)+1);
@@ -68,10 +67,11 @@ export function seedAquaticEcology(e,geometry){
    const fish={id:objectId,kind:'fish',phenotype:A.phenotype,scene:'valley',position:p,
     tissue:stock(A.tissue),residue:stock(A.residue),reserve:stock(A.reserve),
     direction:(rng/4294967296)*TAU,phaseSeconds:0,rngState:rng,ageHours:0,
-    spentMassGrams:0,spentKcal:0,releasedWaterMl:0};
-   e.aquatic.fish.push(fish);e.aquatic.initialIds.push(objectId);count++;
+    spentMassGrams:0,spentKcal:0,releasedWaterMl:0,initialReserveKcal:A.reserve.energyKcal,
+    fedKcal:0,growthReserveKcal:0,birthReserveKcal:0,lastBirthHours:0};
+   e.aquatic.fish.push(fish);e.aquatic.initialIds.push(objectId);e.aquatic.origins.push({id:objectId,tissueLimitGrams:fish.tissue.massGrams});count++;
   }
-  if(count)patches.push(candidate.point);
+  if(count){patches.push(candidate.point);e.aquatic.patches.push({position:{...candidate.point},food:{massGrams:0,energyKcal:0,waterMl:0}});}
  }
  const q=e.aquatic;q.initialCount=q.fish.length;q.acceptedPatches=patches.length;
  q.ledger.initialMassGrams=q.initialCount*200;q.ledger.initialKcal=q.initialCount*150;q.ledger.initialWaterMl=q.initialCount*126;
@@ -129,6 +129,11 @@ function naturalDeath(e,f,deposit){
  else toDetritus(e,fishStock(f),f.position,deposit);
  e.aquatic.fish.splice(e.aquatic.fish.indexOf(f),1);e.aquatic.ledger.naturalDeaths++;e.deaths++;changed(e);
 }
+function nearestPatch(e,f){
+ let nearest=null,d=Infinity;
+ for(const p of e.aquatic.patches){const n=distance(p.position,f.position);if(n<d){nearest=p;d=n;}}
+ return {patch:nearest,distance:d};
+}
 function swim(e,f,seconds,g){
  let left=seconds;
  while(left>1e-12){
@@ -148,21 +153,94 @@ function swim(e,f,seconds,g){
    else f.direction=angle(f.direction+Math.PI+(random(f)-.5)*.5);
   }
   f.phaseSeconds+=duration;left-=duration;
-  if(f.phaseSeconds>=end-1e-12){f.phaseSeconds=end===A.cruiseSeconds?A.cruiseSeconds:0;f.direction=angle(f.direction+(random(f)-.5)*Math.PI);}
+  if(f.phaseSeconds>=end-1e-12){f.phaseSeconds=end===A.cruiseSeconds?A.cruiseSeconds:0;f.direction=angle(f.direction+(random(f)-.5)*Math.PI);
+   const food=nearestPatch(e,f);
+   if(food.patch&&food.distance>A.feedingRadius*.5)f.direction=angle(Math.atan2(food.patch.position.y-f.position.y,food.patch.position.x-f.position.x)+(random(f)-.5)*.4);
+  }
  }
+}
+function transfer(from,to,amount){for(const k of STOCK){from[k]-=amount[k];to[k]+=amount[k];}}
+function reservePortion(kcal){return {massGrams:kcal/2,energyKcal:kcal,waterMl:kcal/4};}
+function renewFood(e,h){
+ for(const p of e.aquatic.patches){
+  // A bounded, time-averaged primary-production abstraction, not a measured
+  // nutrient/water cycle. Imported wet mass and water are explicit inputs.
+  const amount=reservePortion(Math.max(0,Math.min(A.foodCapacityKcal-p.food.energyKcal,A.foodProductionKcalPerHour*h)));
+  for(const k of STOCK)p.food[k]+=amount[k];
+  addExport(e,'primaryProduced',amount);e.ledger.photosynthesisKcal+=amount.energyKcal;
+ }
+}
+function feedPopulation(e,h,g){
+ const groups=new Map(e.aquatic.patches.map(p=>[p,[]]));
+ for(const f of e.aquatic.fish){
+  const {patch,distance:d}=nearestPatch(e,f);
+  if(!patch||d>A.feedingRadius||!g.lineOfSight(f.position,patch.position))continue;
+  const demand=Math.max(0,Math.min(A.feedingKcalPerHour*h,A.reserve.energyKcal-f.reserve.energyKcal));
+  if(demand>0)groups.get(patch).push({fish:f,demand});
+ }
+ for(const [patch,requests] of groups){
+  const demand=requests.reduce((n,r)=>n+r.demand,0),fraction=demand>0?Math.min(1,patch.food.energyKcal/demand):0;
+  for(const {fish:f,demand:d} of requests){const kcal=d*fraction;
+   transfer(patch.food,f.reserve,reservePortion(kcal));f.fedKcal+=kcal;e.aquatic.ledger.fedKcal+=kcal;
+  }
+  for(const k of STOCK)patch.food[k]=Math.max(0,patch.food[k]);
+ }
+}
+function grow(e,f,h,deposit){
+ const fraction=Math.min(1-f.tissue.massGrams/A.tissue.massGrams,A.growthFractionPerHour*h);
+ if(fraction<=0)return;
+ const gain=Object.fromEntries(STOCK.map(k=>[k,(A.tissue[k]+A.residue[k])*fraction]));
+ const required=Math.max(gain.massGrams*2,gain.energyKcal,gain.waterMl*4);
+ // Keep a short metabolic buffer; all growth is funded by actual reserve.
+ const scale=Math.min(1,Math.max(0,f.reserve.energyKcal-4)/required);
+ if(scale<=0)return;
+ const debit=reservePortion(required*scale),waste=Object.fromEntries(STOCK.map(k=>[k,Math.max(0,debit[k]-gain[k]*scale)]));
+ for(const k of STOCK){f.reserve[k]-=debit[k];f.tissue[k]+=A.tissue[k]*fraction*scale;f.residue[k]+=A.residue[k]*fraction*scale;}
+ f.growthReserveKcal+=debit.energyKcal;e.aquatic.ledger.growthTransferredKcal+=gain.energyKcal*scale;
+ e.aquatic.origins.find(o=>o.id===f.id).tissueLimitGrams=f.tissue.massGrams;
+ toDetritus(e,waste,f.position,deposit);
+}
+function reproduce(e,f,g){
+ const q=e.aquatic;
+ if(q.fish.length>=A.maxLiveFish||e.nextId>=1e9||f.ageHours<A.maturityHours||f.ageHours-f.lastBirthHours<A.birthIntervalHours||f.tissue.massGrams<A.tissue.massGrams*.99||f.reserve.energyKcal<A.reserve.energyKcal*.75||!aquaticHabitat(g,f.position))return;
+ const baby={...f,id:`object:${e.nextId}`,position:{...f.position},tissue:portion(f.tissue,A.birthFraction),residue:portion(f.residue,A.birthFraction),reserve:portion(f.reserve,A.birthFraction),
+  direction:angle(f.direction+Math.PI),phaseSeconds:0,rngState:hash(e.nextId,e.seed,f.rngState)||1,ageHours:0,spentMassGrams:0,spentKcal:0,releasedWaterMl:0,
+  initialReserveKcal:f.reserve.energyKcal*A.birthFraction,fedKcal:0,growthReserveKcal:0,birthReserveKcal:0,lastBirthHours:0};
+ for(const compartment of ['tissue','residue','reserve'])for(const k of STOCK)f[compartment][k]-=baby[compartment][k];
+ f.birthReserveKcal+=baby.reserve.energyKcal;f.lastBirthHours=f.ageHours;
+ q.origins.find(o=>o.id===f.id).tissueLimitGrams=f.tissue.massGrams;
+ q.origins.push({id:baby.id,tissueLimitGrams:baby.tissue.massGrams});q.fish.push(baby);e.nextId++;
+ q.ledger.births++;e.births++;q.ledger.birthTransferredKcal+=fishStock(baby).energyKcal;e.ledger.birthTransferredKcal+=fishStock(baby).energyKcal;changed(e);
+}
+/** Origins are retained for every physical live or dead descendant, including
+ * owned pieces. No unbounded list of all historical births is serialized. */
+export function pruneAquaticOrigins(e){
+ const active=new Set([...e.aquatic.fish.map(f=>f.id),...e.materials.filter(isAquaticMaterial).map(m=>m.originFishId)]);
+ e.aquatic.origins=e.aquatic.origins.filter(o=>active.has(o.id));
 }
 export function tickAquaticEcology(e,dt,geometry,{deposit}={}){
  if(!aquaticEnabled(e)||!Number.isFinite(dt)||dt<=0)return;
  if(typeof deposit!=='function')throw new TypeError('Aquatic tick requires regional detritus accounting');
- for(const f of [...e.aquatic.fish]){
-  const availableSeconds=f.reserve.energyKcal/(A.maintenanceKcalPerHour+A.swimmingKcalPerHour)/24*CONFIG.dayRealSeconds;
-  const active=Math.min(dt,availableSeconds),cost=Math.min(f.reserve.energyKcal,hours(dt)*(A.maintenanceKcalPerHour+A.swimmingKcalPerHour));
-  if(active>0&&aquaticHabitat(geometry,f.position))swim(e,f,active,geometry);
-  const debit=portion(f.reserve,f.reserve.energyKcal>0?cost/f.reserve.energyKcal:1);
-  for(const k of STOCK)f.reserve[k]-=debit[k];
-  f.spentMassGrams+=debit.massGrams;f.spentKcal+=debit.energyKcal;f.releasedWaterMl+=debit.waterMl;f.ageHours+=hours(active);
-  e.aquatic.ledger.respirationMassGrams+=debit.massGrams;e.aquatic.ledger.metabolizedKcal+=debit.energyKcal;e.aquatic.ledger.releasedWaterMl+=debit.waterMl;e.ledger.metabolizedKcal+=debit.energyKcal;
-  if(f.reserve.energyKcal<=0)naturalDeath(e,f,deposit);
+ // The authoritative caller supplies fixed half-second ticks. Subdivide larger
+ // direct calls too, so they cannot mint a single large meal or birth burst.
+ let remaining=dt;
+ while(remaining>1e-12){
+  const seconds=Math.min(R.stepSeconds,remaining),h=hours(seconds);remaining-=seconds;
+  renewFood(e,h);
+  for(const f of [...e.aquatic.fish]){
+   // Maintenance precedes feeding: an already exhausted fish is not revived.
+   const rate=A.maintenanceKcalPerHour+A.swimmingKcalPerHour;
+   const active=Math.min(seconds,f.reserve.energyKcal/rate/24*CONFIG.dayRealSeconds,Math.max(0,A.lifespanHours-f.ageHours)/24*CONFIG.dayRealSeconds);
+   if(active>0&&aquaticHabitat(geometry,f.position))swim(e,f,active,geometry);
+   const cost=Math.min(f.reserve.energyKcal,hours(active)*rate),debit=reservePortion(cost);
+   for(const k of STOCK)f.reserve[k]=Math.max(0,f.reserve[k]-debit[k]);
+   f.spentMassGrams+=debit.massGrams;f.spentKcal+=debit.energyKcal;f.releasedWaterMl+=debit.waterMl;f.ageHours+=hours(active);
+   e.aquatic.ledger.respirationMassGrams+=debit.massGrams;e.aquatic.ledger.metabolizedKcal+=debit.energyKcal;e.aquatic.ledger.releasedWaterMl+=debit.waterMl;e.ledger.metabolizedKcal+=debit.energyKcal;
+   if(f.reserve.energyKcal<=1e-12||f.ageHours>=A.lifespanHours-1e-9){naturalDeath(e,f,deposit);continue;}
+  }
+  feedPopulation(e,h,geometry);
+  for(const f of [...e.aquatic.fish]){grow(e,f,h,deposit);reproduce(e,f,geometry);}
+  pruneAquaticOrigins(e);
  }
 }
 /** Called only by the native material clock. Returns true when handled. */

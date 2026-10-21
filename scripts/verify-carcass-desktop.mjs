@@ -47,7 +47,7 @@ const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
 const stage = process.argv.find(arg => arg.startsWith('--stage='))?.slice(8);
 const digest = raw => createHash('sha256').update(raw).digest('hex');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const key = 'aincrad.world.v1';
+const key = 'aincrad.world.v2';
 let running = false, closeObserved = false, allowQuit = false;
 const events = [], rendererEvents = [];
 const installEmptyCurrentSlot = ${installEmptyCurrentSlot.toString()};
@@ -231,7 +231,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(checkpoint.snapshot.elapsed, actual.elapsed);
       const disk = JSON.parse(checkpoint.raw), expected = fixture.expectedRestored;
       await fs.writeFile(path.join(context.output, stage + '-runtime-checkpoint.json'), checkpoint.raw);
-      assert.equal(disk.version, 11); assert.deepEqual(disk.features, { plantLifecycle: 1, finiteAquatic: 1, worldStructures: 1 });
+      assert.equal(disk.version, 12); assert.deepEqual(disk.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1 });
       assert.deepEqual(disk.environment, expected.environment, 'Finite ecology, clocks, stocks, IDs and ownership must survive the runtime load/save');
       const savedActor = disk.agents.find(row => row.id === 'aster');
       assert.equal(savedActor.active, null);

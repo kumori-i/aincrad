@@ -9,7 +9,7 @@ test('one current boot/render/save path cannot silently regain a retired runtime
   const entry=read('src/entry.js');assert.match(entry,/ozark-world-main/);assert.doesNotMatch(entry,/ozarkWorld=|ozarkPilot=|\.\/main\.js/);
   const main=read('src/ozark-world-main.js');assert.doesNotMatch(main,/aincradWorld|welcome-ozark|__aincrad/);
   assert.match(main,/await renderer\.prepareAtlas\(\)/);assert.match(main,/location\.search !== '\?test=1'/);
-  const save=read('src/ozark-save.js');assert.match(save,/OZARK_SAVE_KEY = 'aincrad\.world\.v1'/);
+  const save=read('src/ozark-save.js');assert.match(save,/OZARK_SAVE_KEY = 'aincrad\.world\.v2'/);
   assert.doesNotMatch(save,/from '\.\/save\.js'|prepareLegacy|migrateSave/);
   const html=read('index.html');assert.doesNotMatch(html,/id="welcome"|original world|welcome-ozark/i);
   assert.match(html,/id="world-loading"/);

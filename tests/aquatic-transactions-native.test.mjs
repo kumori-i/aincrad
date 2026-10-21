@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fishingFixture,bankFor,distance} from './fixtures/finite-fishing.mjs';
+import {fishingFixture,movingFishingFixture,bankFor,distance} from './fixtures/finite-fishing.mjs';
 import {captureEcologyFish,preflightEcologyFishCapture,interactEcologyObject,consumeEcologyMaterial,ecologyEnergy,lookupEcologyObject,senseEcology} from '../src/ecology.js';
 import {aquaticStockAudit} from '../src/aquatic-state.js';
 import {ECOLOGY_RULES} from '../src/ecology-config.js';
@@ -38,15 +38,16 @@ test('direct transaction fixture: full material/hands, competition, forbidden ow
  while(f.e.materials.length<ECOLOGY_RULES.maxMaterials)f.e.materials.push({id:`fixture:${f.e.materials.length}`,scene:'valley',position:{...f.actor.position}});const filled=JSON.stringify(f.e);assert.equal(interactEcologyObject(f.e,m.id,'pull',options(f)).ok,false);assert.equal(JSON.stringify(f.e),filled);
 });
 
-// Current-world regression selected by the disclosed 120s warm-up / one
-// sequential paid attempt per initial fish-ID screen. The first 20 attempts
-// failed; object709 (index20) returned within12px at native t200s. The former
-// v10 index16/t24 fixture now misses after structural ecology generation.
-// No fish motion or coefficients changed. Bank exposure is not learned travel.
-test('native timed catch produces a real moving-target success and paid moving-target miss without freezing',()=>{
+// Renewable foraging steering changes encounter timing. Select through the
+// bounded, actual paid initial-ID screen instead of preserving index20/t200.
+// Fish never freeze or teleport; controlled bank exposure is not learned travel.
+test('native timed catch produces a real moving-target success and paid moving-target miss without freezing',t=>{
  const negative=fishingFixture(),miss=negative.action('catch');
  assert.equal(miss.result.code,'fish_missed');assert.ok(distance(miss.before.position,miss.after.position)>12);assert.ok(miss.after.metabolizedKcal>miss.before.metabolizedKcal);audit(negative.e);
- const encounter=fishingFixture({index:20});encounter.tick(200);encounter.actor.position=bankFor(encounter.geometry,encounter.fish.position);encounter.state.player={...encounter.actor.position};
+ const encounter=movingFishingFixture();
+ t.diagnostic(`Paid moving encounter ${encounter.encounter.id} at ${encounter.encounter.seconds.toFixed(3)}s after ${encounter.encounter.attempts.length} screened attempts`);
+ assert.ok(encounter.encounter.attempts.length<=encounter.e.aquatic.initialCount);
+ assert.equal(encounter.encounter.attempts.at(-1).ok,true);
  const row=encounter.action('catch');assert.equal(row.result.ok,true,JSON.stringify(row));assert.ok(distance(row.before.position,row.after.position)>0);assert.ok(row.after.metabolizedKcal>row.before.metabolizedKcal);audit(encounter.e);
  const positive={f:encounter,row};
  const f=positive.f,id=f.fish.id,whole=f.action('sample',id);assert.equal(whole.result.ok,false);
@@ -78,7 +79,7 @@ test('completion falsification fixtures: lost LOS, invalid water, reach, dry sho
 });
 
 test('two genuinely admitted native catches compete for one moving identity and only one commits',()=>{
- const f=fishingFixture({index:20});f.tick(200);const bank=bankFor(f.geometry,f.fish.position);
+ const f=movingFishingFixture(),bank=bankFor(f.geometry,f.fish.position);
  for(const actor of f.state.agents){actor.position={...bank};observeNpc(actor,f.state.environment);assert.equal(requestNpcAction(actor,{type:'catch',targetId:f.fish.id},f.state.environment).ok,true);}
  f.tick(4.1);const owners=f.state.agents.filter(a=>a.inventory.items.includes(f.fish.id));assert.equal(owners.length,1);assert.equal(f.e.aquatic.ledger.captures,1);assert.equal(f.e.materials.filter(m=>m.id===f.fish.id).length,1);assert.equal(f.state.agents.filter(a=>a.lastResult.ok).length,1);assert.ok(f.state.agents.every(a=>a.lastResult.durationSeconds>=3.99));audit(f.e);
 });

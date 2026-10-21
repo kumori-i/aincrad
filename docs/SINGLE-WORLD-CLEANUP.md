@@ -2,7 +2,7 @@
 
 ## Supported pipeline
 
-`desktop/main.cjs` → `src/entry.js` → `src/ozark-world-main.js` uses one structural Ozark geometry, renderer and current save codec. There is no original-world chooser, world-switch IPC, recovered-profile runtime or old-save migration. The single key is `aincrad.world.v1` (schema 11). Unread historical keys remain untouched. Invalid occupied current bytes block play and replacement.
+`desktop/main.cjs` → `src/entry.js` → `src/ozark-world-main.js` uses one structural Ozark geometry, renderer and current save codec. There is no original-world chooser, world-switch IPC, recovered-profile runtime or old-save migration. The single key is `aincrad.world.v2` (schema 12). Unread historical keys, including the previous single-world v1 slot, remain untouched. The new ecology increment starts fresh without migration. Invalid occupied current bytes block play and replacement.
 
 ## Removed exclusive implementations
 

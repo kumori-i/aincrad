@@ -9,7 +9,7 @@ import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, life
 import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss } from './plant-lifecycle.js';
 import { getWorldRule } from './world-rules.js';
 import { environmentConditions } from './environment.js';
-import { aquaticEnabled, aquaticEnergy, seedAquaticEcology, tickAquaticEcology, decayAquaticMaterial } from './aquatic-ecology.js';
+import { aquaticEnabled, aquaticEnergy, aquaticFoodEnergy, seedAquaticEcology, tickAquaticEcology, decayAquaticMaterial } from './aquatic-ecology.js';
 import { aquaticError } from './aquatic-state.js';
 
 const GRID = R.habitatGridSize;
@@ -203,7 +203,7 @@ function distributeSoil(ecology) {
 function energy(ecology){
   return ecology.plants.reduce((sum,p)=>sum+(p.kind==='grass'?p.biomassGrams*R.grassKcalPerGram:p.quantity*MATERIALS[p.kind==='apple_tree'?'apple':'berry'].energyKcal)+(p.structureKcal||0),0)+
     ecology.animals.reduce((sum,a)=>sum+a.structureKcal+a.physiology.availableEnergyKcal+a.physiology.storedEnergyKcal+a.physiology.stomach.reduce((v,s)=>v+s.remainingKcal,0),0)+
-    ecology.materials.reduce((sum,m)=>sum+m.energyKcal,0)+ecology.detritus.energyKcal+aquaticEnergy(ecology);
+    ecology.materials.reduce((sum,m)=>sum+m.energyKcal,0)+ecology.detritus.energyKcal+aquaticEnergy(ecology)+aquaticFoodEnergy(ecology);
 }
 
 /** Fresh-only placement; no locations, nutrition or water routes enter actors. */

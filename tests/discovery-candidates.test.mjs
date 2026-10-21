@@ -16,18 +16,18 @@ import { restoreNativeActor, restorationFor } from './fixtures/discovery-candida
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'utf8');
-// Exact baseline f5f13c3e tree 1c9ae7ad (= main 4a3952a), not a second hand-written
-// controller. Fail before importing if any unrelated runtime edit is introduced.
-// The approved peer-teaching change updates explanatory objective copy only.
-// Normalize that copy for this frozen capture-disabled controller comparison.
+// Paired instrumentation regression rebased onto the approved renewable/sharing
+// controller (a841114). This compares current behavior with/without capture,
+// not equivalence to historical f5f13c3e. Its previous normalized pin was
+// 94247f8faebf22de63cc1b5f58437ba012b599e5f7700a044022cb356fad449c.
+// Retain the exact new pin: unrelated controller edits still require review.
 const baselineSource = source
-  .replace('Words do not establish physical effects. Attributed procedures shared by a nearby peer may guide ordinary physical trials; they are not personal proof.', 'Your words do not establish physical effects or teach your experimental controller.')
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
   .replace(/^  setDiscoveryCandidateCapture\(enabled\)\{setDiscoveryCandidateCapture\(this,enabled\);\}\n/m, '')
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')
   .replace('dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}', 'dispose(){this.disposed=true;this.cancel();}')
   .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '');
-assert.equal(sha(baselineSource), '94247f8faebf22de63cc1b5f58437ba012b599e5f7700a044022cb356fad449c', 'baseline controller bytes');
+assert.equal(sha(baselineSource), '27fee85180e8edf0ab5c3eac28798ef7087d118104686c5a80b8d0014d3d38ea', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));

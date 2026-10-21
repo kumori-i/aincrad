@@ -5,7 +5,7 @@ import { DISCOVERY_RULES } from './discovery-config.js';
 import { objectId } from './discovery-state.js';
 import { distance } from './world.js';
 import { actorLineOfSight } from './perception.js';
-import { lookupEcologyObject,describeEcologyObject,interactEcologyObject,consumeEcologyMaterial,captureEcologyFish,preflightEcologyFishCapture } from './ecology.js';
+import { lookupEcologyObject,describeEcologyObject,interactEcologyObject,consumeEcologyMaterial,captureEcologyFish,preflightEcologyFishCapture,transferEcologyMaterial } from './ecology.js';
 import { ingestMaterial,exertPhysiology,isSleeping } from './biology.js';
 import { rememberDirectDiscoveryObject,recentDiscoveryAim } from './discovery.js';
 
@@ -16,6 +16,7 @@ export function primitiveDuration(npc,type){
 // Action identity belongs to this runtime only; saves interrupt active commands.
 const ticking = new WeakSet(), settled = new WeakSet();
 const actionActors = new WeakMap();
+const sharedGrasps = new WeakMap();
 export function retireDiscoveryAction(npc,active){
   if(active&&actionActors.get(active)===npc)settled.add(active);
 }
@@ -65,13 +66,27 @@ function catchCheck(npc,request,environment,aim){
   return preflightEcologyFishCapture(environment.ecology,request.targetId,{
     actorId:npc.id,position:{...npc.position},scene:npc.scene,aim,inventory:npc.inventory.items});
 }
+/** Only the coordinator can supply the runtime closure; action text/save data
+ * cannot carry consent. The receiver pays the ordinary grasp duration/effort. */
+export function requestSharedDiscoveryGrasp(npc,donor,targetId,environment,consent,options={}){
+  const sharing={donor,targetId,consent,actor:npc,environment,discovery:npc.discovery,physiology:npc.physiology};
+  return requestDiscoveryAction(npc,{type:'grasp',targetId},environment,{...options,sharing});
+}
+function sharedCheck(npc,request,environment,sharing){
+  if(!sharing||sharing.actor!==npc||sharing.environment!==environment||sharing.discovery!==npc.discovery||sharing.physiology!==npc.physiology||sharing.request&&sharing.request!==request||request.type!=='grasp'||request.targetId!==sharing.targetId||
+      typeof sharing.consent!=='function'||!sharing.consent())return {ok:false,code:'SHARING_INTERRUPTED'};
+  const physical=lookupEcologyObject(environment.ecology,request.targetId);
+  if(!physical||physical.heldBy!==sharing.donor.id||!sharing.donor.inventory.items.includes(request.targetId))
+    return {ok:false,code:'TRANSFER_OWNERSHIP_CHANGED'};
+  return {ok:true,physical};
+}
 /** Physical commands are anatomical operations, never edible-object shortcuts. */
 export function requestDiscoveryAction(npc,raw,environment={},options={}){
   const request=raw&&DISCOVERY_RULES.allPrimitives.includes(raw.type)&&objectId(raw.targetId)?{type:raw.type,targetId:raw.targetId}:null;
   if(!request||request.type==='catch'&&!ozarkFiniteAquaticAgent(npc))return done(options.complete,npc,{type:'observe'},{ok:false,code:'INVALID_PRIMITIVE'});
   if(npc.lifecycle!=='AWAKE'||isSleeping(npc))return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
-  const check=allowed(npc,request.targetId,environment,request.type==='inspect_object');if(!check.ok)return done(options.complete,npc,request,check);
+  const check=options.sharing?sharedCheck(npc,request,environment,options.sharing):allowed(npc,request.targetId,environment,request.type==='inspect_object');if(!check.ok)return done(options.complete,npc,request,check);
   if(['sample','release'].includes(request.type)&&check.physical.heldBy!==npc.id)return done(options.complete,npc,request,{ok:false,code:'NOT_HELD'});
   if(['grasp','pull','catch'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity)return done(options.complete,npc,request,{ok:false,code:'HANDS_FULL'});
   const aim=request.type==='catch'?recentDiscoveryAim(npc,request.targetId):null;
@@ -79,6 +94,7 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   const seconds=primitiveDuration(npc,request.type);
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+seconds+.05,seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   actionActors.set(npc.active,npc);
+  if(options.sharing){options.sharing.request=request;options.sharing.seconds=seconds;sharedGrasps.set(npc.active,options.sharing);}
   if(request.type==='catch')catchWitnesses.set(npc.active,{actor:npc,discovery:npc.discovery,physiology:npc.physiology,
     targetId:request.targetId,scene:npc.scene,aim:{...aim},seconds,worked:0});
   if(Number.isFinite(npc.physiology?.fatigue)&&Number.isFinite(npc.physiology?.stamina))
@@ -114,7 +130,10 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       recordAquaticCaptureFailure(environment.ecology,{miss:false});
       done(options.complete,npc,{type:'catch',targetId:captureWitness.targetId},{ok:false,code:'CATCH_INTERRUPTED',durationSeconds:active.worked},active);return true;
     }
-    const check=allowed(npc,request.targetId,environment,request.type==='inspect_object');
+    const sharing=sharedGrasps.get(active);
+    const measured=handlingWitnesses.get(active);
+    if(sharing&&(!measured||active.seconds!==sharing.seconds||measured.seconds!==sharing.seconds||Math.abs(measured.worked-sharing.seconds)>1e-8)){done(options.complete,npc,request,{ok:false,code:'SHARING_INTERRUPTED'},active);return true;}
+    const check=sharing?sharedCheck(npc,request,environment,sharing):allowed(npc,request.targetId,environment,request.type==='inspect_object');
     if(!check.ok){if(request.type==='catch')recordAquaticCaptureFailure(environment.ecology,{miss:false});done(options.complete,npc,request,{...check,durationSeconds:active.worked},active);return true;}
     if(['grasp','pull','catch'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity){
       if(request.type==='catch')recordAquaticCaptureFailure(environment.ecology,{miss:false});
@@ -149,7 +168,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
         if(result.ok){npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
       }
     }else {
-      const response=interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02,inventory:npc.inventory.items});
+      const response=sharing?transferEcologyMaterial(environment.ecology,request.targetId,sharing.donor,npc):interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02,inventory:npc.inventory.items});
       const materialId=response?.materialId||response?.material?.id;
       result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{}),...(objectId(response?.resultObjectId)?{resultObjectId:response.resultObjectId}:{})};
       if(result.ok&&result.resultObjectId){
@@ -169,7 +188,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);return true;
   }finally{
     ticking.delete(active);
-    if(terminal||npc.active!==active){handlingWitnesses.delete(active);catchWitnesses.delete(active);}
+    if(terminal||npc.active!==active){handlingWitnesses.delete(active);catchWitnesses.delete(active);sharedGrasps.delete(active);}
     if(terminal&&npc.active===active)npc.active=null;
   }
 }

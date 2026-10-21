@@ -29,7 +29,7 @@ Agents have real timed primitive actions, including strikes and shore catches. T
 
 A successful terminal strike can identify the actual resulting carcass. Processing refuses safely when capacity is unavailable, without destroying the source. Existing terrestrial carcass yields remain energy-derived game abstractions, not anatomically calibrated edible mass.
 
-Fishing uses visible, moving, finite fish. Catching is a paid interception that can miss; success produces an owned whole specimen. Pulling removes its finite raw tissue, and sampling produces delayed bodily effects through ordinary digestion. Fish are not an inexhaustible spot: aquatic feeding, growth and reproduction are not implemented. The initial population can be depleted or die.
+Fishing uses visible, moving, finite fish. Catching is a paid interception that can miss; success produces an owned whole specimen. Pulling removes its finite raw tissue, and sampling produces delayed bodily effects through ordinary digestion. Fish feed from bounded local aquatic food stocks, grow with paid metabolic inputs, and transfer actual parental biomass into offspring. Local primary production renews food; population limits, starvation and age mortality still apply. Overharvesting can deplete a population, and extinction does not cause automatic respawning. This is an engineered ecology model, not a calibrated nutrient cycle.
 
 These mechanics being available **does not establish reliable autonomous use or self-sustaining survival**. Short policy trials are reported as diagnostics rather than a prerequisite for making the physical abilities available. Long runtime alone does not guarantee discovery. Historical failures remain recorded in [finite fishing](docs/FINITE-FISHING-v1.md) and [carcass processing](docs/WITNESSED-CARCASS-PROCESSING.md).
 
@@ -39,7 +39,7 @@ Fresh agents receive basic movement, bodily drives, senses and action primitives
 
 An agent can communicate an actually learned, exact-source procedure through nearby speech. The recipient can try the taught steps without randomly rediscovering the sequence. The advice remains attributed testimony, not copied firsthand experience, proficiency or a free meal. Physical availability, effort, ownership and adverse feedback still matter.
 
-Human journal advice can suggest actions against something the agent has observed. A vague phrase such as “kill the animals” does not identify a target or guarantee a hunting sequence. The interface distinguishes unresolved advice from a usable suggestion. Existing qualitative feeling reports describe modeled bodily sensations, not a claim of humanlike consciousness or complete social reasoning. Food transfer, broad skill generalization and richer social relationships remain future work.
+Human journal advice can suggest actions against something the agent has observed. A vague phrase such as “kill the animals” does not identify a target or guarantee a hunting sequence. The interface distinguishes unresolved advice from a usable suggestion. Existing qualitative feeling reports describe modeled bodily sensations, not a claim of humanlike consciousness or complete social reasoning. Nearby food requests and voluntary offers can lead to a real timed handoff of an exact held item. The recipient must independently accept and grasp it; ownership, capacity and proximity are rechecked, and learning still requires their own subsequent experience. Broad skill generalization and richer social relationships remain future work.
 
 The optional local model assists conversation only. It is not required for offline learning, and text never bypasses the physical action engine.
 
@@ -61,7 +61,7 @@ The player avatar explores and observes. Agent hunting/fishing actions are not a
 
 ## Saves and scope
 
-There is one supported current save format and key, `aincrad.world.v1`. A valid current save resumes; an absent slot starts a fresh current world. Corrupt current data is protected rather than silently overwritten. Original-world and historical save migrations are retired. Old save files are not required or automatically imported, and are not deleted by the new bootstrap.
+There is one supported current save format and key, `aincrad.world.v2`. This increment starts a fresh world instead of loading the earlier v1 slot; those earlier bytes are left untouched. A valid current save resumes; an absent slot starts a fresh current world. Corrupt current data is protected rather than silently overwritten. Original-world and historical save migrations are retired. Old save files are not required or automatically imported, and are not deleted by the new bootstrap.
 
 Cardinal diagnostic/supervision building blocks remain development work; the unified Ozark runtime does not expose the former original-world Cardinal panel. No complete ecology, reliable living, autonomous pursuit, agriculture, construction or emergent society is claimed.
 
