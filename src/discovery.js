@@ -1,3 +1,4 @@
+import { cleanPeerTeaching, isPeerTeaching, teachingExpired } from './peer-teaching.js';
 import { CONFIG,NPC_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { createDiscoveryMemory,cleanSensoryObject,objectId } from './discovery-state.js';
@@ -8,7 +9,7 @@ import { createKnownRouteIndex } from './navigation.js';
 import { BIOLOGY_RULES } from './biology-config.js';
 import { recordEvent, withProofTransaction } from './npc-events.js';
 import { LEGACY_PHYSICAL_PROVENANCE, LEGACY_UNKNOWN_PHYSICAL_PROVENANCE, retainHeldObservations } from './proof-retention.js';
-import { ozarkAgentWorld, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { ozarkAgentWorld, ozarkPersistentWorldAgent, ozarkFiniteAquaticAgent } from './ozark-agent-world.js';
 import { explorationFrontier } from './cognition.js';
 
 const memory=n=>n.discovery||=(createDiscoveryMemory());
@@ -21,7 +22,19 @@ export function rememberDirectDiscoveryObject(npc,raw){
   const object=cleanSensoryObject({...raw,observedAt:npc.elapsed});if(!object)return;
   memory(npc).observations[object.id]=object;
   let sightings=firsthandSightings.get(npc);if(!sightings){sightings=new Map();firsthandSightings.set(npc,sightings);}
-  sightings.set(object.id,{at:object.observedAt,scene:object.scene,count:object.count,position:object.position});
+  sightings.set(object.id,{at:object.observedAt,scene:object.scene,count:object.count,position:{...object.position}});
+}
+// Only an actual observation in this runtime can supply a fixed interception aim.
+// Saves, testimony and externally supplied coordinates cannot recreate it.
+export function recentDiscoveryAim(npc,id){
+  const sight=firsthandSightings.get(npc)?.get(id),object=npc.discovery?.observations?.[id];
+  if(!sight||!object||sight.scene!==npc.scene||object.scene!==sight.scene||
+    !Number.isFinite(sight.at)||sight.at>npc.elapsed||npc.elapsed-sight.at>DISCOVERY_RULES.catchObservationMaxAge||
+    object.observedAt!==sight.at||object.position.x!==sight.position.x||object.position.y!==sight.position.y)return null;
+  return {...sight.position};
+}
+export function discoveryPrimitives(npc){
+  return ozarkFiniteAquaticAgent(npc)?DISCOVERY_RULES.allPrimitives:DISCOVERY_RULES.primitives;
 }
 export function rememberDiscoveryObservation(npc,objects=[]){
   const d=memory(npc);if(!d.search.home)d.search.home={...npc.position};
@@ -34,7 +47,7 @@ export function recordDiscoveryOutcome(npc,action,result,event){
   return withProofTransaction(npc,()=>recordDiscoveryOutcomeLinked(npc,action,result,event));
 }
 function recordDiscoveryOutcomeLinked(npc,action,result,event){
-  if(!DISCOVERY_RULES.primitives.includes(action?.type))return;
+  if(!DISCOVERY_RULES.allPrimitives.includes(action?.type))return;
   const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(Object.hasOwn(result,'resultObjectId')?{resultObjectId:result.resultObjectId}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
@@ -44,13 +57,13 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;
   d.lastAttemptAt=npc.elapsed;
   if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}
-  for(const report of d.reports.filter(r=>r.sourceId==='human'&&r.status==='unverified')){
-    const expected=report.proposed[report.cursor];if(expected?.type===action.type&&expected.targetId===action.targetId){report.evidence.push(experiment.id);report.cursor++;if(result.materialId)for(const step of report.proposed.slice(report.cursor))if(['sample','release'].includes(step.type)&&step.targetId===action.targetId)step.targetId=result.materialId;if(!result.ok){report.status='contradicted';report.cursor=report.proposed.length;}}
+  for(const report of d.reports.filter(r=>r.status==='unverified'&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
+    const expected=report.proposed[report.cursor];if(expected?.type===action.type&&expected.targetId===action.targetId){report.evidence.push(experiment.id);report.cursor++;if(result.materialId)for(const step of report.proposed.slice(report.cursor))if(['sample','release'].includes(step.type)&&step.targetId===action.targetId)step.targetId=result.materialId;if(!result.ok){if(isPeerTeaching(report)){report.teaching.state='unavailable';report.teaching.lastCode=experiment.code;}else report.status='contradicted';report.cursor=report.proposed.length;}else if(isPeerTeaching(report)&&action.type==='sample')report.teaching.state='waiting';}
   }
   return experiment;
 }
 function sampleAcquisition(d,sample){
-  return d.experiments.filter(e=>e.ok&&e.materialId===sample.targetId&&e.id<sample.id).at(-1)||d.experiments.filter(e=>e.ok&&e.primitive==='grasp'&&e.targetId===sample.targetId&&e.id<sample.id).at(-1);
+  return d.experiments.filter(e=>e.ok&&e.id<sample.id&&(e.primitive==='pull'&&e.materialId===sample.targetId||e.primitive==='grasp'&&e.targetId===sample.targetId)).at(-1);
 }
 const processingFeedback=new WeakSet();
 function seenFeedback(d,key){d.seenFeedback.push(key);d.seenFeedback=d.seenFeedback.slice(-128);}
@@ -84,7 +97,7 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
       for(const t of d.techniques.filter(t=>t.evidence.includes(sample.id)||acquired&&t.sourceId===acquired.targetId&&t.steps[0].type===acquired.primitive)){
         t.confidence='revised';t.evidence=[...new Set([...t.evidence,...(acquired?[acquired.id]:[]),sample.id])].slice(-16);
       }
-      for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='contradicted';return;
+      for(const r of d.reports.filter(r=>r.evidence.includes(sample.id))){r.status='contradicted';if(isPeerTeaching(r))r.teaching.state='complete';}return;
     }
     if(event.effect!=='sustained'||!foodLearning)return;
     const grasp=sampleAcquisition(d,sample);if(!grasp)return;
@@ -93,7 +106,7 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
     if(!technique){technique={id:`technique:${npc.id}:${d.nextId++}`,sourceId,steps,evidence,at:npc.elapsed,effect:'sustained',confidence:'tentative',successes:0,failures:0};d.techniques.push(technique);d.foodDiscoveries++;if(npc.cognition){npc.cognition.knowledgeGained++;npc.cognition.lastKnowledgeAt=npc.elapsed;}}
     technique.successes++;technique.evidence=[...new Set([...technique.evidence,...evidence])].slice(-16);if(technique.confidence!=='revised')technique.confidence=technique.successes>=2?'supported':'tentative';d.techniques=d.techniques.slice(-DISCOVERY_RULES.maxTechniques);
     npc.stats.independentMeals++;npc.stats.firstFoodAt??=npc.elapsed;
-    for(const r of d.reports.filter(r=>r.evidence.includes(sample.id)))r.status='supported';
+    for(const r of d.reports.filter(r=>r.evidence.includes(sample.id))){r.status='supported';if(isPeerTeaching(r))r.teaching.state='complete';}
     });
   }}finally{processingFeedback.delete(npc);}
 }
@@ -112,9 +125,9 @@ function recordDiscoveryReportLinked(npc,content,{sourceId='human',channel='jour
     const priorQuestion=(npc.social?.heard||[]).filter(m=>m.senderId===npc.id&&m.kind==='question'&&/object:\d+/.test(m.text||'')).at(-1)?.text?.match(/object:\d+/)?.[0];
     const id=referenced||(matchesByFeature.length===1?matchesByFeature[0].o.id:null)||(!explicitFeatures.length&&priorQuestion&&d.observations[priorQuestion]?priorQuestion:null);
     if(id&&d.observations[id]){
-      const verbs=[...lower.matchAll(/\b(inspect(?:_object)?|look\s+at|grasp|pick\s+up|pick|pluck|take|release|drop|pull|sample|taste|bite|eat|strike|hit)\b/g)];
-      const mappings={'look at':'inspect_object','pick up':'grasp',pick:'pull',pluck:'pull',take:'grasp',drop:'release',taste:'sample',bite:'sample',eat:'sample',hit:'strike'};
-      report.proposed=verbs.slice(0,6).map(m=>({type:m[1].startsWith('inspect')?'inspect_object':mappings[m[1]]||m[1],targetId:id}));
+      const verbs=[...lower.matchAll(/\b(inspect(?:_object)?|look\s+at|grasp|pick\s+up|pick|pluck|take|release|drop|pull|sample|taste|bite|eat|strike|hit|kill|catch)\b/g)];
+      const mappings={'look at':'inspect_object','pick up':'grasp',pick:'pull',pluck:'pull',take:'grasp',drop:'release',taste:'sample',bite:'sample',eat:'sample',hit:'strike',kill:'strike'};
+      report.proposed=verbs.slice(0,6).map(m=>({type:m[1].startsWith('inspect')?'inspect_object':mappings[m[1]]||m[1],targetId:id})).filter(step=>discoveryPrimitives(npc).includes(step.type));
     }
   }
   d.reports.push(report);d.reports=d.reports.slice(-DISCOVERY_RULES.maxReports);return report;
@@ -127,6 +140,17 @@ export function recordDiscoveryClaim(npc,claim,options={}){
   if(!claim||!objectId(claim.objectId))return null;
   const report=recordDiscoveryReport(npc,`A reported sampling effect for ${claim.objectId}: ${String(claim.effect||'uncertain').slice(0,80)}.`,options);
   if(report)report.objectId=claim.objectId;return report;
+}
+/** Called after genuine local speech. This stores reported instructions, not skill proof. */
+export function recordPeerTechnique(npc,content,teaching,options={}){
+  const clean=cleanPeerTeaching(teaching);if(!clean||!['aster','mira'].includes(options.sourceId)||options.sourceId===npc.id||options.channel!=='peer')return null;
+  return withProofTransaction(npc,()=>{
+    const report=recordDiscoveryReportLinked(npc,content,options);if(!report)return null;
+    report.teaching=clean;
+    if(memory(npc).observations[clean.sourceObjectId])report.proposed=[{type:clean.acquisition,targetId:clean.sourceObjectId},{type:'sample',targetId:clean.sourceObjectId}];
+    else{report.teaching.state='unavailable';report.teaching.lastCode='SOURCE_NOT_RECOGNIZED';}
+    return report;
+  });
 }
 export function discoveryObservation(npc){
   const d=memory(npc);return {observations:Object.values(d.observations).slice(-40),experiments:d.experiments.slice(-24),effects:d.effects.slice(-24),techniques:d.techniques.slice(-16).map(t=>({...t,proficiency:(d.practice[t.steps[0].type]?.successes||0)>=25?'efficient':(d.practice[t.steps[0].type]?.successes||0)>=7?'practiced':'novice'})),reports:d.reports.slice(-16)};
@@ -239,6 +263,8 @@ function recentlyFailed(npc,type,id){
 }
 function availabilityBlocked(npc,type,id){
   const d=memory(npc),sight=firsthandSightings.get(npc)?.get(id),object=d.observations[id];
+  // A visibly bare object has no exposed parts to pull. This is perception, not nutrition.
+  if(type==='pull'&&ozarkFiniteAquaticAgent(npc)&&object?.count===0)return true;
   const cache=availabilityScans.get(npc);let failure=cache?.get(id);
   if(!failure){
     let gone=-1,depleted=-1;
@@ -250,7 +276,7 @@ function availabilityBlocked(npc,type,id){
       if(code==='OBJECT_GONE')gone=Math.max(gone,at);
       if(code==='nothing_detached'&&primitive==='pull')depleted=Math.max(depleted,at);
     };
-    for(const primitive of DISCOVERY_RULES.primitives){
+    for(const primitive of DISCOVERY_RULES.allPrimitives){
       const trial=d.trials?.[`${id}|${primitive}`];
       if(trial)consider(trial.lastAt,trial.lastCode,primitive,trial.lastOk);
     }
@@ -415,16 +441,27 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       'My mouth is dry; I can search another edge of ground I have actually seen.','water');
   }
   const traversal=waterEscape||terrainTraversalDecision(npc);
-  if(traversal)return wrap(traversal.action,traversal.reason,traversal.need);
-  const report=d.reports.find(r=>r.sourceId==='human'&&r.status==='unverified'&&r.cursor<r.proposed.length);if(report){const step=report.proposed[report.cursor],object=d.observations[step.targetId];if(!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||npc.inventory.items.includes(object?.id))&&(step.type!=='sample'||sampleEligible(npc,step.targetId,body,foodLearning))){if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||npc.inventory.items.includes(object.id))return wrap(step,'I can physically test a human suggestion; its result remains uncertain.');const move=routeTarget(npc,object.position);if(move)return wrap(move,'I am approaching an object mentioned in an unverified human suggestion.');}}
+  if(traversal&&(!ozarkFiniteAquaticAgent(npc)||traversal.need!=='understanding'))return wrap(traversal.action,traversal.reason,traversal.need);
+  for(const report of d.reports.filter(r=>r.status==='unverified'&&r.cursor<r.proposed.length&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
+    const step=report.proposed[report.cursor],object=d.observations[step.targetId],held=npc.inventory.items.includes(object?.id),peer=isPeerTeaching(report);
+    if(peer&&(['pull','grasp'].includes(step.type)&&npc.inventory.items.length>=DISCOVERY_RULES.capacity||d.effects.some(e=>e.objectId===step.targetId&&e.effect==='discomfort')||d.techniques.some(t=>t.sourceId===report.teaching.sourceObjectId&&t.confidence==='revised')))continue;
+    if(discoveryPrimitives(npc).includes(step.type)&&!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||held)&&(step.type!=='sample'||held&&sampleEligible(npc,step.targetId,body,foodLearning))){
+      const author=peer?report.sourceId:'a human';
+      if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||held)return wrap(step,`I can try the procedure taught by ${author}; its benefit is reported, not my own experience.`);
+      const move=routeTarget(npc,object.position);if(move)return wrap(move,`I can approach a source I recognize to try ${author}'s reported procedure.`);
+    }
+  }
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||actorLineOfSight(npc,npc.position,o.position)));
   const choices=[];
   for(const object of objects){
     const held=npc.inventory.items.includes(object.id),near=held||distance(npc.position,object.position)<=DISCOVERY_RULES.reach;
     if(!near)continue;
-    for(const type of DISCOVERY_RULES.primitives){
+    for(const type of discoveryPrimitives(npc)){
       if(['release','sample'].includes(type)&&!held)continue;
-      if(['grasp','pull'].includes(type)&&(held||npc.inventory.items.length>=DISCOVERY_RULES.capacity))continue;
+      if(['grasp','catch'].includes(type)&&held)continue;
+      if(type==='pull'&&held&&!ozarkFiniteAquaticAgent(npc))continue;
+      if(['grasp','pull','catch'].includes(type)&&npc.inventory.items.length>=DISCOVERY_RULES.capacity)continue;
+      if(type==='catch'&&!recentDiscoveryAim(npc,object.id))continue;
       const trial=d.trials?.[`${object.id}|${type}`]||{attempts:0,failures:0,lastAt:0,lastCode:''},failures=trial.failures;
       if(recentlyFailed(npc,type,object.id)||availabilityBlocked(npc,type,object.id))continue;
       if(type==='sample'&&!sampleEligible(npc,object.id,body,foodLearning))continue;
@@ -432,6 +469,10 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
       choices.push({action:{type,targetId:object.id},score:novelty-failures*3+(type==='inspect_object'&&!trial.attempts?1:0)+random(npc)*(trial.attempts?.2:2)});
     }
   }
+  // Only optional terrain curiosity yields to generic nearby body operations
+  // in the new feature. Safety escapes and bodily care already returned above;
+  // no target kind, food benefit or catch-specific score participates here.
+  if(traversal&&!choices.length)return wrap(traversal.action,traversal.reason,traversal.need);
   // Movement competes with object trials. Repeatedly striking/inspecting a familiar
   // patch cannot block an unfamiliar nearby object or a remembered frontier forever.
   const targets=objects.filter(o=>distance(o.position,npc.position)>DISCOVERY_RULES.reach&&!availabilityBlocked(npc,'inspect_object',o.id)).map(o=>({o,score:5/(1+Object.entries(d.trials||{}).filter(([key])=>key.startsWith(`${o.id}|`)).reduce((sum,[,t])=>sum+t.attempts,0))-distance(o.position,npc.position)/1500+random(npc)})).sort((a,b)=>b.score-a.score);

@@ -1,47 +1,37 @@
 # Working on Aincrad
 
-This is a standalone exploration game, independent of `agentic-workspace`.
+Aincrad is a standalone local-first Electron simulation, independent of agentic-workspace.
 
-## Current milestone and boundaries
+## Current owner-directed scope
 
-Preserve a human-controlled avatar, a large bounded valley, lake/river, meadows/trees, and enterable caves. The central reference crossing must remain approximately five minutes at normal walking speed. An in-game day is one hour of unpaused play.
+Develop **one world based on the Ozark watershed**, launching directly without a world chooser. The owner explicitly authorized removal of original-world runtime code, old-save compatibility, obsolete UI/tests/docs and other exclusive files. Keep deletions reviewable in Git; do not force-push or destroy repository history. There is no requirement to migrate old saves or preserve an old-world execution mode. Protect valid/corrupt current-format data and do not silently reset a current save.
 
-The owner has approved the 0.7 Cardinal milestone: an autonomous world governor observes full private diagnostics, diagnoses problems, runs controlled copied-world experiments, learns from their outcomes, and applies validated world changes. Spread real ecology across the entire walkable valley and provide a zoomable/pannable map showing both humans and the player. Preserve strict experiential food discovery, physiological time, vulnerable sleep, finite ecology, Aster and Mira, the optional journal, pixel desktop presentation and npm workflow. Cardinal may manage world rules but must not insert answers or completed skills into inhabitants' minds. Keep model access optional/local and no agent OS/filesystem/shell access. No signup, analytics, cloud services or additional human characters. New physical mechanics and arbitrary source modification remain a separate tested development process.
+The current increment adds detailed original pixel-art terrain and biome-appropriate physical trees/rocks, practical hunting/fishing primitives, and attributed peer teaching. Actual tree crowns determine canopy; shared solar time determines illumination and shadows. Keep visual decorations distinct from finite edible stocks and physical obstacles. No desert biome should be invented solely to satisfy an example.
 
-## Current regional development
+The owner explicitly does not require short autonomous learning trials to succeed before releasing usable physical capabilities. Retain those failures as diagnostic evidence, not falsely green assertions. Reliable living, social generalization, renewed aquatic harvest and automatic pursuit are not implied by the ability to execute actions.
 
-The next bounded stage follows docs/DEVELOPMENT-v08.md: differentiated terrain/water/climate habitats, finite regional soil/litter accounting, physically verified corridors, and preserved saves. Subsequent work must measure food throughput, learned relocation and bounded regional Cardinal interventions before claiming survival or open-ended society. Use local-only runtime/behavior training, optional Ollama language, CPU-capable 32 GB RAM / 1 TB laptop constraints, and no paid/cloud runtime dependencies. The implementation may be developed/tested in the cloud without deploying a simulation service.
+## Authority and boundaries
 
-Regional bookkeeping must partition existing stocks without adding or replenishing any existing-world objects or calories. A damaged v3 save must not fall back to global soil or fresh allocation. Preserve history and use feature branches and reviewable pull requests; test and review before any authorized merge. Do not confuse physical corridor connectivity with learned or nutritionally viable migration.
+- ozark-world-geometry.js and its structural helpers own authoritative movement, collision and sight. Player and NPC adapters share that geometry.
+- Rendering is read-only. Drawing/animation cannot advance time, alter stocks, grant techniques or complete tasks.
+- Advance environment/ecology/bodies once per unpaused fixed step. Escape alone pauses; blur/minimize clears input but keeps simulation running. Closing the app stops time.
+- New agents have local sensory observations and qualitative body signals, not species/diet/food tables. Engine diagnostics remain private.
+- Teaching and human hints are attributed reports enabling paid attempts, not firsthand proof. Derive communicated procedures from actual sender evidence; never copy sender experience into recipient meal/effect/practice records. Only personal outcomes can verify or contradict a claim.
+- Physical actions obey ownership, stock, capacity, reach, line of sight and real time/effort. Failures cannot fabricate or silently discard resources. Target identity changes must be truthful.
+- Save only bounded allowlisted data. Corrupt current saves fail closed; loaded data and conversation are never executable code.
+- Keep offline, CPU-capable development for a 32 GB RAM laptop. No paid/cloud runtime, analytics, signup, extra human characters or agent OS/shell/filesystem privileges.
+- Keep the Electron renderer sandboxed, isolated from Node, with strict navigation, asset and IPC boundaries. Never weaken sandbox/security to obtain a test pass.
 
-## Boundaries
+## Verification and collaboration
 
-- `world.js` is authoritative. Human and future NPC controllers must use the same validated movement and actions.
-- `renderer.js` and `art.js` only draw. Animation must not advance world rules or declare tasks completed.
-- `config.js` is the source for world dimensions, movement speed, time scale and tunable survival/weather values.
-- Advance the shared environment exactly once per unpaused fixed step. Weather/resource renewal, body state, observations and rendering must use this same saved simulation clock. Rendering must not mutate resources or body state.
-- NPC and human scene transitions are independent. NPC decisions may use only locally observed/current remembered resources and routes, including scene-specific cave maps.
-- Save only allowlisted, bounded fields. A save must never become executable code.
-- Keep exact physiology in the engine and optional developer inspection. Agent/model observations and the ordinary journal describe bodily sensations rather than exact reserve percentages. Peer observations never reveal another character's hidden body state or private memory.
-- Conversations and notes are data. Human replies are optional and reported information, not verified world facts; agents continue caring for themselves while awaiting replies. Claims, plans and spoken intentions never count as completed physical actions.
-- Continue simulation on blur, hiding and minimizing. Clear held keys on focus loss. Explicit Escape pause controls simulation independently of map/help/journal visibility; opening those views does not pause. No progression occurs while the application is closed.
-- Preserve local-first, offline-capable play. The web server must bind to loopback and serve only explicit game assets.
-- The Electron renderer stays sandboxed, without Node integration or arbitrary native IPC. Do not loosen navigation or permissions for convenience.
+Read the current README and architecture, not retired world assumptions. Run npm run check and npm run build after edits. Run npm run smoke and actual isolated native close/reopen tests on supported platforms. UI changes need actual rendered checkpoints and native screenshots; browser/Canvas rendering does not prove desktop installation/persistence. Keep passed, failed, skipped and not-run evidence distinct.
 
-## Verification
+Use isolated feature branches/worktrees and explicit file ownership. Integrate and independently review the exact source tree before publication. Preserve useful physics/provenance tests when deleting wrappers for a retired codec; do not erase coverage merely because a test once referenced old saves. Native test profiles must be isolated from real user profiles, including symlink/junction aliases.
 
-Run `npm run check` and `npm run build` after code edits. The application build is generated into ignored `dist/`; do not commit generated renderer bundles or distribute an HTML webpage. Preserve the strict application protocol and renderer CSP; normalize text line endings. `npm start` launches Electron and `npm run dev` rebuilds/reloads the desktop application. Visual changes also require actual rendered screenshots. Browser-only checks do not establish that Windows Electron installation or an installer works.
-
-Use `npm run smoke` for the actual Electron application and rendered desktop screenshots for visual QA. Disk persistence must be tested by closing and reopening an isolated application profile.
-
-## Scope discipline
-
-Keep the Cardinal/map contracts in docs/DEVELOPMENT-v07.md and use docs/DEVELOPMENT-v08.md for the current regional stage. Preserve historical save identity/progress; regional migration partitions old stock without additions or population replacement. Old legacy worlds retain prior agent rules. Cardinal operates through authoritative world APIs; shadow experiments must not alter the live world, leak hidden information to agents, fabricate results, or block explicit pause. Animal reproduction consumes resources and has population bounds. Preserve collision, the valley, original pixel art and source application workflow. Human construction, reproduction and larger societies remain later milestones.
+Generated dist/ files stay ignored. HTML is an internal desktop asset, not a deployed webpage. Do not replace the game with a Site.
 
 ## Publication
 
-Publication requires an explicit user request or manual invocation of `npm run publish:github`. Use the helper's CLI path, or invoke it with `--prepare-connector <manifest-path>` before publishing through a connected GitHub account. The connected path must verify push permission and the manifest's expected branch head, preserve the existing history, and update the branch without force using that expected head. Never publish from install, launch, or test scripts. Never force-push or overwrite `agentic-workspace`. Preserve the visibility of an existing repository; keep new repositories private by default.
+Publication requires user authorization. Use the repository publication helper and its manifest/expected-head checks for connected GitHub writes; verify current branch/head, exact file blobs/tree, parent and final ref. Never force-push or overwrite agentic-workspace. Do not change repository visibility. Keep requests bounded and inspect uncertain outcomes before retrying; stop on denied access.
 
-For a feature-branch connector update, use `--prepare-connector <manifest-path> --branch <existing-feature-branch>` while HEAD equals that branch's verified remote head. Verify the manifest blobs against the local candidate. GitHub `create_tree` supports inline UTF-8 contents: batch changed text entries in one tree based on the verified existing tree, and reuse/create SHA-addressed blobs for binary artifacts. Check the resulting tree against local Git, create a commit with the expected parent, and advance only the feature ref with its expected SHA and `force:false`. This avoids per-file write approval loops without altering permissions or bypassing any required approval. Inspect uncertain outcomes before retries; stop on actual denied access.
-
-Keep connector requests bounded: publish compact measurement summaries and raw-report fingerprints; retain full traces in an explicit evidence export rather than routinely committing megabytes of raw JSON. Use existing blob SHAs and small inline text entries. Inspect a pending operation and report its status promptly instead of leaving a large upload unobserved.
+Test and review before any separately authorized merge. Monitor relevant CI to terminal and verify postmerge main. Clearly distinguish physical capability delivery from autonomous behavior findings; never turn failed adoption into a success claim.

@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { gunzipSync } from 'node:zlib';
 import { createCarcassDiskFixture } from './fixtures/carcass-encounter.mjs';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
 import { loadOzarkSave, writeOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
@@ -13,16 +11,8 @@ import { ECOLOGY_RULES as R } from '../src/ecology-config.js';
 const geometry=createOzarkWorldGeometry(),clone=structuredClone;
 const storage=bytes=>({bytes,getItem(){return this.bytes;},setItem(k,v){assert.equal(k,OZARK_SAVE_KEY);this.bytes=v;}});
 function fixture(stage='relation',binding=geometry){const input=createCarcassDiskFixture(stage),disk=storage(input.raw),opened=loadOzarkSave(disk,geometry);assert.equal(opened.blocked,false,opened.error);const state=opened.state,n=state.agents[0],e=state.environment.ecology;for(const a of state.agents)bindOzarkWorldAgent(a,binding,state);return{input,disk,state,n,e,source:lookupEcologyObject(e,input.carcassId)};}
-test('genuine unmodified main v9 fresh/progressed/strike/held/pending/effect fixtures retain original physical evidence',()=>{
- const archive=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/carcass-old-v9.json.gz',import.meta.url))));assert.equal(archive.sourceTreeSha256,'c627e281388af4cd4b3eaf8c1edf627568a8008d9f29b2c9bef5534a9fc68a3f');
- assert.deepEqual(Object.keys(archive.fixtures),['fresh','progressed','oldStrike','heldFlesh','pendingDigestion','retainedEffects']);
- for(const [name,raw] of Object.entries(archive.fixtures)){const disk=storage(JSON.stringify(raw)),opened=loadOzarkSave(disk,geometry);assert.equal(opened.blocked,false,`${name}: ${opened.error}`);const state=opened.state;assert.equal(state.version,9);assert.deepEqual(state.features,{plantLifecycle:1});assert.deepEqual(state.environment.ecology,raw.environment.ecology);assert.equal(state.elapsed,raw.elapsed);
-  for(let i=0;i<2;i++){const a=state.agents[i],old=raw.agents[i];assert.deepEqual(a.discovery.observations,old.discovery.observations);assert.deepEqual(a.discovery.experiments,old.discovery.experiments);assert.deepEqual(a.discovery.effects,old.discovery.effects);assert.deepEqual(a.inventory,old.inventory);assert.deepEqual(a.physiology,old.physiology);for(const receipt of old.memory.experience)assert.deepEqual(a.memory.experience.find(r=>r.id===receipt.id),receipt);assert.ok(a.discovery.experiments.every(e=>!Object.hasOwn(e,'resultObjectId')));}
-  assert.equal(writeOzarkSave(disk,state,geometry),true);assert.equal(loadOzarkSave(disk,geometry).blocked,false);
- }
-});
 test('optional relation, finite piece ownership and restart interruption roundtrip without new observations',()=>{
- for(const stage of ['relation','pulled','processing']){const f=fixture(stage),old=JSON.parse(f.input.raw),now=f.state;assert.equal(now.version,9);assert.deepEqual(now.features,{plantLifecycle:1});assert.deepEqual(now.environment.ecology,old.environment.ecology);assert.deepEqual(now.agents[0].discovery.observations,old.agents[0].discovery.observations);assert.deepEqual(now.agents[0].discovery.experiments,old.agents[0].discovery.experiments);assert.equal(f.n.active,null);
+ for(const stage of ['relation','pulled','processing']){const f=fixture(stage),old=JSON.parse(f.input.raw),now=f.state;assert.equal(now.version,11);assert.deepEqual(now.features,{plantLifecycle:1,finiteAquatic:1,worldStructures:1});assert.deepEqual(now.environment.ecology,old.environment.ecology);assert.deepEqual(now.agents[0].discovery.observations,old.agents[0].discovery.observations);assert.deepEqual(now.agents[0].discovery.experiments,old.agents[0].discovery.experiments);assert.equal(f.n.active,null);
   if(stage==='processing'){assert.deepEqual(f.n.lastResult,old.agents[0].lastResult);assert.ok(f.n.memory.experience.some(r=>r.details.result?.code==='RESTART_INTERRUPTED'));assert.deepEqual(f.n.inventory.items,[]);}
   if(stage==='pulled'){assert.deepEqual(f.n.inventory.items,[f.input.materialId]);assert.equal(lookupEcologyObject(f.e,f.input.materialId).heldBy,'aster');}
   const before=clone(f.e);tickNpc(f.n,0,f.state.environment);assert.deepEqual(f.e,before);assert.equal(writeOzarkSave(f.disk,now,geometry),true);

@@ -58,16 +58,25 @@ test('finite growth, wildlife, regional water and fractional clock restore exact
   assert.deepEqual(validateOzarkEcology(structuredClone(e),geometry,{seed:e.seed,elapsed:env.elapsed}),durable(e));
 });
 
-test('Ozark climate samples the real canopy and elevation; old-world branch stays separate',()=>{
+test('Ozark physical shade comes from actual tree crowns and changes with the shared solar clock',()=>{
   const e=createOzarkEcology(geometry),env=createEnvironment(e.seed,{mode:'discovery',populate:false});
   env.ecology=e;
-  const point={x:3600,y:-7400},site=geometry.sample(point.x,point.y);
-  assert.ok(site.canopy>=.58&&site.light<.55);
+  const tree=geometry.structures.objectsInRect({left:0,top:3000,right:1000,bottom:4000})
+    .find(object=>object.kind!=='rock');
+  assert.ok(tree);
+  const candidates=[];
+  for(let y=tree.y-300;y<tree.y+100;y+=20)for(let x=tree.x-300;x<tree.x+100;x+=20)
+    if(geometry.canOccupy(x,y)&&geometry.lightAt({x,y},8).shade>=.35)candidates.push({x,y});
+  assert.ok(candidates.length>0,'a real tree casts reachable morning shade');
+  const point=candidates[0],site=geometry.sample(point.x,point.y);
   const condition=environmentConditions(env,{position:point,scene:'valley'});
   assert.equal(condition.shade,true);
-  assert.ok(Math.abs(condition.airTemperature-(dailyTemperature(8)-2*site.elevation/1200))<1e-9);
-  const old=environmentConditions({...env,ecology:null},{position:point,scene:'valley'});
-  assert.notEqual(condition.airTemperature,old.airTemperature);
+  assert.ok(Math.abs(condition.airTemperature-(dailyTemperature(8)-2*site.elevation/1200-
+    (site.habitat==='shaded-cove'?1:0)))<1e-9);
+  const cover=site.canopy;
+  env.elapsed=2100; // 22:00 on the same shared clock.
+  assert.equal(environmentConditions(env,{position:point,scene:'valley'}).shade,false);
+  assert.equal(geometry.sample(point.x,point.y).canopy,cover,'foliage remains overhead at night');
 });
 
 test('forged identity, energy, region water and dry-ground producers fail closed',()=>{

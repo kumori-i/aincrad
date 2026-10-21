@@ -1,6 +1,6 @@
 # Witnessed carcass processing (H1)
 
-This bounded main-based change repairs finite carcass handling and preserves a
+This bounded capability repairs finite carcass handling and preserves a
 witnessed terminal-strike identity. It is not hunting completion, a new food
 recipe, animal anatomy, sustainable feeding, or a pursuit-policy change.
 
@@ -51,11 +51,15 @@ pull → sample → delayed effect can establish a technique for that exact sour
 Another animal or carcass is not generalized from it. A whole carcass remains too
 heavy to grasp and cannot be sampled directly.
 
-## Preservation
+## Current integration
 
-The Ozark save remains v9 with exactly `{plantLifecycle: 1}`, its existing storage
+The single supported Ozark world now includes this H1 capability, finite shore fishing and structural biome terrain in schema v11. It launches directly and uses `aincrad.world.v1`; retired save formats are not migrated. Current corrupt bytes remain protected. Short autonomous adoption is diagnostic, not a capability-release gate. Physics, exact proof, conservation within the stated model, current saves and sandboxed native persistence remain required.
+
+## Historical H1 preservation boundary
+
+At the original H1 checkpoint, the Ozark save remained v9 with exactly `{plantLifecycle: 1}`, its existing storage
 key, physical stocks, next-ID history and elapsed time. Unmodified-main v9 fixtures
-cover fresh/progressed worlds, old strike receipts, held flesh, pending digestion
+covered fresh/progressed worlds, old strike receipts, held flesh, pending digestion
 and retained effects. Loading adds no objects or relation backfill. Optional new
 history can cause an older binary to protect/reject an occupied save; reverse
 binary readability is not promised, and original bytes must not be reset.
@@ -118,12 +122,10 @@ The full trace belongs to the separate evidence export, not the source checkout.
   its argument validation and saved protocol/evidence before any separate study.
 
 The native workflow uses short OS-temp profiles and real close/closed/will-quit
-assertions, verifies sandbox preferences, preserves the historical slot, checks
+assertions, verifies sandbox preferences, does not read retired slots, checks
 finite physical and actor evidence after reopening, and proves paused/closed time
 adds nothing. It never uses a real profile or bypasses the sandbox. Preparing a
 harness or a Node JSON roundtrip is not native disk validation. When desktop
 execution is blocked, release stays pending supported CI, not silently passed.
 
-No fishing files, coefficients, starting stock, generation rules, controller
-policy, prey selection, flee speed, damage, reach, acquisition grammar or food
-proof definition changes are included. Unmerged fishing work is not a dependency.
+The original H1 checkpoint did not include fishing. The current integration adds the separately reviewed finite-fishing capability without changing H1 prey selection, flee speed, ordinary damage, reach or food-proof definitions. Historical encounter outcomes above remain historical measurements, not claims about the revised landscape.

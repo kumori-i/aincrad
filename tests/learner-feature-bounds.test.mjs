@@ -1,3 +1,6 @@
+import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
+import { createOzarkState, writeOzarkSave, loadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+const currentGeometry = createOzarkWorldGeometry();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
@@ -5,7 +8,7 @@ import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { LocalLearnerProvider } from '../src/controller.js';
 import { bodyFeatures, learnedValue, learningCostTick, policyContext, updateValue } from '../src/npc-memory.js';
 import { createNpc } from '../src/npc-state.js';
-import { loadSave, writeSave } from '../src/save.js';
+
 import { freshState } from '../src/world.js';
 
 const categories = [
@@ -173,11 +176,14 @@ test('one outer cost batch commits both credits together before FIFO retirement'
   assertBoundedFeatures(actor);
 });
 
-test('marked write and reload preserve every retained weight and learned score exactly', () => {
-  const disk = storage(), initial = freshState();
-  initial.features.legacyPendingPhysicalOnly = 1;
-  assert.equal(writeSave(disk, initial), true);
-  const opened = loadSave(disk);
+
+
+
+
+test('current write and reload preserve every retained weight and learned score exactly', () => {
+  const disk = storage(), initial = createOzarkState(currentGeometry);
+  assert.equal(writeOzarkSave(disk, initial, currentGeometry), true);
+  const opened = loadOzarkSave(disk, currentGeometry);
   assert.equal(opened.blocked, false, opened.error);
   const world = opened.state, actor = world.agents[0];
   const oldKeys = [...validKeys].filter(key => !key.startsWith('strike:')).slice(0, 143);
@@ -190,9 +196,9 @@ test('marked write and reload preserve every retained weight and learned score e
     { type: 'move', target: { x: 0, y: 0 } }];
   const scores = actions.map(action => learnedValue(actor, action));
   const rng = actor.rng;
-  assert.equal(writeSave(disk, world), true,
-    'the marked continuity guard accepts a map already bounded during learning');
-  const reopened = loadSave(disk);
+  assert.equal(writeOzarkSave(disk, world, currentGeometry), true,
+    'the current continuity guard accepts a map already bounded during learning');
+  const reopened = loadOzarkSave(disk, currentGeometry);
   assert.equal(reopened.blocked, false, reopened.error);
   const restored = reopened.state.agents[0];
   assert.deepEqual(restored.memory.features, expectedWeights);
@@ -203,19 +209,18 @@ test('marked write and reload preserve every retained weight and learned score e
   assert.deepEqual(restored.discovery.practice, actor.discovery.practice);
 });
 
-test('malformed exact-zero feature remains visible and cannot launder a marked save', () => {
-  const disk = storage(), initial = freshState();
-  initial.features.legacyPendingPhysicalOnly = 1;
-  assert.equal(writeSave(disk, initial), true);
-  const opened = loadSave(disk);
+test('malformed exact-zero feature remains visible and cannot launder a current save', () => {
+  const disk = storage(), initial = createOzarkState(currentGeometry);
+  assert.equal(writeOzarkSave(disk, initial, currentGeometry), true);
+  const opened = loadOzarkSave(disk, currentGeometry);
   assert.equal(opened.blocked, false, opened.error);
   const world = opened.state, actor = world.agents[0];
-  const originalBytes = disk.getItem(CONFIG.saveKey);
+  const originalBytes = disk.getItem(OZARK_SAVE_KEY);
   actor.memory.features['unknown-category:thirst'] = 0;
   updateValue(actor, policyContext(actor), 'wait', 2);
   assert.equal(Object.hasOwn(actor.memory.features, 'unknown-category:thirst'), true,
     'exact-zero pruning must not hide malformed pre-existing learned data');
-  assert.equal(writeSave(disk, world), false);
-  assert.equal(disk.getItem(CONFIG.saveKey), originalBytes,
-    'the original marked disk bytes remain protected');
+  assert.equal(writeOzarkSave(disk, world, currentGeometry), false);
+  assert.equal(disk.getItem(OZARK_SAVE_KEY), originalBytes,
+    'the original current disk bytes remain protected');
 });

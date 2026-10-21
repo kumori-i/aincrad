@@ -10,7 +10,7 @@ import { projectPhysiology,ingestMaterial } from '../src/biology.js';
 import { bodySignals,restUnsafe } from '../src/interoception.js';
 import { canStand,freshState,distance } from '../src/world.js';
 import { NPC_RULES,CONFIG } from '../src/config.js';
-import { writeSave,loadSave } from '../src/save.js';
+
 import { shelterSource } from '../src/resources.js';
 import { PopulationRuntime } from '../src/population.js';
 
@@ -84,11 +84,7 @@ test('no known food, empty gut and no stores cannot be mistaken for recovered en
   assert.equal(f.n.physiology.availableEnergyKcal,0);assert.equal(f.n.physiology.totals.ingestedKcal,0);assert.equal(f.n.discovery.techniques.length,0);assert.equal(f.n.physiology.outsideAssistance.count,0);assert.equal(restUnsafe(f.n),true);assert.ok(f.n.physiology.health<100);
 });
 
-test('save and reopen retain the refused-rest context after a successful unrelated action',()=>{
-  const f=fixture();depleted(f);const failed=refuse(f);act(f,{type:'wait',seconds:1});const state=freshState({mode:'legacy'});state.simulationMode='discovery';state.environment=f.e;state.agents=[f.n];state.npc=f.n;state.elapsed=f.n.elapsed;state.cardinal=null;
-  const map=new Map(),store={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};assert.equal(writeSave(store,state),true);const saved=JSON.parse(store.getItem(CONFIG.saveKey)),loaded=loadSave(store);assert.equal(loaded.blocked,false);const n=loaded.state.agents[0];
-  assert.equal(n.elapsed,f.n.elapsed);assert.equal(n.physiology.availableEnergyKcal,f.n.physiology.availableEnergyKcal);assert.ok(n.memory.experience.some(e=>e.id===failed.eventId));assert.equal(discoveryDecision(n).action.type,'wait');assert.equal(saved.agents[0].discovery.restDeferral,undefined,'No new executable or independent timer field is saved.');
-});
+
 
 test('an exhausted source still cools down during depleted rest care',()=>{
   const f=fixture(true);while(f.plant.quantity>=1){assert.equal(act(f,{type:'pull',targetId:f.plant.id}).ok,true);const extra=f.n.inventory.items.find(id=>id!==f.id);assert.ok(extra);assert.equal(act(f,{type:'release',targetId:extra}).ok,true);}

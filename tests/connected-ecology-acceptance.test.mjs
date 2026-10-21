@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {CONFIG, PONDS} from '../src/config.js';
 import {ECOLOGY_MATERIALS as MATERIALS, ECOLOGY_RULES as R, ECOLOGY_SPECIES as SPECIES} from '../src/ecology-config.js';
 import {createEcology, ecologyCoverage, ecologyEnergy, interactEcologyObject, senseEcology, tickEcology} from '../src/ecology.js';
-import {loadSave, writeSave} from '../src/save.js';
+
 import {advanceRegionalWater, consumeConnectedGrowth, habitatConditions, plantSuitability,
   regionAt, regionIndex, regionRunoffGraph, regionalResourceAudit, regionalWaterAudit} from '../src/ecology-regions.js';
 import {canStandOutside, distance, freshState, waterDistance} from '../src/world.js';
@@ -295,27 +295,4 @@ test('a connected-world rabbit carcass returns mass and nutrients only at its ac
   waterBalance(e);
 });
 
-test('used water stocks and named ledger fields persist through two disk reopenings; forged transfer is protected',()=>{
-  const state=freshState(),e=state.environment.ecology;
-  assert.equal(e.ecosystemModelVersion,1);
-  advanceRegionalWater(e,CONFIG.dayRealSeconds*7,{rainfall:4,seepage:0,evaporation:0});
-  const grass=e.plants.find(p=>p.kind==='grass');
-  assert.ok(consumeConnectedGrowth(e,grass.position,.1,70).waterMl>0);
-  assert.ok(e.regions.some(row=>row.runoffOutMl>0));
-  const original=structuredClone(e),disk=storage();
-  assert.equal(writeSave(disk,state),true);
-  for(let reopening=0;reopening<2;reopening++){
-    const result=loadSave(disk);assert.equal(result.blocked,false);
-    assert.deepEqual(result.state.environment.ecology,original);
-    waterBalance(result.state.environment.ecology);
-    assert.equal(writeSave(disk,result.state),true);
-  }
-  const forged=JSON.parse(disk.bytes);
-  forged.environment.ecology.regions[0].runoffInMl+=1;
-  const sourceBytes=JSON.stringify(forged),blocked=storage(sourceBytes),opened=loadSave(blocked);
-  assert.equal(opened.blocked,true);
-  assert.ok(opened.error);
-  assert.equal(writeSave(blocked,opened.state),false);
-  assert.equal(blocked.bytes,sourceBytes,'original forged bytes remain untouched');
-  assert.equal(blocked.writes,0);
-});
+

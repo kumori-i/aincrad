@@ -4,8 +4,7 @@ import { CONFIG } from '../src/config.js';
 import { createNpc } from '../src/npc-state.js';
 import { requestNpcAction } from '../src/npc.js';
 import { projectPhysiology } from '../src/biology.js';
-import { loadSave, prepareLegacyPendingMigration, writeSave } from '../src/save.js';
-import { syntheticProtectedRaw } from './native-synthetic-fixture.mjs';
+
 
 test('native discovery drink projects fullness before its original receipt without advancing digestion or relief', () => {
   const actor = createNpc({ mode: 'discovery' });
@@ -43,33 +42,7 @@ test('native discovery drink projects fullness before its original receipt witho
   assert.deepEqual(actor.discovery.effects, before.discovery.effects);
 });
 
-test('a marked world saves immediately after native drink without a repair tick or relaxed guard', () => {
-  const prepared = prepareLegacyPendingMigration(syntheticProtectedRaw());
-  assert.equal(prepared.ok, true, prepared.reason);
-  const bytes = new Map([[CONFIG.saveKey, prepared.candidate]]);
-  const disk = {
-    getItem: key => bytes.get(key) ?? null,
-    setItem: (key, value) => bytes.set(key, value),
-  };
-  const opened = loadSave(disk);
-  assert.equal(opened.blocked, false);
-  const state = opened.state, actor = state.agents[0];
-  actor.flask.water = .25;
-  actor.flask.provenance = null;
-  assert.equal(writeSave(disk, state), true, 'fixture is strictly savable before drink');
-  const result = requestNpcAction(actor, { type: 'drink' }, state.environment);
-  assert.equal(result.code, 'DRANK');
-  assert.equal(writeSave(disk, state), true, 'immediate strict save succeeds without a tick');
-  const loaded = loadSave(disk);
-  assert.equal(loaded.blocked, false, loaded.error);
-  const restored = loaded.state.agents[0];
-  for (const key of ['physiology', 'nourishment', 'hydration', 'flask', 'rng'])
-    assert.deepEqual(restored[key], actor[key], key);
-  assert.deepEqual(
-    restored.memory.experience.find(row => row.id === result.eventId),
-    actor.memory.experience.find(row => row.id === result.eventId),
-  );
-});
+
 
 test('a refused empty discovery drink does not change derived or physical body state', () => {
   const actor = createNpc({ mode: 'discovery' });

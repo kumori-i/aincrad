@@ -11,7 +11,7 @@ import {discoveryDecision, processDiscoveryFeedback, recordDiscoveryClaim,
   recordDiscoveryReport} from '../src/discovery.js';
 import {NpcController} from '../src/controller.js';
 import {validateNpc} from '../src/npc-memory.js';
-import {writeSave, loadSave} from '../src/save.js';
+
 
 // All objects and initial stock come from the deterministic public world. The
 // positive-stock branch below is explicitly synthetic and is not a growth test.
@@ -69,33 +69,7 @@ test('a bare fruiting plant reports zero visible stock without revealing nutriti
   assert.equal(reopened.discovery.observations[plant.id].count,0);
 });
 
-test('a genuine depletion stays gated through old-save restoration, testimony and manual checks',()=>{
-  const {n,e,plant}=depleted(),key=`${plant.id}|pull`,failedAt=n.discovery.trials[key].lastAt;
-  const technique=n.discovery.techniques.find(t=>t.sourceId===plant.id),proof=structuredClone(technique.evidence);
-  advance(n,e,61);hungry(n);observeNpc(n,e);
-  for(let i=0;i<8;i++)assert.equal(sourcePull(discoveryDecision(n),plant.id),false,'time alone cannot reopen');
-  const note=recordDiscoveryClaim(n,{objectId:plant.id,effect:'sustained'},
-    {sourceId:'mira',channel:'note',messageId:'note:depleted'});
-  assert.equal(note?.status,'unverified');assert.deepEqual(note?.proposed,[]);
-  const advice=recordDiscoveryReport(n,`pull ${plant.id}`,{sourceId:'human',messageId:'message:depleted'});
-  assert.deepEqual(advice?.proposed,[{type:'pull',targetId:plant.id}]);
-  for(let i=0;i<8;i++)assert.equal(sourcePull(discoveryDecision(n),plant.id),false,'words cannot become sight');
-  assert.equal(finish(n,e,{type:'pull',targetId:plant.id}).code,'nothing_detached',
-    'manual bodily action remains possible');
-  assert.deepEqual(technique.evidence,proof);assert.ok(n.discovery.trials[key].lastAt>failedAt);
 
-  const raw=JSON.parse(JSON.stringify(n));delete raw.discovery.trials[key].lastOk;
-  const restored=validateNpc(raw);
-  assert.equal(restored.discovery.trials[key].lastOk,false,'matching action receipt recovers old trial metadata');
-  assert.equal(sourcePull(discoveryDecision(restored),plant.id),false);
-  const world=freshState({connectedEcology:false});world.environment=e;world.agents[0]=n;world.npc=n;world.elapsed=n.elapsed;
-  const disk=storage();assert.equal(writeSave(disk,world),true,'isolated save writes');
-  const loaded=loadSave(disk);assert.equal(loaded.blocked,false,loaded.error);
-  assert.equal(loaded.state.agents[0].discovery.observations[plant.id].count,0);
-  assert.equal(sourcePull(discoveryDecision(loaded.state.agents[0]),plant.id),false);
-  assert.ok(loaded.state.agents[0].discovery.techniques.some(t=>t.sourceId===plant.id),
-    'learned place and effect remain retained');
-});
 
 test('same-tick and forged sightings cannot reopen; a later direct positive sighting can',()=>{
   const {n,e,plant}=depleted(),key=`${plant.id}|pull`,failure=n.discovery.trials[key].lastAt;
@@ -209,4 +183,25 @@ test('bounded headless controller avoids 120 seconds of depleted retries, then s
   observeNpc(afterFailure,branchWorld);
   assert.equal(afterFailure.discovery.observations[plant.id].count,1);
   assert.deepEqual(discoveryDecision(afterFailure).action,{type:'pull',targetId:plant.id});
+});
+
+test('a genuine depletion stays gated through actor normalization, testimony and manual checks',()=>{
+  const {n,e,plant}=depleted(),key=`${plant.id}|pull`,failedAt=n.discovery.trials[key].lastAt;
+  const technique=n.discovery.techniques.find(t=>t.sourceId===plant.id),proof=structuredClone(technique.evidence);
+  advance(n,e,61);hungry(n);observeNpc(n,e);
+  for(let i=0;i<8;i++)assert.equal(sourcePull(discoveryDecision(n),plant.id),false,'time alone cannot reopen');
+  const note=recordDiscoveryClaim(n,{objectId:plant.id,effect:'sustained'},
+    {sourceId:'mira',channel:'note',messageId:'note:depleted'});
+  assert.equal(note?.status,'unverified');assert.deepEqual(note?.proposed,[]);
+  const advice=recordDiscoveryReport(n,`pull ${plant.id}`,{sourceId:'human',messageId:'message:depleted'});
+  assert.deepEqual(advice?.proposed,[{type:'pull',targetId:plant.id}]);
+  for(let i=0;i<8;i++)assert.equal(sourcePull(discoveryDecision(n),plant.id),false,'words cannot become sight');
+  assert.equal(finish(n,e,{type:'pull',targetId:plant.id}).code,'nothing_detached',
+    'manual bodily action remains possible');
+  assert.deepEqual(technique.evidence,proof);assert.ok(n.discovery.trials[key].lastAt>failedAt);
+
+  const restored=validateNpc(structuredClone(n));
+  assert.equal(restored.discovery.observations[plant.id].count,0);
+  assert.equal(sourcePull(discoveryDecision(restored),plant.id),false);
+  assert.ok(restored.discovery.techniques.some(t=>t.sourceId===plant.id));
 });

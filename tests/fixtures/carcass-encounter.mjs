@@ -71,7 +71,7 @@ export function createCarcassEncounterFixture() {
   return { state, geometry, actor, fixture, blocked: false };
 }
 
-/** Disclosed synthetic v9 persistence input, deliberately NOT the encounter.
+/** Disclosed synthetic current persistence input, deliberately NOT the encounter.
  * Keep actors at ordinary spawns, relocate one existing rabbit to a valid local
  * point, and set its health to 7. Stocks and the energy ledger are unchanged.
  * During this tiny fixture preparation only, environment/body time advances
@@ -128,7 +128,7 @@ export function createCarcassDiskFixture(stage) {
     assert.ok(actor.active?.worked > 0 && actor.active.worked < actor.active.seconds);
     activeBeforeWrite = structuredClone(actor.active);
   }
-  // Native validation must accept the unmodified v9 geometry/reach/proof gate.
+  // Native validation must accept the current geometry/reach/proof gate.
   const values = new Map(), storage = { getItem: key => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value) };
   const written = writeOzarkSave(storage, state, geometry);

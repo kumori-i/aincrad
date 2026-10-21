@@ -1,3 +1,7 @@
+# Historical separate-world design
+
+This describes the retired v9 separate-world implementation. It is retained as geography/design history, not current launch or save instructions. The current application launches one structural Ozark world directly; see ../../README.md and ../SINGLE-WORLD-CLEANUP.md. The former native script was replaced by current direct-boot, aquatic and carcass native checks.
+
 # Separate Ozark world
 
 The approved 96 × 72 Ozark landform is now a fresh, playable world. Its

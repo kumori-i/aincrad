@@ -1,6 +1,7 @@
 import { CONFIG } from './config.js';
 import { BIOLOGY_PROFILES, gameHours } from './biology-config.js';
 import { ECOLOGY_MATERIALS, ECOLOGY_RULES } from './ecology-config.js';
+import { aquaticEnabled, aquaticEnergy, aquaticStockAudit, fishStock, isAquaticMaterial } from './aquatic-state.js';
 
 // Private engine instrumentation. Never include these measurements in an
 // inhabitant observation or use a journal claim as physical evidence.
@@ -10,7 +11,9 @@ const sum = (items, get) => items.reduce((total, item) => total + n(get(item)), 
 const mean = (items, get) => items.length ? sum(items, get) / items.length : 0;
 const clamp = (value, lo=0, hi=1) => Math.max(lo, Math.min(hi, n(value)));
 const physiologyEnergy = body => positive(body?.availableEnergyKcal) + positive(body?.storedEnergyKcal) + sum(body?.stomach || [], item => positive(item.remainingKcal));
-const plantEnergy = plant => plant.kind === 'grass' ? positive(plant.biomassGrams) * ECOLOGY_RULES.grassKcalPerGram : positive(plant.quantity) * (ECOLOGY_MATERIALS[plant.kind === 'apple_tree' ? 'apple' : 'berry']?.energyKcal || 0);
+const plantEnergy = plant => plant.kind === 'grass' ? positive(plant.biomassGrams) * ECOLOGY_RULES.grassKcalPerGram :
+  plant.kind === 'apple_tree' ? positive(plant.quantity) * ECOLOGY_MATERIALS.apple.energyKcal :
+  plant.kind === 'bramble' ? positive(plant.quantity) * ECOLOGY_MATERIALS.berry.energyKcal : 0;
 const moving = actor => actor.active?.request?.type === 'move' || ['moving','fleeing','chasing'].includes(actor.activity);
 const actorWaterFraction = actor => positive(actor.physiology?.waterDeficitMl) / Math.max(1, (BIOLOGY_PROFILES[actor.physiology?.profile]?.massKg || 70) * 1000);
 const blockedOutcomes = actor => (actor.memory?.experience || []).filter(event => ['ROUTE_BLOCKED','ACTION_TIMEOUT'].includes(event.details?.result?.code)).length;
@@ -33,9 +36,13 @@ export function measureCardinalWorld(state) {
   const humans = (state?.agents || []).filter(actor => actor?.physiology), ecology = state?.environment?.ecology;
   const animals = ecology?.animals || [], plants = ecology?.plants || [], materials = ecology?.materials || [];
   const ledger = Object.fromEntries(['initialKcal','photosynthesisKcal','humanRemovedKcal','metabolizedKcal','decomposedKcal','discardedKcal','birthTransferredKcal','externalKcal','waterConsumedMl','animalAbsorbedKcal','animalAbsorbedWaterMl','animalWaterLostMl'].map(key => [key, n(ecology?.ledger?.[key])]));
+  const fish = aquaticEnabled(ecology) ? ecology.aquatic.fish : [];
+  const aquaticLedger = ecology?.aquatic?.ledger || {};
+  const fishMaterials = materials.filter(isAquaticMaterial);
+  const liveFishKcal = aquaticEnergy(ecology);
   const resourceEnergy = sum(plants, plantEnergy) + sum(materials, item => positive(item.energyKcal));
   const biomassGrams=sum(plants,item=>positive(item.biomassGrams)),biomassCapacityGrams=sum(plants.filter(item=>item.kind==='grass'),item=>positive(item.capacity));
-  const remainingKcal = resourceEnergy + sum(plants, plant=>positive(plant.structureKcal)) + sum(animals, actor => positive(actor.structureKcal) + physiologyEnergy(actor.physiology)) + positive(ecology?.detritus?.energyKcal);
+  const remainingKcal = resourceEnergy + sum(plants, plant=>positive(plant.structureKcal)) + sum(animals, actor => positive(actor.structureKcal) + physiologyEnergy(actor.physiology)) + positive(ecology?.detritus?.energyKcal) + liveFishKcal;
   const species = {};
   for (const animal of animals) species[animal.species] = (species[animal.species] || 0) + 1;
   const skills = humans.map(grounded);
@@ -61,8 +68,28 @@ export function measureCardinalWorld(state) {
       routeStalls: sum(animals, actor => positive(actor.navigation?.stalls ?? actor.routeStalls)),
       // Ecosystem flow counters survive an animal's death or birth. Summing only
       // currently living bodies would lose their already spent/absorbed energy.
-      absorbedKcal: ledger.animalAbsorbedKcal, spentKcal: ledger.metabolizedKcal,
+      absorbedKcal: ledger.animalAbsorbedKcal, spentKcal: ledger.metabolizedKcal - n(aquaticLedger.metabolizedKcal),
       absorbedWaterMl: ledger.animalAbsorbedWaterMl, waterLostMl: ledger.animalWaterLostMl,
+    },
+    aquatic: {
+      enabled: aquaticEnabled(ecology), liveCount: fish.length,
+      initialCount: n(ecology?.aquatic?.initialCount),
+      liveMassGrams: sum(fish, item => fishStock(item).massGrams),
+      liveKcal: liveFishKcal, liveWaterMl: sum(fish, item => fishStock(item).waterMl),
+      specimenCount: fishMaterials.filter(item => item.kind === 'fish_specimen').length,
+      tissueCount: fishMaterials.filter(item => item.materialType === 'fish_tissue').length,
+      materialMassGrams: sum(fishMaterials, item => item.massGrams),
+      materialKcal: sum(fishMaterials, item => item.energyKcal),
+      materialWaterMl: sum(fishMaterials, item => item.waterMl),
+      residueMassGrams: sum(fishMaterials.filter(item => item.kind === 'fish_specimen'),
+        item => item.massGrams - item.fishTissue.massGrams),
+      ...Object.fromEntries(['captureAttempts','captureMisses','captureFailures','captures',
+        'naturalDeaths','pulls','ingestions','humanIngestedMassGrams','humanIngestedKcal',
+        'humanIngestedWaterMl','metabolizedKcal','respirationMassGrams','releasedWaterMl',
+        'detritusTransferredMassGrams','detritusTransferredKcal','detritusTransferredWaterMl',
+        'overflowLostMassGrams','overflowLostKcal','overflowLostWaterMl',
+        'decayTransfers','cleanupTransfers'].map(key => [key, n(aquaticLedger[key])])),
+      ...aquaticStockAudit(ecology),
     },
     resources: {biomassGrams, fruitUnits: sum(plants, item => positive(item.quantity)), availableKcal: resourceEnergy, plantCount: plants.length,
       meanMoisture: mean(plants,item=>n(item.moisture)),biomassCapacityGrams,biomassFraction:biomassCapacityGrams?biomassGrams/biomassCapacityGrams:0},
@@ -74,7 +101,7 @@ export function measureCardinalWorld(state) {
 /** Interval totals retain endpoints so reserve drawdown cannot masquerade as food. */
 export function compareCardinalMetrics(before, after) {
   const seconds = Math.max(0, n(after?.at) - n(before?.at)), hours = gameHours(seconds);
-  const interval = group => Object.fromEntries(Object.keys(after[group]).filter(key => typeof after[group][key] === 'number').map(key => [key, n(after[group][key]) - n(before[group]?.[key])]));
+  const interval = group => Object.fromEntries(Object.keys(after[group] || {}).filter(key => typeof after[group][key] === 'number').map(key => [key, n(after[group][key]) - n(before[group]?.[key])]));
   const humans = interval('humans'), animals = interval('animals');
   return {
     seconds, gameHours: hours, before, after,
@@ -85,7 +112,7 @@ export function compareCardinalMetrics(before, after) {
       independentAbsorbedKcal: Math.max(0, humans.absorbedKcal), independentWaterMl: Math.max(0, humans.absorbedWaterMl)},
     animals: {...animals, nutritionRatio: animals.spentKcal > 0 ? Math.max(0, animals.absorbedKcal) / animals.spentKcal : 0,
       waterCoverageRatio: animals.waterLostMl > 0 ? Math.max(0, animals.absorbedWaterMl) / animals.waterLostMl : 0},
-    resources: interval('resources'), ecology: {photosynthesisKcal: n(after.ecology.ledger.photosynthesisKcal) - n(before.ecology.ledger.photosynthesisKcal),
+    aquatic: interval('aquatic'), resources: interval('resources'), ecology: {photosynthesisKcal: n(after.ecology.ledger.photosynthesisKcal) - n(before.ecology.ledger.photosynthesisKcal),
       externalKcal: n(after.ecology.ledger.externalKcal) - n(before.ecology.ledger.externalKcal), balanceErrorKcal: after.ecology.balanceErrorKcal,
       births: after.ecology.births - before.ecology.births, deaths: after.ecology.deaths - before.ecology.deaths},
   };

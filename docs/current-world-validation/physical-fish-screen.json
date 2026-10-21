@@ -1,0 +1,594 @@
+{
+  "protocol": "One 120-second native warm-up, one sequential attempt per initial fish ID, actual moving ecology and paid handling, explicit per-attempt bank exposure; not autonomous policy.",
+  "attempts": [
+    {
+      "id": "object:689",
+      "at": 119.99999999999447,
+      "result": {
+        "eventId": 4,
+        "at": 123.99999999999424,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -10047.223970685343,
+        "y": -5834.88518826292
+      },
+      "position": {
+        "x": -9982.241073029432,
+        "y": -5808.157493707147
+      }
+    },
+    {
+      "id": "object:690",
+      "at": 123.99999999999424,
+      "result": {
+        "eventId": 6,
+        "at": 127.99999999999402,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -9852.6748418588,
+        "y": -5640.379659366684
+      },
+      "position": {
+        "x": -9772.721966290228,
+        "y": -5600.1349846936855
+      }
+    },
+    {
+      "id": "object:691",
+      "at": 127.99999999999402,
+      "result": {
+        "eventId": 7,
+        "at": 131.9999999999972,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -9849.638486105565,
+        "y": -5637.448032006125
+      },
+      "position": {
+        "x": -9749.97967715643,
+        "y": -5592.822673416116
+      }
+    },
+    {
+      "id": "object:692",
+      "at": 131.9999999999972,
+      "result": {
+        "eventId": 9,
+        "at": 136.00000000000037,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -9637.350088905529,
+        "y": -5425.065115849301
+      },
+      "position": {
+        "x": -9585.396807171752,
+        "y": -5422.426767606572
+      }
+    },
+    {
+      "id": "object:693",
+      "at": 136.00000000000037,
+      "result": {
+        "eventId": 11,
+        "at": 140.00000000000355,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -474.0745439824547,
+        "y": 3150.125119404746
+      },
+      "position": {
+        "x": -453.8164395792659,
+        "y": 3127.9616135755477
+      }
+    },
+    {
+      "id": "object:694",
+      "at": 140.00000000000355,
+      "result": {
+        "eventId": 13,
+        "at": 144.00000000000674,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -315.3837358486207,
+        "y": 3150.3743601348287
+      },
+      "position": {
+        "x": -256.5089884315575,
+        "y": 3111.4953246921214
+      }
+    },
+    {
+      "id": "object:695",
+      "at": 144.00000000000674,
+      "result": {
+        "eventId": 15,
+        "at": 148.00000000000992,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -52.49741544907812,
+        "y": 3064.758325102849
+      },
+      "position": {
+        "x": -21.938307155300578,
+        "y": 2991.1352876843953
+      }
+    },
+    {
+      "id": "object:696",
+      "at": 148.00000000000992,
+      "result": {
+        "eventId": 16,
+        "at": 152.0000000000131,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -126.38910015368,
+        "y": 3131.0149443802616
+      },
+      "position": {
+        "x": -88.47305120234037,
+        "y": 3053.7949993237225
+      }
+    },
+    {
+      "id": "object:697",
+      "at": 152.0000000000131,
+      "result": {
+        "eventId": 18,
+        "at": 156.00000000001629,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -2909.478327237963,
+        "y": -1919.7249107447158
+      },
+      "position": {
+        "x": -2886.706325440928,
+        "y": -1871.3223728597839
+      }
+    },
+    {
+      "id": "object:698",
+      "at": 156.00000000001629,
+      "result": {
+        "eventId": 20,
+        "at": 160.00000000001947,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -2674.7572501605655,
+        "y": -1687.3170145722797
+      },
+      "position": {
+        "x": -2675.8808366460316,
+        "y": -1653.082887518225
+      }
+    },
+    {
+      "id": "object:699",
+      "at": 160.00000000001947,
+      "result": {
+        "eventId": 21,
+        "at": 164.00000000002265,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -2805.704262731911,
+        "y": -1817.9451327647653
+      },
+      "position": {
+        "x": -2781.763734940868,
+        "y": -1763.538914828732
+      }
+    },
+    {
+      "id": "object:700",
+      "at": 164.00000000002265,
+      "result": {
+        "eventId": 22,
+        "at": 168.00000000002584,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -2672.3581914833226,
+        "y": -1684.8003327882075
+      },
+      "position": {
+        "x": -2624.842862243642,
+        "y": -1585.2809868251359
+      }
+    },
+    {
+      "id": "object:701",
+      "at": 168.00000000002584,
+      "result": {
+        "eventId": 24,
+        "at": 172.00000000002902,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": 1472.1304281366426,
+        "y": 1540.021705270404
+      },
+      "position": {
+        "x": 1482.7030267443336,
+        "y": 1476.4276381114846
+      }
+    },
+    {
+      "id": "object:702",
+      "at": 172.00000000002902,
+      "result": {
+        "eventId": 26,
+        "at": 176.0000000000322,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": 1297.9940993549917,
+        "y": 1714.2090150489055
+      },
+      "position": {
+        "x": 1329.0104123269048,
+        "y": 1655.3658016084319
+      }
+    },
+    {
+      "id": "object:703",
+      "at": 176.0000000000322,
+      "result": {
+        "eventId": 27,
+        "at": 180.00000000003539,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": 1422.662461004169,
+        "y": 1589.9211965682418
+      },
+      "position": {
+        "x": 1433.5923178343025,
+        "y": 1524.1300957898954
+      }
+    },
+    {
+      "id": "object:704",
+      "at": 180.00000000003539,
+      "result": {
+        "eventId": 29,
+        "at": 184.00000000003857,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": 1508.340968643304,
+        "y": 1504.8408827735166
+      },
+      "position": {
+        "x": 1513.1809189452968,
+        "y": 1446.741610031833
+      }
+    },
+    {
+      "id": "object:705",
+      "at": 184.00000000003857,
+      "result": {
+        "eventId": 31,
+        "at": 188.00000000004175,
+        "ok": false,
+        "code": "fish_missed",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -1786.4651800207232,
+        "y": 3973.873800660321
+      },
+      "position": {
+        "x": -1722.8146926256434,
+        "y": 3950.452489404107
+      }
+    },
+    {
+      "id": "object:706",
+      "at": 188.00000000004175,
+      "result": {
+        "eventId": 33,
+        "at": 192.00000000004493,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -1382.9208378531682,
+        "y": 3569.9551921302323
+      },
+      "position": {
+        "x": -1300.723197718825,
+        "y": 3543.582592098657
+      }
+    },
+    {
+      "id": "object:707",
+      "at": 192.00000000004493,
+      "result": {
+        "eventId": 35,
+        "at": 196.00000000004812,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -1704.9814834346398,
+        "y": 3892.7534492592213
+      },
+      "position": {
+        "x": -1625.709946481726,
+        "y": 3844.6430458601003
+      }
+    },
+    {
+      "id": "object:708",
+      "at": 196.00000000004812,
+      "result": {
+        "eventId": 36,
+        "at": 200.0000000000513,
+        "ok": false,
+        "code": "OUT_OF_REACH",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": -1374.078270082252,
+        "y": 3561.5329885199826
+      },
+      "position": {
+        "x": -1294.222275783135,
+        "y": 3519.4134626606883
+      }
+    },
+    {
+      "id": "object:709",
+      "at": 200.0000000000513,
+      "result": {
+        "eventId": 38,
+        "at": 204.00000000005448,
+        "ok": true,
+        "code": "object_caught",
+        "materialId": "object:709",
+        "durationSeconds": 3.9999999999999907,
+        "handling": {
+          "source": "experienced",
+          "activeActionSeconds": 3.9999999999999907,
+          "effort": "rising"
+        },
+        "riskCost": 0,
+        "startScene": "valley",
+        "scene": "valley",
+        "action": "catch"
+      },
+      "bank": {
+        "x": 18986.733902714986,
+        "y": 409.95313420224716
+      },
+      "position": {
+        "x": 18994.986190968488,
+        "y": 386.4062172808312
+      }
+    }
+  ]
+}

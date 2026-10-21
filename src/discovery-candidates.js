@@ -1,4 +1,5 @@
 import { matchingResultObject } from './discovery-result-object.js';
+import { validCaptureExperiment } from './discovery-state.js';
 import { bodySignals } from './interoception.js';
 
 // Diagnostic only. The single pull/drain slot belongs to a controller, never an
@@ -10,7 +11,7 @@ export const DISCOVERY_CANDIDATE_LIMITS = Object.freeze({
   stomach: 24, rowsPerCandidate: 16,
 });
 const L = DISCOVERY_CANDIDATE_LIMITS;
-const primitives = new Set(['inspect_object', 'grasp', 'release', 'pull', 'sample', 'strike']);
+const primitives = new Set(['inspect_object', 'grasp', 'release', 'pull', 'sample', 'strike', 'catch']);
 const effectKinds = new Set(['sustained', 'water relief', 'discomfort', 'no noticeable change']);
 const shortString = (value, max = 80) => typeof value === 'string' && value.length <= max;
 const knownPrimitive = value => shortString(value, 32) && primitives.has(value);
@@ -63,7 +64,7 @@ function matchesExperiment(e, receipt, now) {
   const action = receipt?.details?.action, result = receipt?.details?.result;
   return matchingResultObject(e,receipt) && id(e?.id) && id(e.actionId) && time(e.at) && e.at <= now &&
     knownPrimitive(e.primitive) && objectId(e.targetId) && typeof e.ok === 'boolean' &&
-    receipt?.type === 'action' && receipt.at === e.at && knownPrimitive(action?.type) && action.type === e.primitive &&
+    validCaptureExperiment(e,receipt) && receipt?.type === 'action' && receipt.at === e.at && knownPrimitive(action?.type) && action.type === e.primitive &&
     objectId(action.targetId) && action.targetId === e.targetId && result?.ok === e.ok &&
     shortString(result.code, 60) && shortString(e.code, 60) && result.code === e.code &&
     (!result.materialId || objectId(result.materialId)) && (!e.materialId || objectId(e.materialId)) &&
@@ -124,7 +125,7 @@ function continuity(acquisition, sample, receipts) {
     if (!receipt || !time(receipt.at) || receipt.at < acquisition.at || receipt.at > sample.at) return false;
     const action = receipt.type === 'action' ? receipt.details?.action : null;
     if (action && (([sample.targetId, acquisition.targetId].includes(action.targetId) &&
-        ['release', 'grasp', 'strike'].includes(action.type)) || receipt.details?.result?.materialId === sample.targetId)) return false;
+        ['release', 'grasp', 'strike', 'catch'].includes(action.type)) || receipt.details?.result?.materialId === sample.targetId)) return false;
   }
   return true;
 }

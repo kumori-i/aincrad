@@ -13,7 +13,7 @@ import { validateNpc, recordEvent } from '../src/npc-memory.js';
 import { lookupEcologyObject } from '../src/ecology.js';
 import { canStand, freshState } from '../src/world.js';
 import { lineOfSight } from '../src/perception.js';
-import { writeSave, loadSave } from '../src/save.js';
+
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
 import { createOzarkState, writeOzarkSave, loadOzarkSave } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
@@ -76,14 +76,15 @@ function withoutHandling(n) {
 
 // Reconstruct exact main 3ed43543530c149ec404212aab0d1ef3165648c8 bytes by
 // removing only this patch's additions. Hashes make unrelated edits fail closed;
-// no .git directory, new frozen archive or hand-written baseline is required.
+// The exact pre-aquatic source is frozen in test fixtures; hashes below still
+// pin the earlier main bytes after removing the historical handling delta.
 // The NPC baseline imports the baseline discovery helper, not today's helper.
 const hashes = {
   'discovery-actions.js': '0e210b3ac40f7d5fa0411d94e03aa272d74c229cd8a1d23bc7304205ea5415cc',
   'npc.js': '66f22afe48331bc902d89a1989a6fbfe9bb8eab4d5a4785b88f546e5481bcf73',
 };
 function baselineModule(name, replacements = {}) {
-  let source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
+  let source = readFileSync(new URL(`./fixtures/pre-aquatic-${name}`, import.meta.url), 'utf8');
   if (name === 'discovery-actions.js') source = source
     // Remove only the later H1 completion-capacity/result-identity additions.
     .replace(/^const actionActors = new WeakMap\(\);\nexport function retireDiscoveryAction\(npc,active\)\{[\s\S]*?^\}\n/m, '')
@@ -298,16 +299,7 @@ test('current and old JSON actor saves roundtrip without backfilling work from d
   }
 });
 
-test('full save reload interrupts active work without reconstructing a runtime witness', () => {
-  const f = fixture(), active = start(f); tickNpc(f.n, .25, f.e);
-  let stored; const storage = { getItem: () => stored, setItem: (key, value) => { stored = value; } };
-  const state = freshState({ connectedEcology: false }); state.environment = f.e; state.elapsed = f.n.elapsed; state.agents[0] = state.npc = f.n;
-  assert.equal(writeSave(storage, state), true); const loaded = loadSave(storage); assert.equal(loaded.blocked, false);
-  const restored = loaded.state.npc, restart = restored.memory.experience.find(e => e.details.result?.code === 'RESTART_INTERRUPTED');
-  assert.ok(restart); assert.equal(restart.details.result.handling, undefined); assert.equal(restored.active, null);
-  assert.equal(takeDiscoveryActionFeedback(restored, active), null);
-  restored.active = clone(active); cancelNpcAction(restored); assert.equal(restored.lastResult.handling, undefined);
-});
+
 
 test('collector uses original matched handling, copies only the allowlist and leaves policy/body untouched', () => {
   const n = withContractHandling(), before = clone(n);
@@ -496,4 +488,12 @@ test('detached original work and ordinary rest/wait actions never inherit handli
     assert.equal(requestNpcAction(f.n, { type, seconds: .25 }, f.e).code, 'STARTED');
     tickNpc(f.n, .25, f.e); assert.equal(f.n.active, null); assert.equal(f.n.lastResult.handling, undefined);
   }
+});
+
+test('actor normalization interrupts active work without reconstructing a runtime witness', () => {
+  const f = fixture(), active = start(f); tickNpc(f.n, .25, f.e);
+  const restored = validateNpc(clone(f.n)), restart = restored.memory.experience.find(e => e.details.result?.code === 'RESTART_INTERRUPTED');
+  assert.ok(restart); assert.equal(restart.details.result.handling, undefined); assert.equal(restored.active, null);
+  assert.equal(takeDiscoveryActionFeedback(restored, active), null);
+  restored.active = clone(active); cancelNpcAction(restored); assert.equal(restored.lastResult.handling, undefined);
 });

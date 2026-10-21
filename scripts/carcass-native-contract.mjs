@@ -36,48 +36,27 @@ export async function archiveNativeProfile(profile, destination) {
   return { regularFilesAndDirectoriesOnly: true, skipped };
 }
 
-export function installEmptySlots(storage, { oldKey, key, oldSentinel, inputRaw }) {
-  if (storage.getItem(oldKey) !== null)
-    throw new Error('Disposable original slot unexpectedly occupied');
-  if (storage.getItem(key) !== null)
-    throw new Error('Disposable Ozark slot unexpectedly occupied');
-  storage.setItem(oldKey, oldSentinel);
+export function installEmptyCurrentSlot(storage, { key, inputRaw }) {
+  if (key !== 'aincrad.world.v1') throw new Error('Only the current world slot is supported');
+  if (storage.getItem(key) !== null) throw new Error('Disposable current world slot unexpectedly occupied');
   storage.setItem(key, inputRaw);
-  if (storage.getItem(oldKey) !== oldSentinel || storage.getItem(key) !== inputRaw)
-    throw new Error('Disposable fixture slots did not read back exactly');
+  if (storage.getItem(key) !== inputRaw) throw new Error('Disposable current fixture did not read back exactly');
   return storage.getItem(key);
 }
 
-export async function ordinaryRouteSnapshot(window, document) {
-  const element = id => document.getElementById(id);
-  return {
-    url: window.location.href,
-    playHook: Boolean(window.__aincrad),
-    worldBridge: typeof window.aincradWorld?.open === 'function',
-    profile: await window.aincradProfile?.status(),
-    recoveryVisible: Boolean(element('recovery-panel') &&
-      !element('recovery-panel').classList.contains('hidden')),
-    recoveryTitle: element('recovery-title')?.textContent,
-    recoveryDiagnosis: element('recovery-diagnosis')?.textContent,
-    beginDisabled: element('begin')?.disabled,
-    recoveryOzarkVisible: Boolean(element('recovery-ozark') &&
-      !element('recovery-ozark').classList.contains('hidden')),
-  };
+export function currentRouteSnapshot(window, document) {
+  return { url:window.location.href, hook:Boolean(window.__ozarkWorld),
+    retiredWorldBridge:typeof window.aincradWorld !== 'undefined',
+    retiredProfileBridge:typeof window.aincradProfile !== 'undefined',
+    chooserPresent:Boolean(document.getElementById('welcome')),
+    snapshot:window.__ozarkWorld?.snapshot() };
 }
-
-export function assertOrdinaryRoute(snapshot, phase) {
-  if (!['write', 'read'].includes(phase)) throw new Error('Unknown native phase');
-  if (snapshot.url !== 'aincrad://app/index.html?test=1' || !snapshot.worldBridge ||
-      snapshot.profile?.kind !== 'original' || snapshot.profile.phase !== 'none' ||
-      snapshot.profile.available !== false ||
-      typeof snapshot.profile.recoveredCopySupported !== 'boolean')
-    throw new Error('Native original profile/route was not ready');
-  if (phase === 'write') {
-    if (!snapshot.playHook || snapshot.recoveryVisible || snapshot.beginDisabled)
-      throw new Error('An empty disposable original profile did not initialize normally');
-  } else if (snapshot.playHook || !snapshot.recoveryVisible || !snapshot.beginDisabled ||
-      snapshot.recoveryTitle !== 'Your original world needs recovery.' ||
-      !snapshot.recoveryDiagnosis || !snapshot.recoveryOzarkVisible) {
-    throw new Error('The occupied invalid original slot was not protected by recovery');
-  }
+export function assertCurrentRoute(result) {
+  if(result.url !== 'aincrad://app/index.html?test=1' || !result.hook ||
+    result.retiredWorldBridge || result.retiredProfileBridge || result.chooserPresent ||
+    result.snapshot?.blocked !== false || result.snapshot.started !== false ||
+    result.snapshot.version !== 11 || result.snapshot.features?.plantLifecycle !== 1 ||
+    result.snapshot.features?.finiteAquatic !== 1 || result.snapshot.features?.worldStructures !== 1 ||
+    Object.keys(result.snapshot.features).length !== 3)
+    throw new Error('The sole current-world test runtime was not ready');
 }
