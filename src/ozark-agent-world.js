@@ -4,6 +4,7 @@
 import { OZARK_WORLD_PROFILE } from './ozark-world-geometry.js';
 import { CONFIG, ENV_RULES } from './config.js';
 import { ozarkWorldMode, ozarkGeometryMatchesMode } from './ozark-world-features.js';
+import { aquaticEnabled } from './aquatic-state.js';
 import { environmentConditions } from './environment.js';
 
 const worlds = new WeakMap();
@@ -43,7 +44,7 @@ export function bindOzarkWorldAgent(npc, geometry, state) {
   // position, nutritional value, or recipe to the actor.
   const mode = ozarkWorldMode(state);
   if (mode?.finiteAquatic && ozarkGeometryMatchesMode(geometry, mode) &&
-      state.environment?.ecology?.aquatic?.version === 1) finiteAquaticWorlds.add(npc);
+      aquaticEnabled(state.environment?.ecology)) finiteAquaticWorlds.add(npc);
   else finiteAquaticWorlds.delete(npc);
   return npc;
 }

@@ -1,0 +1,356 @@
+{
+  "date": "2026-10-21",
+  "sourceCommit": "6f6c611",
+  "probe": "tests/fixtures/renewable-aquatic-geometry-probe.mjs",
+  "scope": "CPU aquatic engine using actual Ozark geometry; not Electron, autonomous policy, whole-ecology progression or desktop persistence evidence",
+  "bodyHours": 120,
+  "stepSeconds": 0.5,
+  "checkpoints": [
+    {
+      "hours": 10,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 1.8025048120762222e-10,
+        "energyErrorKcal": 3.6686742532765493e-10,
+        "waterErrorMl": 8.967049325292464e-11
+      }
+    },
+    {
+      "hours": 20,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 5.376250555855222e-10,
+        "energyErrorKcal": 1.0788880899781361e-9,
+        "waterErrorMl": 2.688125277927611e-10
+      }
+    },
+    {
+      "hours": 30,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 5.858282747794874e-10,
+        "energyErrorKcal": 1.1743850336642936e-9,
+        "waterErrorMl": 2.929141373897437e-10
+      }
+    },
+    {
+      "hours": 40,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 6.141362973721698e-10,
+        "energyErrorKcal": 1.2300915841478854e-9,
+        "waterErrorMl": 3.0615865398431197e-10
+      }
+    },
+    {
+      "hours": 50,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 6.455138645833358e-10,
+        "energyErrorKcal": 1.2928467185702175e-9,
+        "waterErrorMl": 3.21847437589895e-10
+      }
+    },
+    {
+      "hours": 60,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 6.534719432238489e-10,
+        "energyErrorKcal": 1.304215402342379e-9,
+        "waterErrorMl": 3.26281224261038e-10
+      }
+    },
+    {
+      "hours": 70,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 3.9167389331851155e-9,
+        "energyErrorKcal": 7.82983988756314e-9,
+        "waterErrorMl": 1.956550477189012e-9
+      }
+    },
+    {
+      "hours": 80,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 32
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 0,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 9.374161891173571e-9,
+        "energyErrorKcal": 1.8748323782347143e-8,
+        "waterErrorMl": 4.686626198235899e-9
+      }
+    },
+    {
+      "hours": 90,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 4
+      },
+      "births": {
+        "surface": 0,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 28,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 1.0995790944434702e-8,
+        "energyErrorKcal": 2.1991581888869405e-8,
+        "waterErrorMl": 5.497895472217351e-9
+      }
+    },
+    {
+      "hours": 100,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 8
+      },
+      "births": {
+        "surface": 4,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 28,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 1.2053078535245731e-8,
+        "energyErrorKcal": 2.4031578504946083e-8,
+        "waterErrorMl": 6.008349373587407e-9
+      }
+    },
+    {
+      "hours": 110,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 8
+      },
+      "births": {
+        "surface": 4,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 28,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 1.348735167994164e-8,
+        "energyErrorKcal": 2.685374056454748e-8,
+        "waterErrorMl": 6.707750799250789e-9
+      }
+    },
+    {
+      "hours": 120,
+      "initial": {
+        "surface": 32
+      },
+      "current": {
+        "surface": 8
+      },
+      "births": {
+        "surface": 4,
+        "pond": 0
+      },
+      "captures": 0,
+      "deaths": 28,
+      "error": null,
+      "audit": {
+        "massErrorGrams": 1.4898887457093224e-8,
+        "energyErrorKcal": 2.9653165256604552e-8,
+        "waterErrorMl": 7.407152224914171e-9
+      }
+    }
+  ],
+  "endpointFish": [
+    {
+      "id": "object:705",
+      "position": {
+        "x": -3822.596117796299,
+        "y": 5273.760602053612
+      },
+      "ageHours": 119.99999999992335,
+      "fedKcal": 102.3616666666297,
+      "tissueMassGrams": 76.14189655174944,
+      "nearestFoodDistancePixels": 243.44020370148343
+    },
+    {
+      "id": "object:706",
+      "position": {
+        "x": -3845.031392801202,
+        "y": 5279.605400449465
+      },
+      "ageHours": 119.99999999992335,
+      "fedKcal": 95.30833333329545,
+      "tissueMassGrams": 74.8996850574938,
+      "nearestFoodDistancePixels": 223.01599432338284
+    },
+    {
+      "id": "object:707",
+      "position": {
+        "x": -3834.8637480782277,
+        "y": 5276.099403684327
+      },
+      "ageHours": 119.99999999992335,
+      "fedKcal": 82.83999999996031,
+      "tissueMassGrams": 72.75696091955811,
+      "nearestFoodDistancePixels": 232.79278250592998
+    },
+    {
+      "id": "object:708",
+      "position": {
+        "x": -3823.0698219592327,
+        "y": 5271.32834791579
+      },
+      "ageHours": 119.99999999992335,
+      "fedKcal": 98.20499999996258,
+      "tissueMassGrams": 75.44695402301186,
+      "nearestFoodDistancePixels": 244.70731067399413
+    },
+    {
+      "id": "object:721",
+      "position": {
+        "x": -3830.7846019571457,
+        "y": 5274.076878874602
+      },
+      "ageHours": 23.99666666666879,
+      "fedKcal": 58.23999999999763,
+      "tissueMassGrams": 24.63901839080379,
+      "nearestFoodDistancePixels": 237.15688114530712
+    },
+    {
+      "id": "object:722",
+      "position": {
+        "x": -3818.5202989064765,
+        "y": 5272.097001639929
+      },
+      "ageHours": 23.99666666666879,
+      "fedKcal": 45.25333333333239,
+      "tissueMassGrams": 22.44827586206845,
+      "nearestFoodDistancePixels": 247.59880611371233
+    },
+    {
+      "id": "object:723",
+      "position": {
+        "x": -3828.1175151820644,
+        "y": 5273.2812156335995
+      },
+      "ageHours": 23.99666666666879,
+      "fedKcal": 63.226666666663746,
+      "tissueMassGrams": 25.52270114942435,
+      "nearestFoodDistancePixels": 239.65800258547674
+    },
+    {
+      "id": "object:724",
+      "position": {
+        "x": -3815.672768273604,
+        "y": 5271.375069772365
+      },
+      "ageHours": 23.99666666666879,
+      "fedKcal": 44.346666666665826,
+      "tissueMassGrams": 22.29816091953972,
+      "nearestFoodDistancePixels": 250.22069407151014
+    }
+  ],
+  "limitations": [
+    "Sparse food patches do not offset downstream drift for28 of32 original surface-water fish.",
+    "No harvest was attempted. No mapwide stable fishery or autonomous fishing success is established."
+  ]
+}

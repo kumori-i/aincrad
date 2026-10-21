@@ -10,7 +10,7 @@ import { recordEvent, rememberObservation, policyContext, learnOutcome, recovery
 import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
 import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology, projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback, retireDiscoveryAction } from './discovery-actions.js';
+import { requestSharedDiscoveryGrasp, requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback, retireDiscoveryAction } from './discovery-actions.js';
 import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 const allowedActions=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
@@ -67,6 +67,9 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
 function wetOzarkBody(npc,dt,waterSeconds){
   const wet=Math.max(0,Math.min(dt,waterSeconds));
   npc.thermal.wetness=clamp(npc.thermal.wetness+wet*18-(dt-wet)*2,0,100);
+}
+export function requestNpcSharedGrasp(npc,donor,targetId,environment,consent){
+  return requestSharedDiscoveryGrasp(npc,donor,targetId,environment,consent,{complete});
 }
 export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){
   const active=npc.active;if(!active)return false;

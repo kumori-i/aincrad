@@ -37,7 +37,7 @@ export async function archiveNativeProfile(profile, destination) {
 }
 
 export function installEmptyCurrentSlot(storage, { key, inputRaw }) {
-  if (key !== 'aincrad.world.v1') throw new Error('Only the current world slot is supported');
+  if (key !== 'aincrad.world.v2') throw new Error('Only the current world slot is supported');
   if (storage.getItem(key) !== null) throw new Error('Disposable current world slot unexpectedly occupied');
   storage.setItem(key, inputRaw);
   if (storage.getItem(key) !== inputRaw) throw new Error('Disposable current fixture did not read back exactly');
@@ -55,8 +55,8 @@ export function assertCurrentRoute(result) {
   if(result.url !== 'aincrad://app/index.html?test=1' || !result.hook ||
     result.retiredWorldBridge || result.retiredProfileBridge || result.chooserPresent ||
     result.snapshot?.blocked !== false || result.snapshot.started !== false ||
-    result.snapshot.version !== 11 || result.snapshot.features?.plantLifecycle !== 1 ||
-    result.snapshot.features?.finiteAquatic !== 1 || result.snapshot.features?.worldStructures !== 1 ||
+    result.snapshot.version !== 12 || result.snapshot.features?.plantLifecycle !== 1 ||
+    result.snapshot.features?.finiteAquatic !== 2 || result.snapshot.features?.worldStructures !== 1 ||
     Object.keys(result.snapshot.features).length !== 3)
     throw new Error('The sole current-world test runtime was not ready');
 }

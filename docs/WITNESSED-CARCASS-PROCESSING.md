@@ -53,7 +53,7 @@ heavy to grasp and cannot be sampled directly.
 
 ## Current integration
 
-The single supported Ozark world now includes this H1 capability, finite shore fishing and structural biome terrain in schema v11. It launches directly and uses `aincrad.world.v1`; retired save formats are not migrated. Current corrupt bytes remain protected. Short autonomous adoption is diagnostic, not a capability-release gate. Physics, exact proof, conservation within the stated model, current saves and sandboxed native persistence remain required.
+The single supported Ozark world now includes this H1 capability, finite shore fishing and structural biome terrain in current schema v12. It launches directly and uses `aincrad.world.v2`; retired save formats are not migrated. Current corrupt bytes remain protected. Short autonomous adoption is diagnostic, not a capability-release gate. Physics, exact proof, conservation within the stated model, current saves and sandboxed native persistence remain required.
 
 ## Historical H1 preservation boundary
 

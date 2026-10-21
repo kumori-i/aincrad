@@ -6,9 +6,9 @@ Aincrad is a standalone local-first Electron simulation, independent of agentic-
 
 Develop **one world based on the Ozark watershed**, launching directly without a world chooser. The owner explicitly authorized removal of original-world runtime code, old-save compatibility, obsolete UI/tests/docs and other exclusive files. Keep deletions reviewable in Git; do not force-push or destroy repository history. There is no requirement to migrate old saves or preserve an old-world execution mode. Protect valid/corrupt current-format data and do not silently reset a current save.
 
-The current increment adds detailed original pixel-art terrain and biome-appropriate physical trees/rocks, practical hunting/fishing primitives, and attributed peer teaching. Actual tree crowns determine canopy; shared solar time determines illumination and shadows. Keep visual decorations distinct from finite edible stocks and physical obstacles. No desert biome should be invented solely to satisfy an example.
+The current increment extends the detailed single-world terrain, practical hunting/fishing primitives and attributed peer teaching with bounded aquatic production, feeding, growth, parent-funded reproduction and voluntary physical food handoffs. Actual tree crowns determine canopy; shared solar time determines illumination and shadows. Keep visual decorations distinct from finite edible stocks and physical obstacles. No desert biome should be invented solely to satisfy an example.
 
-The owner explicitly does not require short autonomous learning trials to succeed before releasing usable physical capabilities. Retain those failures as diagnostic evidence, not falsely green assertions. Reliable living, social generalization, renewed aquatic harvest and automatic pursuit are not implied by the ability to execute actions.
+The owner explicitly does not require short autonomous learning trials to succeed before releasing usable physical capabilities. Retain those failures as diagnostic evidence, not falsely green assertions. Reliable living, social generalization, indefinitely sustainable aquatic harvest and automatic pursuit are not implied by the ability to execute actions. Aquatic renewal has explicit finite inputs/caps; ordinary river current can carry fish beyond sparse feeding patches. Sharing uses starter social choices, not a claim of learned humanlike cooperation.
 
 ## Authority and boundaries
 
@@ -18,6 +18,7 @@ The owner explicitly does not require short autonomous learning trials to succee
 - New agents have local sensory observations and qualitative body signals, not species/diet/food tables. Engine diagnostics remain private.
 - Teaching and human hints are attributed reports enabling paid attempts, not firsthand proof. Derive communicated procedures from actual sender evidence; never copy sender experience into recipient meal/effect/practice records. Only personal outcomes can verify or contradict a claim.
 - Physical actions obey ownership, stock, capacity, reach, line of sight and real time/effort. Failures cannot fabricate or silently discard resources. Target identity changes must be truthful.
+- The sole current save is schema 12 in aincrad.world.v2. The previous single-world v1 slot is not read, migrated or deleted.
 - Save only bounded allowlisted data. Corrupt current saves fail closed; loaded data and conversation are never executable code.
 - Keep offline, CPU-capable development for a 32 GB RAM laptop. No paid/cloud runtime, analytics, signup, extra human characters or agent OS/shell/filesystem privileges.
 - Keep the Electron renderer sandboxed, isolated from Node, with strict navigation, asset and IPC boundaries. Never weaken sandbox/security to obtain a test pass.

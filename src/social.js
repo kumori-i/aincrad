@@ -1,3 +1,4 @@
+import { FoodSharing, FOOD_SHARING_ACTIONS } from './food-sharing.js';
 import { CAVES, CONFIG, SOCIAL_RULES } from './config.js';
 import { actorLineOfSight } from './perception.js';
 import { recordClaim } from './cognition.js';
@@ -179,7 +180,10 @@ function matchingClaims(npc, text) {
 export class SocialCoordinator {
   constructor({getAgents, getCommunity, getEnvironment}) {
     this.getAgents = getAgents; this.getCommunity = getCommunity; this.getEnvironment = getEnvironment;
+    this.foodSharing = new FoodSharing(this);
   }
+
+  dispose(){this.foodSharing.dispose();}
 
   agents() {
     const agents = this.getAgents?.();
@@ -280,7 +284,7 @@ export class SocialCoordinator {
     const notes = awake?community.notes.filter(note => note.scene === npc.scene && distance(note.position, npc.position) <= SOCIAL_RULES.noteRange && actorLineOfSight(npc,npc.position,note.position)).map(note => ({id: note.id, authorId: note.authorId, title: note.title, scene: note.scene, position: {...note.position}, read: note.readers.includes(npc.id)})):[];
     return {
       peers: awake?this.nearby(npc).map(peer => ({id: peer.id, name: peer.name, scene: peer.scene, position: {...peer.position}, appearance: appearance(peer), relationship: {familiarity: (memory.relationships[peer.id]?.familiarity ?? 0) > .5 ? 'familiar' : memory.relationships[peer.id] ? 'acquainted' : 'unfamiliar'}})):[],
-      journal, nearbyMessages: memory.heard.filter(message => message.channel === 'peer').slice(-6), notes,
+      foodSharing: this.foodSharing.observe(npc), journal, nearbyMessages: memory.heard.filter(message => message.channel === 'peer').slice(-6), notes,
       pendingHumanTurn: journal.filter(message => message.senderId === 'human' && !memory.repliedTo.includes(message.id)).slice(-1)[0] ?? null,
       pendingQuestion: awake&&community.questions[npc.id]?.status === 'pending' ? {...community.questions[npc.id], instruction: 'A human reply is optional. Continue your own activities and care for your body.'} : null,
       journalAvailability: 'The human may read or reply later, or may not answer. Sending a question does not require waiting.',
@@ -291,6 +295,7 @@ export class SocialCoordinator {
     if (!AGENT_IDS.has(npc?.id) || !this.agents().includes(npc)) return {ok: false, code: 'UNKNOWN_SPEAKER'};
     if (!aliveAndAwake(npc)) return {ok: false, code: 'SPEAKER_UNAVAILABLE'};
     if (!action || typeof action !== 'object') return {ok: false, code: 'INVALID_SOCIAL_ACTION'};
+    if (FOOD_SHARING_ACTIONS.includes(action.type)) return this.foodSharing.action(npc,action);
     if (action.type === 'say') return this.say(npc, action);
     if (action.type === 'ask_human') return this.ask(npc, action);
     if (action.type === 'journal_reply') return this.journalReply(npc, action);
@@ -491,7 +496,7 @@ export class SocialCoordinator {
 
   /** Evidence-derived offline language. The optional model can use the same validated actions. */
   maybeDialogue(npc) {
-    if(npc.mode==='discovery')return this.discoveryDialogue(npc);
+    if(npc.mode==='discovery')return this.foodSharing.choose(npc)||this.discoveryDialogue(npc);
     if (!aliveAndAwake(npc) || npc.hydration < 45 || npc.nourishment < 45 || npc.health < 70 || Math.max(npc.thermal?.hot ?? 0, npc.thermal?.cold ?? 0) > 40) return null;
     const at = nowFor(npc, this.getEnvironment?.()), memory = this.ensure(npc), observation = this.observe(npc);
     if (observation.pendingHumanTurn && (memory.lastJournalAt === null || at - memory.lastJournalAt >= SOCIAL_RULES.speechCooldown)) {

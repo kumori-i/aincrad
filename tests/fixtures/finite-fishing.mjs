@@ -28,3 +28,35 @@ export function fishingFixture({index=0,lineOfSightGate=null}={}){
   const action=(type,id=fish.id)=>{observeNpc(actor,state.environment);const before={elapsed:actor.elapsed,metabolizedKcal:actor.physiology.totals.metabolizedKcal,position:{...fish.position}},admission=requestNpcAction(actor,{type,targetId:id},state.environment);if(admission.ok)for(let i=0;i<1000&&actor.active;i++)tick(CONFIG.fixedStep);return{admission,result:actor.lastResult,before,after:{elapsed:actor.elapsed,metabolizedKcal:actor.physiology.totals.metabolizedKcal,position:{...fish.position}}};};
   return {geometry,state,e,actor,fish,bank,tick,action};
 }
+
+let screenedMovingEncounter=null;
+/** Bounded paid screening, shared with the desktop verifier's exposure rule:
+ * warm120 seconds, then offer each initial moving identity once at a real dry
+ * bank. Only a genuinely completed paid catch selects a positive test window.
+ * Replay returns BEFORE that catch, so each consumer must prove its own result.
+ * This controlled encounter selection is not autonomous travel/interception. */
+export function movingFishingFixture(){
+  if(!screenedMovingEncounter){
+    const scout=fishingFixture();scout.tick(120);
+    const initialIds=[...scout.e.aquatic.initialIds],attempts=[];
+    for(const [index,id] of initialIds.entries()){
+      const fish=scout.e.aquatic.fish.find(f=>f.id===id);if(!fish)continue;
+      const bank=bankFor(scout.geometry,fish.position);if(!bank)continue;
+      scout.actor.position={...bank};scout.state.player={...bank};
+      const seconds=scout.state.elapsed,before={...fish.position};
+      const row=scout.action('catch',id);
+      attempts.push({id,seconds,admitted:row.admission.ok,ok:row.result?.ok===true,code:row.result?.code});
+      if(row.admission.ok&&row.result?.ok&&row.result.materialId===id&&distance(before,fish.position)>0){
+        screenedMovingEncounter={index,seconds,id,attempts};break;
+      }
+    }
+    if(!screenedMovingEncounter)throw new Error(`No paid moving-target success in bounded initial-ID screen: ${JSON.stringify(attempts)}`);
+  }
+  const selected=screenedMovingEncounter,fixture=fishingFixture({index:selected.index});
+  fixture.tick(selected.seconds);
+  const bank=bankFor(fixture.geometry,fixture.fish.position);
+  if(!bank)throw new Error('Screened moving encounter no longer has a valid dry bank');
+  fixture.bank={...bank};fixture.actor.position={...bank};fixture.state.player={...bank};
+  fixture.encounter=structuredClone(selected);
+  return fixture;
+}

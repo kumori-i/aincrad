@@ -9,7 +9,7 @@ Both exports are self-contained and can be serialized with `toString()`.
 2. Evaluate the serialized `createPeerTeachingUiFixture` function with
    `document.baseURI` as its argument. The returned `{saveKey, raw, summary}`
    uses the actual current schema and strict save validator. Assert the key is
-   `aincrad.world.v1`, version is 11, and the isolated slot is still empty.
+   `aincrad.world.v2`, version is 12, and the isolated slot is still empty.
 3. Store `raw` under `saveKey` in that profile, flush storage through the
    existing native harness, and reload the same `?test=1` route. Wait for the
    current hook again. This is a fixture install, not an ordinary save write.

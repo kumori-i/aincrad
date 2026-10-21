@@ -3,6 +3,7 @@
 import { ART_PIXEL, drawAvatar, drawNpc, drawEcologyObject, drawFieldNote } from './art.js';
 import { AtlasViewport, atlasActors } from './atlas.js';
 import { CONFIG } from './config.js';
+import { aquaticEnabled } from './aquatic-state.js';
 import { renderEcology } from './ecology.js';
 import { environmentHour } from './environment.js';
 import { landscapeGroundColor, landscapeWaterDistance, drawLandscapeSubstrate, drawLandscapeWater, drawStructuralObject, drawLandscapeShadows, drawLandscapeLight, drawAtlasStructures } from './ozark-landscape-art.js';
@@ -42,7 +43,7 @@ function objectsNear(state, bounds) {
 /** Private presentation projection for actual possessions, never remembered
  * objects. A live fish cannot appear in a hand; no inventory-only ghost draws. */
 export function heldAquaticSprites(state, actor) {
-  if (state?.environment?.ecology?.aquatic?.version !== 1 || !actor?.inventory?.items) return [];
+  if (!aquaticEnabled(state?.environment?.ecology) || !actor?.inventory?.items) return [];
   const held = new Set(actor.inventory.items);
   return (state.environment.ecology.materials || []).filter(item =>
     item.heldBy === actor.id && held.has(item.id) && item.scene === actor.scene &&

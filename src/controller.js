@@ -1,3 +1,4 @@
+import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
 import { CONFIG, NPC_RULES } from './config.js';
 import { distance, clamp } from './world.js';
 import { tilePoint, rememberedCells, rememberedEdges } from './perception.js';
@@ -168,7 +169,7 @@ export class NpcController {
   }
   perform(raw){
     const n=this.npc,action=cognitiveAction(n,raw);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
-    if(['say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
+    if([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
     return requestNpcAction(n,action,this.environment);
   }
   decideOffline({survivalOnly=false}={}){
@@ -219,6 +220,11 @@ export class NpcController {
     // Dialogue inference runs alongside bodily life; it cannot select an experiment.
     if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;const action=ready.decision?.action;if(ready.generation===this.generation&&ready.epoch===n.epoch&&['ask_human','journal_reply'].includes(action?.type))this.perform({...action,model:true});else recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});}
     if(n.active||n.elapsed<n.nextDecisionAt)return;
+    // A volunteered handover briefly keeps the donor's hands available. Body,
+    // contact and water safety still run; consent and this pause are not saved.
+    if(this.social?.foodSharing?.holding(n))return;
+    const exchange=this.social?.foodSharing?.choose(n);
+    if(exchange){this.perform({...exchange,offline:true});return;}
     if(n.elapsed-n.discovery.lastDialogueAt>=12){
       const dialogue=this.social?.maybeDialogue?.(n);
       if(dialogue){

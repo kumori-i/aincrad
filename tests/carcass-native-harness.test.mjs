@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
 import { canonicalApplicationRoot, captureNativeChild, archiveNativeProfile, installEmptyCurrentSlot, currentRouteSnapshot,
   assertCurrentRoute } from '../scripts/carcass-native-contract.mjs';
-const key='aincrad.world.v1';
+const key='aincrad.world.v2';
 const storage = entries => {
  const rows=new Map(entries),writes=[];
  return {rows,writes,getItem:key=>rows.has(key)?rows.get(key):null,
@@ -30,7 +30,7 @@ test('serialized current route contract rejects retired bridges, choosers and in
  const assertRoute=vm.runInNewContext('('+assertCurrentRoute.toString()+')');
  const valid={url:'aincrad://app/index.html?test=1',hook:true,retiredWorldBridge:false,
   retiredProfileBridge:false,chooserPresent:false,snapshot:{blocked:false,started:false,
-   version:11,features:{plantLifecycle:1,finiteAquatic:1,worldStructures:1}}};
+   version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1}}};
  assertRoute(valid);
  for(const patch of [{hook:false},{retiredWorldBridge:true},{retiredProfileBridge:true},
   {chooserPresent:true},{url:'aincrad://app/index.html?ozarkWorld=1'},

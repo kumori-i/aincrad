@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js';
 import { BIOLOGY_PROFILES, gameHours } from './biology-config.js';
 import { ECOLOGY_MATERIALS, ECOLOGY_RULES } from './ecology-config.js';
-import { aquaticEnabled, aquaticEnergy, aquaticStockAudit, fishStock, isAquaticMaterial } from './aquatic-state.js';
+import { aquaticEnabled, aquaticEnergy, aquaticFoodEnergy, aquaticStockAudit, fishStock, isAquaticMaterial } from './aquatic-state.js';
 
 // Private engine instrumentation. Never include these measurements in an
 // inhabitant observation or use a journal claim as physical evidence.
@@ -42,7 +42,7 @@ export function measureCardinalWorld(state) {
   const liveFishKcal = aquaticEnergy(ecology);
   const resourceEnergy = sum(plants, plantEnergy) + sum(materials, item => positive(item.energyKcal));
   const biomassGrams=sum(plants,item=>positive(item.biomassGrams)),biomassCapacityGrams=sum(plants.filter(item=>item.kind==='grass'),item=>positive(item.capacity));
-  const remainingKcal = resourceEnergy + sum(plants, plant=>positive(plant.structureKcal)) + sum(animals, actor => positive(actor.structureKcal) + physiologyEnergy(actor.physiology)) + positive(ecology?.detritus?.energyKcal) + liveFishKcal;
+  const remainingKcal = resourceEnergy + sum(plants, plant=>positive(plant.structureKcal)) + sum(animals, actor => positive(actor.structureKcal) + physiologyEnergy(actor.physiology)) + positive(ecology?.detritus?.energyKcal) + liveFishKcal + aquaticFoodEnergy(ecology);
   const species = {};
   for (const animal of animals) species[animal.species] = (species[animal.species] || 0) + 1;
   const skills = humans.map(grounded);
@@ -75,7 +75,7 @@ export function measureCardinalWorld(state) {
       enabled: aquaticEnabled(ecology), liveCount: fish.length,
       initialCount: n(ecology?.aquatic?.initialCount),
       liveMassGrams: sum(fish, item => fishStock(item).massGrams),
-      liveKcal: liveFishKcal, liveWaterMl: sum(fish, item => fishStock(item).waterMl),
+      liveKcal: liveFishKcal, producerKcal: aquaticFoodEnergy(ecology), liveWaterMl: sum(fish, item => fishStock(item).waterMl),
       specimenCount: fishMaterials.filter(item => item.kind === 'fish_specimen').length,
       tissueCount: fishMaterials.filter(item => item.materialType === 'fish_tissue').length,
       materialMassGrams: sum(fishMaterials, item => item.massGrams),
@@ -84,7 +84,7 @@ export function measureCardinalWorld(state) {
       residueMassGrams: sum(fishMaterials.filter(item => item.kind === 'fish_specimen'),
         item => item.massGrams - item.fishTissue.massGrams),
       ...Object.fromEntries(['captureAttempts','captureMisses','captureFailures','captures',
-        'naturalDeaths','pulls','ingestions','humanIngestedMassGrams','humanIngestedKcal',
+        'births','fedKcal','primaryProducedKcal','naturalDeaths','pulls','ingestions','humanIngestedMassGrams','humanIngestedKcal',
         'humanIngestedWaterMl','metabolizedKcal','respirationMassGrams','releasedWaterMl',
         'detritusTransferredMassGrams','detritusTransferredKcal','detritusTransferredWaterMl',
         'overflowLostMassGrams','overflowLostKcal','overflowLostWaterMl',

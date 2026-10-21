@@ -136,7 +136,7 @@ async function runSmoke(){
    document.getElementById('close-npc').click();assert(document.getElementById('npc-panel').classList.contains('hidden'),'Journal did not close');
    document.getElementById('help-button').click();assert(!document.getElementById('help-panel').classList.contains('hidden'),'Help did not open');document.getElementById('close-help').click();assert(document.getElementById('help-panel').classList.contains('hidden'),'Help did not close');
    assert(api.save()===true,'Current world save failed');
-   assert(Boolean(localStorage.getItem('aincrad.world.v1')),'Current save key absent');
+   assert(Boolean(localStorage.getItem('aincrad.world.v2')),'Current save key absent');
    assert(document.getElementById('fatal').classList.contains('hidden'),'Fatal renderer error');
    const {BUILD_SOURCE_FINGERPRINT}=await import('./src/build-info.js');
    return {singleWorld:true,world:'Ozark',emptyInitialFoodKnowledge:true,finiteFishing:true,sharedClock:true,escapePause:true,mapContinues:true,mapZoom:true,currentSave:true,journalAndHelp:true,sourceFingerprint:BUILD_SOURCE_FINGERPRINT};

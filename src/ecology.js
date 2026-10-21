@@ -10,7 +10,7 @@ import { buildHabitatCorridors, sampleCorridor } from './ecology-corridors.js';
 import { JUVENILE_RULES as J, seedTransfer, juvenileGrowth, juvenileLoss, juvenileStrikeLoss } from './plant-lifecycle.js';
 import { freshPlantLifecycle, freshMaterialLifecycle, freshLifecycleLedger, lifecycleError, hasLifecyclePayload, PLANT_FIELDS, MATERIAL_FIELDS, stockTolerance, lifecycleStockAudit, lifecycleRestorationError } from './plant-lifecycle-state.js';
 import { geometryForOzarkEcology } from './ozark-ecology.js';
-import { aquaticEnabled, aquaticEnergy, aquaticHabitat, aquaticRevision, captureAquaticFish, pullAquaticTissue, recordAquaticIngestion, recordAquaticDiscard } from './aquatic-ecology.js';
+import { aquaticEnabled, aquaticEnergy, aquaticFoodEnergy, aquaticHabitat, aquaticRevision, captureAquaticFish, pullAquaticTissue, recordAquaticIngestion, recordAquaticDiscard } from './aquatic-ecology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { hasAquaticPayload } from './aquatic-state.js';
 
@@ -259,14 +259,14 @@ function bodyEnergy(p){return Math.max(0,finite(p?.availableEnergyKcal))+Math.ma
 /** An engine audit, never an agent observation. Transfers are counted once. */
 export function ecologyEnergy(e) {
   return (e.plants||[]).reduce((n,p)=>n+plantEnergy(p),0)+(e.animals||[]).reduce((n,a)=>n+a.structureKcal+bodyEnergy(a.physiology),0)+
-    (e.materials||[]).reduce((n,m)=>n+m.energyKcal,0)+finite(e.detritus?.energyKcal)+aquaticEnergy(e);
+    (e.materials||[]).reduce((n,m)=>n+m.energyKcal,0)+finite(e.detritus?.energyKcal)+aquaticEnergy(e)+aquaticFoodEnergy(e);
 }
 export function lookupEcologyObject(e,id) {
   if(!e || typeof id!=='string' || !idPattern.test(id))return null;
   return indexFor(e).ids.get(id)||null;
 }
 function appearance(o){
-  if(o.kind==='fish')return{shape:'small streamlined body with fins',color:'silver-grey',texture:'smooth scales',details:'fins flicking below the surface'};
+  if(o.kind==='fish')return{shape:o.tissue.massGrams<40?'tiny streamlined body with fins':'small streamlined body with fins',color:'silver-grey',texture:'smooth scales',details:'fins flicking below the surface'};
   if(o.kind==='fish_specimen')return{shape:o.fishTissue?.massGrams>0?'still scaled body':'bony frame with fins',color:'silver-grey and pale pink',texture:o.fishTissue?.massGrams>0?'scales and exposed soft tissue':'bones and scales',smell:o.spoiled?'sharp and unpleasant':'strong'};
   if(o.species){
     const s=o.species;
@@ -297,6 +297,7 @@ export function describeEcologyObject(e,id,{actorId}={}) {
 export function renderEcology(e,scene='valley') {
   if(!e)return[];
   return [...e.plants,...e.animals,...e.materials,...(e.aquatic?.fish||[])].filter(o=>o.scene===scene&&!o.heldBy).map(o=>({id:o.id,kind:o.species||o.kind,scene:o.scene,position:{...o.position},x:o.position.x,y:o.position.y,
+    fishSizeRatio:o.kind==='fish'?clamp(o.tissue.massGrams/80,0,1):undefined,
     stage:o.kind==='fish_specimen'&&!(o.fishTissue?.massGrams>0)?'bare':o.stage|| (o.spoiled?'spoiled':'fresh'),structureRatio:o.lifecycleStage==='juvenile'?clamp(o.structureMassGrams/J.maxMassGrams,0,1):undefined,materialType:o.materialType,quantity:o.kind==='fish_specimen'?(o.fishTissue?.massGrams>0?1:0):o.quantity??1,biomass:o.biomassGrams,biomassRatio:o.kind==='grass'?clamp(o.biomassGrams/o.capacity,0,1):undefined,
     moistureRatio:siteModel(e)&&['grass','apple_tree','bramble'].includes(o.kind)?clamp(o.moisture,0,1):undefined,
     facing:o.species||o.kind==='fish'?{x:Math.cos(o.direction),y:Math.sin(o.direction)}:undefined,
@@ -363,6 +364,25 @@ export function captureEcologyFish(e,id,options={}){
   const response=captureAquaticFish(e,id,options.actorId,options.position);
   if(response?.ok){options.inventory.push(id);invalidateIndex(e);}
   return response;
+}
+/** Whole-object handover. The action layer supplies voluntary, live consent.
+ * No stock, origin, tissue, or knowledge is created or copied here. */
+export function transferEcologyMaterial(e,id,donor,recipient){
+  const o=lookupEcologyObject(e,id),from=donor?.inventory?.items,to=recipient?.inventory?.items;
+  if(!donor||!recipient||donor===recipient||donor.id===recipient.id||
+      !['aster','mira'].includes(donor.id)||!['aster','mira'].includes(recipient.id)||
+      !Array.isArray(from)||!Array.isArray(to)||from===to||
+      !o||!['material','fish_specimen'].includes(o.kind)||o.heldBy!==donor.id||
+      from.filter(item=>item===id).length!==1||to.includes(id))return {ok:false,code:'TRANSFER_OWNERSHIP_CHANGED'};
+  if(to.length>=DISCOVERY_RULES.capacity)return {ok:false,code:'HANDS_FULL'};
+  if(donor.scene!==recipient.scene||distance(donor.position,recipient.position)>DISCOVERY_RULES.reach)
+    return {ok:false,code:'PEER_OUT_OF_REACH'};
+  // Prepare both lists before committing; no callback occurs inside this transaction.
+  const nextFrom=from.filter(item=>item!==id),nextTo=[...to,id];
+  donor.inventory.items=nextFrom;recipient.inventory.items=nextTo;
+  o.heldBy=recipient.id;o.position={...recipient.position};o.scene=recipient.scene;
+  invalidateIndex(e);
+  return {ok:true,code:'object_held',targetId:id,materialId:id};
 }
 /** Engine interaction. Reach and ownership are checked again at completion. */
 export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley',power=1,amount=.02,inventory}={}){

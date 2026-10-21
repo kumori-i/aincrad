@@ -1,3 +1,4 @@
+import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
 import { CONFIG, NPC_RULES, BODY_RULES, CAVES } from './config.js';
 import { distance, canStand } from './world.js';
 import { tileKey, rememberedCells, rememberedEdges } from './perception.js';
@@ -10,7 +11,7 @@ const text=(value,max=240)=>typeof value==='string'?value.replace(/[\u0000-\u000
 const number=(value,fallback=0,max=1e10)=>Number.isFinite(value)?Math.max(0,Math.min(max,value)):fallback;
 const point=value=>value&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Math.abs(value.x)<=24000&&Math.abs(value.y)<=24000?{x:value.x,y:value.y}:null;
 const PHYSICAL=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','inspect_object','grasp','release','pull','sample','strike','catch']);
-const SOCIAL=new Set(['say','ask_human','journal_reply','write_note','read_note']);
+const SOCIAL=new Set([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note']);
 
 /** Motives, claims and intentions are persistent data, never executable instructions. */
 export function createCognition(){return {version:1,nextId:1,bornAt:0,beliefs:[],predictions:[],drives:{},plan:null,history:[],travel:{samples:0,secondsPerUnit:1/CONFIG.walkSpeed},lastEventId:0,lastUpdateAt:-1,lastKnowledgeAt:0,lastPlanAt:-30,lastNoteAt:0,questions:[],knowledgeGained:0,home:null,search:{startedAt:null,returning:false},shelterState:{enteredAt:null,departureUntil:0,lastOutside:null}};}
@@ -76,6 +77,14 @@ export function cognitiveObservation(npc){const c=updateCognition(npc);return {d
 /** Validate against discovered data, never consult undiscovered world resources. */
 export function cognitiveAction(npc,raw,{restoring=false}={}){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||!PHYSICAL.has(raw.type)&&!SOCIAL.has(raw.type))return null;const out={type:raw.type};
+  if(FOOD_SHARING_ACTIONS.includes(raw.type)){
+    if(restoring||npc.mode!=='discovery')return null;
+    for(const key of ['targetId','objectId','offerId','requestId'])if(raw[key]!==undefined){
+      if(typeof raw[key]!=='string'||!/^([a-z]+(?:-[a-z]+)*:)?[a-z0-9]+$/.test(raw[key])||raw[key].length>80)return null;
+      out[key]=raw[key];
+    }
+    return out;
+  }
   if(npc.mode==='discovery'){
     if(raw.type==='catch'&&!ozarkFiniteAquaticAgent(npc))return null;
     if(['gather_food','eat'].includes(raw.type)||raw.foodId!==undefined)return null;

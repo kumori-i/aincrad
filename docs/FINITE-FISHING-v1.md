@@ -1,3 +1,5 @@
+> Historical finite-stock milestone (schema 11). The current single world uses schema 12 and `aincrad.world.v2`, with bounded feeding, growth and reproduction. The finite-stock trials below remain historical evidence, not a description of the current lifecycle. See [renewable ecology](RENEWABLE-AQUATIC-ECOLOGY.md).
+
 # Finite shore fishing v1
 
 This is one bounded ecological capability, not sustainable fishing or a survival result. The sole current Ozark world (schema v11) contains at most 32 individual, nonrenewing fish, biome structures and witnessed carcass handling together. No world choice or separate fishing mode exists. Retired save slots are not loaded or modified; an empty current slot starts this complete world.
