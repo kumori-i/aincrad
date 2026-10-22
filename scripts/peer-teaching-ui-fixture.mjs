@@ -74,6 +74,15 @@ export async function createPeerTeachingUiFixture(moduleBase) {
   if (report.status !== 'unverified' || report.cursor !== 0 || report.evidence.length ||
       receiver.discovery.experiments.length || receiver.discovery.techniques.length || receiver.discovery.effects.length)
     throw new Error('Receiver must remain naive; testimony is not own evidence');
+  const hintText=`If ${source.id} is not moving, strike it until it falls, then eat it`;
+  const human=social.postUserMessage(hintText,{to:receiver.id});
+  const humanReport=receiver.discovery.reports.find(row=>row.messageId===human.message?.id);
+  if(!human.ok||humanReport?.hint?.code!=='unsupported'||humanReport.proposed.length)
+    throw new Error('Unsupported whole hint must remain an inert attributed report');
+  const humanReply=social.discoveryDialogue(receiver);
+  if(!humanReply?.text.includes('No physical steps proposed'))throw new Error('Missing bounded hint explanation');
+  const receiverController=new NpcController(receiver,{environment,social});
+  try { receiverController.perform(humanReply); } finally { receiverController.dispose(); }
   state.selectedAgentId = receiver.id; state.player = { ...point };
   const rows = new Map(), storage = { getItem: key => rows.get(key) ?? null,
     setItem: (key, value) => rows.set(key, value) };
@@ -85,6 +94,7 @@ export async function createPeerTeachingUiFixture(moduleBase) {
     after: { at: sender.elapsed, metabolizedKcal: sender.physiology.totals.metabolizedKcal,
       sourceQuantity: source.quantity },
     message: structuredClone(delivered.message), report: structuredClone(report),
+    humanReport:structuredClone(humanReport), humanReply:humanReply.text,
     boundary: 'Explicit encounter fixture; ordinary paid actions and delayed feedback, not autonomous travel or survival.'
   } };
 }
@@ -98,7 +108,7 @@ export function presentPeerTeachingUi(stage, expected) {
     const element = document.querySelector(selector);
     require(element, `Missing UI element: ${selector}`); return element;
   };
-  require(stage === 'conversation' || stage === 'knowledge', 'Unknown teaching UI stage');
+  require(stage === 'conversation' || stage === 'knowledge' || stage === 'human-hint', 'Unknown teaching UI stage');
   require(window.__ozarkWorld, 'Use the isolated current ?test=1 route');
   const state = window.__ozarkWorld.fullSnapshot(), route = window.__ozarkWorld.snapshot();
   require(!route.blocked && !route.started, 'Inspect restored teaching before simulation starts');
@@ -125,10 +135,13 @@ export function presentPeerTeachingUi(stage, expected) {
     get('#npc-tab-character').click();
     get('#npc-discovery-details').open = true;
     const entry = [...document.querySelectorAll('#npc-object-knowledge .knowledge-entry')]
-      .find(node => node.querySelector('p')?.textContent === expected.report.text);
+      .find(node => node.querySelector('p')?.textContent === (stage==='human-hint'?expected.humanReport.text:expected.report.text));
     require(entry, 'Missing receiver teaching report');
     const provenance = entry.querySelector('.provenance')?.textContent || '';
-    for (const text of ['Taught by Aster', 'Pull → Sample', 'taught procedure; not yet tried',
+    if(stage==='human-hint'){
+      require(entry.textContent.includes('No physical steps proposed')&&entry.textContent.includes('restricted command grammar'),'Missing whole-hint rejection help');
+      require(receiver.discovery.reports.find(row=>row.id===expected.humanReport.id)?.proposed.length===0,'Rejected hint resumed physical steps');
+    }else for (const text of ['Taught by Aster', 'Pull → Sample', 'taught procedure; not yet tried',
       'Advice does not grant proficiency.']) require(provenance.includes(text), `Missing knowledge boundary: ${text}`);
     require(!get('#journal-character').classList.contains('hidden'), 'Character knowledge is hidden');
     evidence = entry;

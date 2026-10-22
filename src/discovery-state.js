@@ -1,3 +1,4 @@
+import { validHumanHint } from './human-hints.js';
 import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
 import { restorePeerTeaching } from './peer-teaching.js';
@@ -59,6 +60,14 @@ export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.
   const ids=new Set(d.experiments.map(e=>e.id));d.nextId=Math.max(d.nextId,1+Math.max(0,...ids));
   d.effects=(Array.isArray(raw.effects)?raw.effects:[]).slice(-DISCOVERY_RULES.maxEffects).filter(e=>objectId(e?.objectId)&&Number.isInteger(e.actionId)&&e.actionId>0&&typeof e.ingestionId==='string'&&/^ingestion:\d+$/.test(e.ingestionId)&&['sustained','water relief','discomfort','no noticeable change'].includes(e.effect)&&d.experiments.some(x=>x.primitive==='sample'&&x.ok&&x.targetId===e.objectId&&x.actionId===e.actionId&&x.ingestionId===e.ingestionId&&e.at>=x.at)&&(!npc||npc.physiology?.feedback?.some(f=>f.id===e.id&&f.ingestionId===e.ingestionId&&f.actionId===e.actionId&&f.effect===e.effect&&f.objectId===e.objectId&&f.provenance==='sampled'&&f.at===e.at)||npc.memory.experience.some(x=>x.id===e.proofEventId&&x.type==='condition'&&x.at>=e.at&&x.details.code==='DISCOVERY_EFFECT'&&x.details.feedback?.id===e.id&&x.details.feedback?.ingestionId===e.ingestionId&&x.details.feedback?.actionId===e.actionId&&x.details.feedback?.effect===e.effect&&x.details.feedback?.objectId===e.objectId&&x.details.feedback?.source==='experienced'&&x.details.feedback?.at===e.at))).map(e=>({id:text(e.id,80),at:num(e.at),objectId:e.objectId,actionId:num(e.actionId),ingestionId:text(e.ingestionId,80),effect:e.effect,hunger:e.hunger==='easing'?'easing':'unchanged',thirst:e.thirst==='easing'?'easing':'unchanged',energy:e.energy==='easing'?'easing':'unchanged',pain:['none','aching','hurting'].includes(e.pain)?e.pain:'none',source:'experienced',...(Number.isInteger(e.proofEventId)&&e.proofEventId>0?{proofEventId:e.proofEventId}:{})}));
   d.reports=(Array.isArray(raw.reports)?raw.reports:[]).slice(-DISCOVERY_RULES.maxReports).filter(r=>typeof r?.text==='string'&&['human','aster','mira'].includes(r.sourceId)).map(r=>({id:text(r.id,80),text:text(r.text,600),sourceId:r.sourceId,channel:text(r.channel,20),messageId:text(r.messageId,80),at:num(r.at),...(objectId(r.objectId)?{objectId:r.objectId}:{}),status:['unverified','supported','contradicted'].includes(r.status)?r.status:'unverified',proposed:(Array.isArray(r.proposed)?r.proposed:[]).slice(0,6).filter(p=>DISCOVERY_RULES.allPrimitives.includes(p?.type)&&objectId(p.targetId)&&d.observations[p.targetId]).map(p=>({type:p.type,targetId:p.targetId})),cursor:Math.floor(num(r.cursor,6)),evidence:(Array.isArray(r.evidence)?r.evidence:[]).filter(id=>ids.has(id)).slice(-12)}));
+  // Human commands are session-local requests, never persisted execution authority.
+  // Keep attributed words and real evidence, but never reparse/rearm old fragments.
+  for(const r of d.reports.filter(r=>r.sourceId==='human')){
+    const original=raw.reports.find(item=>item?.id===r.id);
+    const code=validHumanHint(original?.hint)?original.hint.code:'legacy';
+    r.hint={version:1,code:code==='accepted'?'restart':code};
+    r.proposed=[];r.cursor=0;
+  }
   for(const [key,value] of Object.entries(raw.trials||{}).slice(-768)){
     const [id,type]=key.split('|');if(!objectId(id)||!DISCOVERY_RULES.allPrimitives.includes(type)||!d.observations[id])continue;
     const tail=d.experiments.filter(e=>e.targetId===id&&e.primitive===type),latest=tail.at(-1);

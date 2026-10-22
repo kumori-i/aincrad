@@ -1,3 +1,4 @@
+import { humanHintHelp, looksLikeHumanHint } from './human-hints.js';
 import { FoodSharing, FOOD_SHARING_ACTIONS } from './food-sharing.js';
 import { CAVES, CONFIG, SOCIAL_RULES } from './config.js';
 import { actorLineOfSight } from './perception.js';
@@ -455,9 +456,9 @@ export class SocialCoordinator {
     if(observation.pendingHumanTurn&&(memory.lastJournalAt===null||at-memory.lastJournalAt>=SOCIAL_RULES.speechCooldown)){
       const turn=observation.pendingHumanTurn,query=turn.text.toLowerCase();
       let response;
-      if(/\b(kill|catch|strike|pull|sample)\b/.test(query)){
-        const advice=discovery.reports.find(report=>report.sourceId==='human'&&report.messageId===turn.id);
-        response=advice?.proposed.length?`I can attempt ${advice.proposed.map(step=>step.type).join(', then ')} on ${advice.proposed[0].targetId}. A strike or catch can fail; no outcome or food benefit is guaranteed.`:'I have kept your suggestion, but I cannot identify a specific observed target and supported operation from it. Name one object I have observed by its object ID or a unique visible description, and an operation to try.';
+      const advice=discovery.reports.find(report=>report.sourceId==='human'&&report.messageId===turn.id);
+      if(advice?.hint?.code==='accepted'||looksLikeHumanHint(turn.text)){
+        response=advice?.proposed.length?`I can attempt ${advice.proposed.map(step=>step.type).join(', then ')} on ${advice.proposed[0].targetId}. A strike or catch can fail; no outcome or food benefit is guaranteed.`:humanHintHelp(advice);
       }else if(/how.*(feel|doing)|are you (okay|ok|well)|hungry|thirsty|tired/.test(query))response=`I feel ${body.overall}. My body feels ${body.hunger}, ${body.thirst}, and ${body.fatigue}.`;
       else if(/what.*(find|found|discover|learn)|food|apple|hunt|forag|eat/.test(query))response=effects.length?`${describeEffect(effects.at(-1))} I am comparing repeated experiences; unfamiliar materials remain uncertain.`:'I have not established which unfamiliar materials sustain me. I can try small, physical interactions and compare what happens. Your suggestions would be reports for me to test.';
       else if(/where.*(going|go|headed)|what.*(plan|doing|next)|your goal/.test(query))response=npc.cognition?.plan?.status==='active'?`My intention is ${npc.cognition.plan.goal}. I will revise it if conditions or my body change.`:'I am investigating what I can reach and comparing the consequences. I have no confirmed food technique yet.';
