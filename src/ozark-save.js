@@ -1,3 +1,4 @@
+import { validLexicon } from './naming-state.js';
 import { validHumanHint } from './human-hints.js';
 import { validHandlingInquiries } from './handling-inquiry.js';
 import { cleanPeerTeaching, restorePeerTeaching } from './peer-teaching.js';
@@ -235,6 +236,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if(raw.lexicon!==undefined&&!validLexicon(raw.lexicon,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid individual names`);
   if((raw.discovery.handlingAdmissions!==undefined||raw.discovery.handlingQuestions!==undefined)&&!validHandlingInquiries(raw.discovery,raw))fail(`${id} has invalid own handling inquiries`);
   if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
   if(raw.discovery.inquiries!==undefined && (!validInquiries(raw.discovery.inquiries,raw.discovery,raw.elapsed,id)||!raw.discovery.inquiries.every(q=>[q.sourcePosition,q.actorPosition].every(point=>observationReachable(point,q.at,id,raw.position,raw.elapsed,geometry))))) fail(`${id} has invalid observational inquiries`);
@@ -242,6 +244,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   if(raw.discovery.reports.some(r=>r.hint!==undefined&&(r.sourceId!=='human'||!validHumanHint(r.hint))))fail(`${id} has invalid human hint metadata`);
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
+  if(raw.lexicon!==undefined&&!sameExact(raw.lexicon,canonical.lexicon))fail(`${id} would lose individual name evidence`);
   // New method reports are strict optional schema-12 data. Legacy exact-source
   // reports retain their previous compatibility contract.
   const transfers=rows=>rows.filter(r=>r?.teaching?.transfer!==undefined);
@@ -405,6 +408,18 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   }
   assertAquaticOwnership(environment.ecology, agents);
   if((raw.community.messages||[]).some(m=>!validTransferSpeech(m)))fail('invalid community method transfer');
+  // Lexical evidence is independent of rotating speech, but must still link to
+  // the non-evicting owner admission. This is consistency, not authentication.
+  for(const listener of agents)for(const heard of listener.lexicon?.heard||[]){
+    const speaker=agents.find(n=>n.id===heard.speakerId);
+    const own=speaker?.lexicon?.own.find(r=>r.token===heard.token&&r.objectId===heard.objectId);
+    const announced=own?.announcedTo.find(r=>r.peerId===listener.id);
+    if(!announced||!sameExact(announced.event,heard.grounding))fail('individual name has no matching local owner announcement');
+    if(heard.confirmation){
+      const checked=own.checkedWith.find(r=>r.peerId===listener.id);
+      if(!checked||!sameExact(checked.event,heard.confirmation.request))fail('individual reference has no matching owner request');
+    }
+  }
   const community = validateCommunity(raw.community);
   return {
     version: raw.version,

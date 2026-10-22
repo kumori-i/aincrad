@@ -1,3 +1,4 @@
+import { validLexicon } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -385,11 +386,16 @@ test('actual bounded receipt/experiment retirement retains valid handling withou
   }
 });
 
-test('short legal trajectories match the SHA-frozen prepatch engine except handling additions', () => {
+test('short legal trajectories match the SHA-frozen prepatch engine except additive handling and lexical evidence', () => {
   for (const seedFixture of [fixture, juvenileFixture]) {
     const f = seedFixture(), b = { n: clone(f.n), e: clone(f.e), plant: clone(f.plant) };
     const compare = () => {
-      assert.deepEqual(withoutHandling(f.n), b.n); assert.deepEqual(f.e, b.e);
+      const physical=withoutHandling(f.n);
+      // The historical engine predates independent individual-name memory.
+      // Exclude only that additive ledger, never action/body/policy RNG state.
+      if(f.n.lexicon!==undefined)assert.equal(validLexicon(f.n.lexicon,f.n),true);
+      delete physical.lexicon;
+      assert.deepEqual(physical, b.n); assert.deepEqual(f.e, b.e);
       assert.equal(f.n.rng, b.n.rng);
       const aDecision = clone(f.n), bDecision = clone(b.n);
       assert.deepEqual(discoveryDecision(aDecision), discoveryDecision(bDecision)); assert.equal(aDecision.rng, bDecision.rng);

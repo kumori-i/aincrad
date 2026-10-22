@@ -1,3 +1,4 @@
+import { NamingRuntime } from './naming-runtime.js';
 import { humanHintHelp, looksLikeHumanHint } from './human-hints.js';
 import { FoodSharing, FOOD_SHARING_ACTIONS } from './food-sharing.js';
 import { CAVES, CONFIG, SOCIAL_RULES } from './config.js';
@@ -182,9 +183,10 @@ export class SocialCoordinator {
   constructor({getAgents, getCommunity, getEnvironment}) {
     this.getAgents = getAgents; this.getCommunity = getCommunity; this.getEnvironment = getEnvironment;
     this.foodSharing = new FoodSharing(this);
+    this.naming = new NamingRuntime(this);
   }
 
-  dispose(){this.foodSharing.dispose();}
+  dispose(){this.foodSharing.dispose();this.naming.dispose();}
 
   agents() {
     const agents = this.getAgents?.();
@@ -237,6 +239,7 @@ export class SocialCoordinator {
   tick(dt) {
     if (!Number.isFinite(dt) || dt <= 0) return;
     const environment = this.getEnvironment?.();
+    this.naming.tick();
     for (const npc of this.agents()) {
       const social = this.ensure(npc), now = nowFor(npc, environment);
       const elapsed = social.lastUpdateAt === null ? Math.min(dt, now) : Math.max(0, now - social.lastUpdateAt);
