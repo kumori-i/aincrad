@@ -71,6 +71,22 @@ function validateInquiries(rows){
   }
   return rows;
 }
+function validateHandlingInquiries(rows){
+  const keys=['sourceId','priorSourceId','at','status','question','provenance'];
+  const objectId=v=>typeof v==='string'&&/^object:[1-9][0-9]{0,8}$/.test(v);
+  const question='Grasping did not acquire this. Pulling detached something from that similar-looking source. Could pulling work here?';
+  if(Object.getPrototypeOf(rows)!==Array.prototype||Reflect.ownKeys(rows).length!==rows.length+1||
+    Reflect.ownKeys(rows).some(k=>k!=='length'&&!(typeof k==='string'&&/^(0|[1-9][0-9]*)$/.test(k)&&Number(k)<rows.length&&Object.hasOwn(Object.getOwnPropertyDescriptor(rows,k),'value'))))throw new Error('Invalid handling inquiries.');
+  return rows.map(q=>{
+    if(!isObject(q)||![Object.prototype,null].includes(Object.getPrototypeOf(q))||Reflect.ownKeys(q).length!==keys.length||
+      keys.some(k=>{const d=Object.getOwnPropertyDescriptor(q,k);return !d||!d.enumerable||!Object.hasOwn(d,'value');})||
+      !objectId(q.sourceId)||!objectId(q.priorSourceId)||q.sourceId===q.priorSourceId||
+      !Number.isFinite(q.at)||q.at<0||q.at>1e10||
+      !['uncertain','attempting','detached','did-not-detach','unavailable','retired'].includes(q.status)||
+      q.question!==question||q.provenance!=='own handling outcomes')throw new Error('Invalid handling inquiry.');
+    return Object.fromEntries(keys.map(k=>[k,q[k]]));
+  });
+}
 // New cross-source metadata is inert, bounded sensory testimony. The model
 // bridge accepts no hidden classifier, target coordinates, program or extra verb.
 function validateTransferTeaching(teaching,{message=false,row=null}={}) {
@@ -111,7 +127,7 @@ function validateObservation(raw){
   const condition={scene:c.scene,lifecycle:c.lifecycle,position:{x:c.position.x,y:c.position.y},body:qualitative(c.body,discovery?DISCOVERY_BODY_SIGNALS:BODY_SIGNALS,'body'),senses:qualitative(c.senses,SENSES,'senses'),inventory:{...inventory}};
   const arrays=boundedArrays(raw,discovery?[['knownSources',12],['knownShelters',12],['knownTiles',140]]:[['knownSources',12],['knownFoods',12],['knownShelters',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12],['procedureCandidates',12]]);
   let discoveryData;
-  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports','inquiries'].includes(key)))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16],['inquiries',16]]);validateInquiries(discoveryData.inquiries);for(const report of discoveryData.reports)validateTransferTeaching(report?.teaching,{row:report});}
+  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports','inquiries','handlingInquiries'].includes(key))||Object.hasOwn(raw.discovery,'handlingInquiries')&&!Array.isArray(raw.discovery.handlingInquiries))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16],['inquiries',16],['handlingInquiries',16]]);validateInquiries(discoveryData.inquiries);discoveryData.handlingInquiries=validateHandlingInquiries(discoveryData.handlingInquiries);for(const report of discoveryData.reports)validateTransferTeaching(report?.teaching,{row:report});}
   for(const [name,contract] of [['innerLife',{drives:8,beliefs:16,predictions:12,questions:8}],['social',{peers:2,journal:12,nearbyMessages:6,notes:12}]]){
     if(raw[name]!==undefined&&!isObject(raw[name]))throw new Error('Invalid '+name+'.');
     for(const [key,limit] of Object.entries(contract))if(raw[name]?.[key]!==undefined&&(!Array.isArray(raw[name][key])||raw[name][key].length>limit))throw new Error('Invalid '+name+' '+key+'.');

@@ -13,6 +13,7 @@ import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile, current
 
 import { createPeerTeachingUiFixture, presentPeerTeachingUi } from './peer-teaching-ui-fixture.mjs';
 import { createMethodTransferUiFixture, completeMethodTransferUiFixture, presentMethodTransferUi } from './method-transfer-ui-fixture.mjs';
+import { createHandlingInquiryUiFixture, continueHandlingInquiryUiFixture, verifyInterruptedHandlingUiFixture, presentHandlingInquiryUi } from './handling-inquiry-ui-fixture.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const outputRoot = process.env.AINCRAD_AQUATIC_QA_OUTPUT ?
@@ -33,11 +34,15 @@ const temporary = await mkdtemp(join(tmpdir(), 'aq-'));
 const profile = join(temporary, 'profile');
 const socialProfile = join(temporary, 'social-profile');
 const methodProfile = join(temporary, 'method-profile');
-const context = { root, output, profile, socialProfile, methodProfile, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
+const handlingProfile = join(temporary, 'handling-profile');
+const handlingInterruptedProfile = join(temporary, 'handling-interrupted-profile');
+const context = { root, output, profile, socialProfile, methodProfile, handlingProfile, handlingInterruptedProfile, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
 try {
 await mkdir(profile, { recursive: true });
 await mkdir(socialProfile, { recursive: true });
 await mkdir(methodProfile, { recursive: true });
+await mkdir(handlingProfile, { recursive: true });
+await mkdir(handlingInterruptedProfile, { recursive: true });
 
 async function setupFixture() {
   const { createOzarkWorldGeometry } = await import('./src/ozark-world-geometry.js');
@@ -415,6 +420,87 @@ async function methodTestedReopenPhase(win) {
    ownProofNotInventedBySpeech:true,receiverPaidPhysicalActions:true,
    fixtureDisclosure:'Scripted encounter placement only. Teacher paid for a method and received own feedback; actual nearby speech transferred uncertain appearance cues. Recipient freshly observed a different local source after restart and paid for own pull/sample and delayed feedback. Not autonomous travel, invented action grammar, reliable survival or a measured learning advantage.'},null,2));
 }
+async function handlingWritePhase(win) {
+ await assertCurrentBoot(win);
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),null);
+ const fixture=await win.webContents.executeJavaScript('(' + ${JSON.stringify(createHandlingInquiryUiFixture.toString())} + ')(document.baseURI)');
+ assert.equal(fixture.saveKey,'aincrad.world.v2');assert.equal(fixture.summary.inquiry.status,'uncertain');
+ assert.notEqual(fixture.summary.sourceObjectId,fixture.summary.targetObjectId);
+ for(const attempt of [fixture.summary.priorPull,fixture.summary.failedGrasp]) {
+   assert.ok(attempt.after.elapsed>attempt.before.elapsed);
+   assert.ok(attempt.after.metabolizedKcal>attempt.before.metabolizedKcal);
+   assert.equal(attempt.result.handling.source,'experienced');
+ }
+ assert.equal(fixture.summary.failedGrasp.result.ok,false);
+ assert.equal(fixture.summary.sampleCount,0);
+ await win.webContents.executeJavaScript('(' + installEmptyCurrentSlot.toString() + ')(localStorage,' + JSON.stringify({key:fixture.saveKey,inputRaw:fixture.raw}) + ')');
+ await fs.writeFile(path.join(context.output,'handling-pending-checkpoint.json'),JSON.stringify(fixture,null,2));
+}
+async function handlingReopenPhase(win) {
+ await assertCurrentBoot(win);
+ const expected=JSON.parse(await fs.readFile(path.join(context.output,'handling-pending-checkpoint.json'),'utf8'));
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.raw);
+ const pending=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentHandlingInquiryUi.toString())} + ')("pending",' + JSON.stringify(expected.summary) + ')');
+ await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+ const pendingScreenshot=await capture(win,'handling-pending.png');
+ const completed=await win.webContents.executeJavaScript('(' + ${JSON.stringify(continueHandlingInquiryUiFixture.toString())} + ')(document.baseURI,localStorage,"complete")');
+ assert.equal(completed.summary.inquiry.status,'detached');
+ assert.ok(completed.summary.after.elapsed>completed.summary.before.elapsed);
+ assert.ok(completed.summary.after.metabolizedKcal>completed.summary.before.metabolizedKcal);
+ assert.equal(completed.summary.after.targetQuantity,completed.summary.before.targetQuantity-1);
+ assert.equal(completed.summary.after.held,completed.summary.before.held+1);
+ assert.equal(completed.summary.after.experimentCount,completed.summary.before.experimentCount+1);
+ assert.equal(completed.summary.sampleCount,0);assert.equal(completed.summary.ownEffects,0);assert.equal(completed.summary.ownTechniques,0);
+ await fs.writeFile(path.join(context.output,'handling-completed-checkpoint.json'),JSON.stringify({fixture:completed,pending,pendingScreenshot},null,2));
+}
+async function handlingCompletedReopenPhase(win) {
+ await assertCurrentBoot(win);
+ const expected=JSON.parse(await fs.readFile(path.join(context.output,'handling-completed-checkpoint.json'),'utf8'));
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.fixture.raw);
+ const completed=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentHandlingInquiryUi.toString())} + ')("completed",' + JSON.stringify(expected.fixture.summary) + ')');
+ await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+ const screenshot=await capture(win,'handling-completed.png');
+ await fs.writeFile(path.join(context.output,'handling-completed-result.json'),JSON.stringify({passed:true,
+   pending:expected.pending,completed,screenshots:[expected.pendingScreenshot,screenshot],summary:expected.fixture.summary,
+   threeIndependentElectronProcesses:true,exactDiskBytesAcrossClosedProcesses:true,noClosedTimeProgression:true,
+   ownPaidFailureAndPriorMotorSuccess:true,selectedPullPaid:true,noAutomaticSamplingOrFoodProof:true},null,2));
+}
+async function handlingInterruptedWritePhase(win) {
+ await assertCurrentBoot(win);
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),null);
+ const fixture=await win.webContents.executeJavaScript('(' + ${JSON.stringify(createHandlingInquiryUiFixture.toString())} + ')(document.baseURI)');
+ await win.webContents.executeJavaScript('(' + installEmptyCurrentSlot.toString() + ')(localStorage,' + JSON.stringify({key:fixture.saveKey,inputRaw:fixture.raw}) + ')');
+ const interrupted=await win.webContents.executeJavaScript('(' + ${JSON.stringify(continueHandlingInquiryUiFixture.toString())} + ')(document.baseURI,localStorage,"interrupt")');
+ assert.equal(interrupted.summary.inquiry.status,'attempting');assert.equal(interrupted.summary.interrupted,true);
+ assert.equal(interrupted.summary.after.elapsed,interrupted.summary.before.elapsed+.5);
+ assert.ok(interrupted.summary.after.metabolizedKcal>interrupted.summary.before.metabolizedKcal);
+ assert.equal(interrupted.summary.after.targetQuantity,interrupted.summary.before.targetQuantity);
+ assert.equal(interrupted.summary.after.held,interrupted.summary.before.held);
+ assert.equal(interrupted.summary.after.experimentCount,interrupted.summary.before.experimentCount);
+ await fs.writeFile(path.join(context.output,'handling-interrupted-checkpoint.json'),JSON.stringify(interrupted,null,2));
+}
+async function handlingInterruptedReopenPhase(win) {
+ await assertCurrentBoot(win);
+ const expected=JSON.parse(await fs.readFile(path.join(context.output,'handling-interrupted-checkpoint.json'),'utf8'));
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.raw);
+ const interrupted=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentHandlingInquiryUi.toString())} + ')("interrupted",' + JSON.stringify(expected.summary) + ')');
+ await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+ const screenshot=await capture(win,'handling-interrupted.png');
+ const verification=await win.webContents.executeJavaScript('(' + ${JSON.stringify(verifyInterruptedHandlingUiFixture.toString())} + ')(document.baseURI,localStorage)');
+ assert.equal(verification.noReplayAfterFreshObservation,true);assert.equal(verification.interruptedOnce,true);
+ assert.equal(verification.elapsed,expected.summary.elapsed);
+ assert.equal(verification.targetQuantity,expected.summary.after.targetQuantity);
+ assert.equal(verification.metabolizedKcal,expected.summary.after.metabolizedKcal);
+ assert.equal(verification.experimentCount,expected.summary.after.experimentCount);
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.raw,'Read-only verification cannot rewrite disk');
+ const completed=JSON.parse(await fs.readFile(path.join(context.output,'handling-completed-result.json'),'utf8'));
+ await fs.writeFile(path.join(context.output,'handling-result.json'),JSON.stringify({passed:true,
+   sourceFingerprint:context.sourceFingerprint,sourceIdentity:context.sourceIdentity,
+   completed,interrupted,verification,screenshots:[...completed.screenshots,screenshot],
+   separateInterruptedProfile:true,interruptedPaidPullCancelledOnce:true,noReplayAfterFreshObservation:true,
+   exactDiskBytesAcrossClosedProcesses:true,noClosedTimeProgression:true,noAutomaticSamplingOrFoodProof:true,
+   fixtureDisclosure:'Scripted encounter placement only. One actor paid for a successful pull and a failed grasp on a different freshly matching source. The ordinary controller selected one own pull, never a sample. Separate paid interruption retains the spent effort, cancels once on restart and cannot renew that handling inquiry. Not autonomous travel, learned action grammar, food or safety proof, reliable survival or a measured learning advantage.'},null,2));
+}
 app.on('browser-window-created',(_event,win)=>{
  win.webContents.on('console-message',(_event,...details)=>rendererEvents.push({kind:'console',details}));
  win.webContents.on('did-fail-load',(_event,errorCode,errorDescription,validatedURL)=>rendererEvents.push({kind:'load-failure',errorCode,errorDescription,validatedURL}));
@@ -430,7 +516,9 @@ app.on('browser-window-created',(_event,win)=>{
    await fs.writeFile(path.join(context.output,phase+'-sandbox.json'),JSON.stringify({
     sourceIdentity:context.sourceIdentity,platform:process.platform,arch:process.arch,electron:process.versions.electron,nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,
     sandbox:prefs.sandbox,webSecurity:prefs.webSecurity},null,2));
-   await ({write:writePhase,reopen:reopenPhase,'social-write':socialWritePhase,'social-reopen':socialReopenPhase,'method-write':methodWritePhase,'method-reopen':methodReopenPhase,'method-tested-reopen':methodTestedReopenPhase}[phase])(win); await closeNormally(win);
+   await ({write:writePhase,reopen:reopenPhase,'social-write':socialWritePhase,'social-reopen':socialReopenPhase,'method-write':methodWritePhase,'method-reopen':methodReopenPhase,'method-tested-reopen':methodTestedReopenPhase,
+     'handling-write':handlingWritePhase,'handling-reopen':handlingReopenPhase,'handling-completed-reopen':handlingCompletedReopenPhase,
+     'handling-interrupted-write':handlingInterruptedWritePhase,'handling-interrupted-reopen':handlingInterruptedReopenPhase}[phase])(win); await closeNormally(win);
   } catch(error) {
    console.error(error); try { await captureFailure(win,error); } catch(failure) { console.error('Failure capture:',failure); }
    clearTimeout(deadline); app.exit(1);
@@ -443,8 +531,9 @@ await writeFile(join(output, 'prepared.json'), JSON.stringify({output,harness,so
 if (prepareOnly) console.log(JSON.stringify({output,harness,nativeExecutionPerformed:false}));
 else {
 const electron = createRequire(import.meta.url)('electron');
-for (const phase of ['write', 'reopen', 'social-write', 'social-reopen', 'method-write', 'method-reopen', 'method-tested-reopen']) {
-  const phaseProfile=phase.startsWith('method-')?methodProfile:phase.startsWith('social-')?socialProfile:profile;
+for (const phase of ['write', 'reopen', 'social-write', 'social-reopen', 'method-write', 'method-reopen', 'method-tested-reopen',
+  'handling-write', 'handling-reopen', 'handling-completed-reopen', 'handling-interrupted-write', 'handling-interrupted-reopen']) {
+  const phaseProfile=phase.startsWith('handling-interrupted-')?handlingInterruptedProfile:phase.startsWith('handling-')?handlingProfile:phase.startsWith('method-')?methodProfile:phase.startsWith('social-')?socialProfile:profile;
   const flags = [harness, '--test', `--test-profile=${phaseProfile}`, `--phase=${phase}`];
   if (process.platform === 'linux') flags.push('--disable-gpu');
   const env = { ...process.env, TMPDIR: temporary, TMP: temporary, TEMP: temporary, HOME: join(isolated, 'home'),
@@ -467,7 +556,9 @@ const socialReport=JSON.parse(await readFile(join(output,'social-result.json'),'
 assert.equal(socialReport.passed,true);
 const methodReport=JSON.parse(await readFile(join(output,'method-result.json'),'utf8'));
 assert.equal(methodReport.passed,true);
-Object.assign(report,{methodTransfer:methodReport,socialTeaching:socialReport,actualNativeCloseEvents:true,actualNativeWillQuitEvents:true,nativeExecutionPerformed:true});
+const handlingReport=JSON.parse(await readFile(join(output,'handling-result.json'),'utf8'));
+assert.equal(handlingReport.passed,true);
+Object.assign(report,{handlingInquiry:handlingReport,methodTransfer:methodReport,socialTeaching:socialReport,actualNativeCloseEvents:true,actualNativeWillQuitEvents:true,nativeExecutionPerformed:true});
 await writeFile(join(output,'result.json'),JSON.stringify(report,null,2));
 console.log(JSON.stringify(report));
 }
@@ -481,8 +572,10 @@ console.log(JSON.stringify(report));
     const archive = await archiveNativeProfile(profile, profileEvidence);
     const socialArchive = await archiveNativeProfile(socialProfile, join(output,'social-profile-evidence'));
     const methodArchive = await archiveNativeProfile(methodProfile, join(output,'method-profile-evidence'));
+    const handlingArchive = await archiveNativeProfile(handlingProfile, join(output,'handling-profile-evidence'));
+    const handlingInterruptedArchive = await archiveNativeProfile(handlingInterruptedProfile, join(output,'handling-interrupted-profile-evidence'));
     await writeFile(join(output, 'profile-evidence.json'), JSON.stringify({ runtimeProfile: profile,
-      evidenceDirectory: profileEvidence, copiedAfterProcessesClosed: !prepareOnly, nativeExecutionPerformed: !prepareOnly, archive, socialArchive, methodArchive,
+      evidenceDirectory: profileEvidence, copiedAfterProcessesClosed: !prepareOnly, nativeExecutionPerformed: !prepareOnly, archive, socialArchive, methodArchive, handlingArchive, handlingInterruptedArchive,
       omittedEntries: 'symlinks and nonregular files' }, null, 2));
     preserved = true;
   } catch (error) {

@@ -1,4 +1,5 @@
 import { validHumanHint } from './human-hints.js';
+import { validHandlingInquiries } from './handling-inquiry.js';
 import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
 import { restorePeerTeaching } from './peer-teaching.js';
@@ -27,7 +28,7 @@ export function cleanSensoryObject(raw){
   const appearance=Object.fromEntries(['shape','color','texture','motion','sound','size','smell','details'].filter(k=>typeof raw.appearance?.[k]==='string').map(k=>[k,text(raw.appearance[k],100)]));
   return {id:raw.id,scene:text(raw.scene,50)||'valley',position:point(raw.position),appearance,...(typeof raw.motion==='string'?{motion:text(raw.motion,80)}:{}),...(Number.isFinite(raw.count)?{count:Math.floor(num(raw.count,1000))}:{}),observedAt:num(raw.observedAt)};
 }
-export function createDiscoveryMemory(){return {version:1,nextId:1,methodTrials:[],inquiries:[],observations:{},experiments:[],effects:[],reports:[],techniques:[],practice:{},trials:{},seenFeedback:[],run:null,lastAttemptAt:0,lastDialogueAt:-60,reportCursor:0,search:{home:null,startedAt:0},samplesPending:{},foodDiscoveries:0};}
+export function createDiscoveryMemory(){return {version:1,nextId:1,handlingAdmissions:[],handlingQuestions:[],methodTrials:[],inquiries:[],observations:{},experiments:[],effects:[],reports:[],techniques:[],practice:{},trials:{},seenFeedback:[],run:null,lastAttemptAt:0,lastDialogueAt:-60,reportCursor:0,search:{home:null,startedAt:0},samplesPending:{},foodDiscoveries:0};}
 function primitive(raw){return raw&&DISCOVERY_RULES.allPrimitives.includes(raw.type)&&['$source','$material'].includes(raw.targetId)?{type:raw.type,targetId:raw.targetId}:null;}
 function techniqueProof(raw,d){
   if(!objectId(raw?.sourceId)||!Array.isArray(raw.evidence)||!Array.isArray(raw.steps)||raw.steps.length!==2)return null;
@@ -95,5 +96,7 @@ export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.
   }
   d.seenFeedback=(Array.isArray(raw.seenFeedback)?raw.seenFeedback:[]).filter(v=>typeof v==='string'||Number.isInteger(v)).slice(-128);d.samplesPending=Object.fromEntries(Object.entries(raw.samplesPending||{}).filter(([id,v])=>objectId(id)&&Number.isFinite(v)).slice(-16).map(([id,v])=>[id,num(v)]));
   for(const k of ['lastAttemptAt','reportCursor','foodDiscoveries'])d[k]=num(raw[k]);d.lastDialogueAt=Number.isFinite(raw.lastDialogueAt)?Math.max(-60,Math.min(1e10,raw.lastDialogueAt)):-60;
-  d.search={home:point(raw.search?.home),startedAt:num(raw.search?.startedAt)};d.run=null;if(raw.inquiries!==undefined&&validInquiries(raw.inquiries,d,npc?.elapsed??1e10,npc?.id))d.inquiries=structuredClone(raw.inquiries);return d;
+  d.search={home:point(raw.search?.home),startedAt:num(raw.search?.startedAt)};d.run=null;if(raw.inquiries!==undefined&&validInquiries(raw.inquiries,d,npc?.elapsed??1e10,npc?.id))d.inquiries=structuredClone(raw.inquiries);
+  if(raw.handlingAdmissions!==undefined||raw.handlingQuestions!==undefined){const candidate={...d,handlingAdmissions:raw.handlingAdmissions,handlingQuestions:raw.handlingQuestions};if(npc&&validHandlingInquiries(candidate,npc)){d.handlingAdmissions=structuredClone(raw.handlingAdmissions);d.handlingQuestions=structuredClone(raw.handlingQuestions);}}
+  return d;
 }

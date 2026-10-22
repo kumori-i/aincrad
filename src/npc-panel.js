@@ -1,6 +1,7 @@
 import { humanHintHelp } from './human-hints.js';
 import { peerTeachingLabel } from './peer-teaching.js';
 import { observationalInquiries } from './observational-learning.js';
+import { handlingInquiries } from './handling-inquiry.js';
 import { NPC_RULES } from './config.js';
 import { demonstrateCollapse } from './npc.js';
 import { DesktopModelProvider, LocalLearnerProvider } from './controller.js';
@@ -51,6 +52,37 @@ export function renderObservationalInquiries(parent, npc, agents = []) {
   }
   if (rows.length > 4) add(parent, 'p', `Showing 4 of ${rows.length} retained questions, with pending tests first. Older questions remain in memory.`, 'small');
 }
+const handlingInquiryStatus = {
+  uncertain: 'Uncertain · pulling this source is not yet tested',
+  attempting: 'Own pull attempt selected · no outcome inferred',
+  detached: 'Own pull result · something detached; no food benefit established',
+  'did-not-detach': 'Own pull result · nothing detached; no food conclusion',
+  unavailable: 'Pull unavailable or question window elapsed · no new outcome inferred',
+  retired: 'Question retired · no new test implied',
+};
+// A read-only view of personal motor evidence, separate from witnessed eating
+// and heard procedures. Opening this panel never selects a pull or a sample.
+export function renderHandlingInquiries(parent, npc) {
+  const rows = handlingInquiries(npc);
+  if (!rows.length) return;
+  add(parent, 'p', 'Own handling questions', 'eyebrow');
+  const pending = q => ['uncertain', 'attempting'].includes(q.status);
+  const ordered = [...rows].reverse().sort((a, b) => Number(pending(b)) - Number(pending(a)));
+  for (const q of ordered.slice(0, 4)) {
+    const entry = add(parent, 'div', '', 'knowledge-entry');
+    entry.dataset.handlingInquirySource = q.sourceId;
+    entry.dataset.handlingInquiryStatus = q.status;
+    add(entry, 'p', q.question);
+    add(entry, 'p', `Current source (${q.sourceId}): ${describeRemembered(npc, q.sourceId)}`, 'small');
+    add(entry, 'p', `Remembered source (${q.priorSourceId}): ${describeRemembered(npc, q.priorSourceId)}`, 'small');
+    add(entry, 'p', q.status === 'retired'
+      ? 'Retired question: full original proof is no longer retained. This remembered question is not a currently verified motor result, witnessed consumption or heard advice.'
+      : 'Own prior motor result: pulling detached something from the remembered source. Grasping this source did not acquire it. This is my own handling history, not witnessed consumption or heard advice.', 'provenance');
+    add(entry, 'p', 'Similar appearance is uncertain. It does not establish safety, food benefit or a shared category. No sampling is implied.', 'small');
+    add(entry, 'p', handlingInquiryStatus[q.status] || 'Uncertain', 'small');
+  }
+  if (rows.length > 4) add(parent, 'p', `Showing 4 of ${rows.length} retained handling questions, with pending attempts first. Older questions remain in memory.`, 'small');
+}
 export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCommunity,selectAgent,renderer,getEnvironment,save,notify}){
   const panel=$('npc-panel'),bridge=window.aincradAgent;
   let visible=false,lastRefresh=-1,tab='character',seenMessageId=0,replyTo=null,lastMessageSignature='';
@@ -98,6 +130,7 @@ export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCom
   function renderDiscovery(n,skills){
     const d=n.discovery||{},knowledge=$('npc-object-knowledge'),experiments=$('npc-experiments');knowledge.replaceChildren();experiments.replaceChildren();
     renderObservationalInquiries(knowledge,n,getAgents());
+    renderHandlingInquiries(knowledge,n);
     const effects=d.effects||[],reports=d.reports||[];
     if(!effects.length&&!reports.length)add(knowledge,'p','No bodily effects or reported techniques retained yet.','small');
     for(const effect of effects.slice(-8).reverse()){const entry=add(knowledge,'div','', 'knowledge-entry');add(entry,'p',describeRemembered(n,effect.objectId));add(entry,'p',`Experienced: ${effect.effect}${effect.hunger==='easing'?' · hunger easing':''}${effect.thirst==='easing'?' · thirst easing':''}${effect.energy==='easing'?' · energy easing':''}`,'small');add(entry,'p','Supported by a physically executed sample and later bodily feedback.','provenance');}
