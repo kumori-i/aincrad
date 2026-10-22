@@ -1,3 +1,4 @@
+import { validHumanHint } from './human-hints.js';
 import { cleanPeerTeaching, restorePeerTeaching } from './peer-teaching.js';
 import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
@@ -236,6 +237,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
   if(raw.discovery.inquiries!==undefined && (!validInquiries(raw.discovery.inquiries,raw.discovery,raw.elapsed,id)||!raw.discovery.inquiries.every(q=>[q.sourcePosition,q.actorPosition].every(point=>observationReachable(point,q.at,id,raw.position,raw.elapsed,geometry))))) fail(`${id} has invalid observational inquiries`);
   if((raw.social.heard||[]).some(m=>!validTransferSpeech(m)))fail(`${id} has invalid heard method transfer`);
+  if(raw.discovery.reports.some(r=>r.hint!==undefined&&(r.sourceId!=='human'||!validHumanHint(r.hint))))fail(`${id} has invalid human hint metadata`);
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
   // New method reports are strict optional schema-12 data. Legacy exact-source

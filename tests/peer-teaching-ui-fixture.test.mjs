@@ -25,7 +25,11 @@ test('native teaching UI fixture contains earned sender proof and reloadable nai
   assert.equal(receiver.discovery.effects.length, 0);
   assert.equal(receiver.discovery.techniques.length, 0);
   assert.deepEqual(receiver.discovery.reports.find(row => row.teaching), fixture.summary.report);
-  assert.deepEqual(loaded.state.community.messages.at(-1), fixture.summary.message);
+  assert.deepEqual(loaded.state.community.messages.find(row=>row.id===fixture.summary.message.id), fixture.summary.message);
+  assert.deepEqual(receiver.discovery.reports.find(row=>row.id===fixture.summary.humanReport.id).proposed,[]);
+  assert.equal(fixture.summary.humanReport.hint.code,'unsupported');
+  assert.match(fixture.summary.humanReply,/No physical steps proposed/);
+  assert.ok(loaded.state.community.messages.some(row=>row.text===fixture.summary.humanReply));
   assert.equal(fixture.summary.report.status, 'unverified');
   assert.equal(fixture.summary.report.cursor, 0);
   assert.deepEqual(fixture.summary.report.evidence, []);

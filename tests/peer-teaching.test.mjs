@@ -169,6 +169,19 @@ test('vague animal advice is explicitly unresolved instead of consulting a globa
   const f=fixture(),before=clone(f.b.discovery.observations);
   const sent=f.social.postUserMessage('You can kill the animals.',{to:'mira'}),r=f.b.discovery.reports.find(r=>r.messageId===sent.message.id);
   assert.deepEqual(r.proposed,[]);assert.deepEqual(f.b.discovery.observations,before);assert.deepEqual(f.b.discovery.techniques,[]);
-  const reply=f.social.discoveryDialogue(f.b);assert.match(reply.text,/cannot identify a specific observed target/);assert.match(reply.text,/unique visible description/);
+  const reply=f.social.discoveryDialogue(f.b);assert.match(reply.text,/whole instruction does not match my restricted command grammar/);assert.match(reply.text,/No physical steps proposed/);assert.match(reply.text,/unique visible description/);
+  f.ca.dispose();f.cb.dispose();
+});
+
+
+test('ordinary questions and quoted or descriptive operation words remain conversation, not commands',()=>{
+  const f=fixture();
+  for(const text of ['What did you eat?', 'What have you learned about food?', 'She said "pull object:123".', 'I saw someone take an object.']){
+    const sent=f.social.postUserMessage(text,{to:'mira'});
+    const report=f.b.discovery.reports.find(r=>r.messageId===sent.message.id);
+    assert.deepEqual(report.proposed,[]);
+    const reply=f.social.discoveryDialogue(f.b);
+    assert.doesNotMatch(reply.text,/command grammar|No physical steps proposed|I can attempt/);
+  }
   f.ca.dispose();f.cb.dispose();
 });

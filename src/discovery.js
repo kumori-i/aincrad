@@ -1,3 +1,4 @@
+import { parseHumanHint } from './human-hints.js';
 import { observationalInquiries, observationalExperiment, priorAdverseSource } from './observational-learning.js';
 import { linkInquiryOutcome } from './observational-inquiry-state.js';
 import { cleanPeerTeaching, isPeerTeaching, teachingExpired, cleanAppearanceCues, appearanceCuesMatch, PEER_TRANSFER_SIGHT_SECONDS } from './peer-teaching.js';
@@ -136,17 +137,10 @@ function recordDiscoveryReportLinked(npc,content,{sourceId='human',channel='jour
   // Parse only explicitly named body verbs and an already locally observed ID.
   // No dictionary linking apple/tree/animal words to food or engine species exists.
   if(sourceId==='human'){
-    const lower=text.toLowerCase(),referenced=text.match(/object:\d{1,9}/)?.[0];
-    const descriptions=Object.values(d.observations).map(o=>({o,words:Object.values(o.appearance||{}).join(' ').toLowerCase()}));
-    const explicitFeatures=['red','purple','green','round','fibrous','prickly','rough','sweet','furry','soft','trunk','blades','clusters'].filter(word=>new RegExp(`\\b${word}\\b`).test(lower));
-    const matchesByFeature=explicitFeatures.length?descriptions.filter(x=>explicitFeatures.every(word=>x.words.includes(word))).sort((a,b)=>distance(a.o.position,npc.position)-distance(b.o.position,npc.position)):[];
-    const priorQuestion=(npc.social?.heard||[]).filter(m=>m.senderId===npc.id&&m.kind==='question'&&/object:\d+/.test(m.text||'')).at(-1)?.text?.match(/object:\d+/)?.[0];
-    const id=referenced||(matchesByFeature.length===1?matchesByFeature[0].o.id:null)||(!explicitFeatures.length&&priorQuestion&&d.observations[priorQuestion]?priorQuestion:null);
-    if(id&&d.observations[id]){
-      const verbs=[...lower.matchAll(/\b(inspect(?:_object)?|look\s+at|grasp|pick\s+up|pick|pluck|take|release|drop|pull|sample|taste|bite|eat|strike|hit|kill|catch)\b/g)];
-      const mappings={'look at':'inspect_object','pick up':'grasp',pick:'pull',pluck:'pull',take:'grasp',drop:'release',taste:'sample',bite:'sample',eat:'sample',hit:'strike',kill:'strike'};
-      report.proposed=verbs.slice(0,6).map(m=>({type:m[1].startsWith('inspect')?'inspect_object':mappings[m[1]]||m[1],targetId:id})).filter(step=>discoveryPrimitives(npc).includes(step.type));
-    }
+    const question=(npc.social?.heard||[]).filter(m=>m.senderId===npc.id&&m.kind==='question').at(-1);
+    const ids=question?.text?.match(/object:\d{1,9}\b/g)||[];
+    const priorQuestion=new Set(ids).size===1?ids[0]:null;
+    Object.assign(report,parseHumanHint(content,d.observations,discoveryPrimitives(npc),priorQuestion));
   }
   d.reports.push(report);d.reports=d.reports.slice(-DISCOVERY_RULES.maxReports);return report;
 }

@@ -363,6 +363,8 @@ async function socialReopenPhase(win) {
  const screenshots=[await capture(win,'social-journal.png')];
  const knowledge=await present('knowledge');
  screenshots.push(await capture(win,'social-taught-knowledge.png'));
+ const humanHint=await present('human-hint');
+ screenshots.push(await capture(win,'social-rejected-human-hint.png'));
  const snapshot=await win.webContents.executeJavaScript('window.__ozarkWorld.fullSnapshot()');
  const receiver=snapshot.agents.find(actor=>actor.id==='mira');
  assert.equal(receiver.discovery.techniques.length,0,'Testimony cannot create personal proficiency');
@@ -372,7 +374,7 @@ async function socialReopenPhase(win) {
  assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.snapshot().started'),false);
  assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.save()'),true);
  await fs.writeFile(path.join(context.output,'social-result.json'),JSON.stringify({passed:true,
-   sourceFingerprint:context.sourceFingerprint,version:snapshot.version,screenshots,journal,knowledge,
+   sourceFingerprint:context.sourceFingerprint,version:snapshot.version,screenshots,journal,knowledge,humanHint,
    currentFormatCloseReopen:true,ownProofNotInvented:true,summary:expected.summary,
    fixtureDisclosure:'Manual local encounter. Sender earned a procedure through paid actions and delayed bodily feedback, then actual controller speech delivered an attributed untried report. This is not autonomous survival or travel evidence.'},null,2));
 }
