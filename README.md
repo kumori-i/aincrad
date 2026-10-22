@@ -43,6 +43,8 @@ Human journal advice can suggest actions against something the agent has observe
 
 An initial observation-led learning cycle lets a genuinely witnessed eating event motivate an uncertain, exact-source question. When access and bodily priorities permit, the observer can try a paid acquisition-and-sampling experiment and revise its expectation from its own delayed feedback. The knowledge panel keeps witnessed consumption separate from personal evidence. This uses a supplied bounded experiment scaffold, not an invented hunting recipe, species-wide food knowledge, or parallel humanlike reasoning. See [observation-driven inquiry](docs/OBSERVATIONAL-LEARNING.md).
 
+A bounded [local method-transfer trial](docs/METHOD-TRANSFER.md) can use a speaker's earned procedure and fresh appearance report to test one different, uniquely matching source within the listener's reach. Similar appearance is uncertain, not food or safety proof. Only the listener's own actions and bodily feedback establish its outcome. This uses a supplied three-cue matching abstraction and one-shot admission, not broad skill generalization.
+
 The optional local model assists conversation only. It is not required for offline learning, and text never bypasses the physical action engine.
 
 ## Controls

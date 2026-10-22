@@ -18,7 +18,7 @@ export function witnessConsumption(npc, event, rememberObject) {
     actorPosition:{...event.actorPosition}, sourcePosition:{...event.source.position}, attempts:[], retired:false });
   if (d.inquiries.length > INQUIRY_LIMIT) d.inquiries.shift();
 }
-function priorAdverseSource(d,sourceId) {
+export function priorAdverseSource(d,sourceId) {
   if(d.techniques.some(t=>t.sourceId===sourceId&&t.confidence==='revised'))return true;
   return d.effects.some(effect=>(effect.effect==='discomfort'||['aching','hurting'].includes(effect.pain))&&
     (effect.objectId===sourceId||d.experiments.some(sample=>sample.primitive==='sample'&&sample.ok&&sample.actionId===effect.actionId&&sample.ingestionId===effect.ingestionId&&

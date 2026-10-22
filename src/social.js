@@ -4,7 +4,7 @@ import { actorLineOfSight } from './perception.js';
 import { recordClaim } from './cognition.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
-import { recordTechniqueReport, recordDiscoveryClaim, recordPeerTechnique } from './discovery.js';
+import { recordTechniqueReport, recordDiscoveryClaim, recordPeerTechnique, freshMethodAppearance } from './discovery.js';
 import { validateDiscoveryMemory } from './discovery-state.js';
 import { cleanPeerTeaching, peerTeachingText } from './peer-teaching.js';
 
@@ -318,10 +318,11 @@ export class SocialCoordinator {
       const verified=validateDiscoveryMemory(npc.discovery,npc),technique=verified.techniques.find(t=>t.id===action.techniqueId);
       if(!technique||technique.confidence==='revised'||technique.failures>technique.successes+2||technique.at>npc.elapsed||!verified.observations[technique.sourceId]||verified.experiments.some(e=>technique.evidence.includes(e.id)&&e.at>npc.elapsed)||verified.effects.some(e=>e.at>npc.elapsed))return {ok:false,code:'TECHNIQUE_NOT_ESTABLISHED'};
       teaching={version:1,senderTechniqueId:technique.id,sourceObjectId:technique.sourceId,acquisition:technique.steps[0].type,receivedAt:target.elapsed,state:'ready'};
+      const transfer=freshMethodAppearance(npc,technique.sourceId);if(transfer)teaching.transfer=transfer;
       if(!cleanPeerTeaching(teaching))return {ok:false,code:'TECHNIQUE_NOT_SHAREABLE'};
-      text=peerTeachingText(teaching.sourceObjectId,teaching.acquisition);
+      text=peerTeachingText(teaching.sourceObjectId,teaching.acquisition,teaching.transfer);
     }
-    const key = `${target.id}:${fingerprint(text)}`;
+    const key = teaching?`${target.id}:method:${teaching.sourceObjectId}:${teaching.acquisition}`:`${target.id}:${fingerprint(text)}`;
     if (memory.conversationKeys.some(item => item.key === key && at - item.at < SOCIAL_RULES.topicCooldown)) return {ok: false, code: 'REPEATED_CONVERSATION'};
     const message = this.append({senderId: npc.id, recipientId: target.id, channel: 'peer', text, offline: action.offline === true,teaching}, at);
     memory.lastSpokeAt = at; memory.conversationKeys = bounded([...memory.conversationKeys, {key, at}], 32);
@@ -471,8 +472,8 @@ export class SocialCoordinator {
         // inspect the listener's private knowledge to decide what to say.
         const learned=validateDiscoveryMemory(discovery,npc).techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2);
         for(const technique of learned.slice(-4).reverse()){
-          const text=peerTeachingText(technique.sourceId,technique.steps[0].type);
-          const key=`${peer.id}:${fingerprint(text)}`;
+          const text=peerTeachingText(technique.sourceId,technique.steps[0].type,freshMethodAppearance(npc,technique.sourceId));
+          const key=`${peer.id}:method:${technique.sourceId}:${technique.steps[0].type}`;
           if(!memory.conversationKeys.some(item=>item.key===key&&at-item.at<SOCIAL_RULES.topicCooldown))return {type:'say',targetId:peer.id,text,techniqueId:technique.id,offline:true};
         }
         const effect=effects.at(-1);

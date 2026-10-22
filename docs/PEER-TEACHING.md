@@ -27,3 +27,7 @@ A vague message such as “you can kill the animals” remains a report when no 
 ## Persistence boundary
 
 The current save retains attributed advice separately from personal proof. Progress is reconstructed only from the recipient's own matching action and feedback records. Interrupted or missing acquisition links disable an unfinished taught attempt rather than replaying it. Loading advice never manufactures material, ownership, proficiency or a successful meal.
+
+## Tentative cross-source extension
+
+Fresh three-cue appearance reports can now support one bounded local trial on a different identity, while retaining exact-source teaching. See [method-transfer boundaries](METHOD-TRANSFER.md) for the supplied abstraction, one-shot admission, conservation and persistence rules.

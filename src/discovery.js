@@ -1,6 +1,7 @@
-import { observationalInquiries, observationalExperiment } from './observational-learning.js';
+import { observationalInquiries, observationalExperiment, priorAdverseSource } from './observational-learning.js';
 import { linkInquiryOutcome } from './observational-inquiry-state.js';
-import { cleanPeerTeaching, isPeerTeaching, teachingExpired } from './peer-teaching.js';
+import { cleanPeerTeaching, isPeerTeaching, teachingExpired, cleanAppearanceCues, appearanceCuesMatch, PEER_TRANSFER_SIGHT_SECONDS } from './peer-teaching.js';
+import { admitMethodTrial } from './method-transfer-state.js';
 import { CONFIG,NPC_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { createDiscoveryMemory,cleanSensoryObject,objectId } from './discovery-state.js';
@@ -34,6 +35,20 @@ export function recentDiscoveryAim(npc,id){
     !Number.isFinite(sight.at)||sight.at>npc.elapsed||npc.elapsed-sight.at>DISCOVERY_RULES.catchObservationMaxAge||
     object.observedAt!==sight.at||object.position.x!==sight.position.x||object.position.y!==sight.position.y)return null;
   return {...sight.position};
+}
+/** Only a live local sensory receipt supplies a transferable descriptor. */
+export function freshMethodAppearance(npc,id){
+  const sight=firsthandSightings.get(npc)?.get(id),o=memory(npc).observations[id];
+  if(!sight||!o||sight.at!==o.observedAt||sight.scene!==npc.scene||o.scene!==npc.scene||
+    sight.at>npc.elapsed||npc.elapsed-sight.at>=PEER_TRANSFER_SIGHT_SECONDS||
+    sight.position.x!==o.position.x||sight.position.y!==o.position.y||
+    distance(npc.position,o.position)>NPC_RULES.visionRadius||!actorLineOfSight(npc,npc.position,o.position))return null;
+  const cues=cleanAppearanceCues(Object.fromEntries(['shape','color','texture'].map(k=>[k,o.appearance?.[k]])));
+  return cues?{version:1,cues,observedAt:o.observedAt}:null;
+}
+function localMethodSource(npc,id){
+  const o=memory(npc).observations[id];
+  return !!freshMethodAppearance(npc,id)&&distance(npc.position,o.position)<=DISCOVERY_RULES.reach;
 }
 export function discoveryPrimitives(npc){
   return ozarkFiniteAquaticAgent(npc)?DISCOVERY_RULES.allPrimitives:DISCOVERY_RULES.primitives;
@@ -101,7 +116,8 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
       }
       for(const r of d.reports.filter(r=>r.evidence.includes(sample.id))){r.status='contradicted';if(isPeerTeaching(r))r.teaching.state='complete';}return;
     }
-    if(event.effect!=='sustained'||!foodLearning)return;
+    if(event.effect!=='sustained'){for(const r of d.reports.filter(r=>r.teaching?.transfer&&r.evidence.includes(sample.id)))r.teaching.state='complete';return;}
+    if(!foodLearning)return;
     const grasp=sampleAcquisition(d,sample);if(!grasp)return;
     const sourceId=grasp.targetId,evidence=[grasp.id,sample.id],steps=[{type:grasp.primitive,targetId:'$source'},{type:'sample',targetId:'$material'}];
     let technique=d.techniques.find(t=>t.sourceId===sourceId&&t.steps[0].type===grasp.primitive);
@@ -149,8 +165,26 @@ export function recordPeerTechnique(npc,content,teaching,options={}){
   return withProofTransaction(npc,()=>{
     const report=recordDiscoveryReportLinked(npc,content,options);if(!report)return null;
     report.teaching=clean;
-    if(memory(npc).observations[clean.sourceObjectId])report.proposed=[{type:clean.acquisition,targetId:clean.sourceObjectId},{type:'sample',targetId:clean.sourceObjectId}];
-    else{report.teaching.state='unavailable';report.teaching.lastCode='SOURCE_NOT_RECOGNIZED';}
+    const d=memory(npc);
+    if(clean.transfer && !localMethodSource(npc,clean.sourceObjectId)){
+      // Speech carries no receiver target. Bind once from the receiver's own
+      // current sensory records, before checking action availability or benefit.
+      delete clean.transfer.targetObjectId;
+      const admitted=admitMethodTrial(d,options.sourceId,clean.sourceObjectId,clean.acquisition);
+      const matches=Object.values(d.observations).filter(o=>o.id!==clean.sourceObjectId&&
+        localMethodSource(npc,o.id)&&appearanceCuesMatch(o.appearance,clean.transfer.cues));
+      if(admitted&&matches.length===1){
+        clean.transfer.targetObjectId=matches[0].id;
+        report.proposed=[{type:clean.acquisition,targetId:matches[0].id},{type:'sample',targetId:matches[0].id}];
+      }else{clean.state='unavailable';clean.lastCode='LOCAL_METHOD_UNAVAILABLE';
+        // A saturated ledger cannot retain a new executable transfer identity.
+        if(!admitted&&!d.methodTrials?.some(t=>t.senderId===options.sourceId&&t.sourceObjectId===clean.sourceObjectId&&t.acquisition===clean.acquisition))delete clean.transfer;
+      }
+    }else{
+      delete clean.transfer;
+      if(d.observations[clean.sourceObjectId])report.proposed=[{type:clean.acquisition,targetId:clean.sourceObjectId},{type:'sample',targetId:clean.sourceObjectId}];
+      else{clean.state='unavailable';clean.lastCode='SOURCE_NOT_RECOGNIZED';}
+    }
     return report;
   });
 }
@@ -446,10 +480,17 @@ export function discoveryDecision(npc,{foodLearning=true}={}){
   if(traversal&&(!ozarkFiniteAquaticAgent(npc)||traversal.need!=='understanding'))return wrap(traversal.action,traversal.reason,traversal.need);
   for(const report of d.reports.filter(r=>r.status==='unverified'&&r.cursor<r.proposed.length&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
     const step=report.proposed[report.cursor],object=d.observations[step.targetId],held=npc.inventory.items.includes(object?.id),peer=isPeerTeaching(report);
-    if(peer&&(['pull','grasp'].includes(step.type)&&npc.inventory.items.length>=DISCOVERY_RULES.capacity||d.effects.some(e=>e.objectId===step.targetId&&e.effect==='discomfort')||d.techniques.some(t=>t.sourceId===report.teaching.sourceObjectId&&t.confidence==='revised')))continue;
+    if(peer&&report.teaching.transfer){
+      const source=report.teaching.transfer.targetObjectId;
+      if(priorAdverseSource(d,source)||priorAdverseSource(d,report.teaching.sourceObjectId)||
+        ['full','overfull'].includes(body.digestion)||['winded','exhausted'].includes(body.stamina)||body.energy==='depleted'||['aching','hurting','severe'].includes(body.pain))continue;
+      // No remote approach, target substitution or stale save-derived binding.
+      if(report.cursor===0&&(!localMethodSource(npc,source)||!appearanceCuesMatch(d.observations[source]?.appearance,report.teaching.transfer.cues)))continue;
+    }
+    if(peer&&(['pull','grasp'].includes(step.type)&&npc.inventory.items.length>=DISCOVERY_RULES.capacity||d.effects.some(e=>e.objectId===step.targetId&&e.effect==='discomfort')||d.techniques.some(t=>t.sourceId===(report.teaching.transfer?.targetObjectId||report.teaching.sourceObjectId)&&t.confidence==='revised')))continue;
     if(discoveryPrimitives(npc).includes(step.type)&&!availabilityBlocked(npc,step.type,step.targetId)&&(object?.scene===npc.scene||held)&&(step.type!=='sample'||held&&sampleEligible(npc,step.targetId,body,foodLearning))){
       const author=peer?report.sourceId:'a human';
-      if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||held)return wrap(step,`I can try the procedure taught by ${author}; its benefit is reported, not my own experience.`);
+      if(distance(object.position,npc.position)<=DISCOVERY_RULES.reach||held)return wrap(step,peer&&report.teaching.transfer?`I can cautiously try ${author}'s reported method on this similar-looking local source; appearance is not proof of safety or benefit.`:`I can try the procedure taught by ${author}; its benefit is reported, not my own experience.`);
       const move=routeTarget(npc,object.position);if(move)return wrap(move,`I can approach a source I recognize to try ${author}'s reported procedure.`);
     }
   }

@@ -1,3 +1,4 @@
+import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
 import { restorePeerTeaching } from './peer-teaching.js';
 import { matchingResultObject, validResultObjectRow } from './discovery-result-object.js';
@@ -25,7 +26,7 @@ export function cleanSensoryObject(raw){
   const appearance=Object.fromEntries(['shape','color','texture','motion','sound','size','smell','details'].filter(k=>typeof raw.appearance?.[k]==='string').map(k=>[k,text(raw.appearance[k],100)]));
   return {id:raw.id,scene:text(raw.scene,50)||'valley',position:point(raw.position),appearance,...(typeof raw.motion==='string'?{motion:text(raw.motion,80)}:{}),...(Number.isFinite(raw.count)?{count:Math.floor(num(raw.count,1000))}:{}),observedAt:num(raw.observedAt)};
 }
-export function createDiscoveryMemory(){return {version:1,nextId:1,inquiries:[],observations:{},experiments:[],effects:[],reports:[],techniques:[],practice:{},trials:{},seenFeedback:[],run:null,lastAttemptAt:0,lastDialogueAt:-60,reportCursor:0,search:{home:null,startedAt:0},samplesPending:{},foodDiscoveries:0};}
+export function createDiscoveryMemory(){return {version:1,nextId:1,methodTrials:[],inquiries:[],observations:{},experiments:[],effects:[],reports:[],techniques:[],practice:{},trials:{},seenFeedback:[],run:null,lastAttemptAt:0,lastDialogueAt:-60,reportCursor:0,search:{home:null,startedAt:0},samplesPending:{},foodDiscoveries:0};}
 function primitive(raw){return raw&&DISCOVERY_RULES.allPrimitives.includes(raw.type)&&['$source','$material'].includes(raw.targetId)?{type:raw.type,targetId:raw.targetId}:null;}
 function techniqueProof(raw,d){
   if(!objectId(raw?.sourceId)||!Array.isArray(raw.evidence)||!Array.isArray(raw.steps)||raw.steps.length!==2)return null;
@@ -51,6 +52,7 @@ export function deriveDiscoveryPractice(experiments,trialsByObject){
 /** Persistence restores data only. A forged routine cannot outlive its executed evidence. */
 export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.experience,interruption=null){
   const d=createDiscoveryMemory();if(!raw||raw.version!==1)return d;d.nextId=Math.max(1,Math.floor(num(raw.nextId,1e9)));
+  if(raw.methodTrials!==undefined)d.methodTrials=validMethodTrials(raw.methodTrials,npc?.id)?structuredClone(raw.methodTrials):null;
   for(const item of Object.values(raw.observations||{}).slice(-DISCOVERY_RULES.maxObjects)){const o=cleanSensoryObject(item);if(o)d.observations[o.id]=o;}
   d.experiments=(Array.isArray(raw.experiments)?raw.experiments:[]).slice(-DISCOVERY_RULES.maxExperiments).filter(e=>Number.isInteger(e?.id)&&e.id>0&&DISCOVERY_RULES.allPrimitives.includes(e.primitive)&&objectId(e.targetId)&&validCaptureExperiment(e)&&validResultObjectRow(e.primitive,e.targetId,e)&&(!npc||(Array.isArray(rawExperience)?rawExperience:[]).some(x=>x.id===e.actionId&&validCaptureExperiment(e,x)&&matchingResultObject(e,x)))).map(e=>({id:e.id,at:num(e.at),primitive:e.primitive,targetId:e.targetId,ok:e.ok===true,code:text(e.code,60),durationSeconds:num(e.durationSeconds,30),...(objectId(e.materialId)?{materialId:e.materialId}:{}),...(Object.hasOwn(e,'resultObjectId')?{resultObjectId:e.resultObjectId}:{}),...(Number.isInteger(e.actionId)?{actionId:e.actionId}:{}),...(typeof e.ingestionId==='string'?{ingestionId:text(e.ingestionId,80)}:{})}));
   const uniqueIds=new Set(),uniqueActions=new Set();d.experiments=d.experiments.filter(e=>{if(!Number.isInteger(e.actionId)||e.actionId<=0||uniqueIds.has(e.id)||uniqueActions.has(e.actionId))return false;uniqueIds.add(e.id);uniqueActions.add(e.actionId);return !npc||npc.memory.experience.some(x=>x.id===e.actionId&&x.type==='action'&&x.details.action?.type===e.primitive&&x.details.action?.targetId===e.targetId&&x.details.result?.ok===e.ok&&x.details.result?.code===e.code&&(x.details.result?.materialId||undefined)===(e.materialId||undefined)&&(x.details.result?.ingestionId||undefined)===(e.ingestionId||undefined)&&x.at===e.at&&validCaptureExperiment(e,x)&&matchingResultObject(e,x));});

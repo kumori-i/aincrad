@@ -71,6 +71,27 @@ function validateInquiries(rows){
   }
   return rows;
 }
+// New cross-source metadata is inert, bounded sensory testimony. The model
+// bridge accepts no hidden classifier, target coordinates, program or extra verb.
+function validateTransferTeaching(teaching,{message=false,row=null}={}) {
+  if (!isObject(teaching) || !Object.hasOwn(teaching,'transfer')) return;
+  if(row?.channel!=='peer'||!(message?AGENTS.has(row?.senderId)&&AGENTS.has(row?.recipientId)&&row.senderId!==row.recipientId:AGENTS.has(row?.sourceId)))throw new Error('Invalid appearance-based teaching provenance.');
+  const id=v=>typeof v==='string'&&/^object:[1-9][0-9]{0,8}$/.test(v);
+  const token=v=>typeof v==='string'&&/^[a-zA-Z0-9:_\-.]{1,80}$/.test(v)&&!['__proto__','prototype','constructor'].includes(v);
+  const time=v=>Number.isFinite(v)&&v>=0&&v<=1e10;
+  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
+  const t=teaching.transfer;
+  if(Object.keys(teaching).some(k=>!['version','sourceObjectId','senderTechniqueId','acquisition','receivedAt','state','lastCode','transfer'].includes(k))||
+    teaching.version!==1||!id(teaching.sourceObjectId)||!token(teaching.senderTechniqueId)||
+    !['pull','grasp'].includes(teaching.acquisition)||!time(teaching.receivedAt)||
+    !['ready','waiting','complete','unavailable'].includes(teaching.state)||
+    Object.hasOwn(teaching,'lastCode')&&!text(teaching.lastCode,60)||
+    !isObject(t)||Object.keys(t).some(k=>!['version','cues','observedAt','targetObjectId'].includes(k))||
+    t.version!==1||!time(t.observedAt)||t.observedAt>teaching.receivedAt||teaching.receivedAt-t.observedAt>=8||!isObject(t.cues)||Object.keys(t.cues).length!==3||
+    !['shape','color','texture'].every(k=>text(t.cues[k],100))||
+    Object.hasOwn(t,'targetObjectId')&&(message||!id(t.targetObjectId)||t.targetObjectId===teaching.sourceObjectId))
+    throw new Error('Invalid appearance-based teaching.');
+}
 function validateObservation(raw){
   if(!isObject(raw))throw new Error('Observation is missing or exceeds its size limit.');
   let encoded;try{encoded=JSON.stringify(raw);}catch{throw new Error('Observation must be serializable data.');}
@@ -90,11 +111,12 @@ function validateObservation(raw){
   const condition={scene:c.scene,lifecycle:c.lifecycle,position:{x:c.position.x,y:c.position.y},body:qualitative(c.body,discovery?DISCOVERY_BODY_SIGNALS:BODY_SIGNALS,'body'),senses:qualitative(c.senses,SENSES,'senses'),inventory:{...inventory}};
   const arrays=boundedArrays(raw,discovery?[['knownSources',12],['knownShelters',12],['knownTiles',140]]:[['knownSources',12],['knownFoods',12],['knownShelters',12],['knownTiles',140],['recentExperience',10],['lessons',3],['skills',12],['procedureCandidates',12]]);
   let discoveryData;
-  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports','inquiries'].includes(key)))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16],['inquiries',16]]);validateInquiries(discoveryData.inquiries);}
-  for(const [name,contract] of [['innerLife',{drives:8,beliefs:16,predictions:12,questions:8}],['social',{peers:2,journal:12,notes:12}]]){
+  if(discovery){if(!isObject(raw.discovery)||Object.keys(raw.discovery).some(key=>!['observations','experiments','effects','techniques','reports','inquiries'].includes(key)))throw new Error('Invalid discovery experience.');discoveryData=boundedArrays(raw.discovery,[['observations',40],['experiments',24],['effects',24],['techniques',16],['reports',16],['inquiries',16]]);validateInquiries(discoveryData.inquiries);for(const report of discoveryData.reports)validateTransferTeaching(report?.teaching,{row:report});}
+  for(const [name,contract] of [['innerLife',{drives:8,beliefs:16,predictions:12,questions:8}],['social',{peers:2,journal:12,nearbyMessages:6,notes:12}]]){
     if(raw[name]!==undefined&&!isObject(raw[name]))throw new Error('Invalid '+name+'.');
     for(const [key,limit] of Object.entries(contract))if(raw[name]?.[key]!==undefined&&(!Array.isArray(raw[name][key])||raw[name][key].length>limit))throw new Error('Invalid '+name+' '+key+'.');
   }
+  for(const message of [...(raw.social?.nearbyMessages||[]),...(raw.social?.journal||[])])validateTransferTeaching(message?.teaching,{message:true,row:message});
   const result=Object.fromEntries(['objective','observedAt','knownExit','procedureUse','actionStatus','actions','innerLife','social','beliefs','goal','plan'].filter(key=>raw[key]!==undefined).map(key=>[key,raw[key]]));
   return {identity:{id:raw.identity.id,name:raw.identity.name},...(raw.mode?{mode:raw.mode}:{}),condition,...result,...arrays,...(discovery?{discovery:discoveryData}: {})};
 }
