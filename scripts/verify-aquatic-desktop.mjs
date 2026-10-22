@@ -12,6 +12,7 @@ import { buildApplication } from './build.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute, installEmptyCurrentSlot } from './carcass-native-contract.mjs';
 
 import { createPeerTeachingUiFixture, presentPeerTeachingUi } from './peer-teaching-ui-fixture.mjs';
+import { createMethodTransferUiFixture, completeMethodTransferUiFixture, presentMethodTransferUi } from './method-transfer-ui-fixture.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const outputRoot = process.env.AINCRAD_AQUATIC_QA_OUTPUT ?
@@ -31,10 +32,12 @@ const built = await buildApplication();
 const temporary = await mkdtemp(join(tmpdir(), 'aq-'));
 const profile = join(temporary, 'profile');
 const socialProfile = join(temporary, 'social-profile');
-const context = { root, output, profile, socialProfile, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
+const methodProfile = join(temporary, 'method-profile');
+const context = { root, output, profile, socialProfile, methodProfile, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
 try {
 await mkdir(profile, { recursive: true });
 await mkdir(socialProfile, { recursive: true });
+await mkdir(methodProfile, { recursive: true });
 
 async function setupFixture() {
   const { createOzarkWorldGeometry } = await import('./src/ozark-world-geometry.js');
@@ -373,6 +376,43 @@ async function socialReopenPhase(win) {
    currentFormatCloseReopen:true,ownProofNotInvented:true,summary:expected.summary,
    fixtureDisclosure:'Manual local encounter. Sender earned a procedure through paid actions and delayed bodily feedback, then actual controller speech delivered an attributed untried report. This is not autonomous survival or travel evidence.'},null,2));
 }
+async function methodWritePhase(win) {
+ await assertCurrentBoot(win);
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),null);
+ const fixture=await win.webContents.executeJavaScript('(' + ${JSON.stringify(createMethodTransferUiFixture.toString())} + ')(document.baseURI)');
+ assert.equal(fixture.saveKey,'aincrad.world.v2');assert.notEqual(fixture.summary.sourceObjectId,fixture.summary.targetObjectId);
+ await win.webContents.executeJavaScript('(' + installEmptyCurrentSlot.toString() + ')(localStorage,' + JSON.stringify({key:fixture.saveKey,inputRaw:fixture.raw}) + ')');
+ await fs.writeFile(path.join(context.output,'method-heard-checkpoint.json'),JSON.stringify(fixture,null,2));
+}
+async function methodReopenPhase(win) {
+ await assertCurrentBoot(win);
+ const expected=JSON.parse(await fs.readFile(path.join(context.output,'method-heard-checkpoint.json'),'utf8'));
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.raw);
+ const evidence=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentMethodTransferUi.toString())} + ')("heard",' + JSON.stringify(expected.summary) + ')');
+ await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+ const screenshot=await capture(win,'method-heard.png');
+ const tested=await win.webContents.executeJavaScript('(' + ${JSON.stringify(completeMethodTransferUiFixture.toString())} + ')(document.baseURI,localStorage)');
+ assert.equal(tested.summary.report.status,'supported');assert.equal(tested.summary.report.evidence.length,2);
+ assert.ok(tested.summary.after.elapsed>tested.summary.before.elapsed);
+ assert.ok(tested.summary.after.metabolizedKcal>tested.summary.before.metabolizedKcal);
+ assert.equal(tested.summary.after.sourceQuantity,tested.summary.before.sourceQuantity-1);
+ await fs.writeFile(path.join(context.output,'method-tested-checkpoint.json'),JSON.stringify({fixture:tested,heardEvidence:evidence,heardScreenshot:screenshot},null,2));
+}
+async function methodTestedReopenPhase(win) {
+ await assertCurrentBoot(win);
+ const expected=JSON.parse(await fs.readFile(path.join(context.output,'method-tested-checkpoint.json'),'utf8'));
+ assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),expected.fixture.raw);
+ const evidence=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentMethodTransferUi.toString())} + ')("tested",' + JSON.stringify(expected.fixture.summary) + ')');
+ await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+ const screenshot=await capture(win,'method-personally-tested.png');
+ await fs.writeFile(path.join(context.output,'method-result.json'),JSON.stringify({passed:true,
+   sourceFingerprint:context.sourceFingerprint,sourceIdentity:context.sourceIdentity,
+   screenshots:[expected.heardScreenshot,screenshot],heard:expected.heardEvidence,tested:evidence,
+   summary:expected.fixture.summary,threeIndependentElectronProcesses:true,
+   exactDiskBytesAcrossClosedProcesses:true,noClosedTimeProgression:true,
+   ownProofNotInventedBySpeech:true,receiverPaidPhysicalActions:true,
+   fixtureDisclosure:'Scripted encounter placement only. Teacher paid for a method and received own feedback; actual nearby speech transferred uncertain appearance cues. Recipient freshly observed a different local source after restart and paid for own pull/sample and delayed feedback. Not autonomous travel, invented action grammar, reliable survival or a measured learning advantage.'},null,2));
+}
 app.on('browser-window-created',(_event,win)=>{
  win.webContents.on('console-message',(_event,...details)=>rendererEvents.push({kind:'console',details}));
  win.webContents.on('did-fail-load',(_event,errorCode,errorDescription,validatedURL)=>rendererEvents.push({kind:'load-failure',errorCode,errorDescription,validatedURL}));
@@ -388,7 +428,7 @@ app.on('browser-window-created',(_event,win)=>{
    await fs.writeFile(path.join(context.output,phase+'-sandbox.json'),JSON.stringify({
     sourceIdentity:context.sourceIdentity,platform:process.platform,arch:process.arch,electron:process.versions.electron,nodeIntegration:prefs.nodeIntegration,contextIsolation:prefs.contextIsolation,
     sandbox:prefs.sandbox,webSecurity:prefs.webSecurity},null,2));
-   await ({write:writePhase,reopen:reopenPhase,'social-write':socialWritePhase,'social-reopen':socialReopenPhase}[phase])(win); await closeNormally(win);
+   await ({write:writePhase,reopen:reopenPhase,'social-write':socialWritePhase,'social-reopen':socialReopenPhase,'method-write':methodWritePhase,'method-reopen':methodReopenPhase,'method-tested-reopen':methodTestedReopenPhase}[phase])(win); await closeNormally(win);
   } catch(error) {
    console.error(error); try { await captureFailure(win,error); } catch(failure) { console.error('Failure capture:',failure); }
    clearTimeout(deadline); app.exit(1);
@@ -401,8 +441,8 @@ await writeFile(join(output, 'prepared.json'), JSON.stringify({output,harness,so
 if (prepareOnly) console.log(JSON.stringify({output,harness,nativeExecutionPerformed:false}));
 else {
 const electron = createRequire(import.meta.url)('electron');
-for (const phase of ['write', 'reopen', 'social-write', 'social-reopen']) {
-  const phaseProfile=phase.startsWith('social-')?socialProfile:profile;
+for (const phase of ['write', 'reopen', 'social-write', 'social-reopen', 'method-write', 'method-reopen', 'method-tested-reopen']) {
+  const phaseProfile=phase.startsWith('method-')?methodProfile:phase.startsWith('social-')?socialProfile:profile;
   const flags = [harness, '--test', `--test-profile=${phaseProfile}`, `--phase=${phase}`];
   if (process.platform === 'linux') flags.push('--disable-gpu');
   const env = { ...process.env, TMPDIR: temporary, TMP: temporary, TEMP: temporary, HOME: join(isolated, 'home'),
@@ -423,7 +463,9 @@ for (const phase of ['write', 'reopen', 'social-write', 'social-reopen']) {
 const report=JSON.parse(await readFile(join(output,'result.json'),'utf8'));
 const socialReport=JSON.parse(await readFile(join(output,'social-result.json'),'utf8'));
 assert.equal(socialReport.passed,true);
-Object.assign(report,{socialTeaching:socialReport,actualNativeCloseEvents:true,actualNativeWillQuitEvents:true,nativeExecutionPerformed:true});
+const methodReport=JSON.parse(await readFile(join(output,'method-result.json'),'utf8'));
+assert.equal(methodReport.passed,true);
+Object.assign(report,{methodTransfer:methodReport,socialTeaching:socialReport,actualNativeCloseEvents:true,actualNativeWillQuitEvents:true,nativeExecutionPerformed:true});
 await writeFile(join(output,'result.json'),JSON.stringify(report,null,2));
 console.log(JSON.stringify(report));
 }
@@ -436,8 +478,9 @@ console.log(JSON.stringify(report));
   try {
     const archive = await archiveNativeProfile(profile, profileEvidence);
     const socialArchive = await archiveNativeProfile(socialProfile, join(output,'social-profile-evidence'));
+    const methodArchive = await archiveNativeProfile(methodProfile, join(output,'method-profile-evidence'));
     await writeFile(join(output, 'profile-evidence.json'), JSON.stringify({ runtimeProfile: profile,
-      evidenceDirectory: profileEvidence, copiedAfterProcessesClosed: !prepareOnly, nativeExecutionPerformed: !prepareOnly, archive, socialArchive,
+      evidenceDirectory: profileEvidence, copiedAfterProcessesClosed: !prepareOnly, nativeExecutionPerformed: !prepareOnly, archive, socialArchive, methodArchive,
       omittedEntries: 'symlinks and nonregular files' }, null, 2));
     preserved = true;
   } catch (error) {

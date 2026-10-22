@@ -1,3 +1,5 @@
+import { cleanPeerTeaching, restorePeerTeaching } from './peer-teaching.js';
+import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
 // The sole current-world save boundary. Historical save keys are not read,
 // migrated, deleted or overwritten; corrupt current bytes remain protected.
@@ -231,9 +233,26 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
   if(raw.discovery.inquiries!==undefined && (!validInquiries(raw.discovery.inquiries,raw.discovery,raw.elapsed,id)||!raw.discovery.inquiries.every(q=>[q.sourcePosition,q.actorPosition].every(point=>observationReachable(point,q.at,id,raw.position,raw.elapsed,geometry))))) fail(`${id} has invalid observational inquiries`);
+  if((raw.social.heard||[]).some(m=>!validTransferSpeech(m)))fail(`${id} has invalid heard method transfer`);
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
+  // New method reports are strict optional schema-12 data. Legacy exact-source
+  // reports retain their previous compatibility contract.
+  const transfers=rows=>rows.filter(r=>r?.teaching?.transfer!==undefined);
+  const validatedTransfers=transfers(canonical.discovery.reports).map(report=>{
+    const original=raw.discovery.reports.find(r=>r.id===report.id),normalized=structuredClone(report);
+    // Validate authored data independently of the intentional restart cancellation.
+    // Disk interruption is deliberately coarse; it must not corrupt a valid save.
+    restorePeerTeaching(normalized,original,canonical.discovery,canonical,null);return normalized;
+  });
+  const executableTransfers=transfers(raw.discovery.reports).filter(r=>r.proposed?.length);
+  const transferKeys=executableTransfers.map(r=>`${r.sourceId}|${r.teaching.sourceObjectId}|${r.teaching.acquisition}`);
+  if(new Set(transferKeys).size!==transferKeys.length||!sameExact(transfers(raw.discovery.reports),validatedTransfers)||
+    (raw.discovery.methodTrials!==undefined&&!sameExact(raw.discovery.methodTrials,canonical.discovery.methodTrials))||
+    transfers(raw.discovery.reports).some(r=>r.teaching.transfer.observedAt>r.teaching.receivedAt||r.teaching.receivedAt>raw.elapsed||
+      !raw.discovery.methodTrials?.some(t=>t.senderId===r.sourceId&&t.sourceObjectId===r.teaching.sourceObjectId&&t.acquisition===r.teaching.acquisition)))fail(`${id} has invalid method transfer reports`);
   if (canonical.scene !== 'valley' || !sameExact(canonical.position, raw.position) ||
       !sameExact(canonical.memory.sources, raw.memory.sources) ||
       !sameExact(canonical.memory.blockedEdges, raw.memory.blockedEdges) ||
@@ -379,6 +398,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     fail('ecology identity does not match the playable world');
   }
   assertAquaticOwnership(environment.ecology, agents);
+  if((raw.community.messages||[]).some(m=>!validTransferSpeech(m)))fail('invalid community method transfer');
   const community = validateCommunity(raw.community);
   return {
     version: raw.version,
@@ -454,4 +474,13 @@ export function writeOzarkSave(storage, state, geometry) {
     expectedRawByState.set(state, raw);
     return true;
   } catch { return false; }
+}
+
+// Speaker messages never bind a listener target. New optional metadata may not
+// be silently stripped during current-save validation.
+function validTransferSpeech(message){
+  const t=message?.teaching;
+  return t?.transfer===undefined||message.channel==='peer'&&['aster','mira'].includes(message.senderId)&&
+    !Object.hasOwn(t.transfer||{},'targetObjectId')&&sameExact(t,cleanPeerTeaching(t))&&
+    t.transfer.observedAt<=t.receivedAt&&t.receivedAt<=message.at;
 }
