@@ -1,3 +1,4 @@
+import { lexicalLabels } from './naming-state.js';
 import { humanHintHelp } from './human-hints.js';
 import { peerTeachingLabel } from './peer-teaching.js';
 import { observationalInquiries } from './observational-learning.js';
@@ -83,6 +84,33 @@ export function renderHandlingInquiries(parent, npc) {
   }
   if (rows.length > 4) add(parent, 'p', `Showing 4 of ${rows.length} retained handling questions, with pending attempts first. Older questions remain in memory.`, 'small');
 }
+// Display retained lexical evidence only. A label is not a current sensory receipt.
+export function renderGroundedNames(parent, npc, agents = []) {
+  const rows = lexicalLabels(npc);
+  if (!rows.length && !npc.lexicon?.saturated) return;
+  add(parent, 'p', 'Names for individuals', 'eyebrow');
+  add(parent, 'p', 'Personal names, not shared categories or food knowledge. Remembered labels require fresh sight for reference.', 'small');
+  for (const row of rows.slice(-8).reverse()) {
+    const entry = add(parent, 'div', '', 'knowledge-entry');
+    entry.dataset.namingObject = row.objectId;
+    entry.dataset.namingStatus = row.status;
+    entry.dataset.namingSpeaker = row.speakerId;
+    add(entry, 'p', `${row.token} · ${row.objectId}`);
+    const speaker = agents.find(a => a.id === row.speakerId)?.name || row.speakerId;
+    const status = row.status === 'owner-chosen' ? 'Chosen by me after my own encounter' :
+      row.status === 'confirmed' ? `Confirmed reference · I used ${speaker}’s name for this visible individual` :
+      `Heard and locally grounded · ${speaker}’s name; later reference not confirmed`;
+    add(entry, 'p', status, 'provenance');
+    const sameWord = rows.filter(other => other.token === row.token);
+    const speakerConflict = new Set(sameWord.filter(other => other.speakerId === row.speakerId).map(other => other.objectId)).size > 1;
+    const unqualifiedConflict = new Set(sameWord.map(other => other.objectId)).size > 1;
+    if (speakerConflict) add(entry, 'p', 'Conflicting referents for this speaker’s word; reference is currently ambiguous, including any historical confirmation.', 'small');
+    else if (unqualifiedConflict) add(entry, 'p', 'This word has conflicting referents across speakers; name the speaker to disambiguate. Historical confirmation is not unqualified shared meaning.', 'small');
+    add(entry, 'p', npc.discovery?.observations?.[row.objectId] ? describeRemembered(npc, row.objectId) : 'Sensory record unavailable; the name does not restore sight.', 'small');
+  }
+  if (rows.length > 8) add(parent, 'p', `Showing 8 of ${rows.length} retained names. Other names and conflicts remain in memory.`, 'small');
+  if (npc.lexicon?.saturated) add(parent, 'p', 'New naming memory is full; reference checks unavailable.', 'small');
+}
 export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCommunity,selectAgent,renderer,getEnvironment,save,notify}){
   const panel=$('npc-panel'),bridge=window.aincradAgent;
   let visible=false,lastRefresh=-1,tab='character',seenMessageId=0,replyTo=null,lastMessageSignature='';
@@ -129,6 +157,7 @@ export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCom
   }
   function renderDiscovery(n,skills){
     const d=n.discovery||{},knowledge=$('npc-object-knowledge'),experiments=$('npc-experiments');knowledge.replaceChildren();experiments.replaceChildren();
+    renderGroundedNames(knowledge,n,getAgents());
     renderObservationalInquiries(knowledge,n,getAgents());
     renderHandlingInquiries(knowledge,n);
     const effects=d.effects||[],reports=d.reports||[];
