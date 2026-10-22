@@ -1,4 +1,5 @@
 import { validHumanHint } from './human-hints.js';
+import { validHandlingInquiries } from './handling-inquiry.js';
 import { cleanPeerTeaching, restorePeerTeaching } from './peer-teaching.js';
 import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
@@ -234,6 +235,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if((raw.discovery.handlingAdmissions!==undefined||raw.discovery.handlingQuestions!==undefined)&&!validHandlingInquiries(raw.discovery,raw))fail(`${id} has invalid own handling inquiries`);
   if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
   if(raw.discovery.inquiries!==undefined && (!validInquiries(raw.discovery.inquiries,raw.discovery,raw.elapsed,id)||!raw.discovery.inquiries.every(q=>[q.sourcePosition,q.actorPosition].every(point=>observationReachable(point,q.at,id,raw.position,raw.elapsed,geometry))))) fail(`${id} has invalid observational inquiries`);
   if((raw.social.heard||[]).some(m=>!validTransferSpeech(m)))fail(`${id} has invalid heard method transfer`);
@@ -255,6 +257,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
     (raw.discovery.methodTrials!==undefined&&!sameExact(raw.discovery.methodTrials,canonical.discovery.methodTrials))||
     transfers(raw.discovery.reports).some(r=>r.teaching.transfer.observedAt>r.teaching.receivedAt||r.teaching.receivedAt>raw.elapsed||
       !raw.discovery.methodTrials?.some(t=>t.senderId===r.sourceId&&t.sourceObjectId===r.teaching.sourceObjectId&&t.acquisition===r.teaching.acquisition)))fail(`${id} has invalid method transfer reports`);
+  if((raw.discovery.handlingAdmissions!==undefined||raw.discovery.handlingQuestions!==undefined)&&(!sameExact(raw.discovery.handlingAdmissions,canonical.discovery.handlingAdmissions)||!sameExact(raw.discovery.handlingQuestions,canonical.discovery.handlingQuestions)))fail(`${id} would lose own handling inquiry evidence`);
   if (canonical.scene !== 'valley' || !sameExact(canonical.position, raw.position) ||
       !sameExact(canonical.memory.sources, raw.memory.sources) ||
       !sameExact(canonical.memory.blockedEdges, raw.memory.blockedEdges) ||
@@ -278,6 +281,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   if(raw.interrupted||raw.active)for(const q of resumed.discovery.inquiries||[]){
     if(!q.attempts.some(id=>resumed.discovery.experiments.some(e=>e.id===id&&e.primitive==='sample'&&e.ok))){q.retired=true;q.attempts=[];}
   }
+  for(const q of resumed.discovery.handlingQuestions||[])if(q.state==='attempting'||(raw.interrupted||raw.active)&&q.state==='pending')q.state='unavailable';
   return resumed;
 }
 

@@ -40,6 +40,10 @@ Expiry, unavailable source and a failed physical attempt do not by themselves pr
 
 A runtime-only consumption transport admits actual accepted bites/samples, not feeding activity labels or post-hoc reconstruction. Event-time perception gates a bounded separate inquiry ledger. A sequential generic experiment scaffold can influence ordinary action selection, while outcomes and delayed feedback remain linked to the observer's own canonical receipts. Rendering only projects that state. This is an initial observation-to-experiment cycle, not learned pursuit, broad causal reasoning, parallel deliberation or human cognition. See [the scope and evidence boundaries](OBSERVATIONAL-LEARNING.md).
 
+## Own handling inquiry
+
+`handling-inquiry.js` links a completed paid failed grasp to an earlier own successful pull on a distinct currently similar-looking source. Fresh firsthand cues and ordinary care/access gates permit one exact-source paid pull, never an automatic sample. Non-evicting bounded admissions prevent replay; optional details retire when their receipt proof is compacted. Schema-12 optional metadata is strict, and UI/model views are read-only. See [scope and verification](HANDLING-CURIOSITY.md).
+
 ## Presentation and remaining work
 
 `ozark-world-renderer.js` and `art.js` draw the same authoritative state, with original pixel artwork, habitat substrates, water/banks, trees, rocks, cast shadows and maps. Camera canopy cutaways improve readability without removing objects or changing agent sight/shade.

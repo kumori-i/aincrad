@@ -45,6 +45,8 @@ An initial observation-led learning cycle lets a genuinely witnessed eating even
 
 A bounded [local method-transfer trial](docs/METHOD-TRANSFER.md) can use a speaker's earned procedure and fresh appearance report to test one different, uniquely matching source within the listener's reach. Similar appearance is uncertain, not food or safety proof. Only the listener's own actions and bodily feedback establish its outcome. This uses a supplied three-cue matching abstraction and one-shot admission, not broad skill generalization.
 
+A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can contrast a failed paid grasp with a retained successful pull on a different, currently similar-looking source. It may select one paid local pull, without automatically sampling or inferring food, safety or cause. This is supplied analogy machinery using personal outcomes, not an invented action grammar.
+
 The optional local model assists conversation only. It is not required for offline learning, and text never bypasses the physical action engine.
 
 ## Controls

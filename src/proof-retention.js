@@ -1,3 +1,4 @@
+import { retireHandlingInquiries } from './handling-inquiry.js';
 import { retireInquiries } from './observational-inquiry-state.js';
 import { matchingResultObject } from './discovery-result-object.js';
 import { CAVES, NPC_RULES } from './config.js';
@@ -624,6 +625,7 @@ export function applyProofRetention(npc, plan) {
   npc.memory.experience = kept.experience; npc.memory.skills = kept.skills;
   for (const key of ['experiments','effects','reports','techniques','observations']) npc.discovery[key] = kept[key];
   retireInquiries(npc.discovery);
+  retireHandlingInquiries(npc);
   if (nextTrials) { npc.discovery.trials = nextTrials; npc.discovery.practice = nextPractice; }
   if (npc.discovery.run && !kept.techniques.some(t => t.id === npc.discovery.run.techniqueId)) npc.discovery.run = null;
   originalPlans.delete(plan);
