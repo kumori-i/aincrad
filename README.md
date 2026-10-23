@@ -49,6 +49,8 @@ A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can con
 
 A bounded [grounded-name exchange](docs/GROUNDED-NAMES.md) lets an agent choose a name for an individually encountered object, ground a peer’s word through local pointing, and later check a visible reference. Chosen, heard and confirmed names stay separate. This is supplied communication machinery, not categories, invented grammar or food knowledge.
 
+Movement feedback can detect a paid walk making negligible progress and propose one short, physically tested retreat along the actor's own recent trail. This [bounded recovery scaffold](docs/MOVEMENT-RECOVERY.md) does not guarantee escape or replace urgent care; it is distinct from fixing collision geometry.
+
 The optional local model assists conversation only. It is not required for offline learning, and text never bypasses the physical action engine.
 
 ## Controls
