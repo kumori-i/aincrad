@@ -227,3 +227,60 @@ test('local observation reveals qualitative ground but no hidden map or route fi
   assert.equal(geometry.observe({ x: -1200, y: 220 }).ground, 'deep-water');
   assert.throws(() => geometry.observe({ x: 19000, y: 0 }), RangeError);
 });
+
+test('ground-only query exactly matches observation across occupied terrain and moving positions', () => {
+  const cases = [
+    [geometry.spawn, 'dry-land'],
+    [{ x: -12000, y: 9800 }, 'steep-ground'],
+    [{ x: -1200, y: 240 }, 'shallow-water'],
+    [{ x: -1200, y: 220 }, 'deep-water'],
+    [{ x: -11800, y: 11800 }, 'deep-pond'],
+  ];
+  for (const [point, expected] of cases) {
+    assert.equal(geometry.groundAt(point), expected);
+    assert.equal(geometry.groundAt(point), geometry.observe(point).ground);
+  }
+  // Whole-map samples include authored river, tributary, spring and pond edges.
+  for (let y = -13400; y <= 13400; y += 1200) {
+    for (let x = -18200; x <= 18200; x += 1200) {
+      const point = { x, y };
+      if (geometry.canOccupy(x, y))
+        assert.equal(geometry.groundAt(point), geometry.observe(point).ground);
+    }
+  }
+  const point = { x: -1200, y: 400 }, seen = new Set();
+  for (let i = 0; i < 240; i++) {
+    geometry.advance(point, 0, -1, 1 / 60, false, 'swim');
+    const ground = geometry.groundAt(point);
+    assert.equal(ground, geometry.observe(point).ground);
+    seen.add(ground);
+  }
+  assert.ok(seen.has('shallow-water'));
+  assert.ok(seen.has('deep-water'));
+});
+
+test('ground-only query preserves observation errors for invalid and unreachable positions', () => {
+  const structures = geometry.structures.objectsInRect({ left: -9000, top: -7000, right: 9000, bottom: 7000 });
+  const blocked = ['oak', 'pine', 'rock'].map(kind => structures.find(o => o.kind === kind));
+  const points = [undefined, null, false, 3, 'point', {}, { x: 0 },
+    { x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: '0', y: 0 },
+    { x: 19000, y: 0 }, { x: -19000, y: 0 }, { x: 0, y: 14200 },
+    { x: 0, y: -14200 }, { x: 19001, y: 0 }, { x: -12000, y: 9900 },
+    ...blocked.map(o => ({ x: o.x, y: o.y }))];
+  for (const point of points) {
+    for (const query of [geometry.observe, geometry.groundAt]) {
+      assert.throws(() => query(point), {
+        name: 'RangeError', message: 'Ozark observation requires a physically reachable position',
+      });
+    }
+  }
+});
+
+// Existing observe can grade a remote boundary ray outside the map. The local
+// query must not perform that unrelated remote work or change observe itself.
+test('ground-only query accepts valid local ground even when a remote observation ray reaches the map edge', () => {
+  const point = { x: -18600, y: -13800 };
+  assert.equal(geometry.canOccupy(point.x, point.y), true);
+  assert.equal(geometry.groundAt(point), 'dry-land');
+  assert.throws(() => geometry.observe(point), {name:'RangeError', message:'Outside approved Ozark sample-center bounds'});
+});

@@ -426,11 +426,20 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
     return grade > PROFILE.walkGrade ? 'steep-ground' : 'dry-land';
   }
 
-  function observe(point) {
+  function observationSite(point) {
     if (!finitePoint(point) || !canOccupy(point.x, point.y)) {
       throw new RangeError('Ozark observation requires a physically reachable position');
     }
-    const site = raw(point.x, point.y);
+    return raw(point.x, point.y);
+  }
+
+  // The same current-position ground fact as observe, without remote sensing.
+  function groundAt(point) {
+    return groundName(point, observationSite(point));
+  }
+
+  function observe(point) {
+    const site = observationSite(point);
     const nearby = [];
     for (const range of [200, PROFILE.sightRange]) {
       for (const [direction, dx, dy] of DIRECTIONS) {
@@ -467,7 +476,7 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
   const result = Object.freeze({
     profile: PROFILE, bounds: BOUNDS, spawn: PLAYER_SPAWN,
     agentSpawns: SPAWNS, sample, cartographicSample: sampleTerrain, classify, canOccupy, advance, move,
-    lineOfSight, observe,
+    lineOfSight, observe, groundAt,
     ...(structures ? { structureVersion: 1,
       structureContract: structuralLayer.profileContract, structures: structuralLayer, lightAt } : {}),
   });
