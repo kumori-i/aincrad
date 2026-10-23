@@ -60,3 +60,32 @@ The controller recovery harness uses the same bounded native capture-readiness
 helper as the aquatic harness. Only small/empty captures retry; every attempt is
 retained. No controller action, save operation, assertion or physical outcome is
 retried, and the final image-size threshold is unchanged.
+
+### Bounded naming follow-up timing
+
+`node scripts/verify-naming-followup-desktop.mjs` runs three independent sandboxed
+Electron processes on Linux/macOS. A disclosed close placement and repeated paid
+inspection establish an owner-chosen individual name; ordinary `PopulationRuntime`
+ticks then drive introduction, request, independent selection and confirmation.
+A second fixed encounter saves immediately after a real request, before confirmation.
+It does not pause another agent, manufacture a shared dictionary, or retry dialogue.
+
+The actual app reopens the exact saved bytes and compares pose, physiology,
+lexicons/checked-with records, history and every clock (including ecology pending
+time). Its grounded-name journal is captured read-only. A further save and third
+process reopen rule out duplicate history or fabricated confirmation. Conversation
+interruption alone is not a paid-action restart receipt; only genuine active bodily
+actions may receive the existing codec cancellation. A separately decoded-actor
+check observes the target afresh and runs beyond the ordinary speech cooldown,
+asserting no restored opportunity or pending conversation and no replay. This
+separate runtime check is not represented as access to the app's private actors.
+
+Evidence under `test-results/naming-followup-desktop/` includes raw checkpoints,
+live world and actual reopened journal captures, distinct process IDs, normal
+close/quit records, source identity and strict sandbox settings. The existing
+bounded capture-readiness helper preserves all failed capture attempts without
+retrying actions or saves. Inspect the screenshots; byte size is not semantic QA.
+`--prepare-only` and serialized Node fixture tests are preparation, not native
+execution. Missing display/runtime is reported as not run, never bypassed. This
+controlled timing trial does not establish spontaneous language, mutual attention,
+long-run survival or autonomous discovery of the initial encounter.
