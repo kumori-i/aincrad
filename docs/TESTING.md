@@ -39,3 +39,24 @@ The renewable native harness also checks macOS last-window retention, standard C
 Filesystem checks retain canonical asset containment, temporary-root alias handling, symlink-suffix refusal and product-profile overlap guards. A case-sensitive host tests distinct-cased paths as distinct; a case-insensitive host must reject a differently cased alias into the product profile. Existing directory overlap is also checked by device/inode identity because realpath does not normalize case. No path is blindly lowercased. Unix backup mode 0600 is asserted, not skipped.
 
 Packaging uses the actual host architecture. Linux produces an unpacked application directory; macOS produces an unsigned, unnotarized development `.app`. CI archives the bundles with tar to preserve executable modes and symlinks. Packaging success does not establish installation, Gatekeeper acceptance, or support for a different architecture. Other Unix systems are not tested desktop targets. Historical Windows artifacts remain unchanged and are not current support claims.
+
+### Controller-selected movement recovery
+
+`node scripts/verify-movement-recovery-desktop.mjs` runs a separate sandboxed
+three-process native regression on Linux/macOS. A controlled first walk produces
+a real blocked receipt; the ordinary controller must select and admit the next
+recovery action, and actual motion/body time must be paid. A second scene saves
+after one paid recovery tick. Reopen compares all clocks (including ecology
+pending time), body, action history and pose, and a third process rules out a
+duplicate restart interruption. Screenshots and process-close evidence accompany
+the result. A decoded actor separately checks that saved observations cannot
+restore live retreat authority; it is not claimed to be the app's private actor.
+
+`--prepare-only` builds the harness without running Electron and never counts as
+native execution. Native execution requires an unprivileged supported display,
+without sandbox bypass. This narrow controlled trial is not a survival evaluation.
+
+The controller recovery harness uses the same bounded native capture-readiness
+helper as the aquatic harness. Only small/empty captures retry; every attempt is
+retained. No controller action, save operation, assertion or physical outcome is
+retried, and the final image-size threshold is unchanged.

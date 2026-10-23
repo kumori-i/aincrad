@@ -29,14 +29,17 @@ test('predeclared isolated controller scenes retain failures but do not remain i
       for (let index = 0; index < 1500; index++) controller.tick(CONFIG.fixedStep);
       const actions = actor.memory.experience.filter(event => event.type === 'action');
       const failures = actions.filter(event => event.details.result.ok === false);
-      const arrivals = actions.filter(event => event.details.result.code === 'ARRIVED');
+      const arrivals = actions.filter(event => event.details.result.code === 'ARRIVED' && event.details.action.duration !== .75);
+      const recoveries = actions.filter(event => event.details.result.code === 'ARRIVED' && event.details.action.duration === .75);
       assert.ok(failures.length > 0, 'route and climb failures remain real evidence');
       assert.ok(arrivals.length > 0);
       assert.equal(geometry.canOccupy(actor.position.x, actor.position.y), true);
       if (from.x === 240) {
         assert.equal(actions[0].details.result.code, 'ROUTE_BLOCKED');
-        assert.ok(arrivals.some(event => event.details.action.target.x === 0 &&
-          event.details.action.target.y === 3200), 'the known left detour is preserved');
+        assert.ok(arrivals.some(event => event.at > failures[0].at),
+          'ordinary goals, not retreat receipts, remain reachable after failure');
+        // Recovery intentionally changes subsequent policy choices. The exact
+        // (0,3200) route remains a separate paid traversal control in movement-recovery.test.mjs.
       } else {
         const oldLock = { x: 527.9482587463335, y: 3120.0000031694867 };
         assert.ok(Math.hypot(actor.position.x - oldLock.x, actor.position.y - oldLock.y) > 100);
@@ -44,7 +47,7 @@ test('predeclared isolated controller scenes retain failures but do not remain i
           'this fixed trial can reach a later goal after experiencing failure');
       }
       t.diagnostic(JSON.stringify({ from, finalPosition: actor.position,
-        failures: failures.length, arrivals: arrivals.length, simulatedSeconds: actor.elapsed }));
+        failures: failures.length, ordinaryArrivals: arrivals.length, recoveryArrivals: recoveries.length, simulatedSeconds: actor.elapsed }));
     } finally {
       controller.dispose();
     }

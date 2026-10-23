@@ -1,3 +1,4 @@
+import { recoveryChoice } from './movement-recovery.js';
 import { chooseOwnName } from './naming-state.js';
 import { parseHumanHint } from './human-hints.js';
 import { recordHandlingOutcome, handlingExperiment, handlingInquiries, HANDLING_QUESTION } from './handling-inquiry.js';
@@ -252,7 +253,7 @@ function terrainTraversalDecision(npc){
     event.details.result?.code==='ROUTE_BLOCKED'&&event.details.result?.blockedTarget);
   if(blocked){
     const target=blocked.details.result.blockedTarget,cell=nearby.find(c=>c.x===target.x&&c.y===target.y);
-    if(cell){
+    if(cell&&['surface-water','internal-pond','visible-divide'].includes(cell.terrain)){
       const type=['surface-water','internal-pond'].includes(cell.terrain)?'swim':'climb';
       if(!attempted(type,cell,blocked.at))return {action:{type,target:{x:cell.x,y:cell.y}},reason:type==='swim'?
         'My walking step met resistance at visible water; I can try moving through it with a swim.':
@@ -404,7 +405,10 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true}
   // Evaluation can ablate positive food associations without erasing perception,
   // navigation, practice, novelty, failures, or experienced discomfort.
   if(!foodLearning)d.run=null;
-  const wrap=(action,reason,need='understanding')=>({action,reason,need,provider:'discovery-learner'});
+  const wrap=(action,reason,need='understanding')=>{
+    const retreat=recoveryChoice(npc,action,need);
+    return {action:retreat||action,reason:retreat?'My attempted walk did not make progress. I can cautiously retrace a short part of my own recent path before choosing another route.':reason,need,provider:'discovery-learner'};
+  };
   const escape=contactEscape(npc);if(escape)return wrap(escape.action,'A contact I actually experienced hurt; I can move away through terrain I observed.','safety');
   const thirsty=['thirsty','parched','desperate thirst'].includes(body.thirst)||
     ozarkPersistentWorldAgent(npc)&&body.thirst==='dry mouth';
