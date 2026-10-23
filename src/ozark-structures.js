@@ -208,6 +208,43 @@ export function createOzarkStructures(baseGeometry) {
     return found;
   }
 
+  // Exact swept circle against the same solid footprints as obstruction().
+  // Expanding the start circle by movement length can reject a legal departure
+  // from a nearby trunk, even when the entire segment moves away from it.
+  function sweptObstruction(from, to, radius = 10) {
+    if (!finitePoint(from) || !finitePoint(to) || !Number.isFinite(radius) || radius < 0) {
+      throw new TypeError('Expected finite sweep endpoints and a nonnegative footprint');
+    }
+    if (from.x === to.x && from.y === to.y) return obstruction(from.x, from.y, radius);
+    const reach = radius + MAX_RADIUS;
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+    // Outside-world queries are useful, but an unrepresentable squared length
+    // or radius must fail closed rather than let NaN/Infinity miss a collider.
+    if (!Number.isFinite(lengthSquared) || lengthSquared === 0 || !Number.isFinite(reach * reach)) {
+      throw new RangeError('Structure sweep exceeds representable segment or footprint arithmetic');
+    }
+    let found = null;
+    visitRect(Math.min(from.x, to.x) - reach, Math.min(from.y, to.y) - reach,
+      Math.max(from.x, to.x) + reach, Math.max(from.y, to.y) + reach, object => {
+        const extent = radius + object.radius * object.scale;
+        const projection = (object.x - from.x) * dx + (object.y - from.y) * dy;
+        if (!Number.isFinite(projection)) {
+          throw new RangeError('Structure sweep exceeds representable projection arithmetic');
+        }
+        // At either endpoint, use the point classifier's exact floating-point
+        // convention too. Squared rounding must not reject a legal departure.
+        const overlaps = projection <= 0 ?
+          Math.hypot(object.x - from.x, object.y - from.y) < extent :
+          projection >= lengthSquared ?
+            Math.hypot(object.x - to.x, object.y - to.y) < extent :
+            distanceToSegmentSquared(object, from, to) < extent ** 2;
+        if (!overlaps) return false;
+        found = object; return true;
+      });
+    return found;
+  }
+
   function blocksSight(from, to) {
     if (!finitePoint(from) || !finitePoint(to)) throw new TypeError('Expected finite sight endpoints');
     return visitRect(Math.min(from.x, to.x) - MAX_RADIUS, Math.min(from.y, to.y) - MAX_RADIUS,
@@ -239,5 +276,5 @@ export function createOzarkStructures(baseGeometry) {
   function shadowAt(x, y, hour) { return crownCoverAt(x, y, landscapeSun(hour)); }
 
   return Object.freeze({ profileContract: OZARK_STRUCTURES_CONTRACT,
-    objectsInRect, obstruction, blocksSight, canopyAt, shadowAt });
+    objectsInRect, obstruction, sweptObstruction, blocksSight, canopyAt, shadowAt });
 }

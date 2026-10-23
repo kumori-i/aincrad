@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
+import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute, installEmptyCurrentSlot } from './carcass-native-contract.mjs';
 
 import { createPeerTeachingUiFixture, presentPeerTeachingUi } from './peer-teaching-ui-fixture.mjs';
@@ -245,11 +246,24 @@ async function waitFor(win, expression) {
  for (let n = 0; n < 500; n++) { try { if (await win.webContents.executeJavaScript(expression)) return; } catch {} await delay(50); }
  throw new Error('Missing native hook: ' + expression);
 }
+const captureWithReadiness = ${captureWithReadiness.toString()};
 async function capture(win, name) {
- await win.webContents.executeJavaScript('window.__aquaticQa?.settleDraw?.()');
- await delay(100); const image = await win.webContents.capturePage(), png = image.toPNG();
+ const { png, metadata } = await captureWithReadiness({
+   prepare: async () => {
+     const readiness = await win.webContents.executeJavaScript('(' + ${JSON.stringify(waitForCaptureFrames.toString())} + ')()');
+     await delay(100);
+     return readiness;
+   },
+   capture: () => win.webContents.capturePage(),
+   retain: async (bytes, attempt) => {
+     const prefix = path.join(context.output, name + '.attempt-' + attempt.attempt);
+     if (bytes !== undefined) await fs.writeFile(prefix + '.png', bytes);
+     await fs.writeFile(prefix + '.json', JSON.stringify({ phase, name, ...attempt }, null, 2));
+   },
+ });
  assert.ok(png.length > 10000); await fs.writeFile(path.join(context.output, name), png);
- return { file: path.join(context.output, name), bytes: png.length, ...image.getSize() };
+ return { file: path.join(context.output, name), bytes: png.length, width: metadata.width,
+   height: metadata.height, captureAttempts: metadata.attempt };
 }
 async function writePhase(win) {
  await assertCurrentBoot(win);

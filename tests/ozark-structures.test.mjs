@@ -15,6 +15,19 @@ function terrain(habitat = 'oak-pine-woodland', overrides = {}) {
   });
 }
 
+function isolatedStructure(kind, matches = () => true) {
+  const canonical = createOzarkStructures(terrain()).objectsInRect(rectangle)
+    .find(object => object.kind === kind && matches(object));
+  assert.ok(canonical, `expected an isolated canonical ${kind} fixture`);
+  const structures = createOzarkStructures(terrain('unknown', {
+    sample: (x, y) => ({ habitat: x === canonical.x && y === canonical.y ? canonical.habitat : 'unknown',
+      surfaceWaterDistance: 20, sinkholePondDistance: null }),
+  }));
+  const objects = structures.objectsInRect(rectangle);
+  assert.deepEqual(objects, [canonical]);
+  return { structures, object: objects[0] };
+}
+
 test('structures are deterministic, immutable, spatially bounded and independent of query order', () => {
   const base = terrain(), before = JSON.stringify(base), first = createOzarkStructures(base);
   const expected = first.objectsInRect(rectangle);
@@ -105,6 +118,160 @@ test('the same trunk and rock records block collision and sight without overlapp
       assert.ok(Math.hypot(object.x - other.x, object.y - other.y) >= object.radius * object.scale + other.radius * other.scale);
     }
   }
+});
+
+test('exact structure sweeps permit near-boundary departures in either direction', () => {
+  for (const kind of ['oak', 'pine', 'rock']) {
+    const { structures, object } = isolatedStructure(kind);
+    for (const radius of [0, 10, 80]) {
+      const clearance = radius + object.radius * object.scale + 1e-7;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1],
+        [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2]]) {
+        const from = Object.freeze({ x: object.x + dx * clearance, y: object.y + dy * clearance });
+        assert.equal(structures.obstruction(from.x, from.y, radius), null);
+        // The old start-circle expansion rejects this legal outward move.
+        assert.equal(structures.obstruction(from.x, from.y, radius + 4), object);
+        for (const distance of [.01, 4, 80, 1200]) {
+          const to = Object.freeze({ x: from.x + dx * distance, y: from.y + dy * distance });
+          assert.equal(structures.obstruction(to.x, to.y, radius), null);
+          assert.equal(structures.sweptObstruction(from, to, radius), null, `${kind} outward departure`);
+          assert.equal(structures.sweptObstruction(to, from, radius), null, `${kind} reversed legal segment`);
+        }
+      }
+    }
+  }
+});
+
+test('exact structure sweeps distinguish strict tangency, near misses and shallow crossings', () => {
+  for (const kind of ['oak', 'pine', 'rock']) {
+    const { structures, object } = isolatedStructure(kind);
+    // Use exactly representable combined radii and integer tangent coordinates.
+    // Adding an arbitrary fractional footprint to a large center can round inside.
+    const radius = 64 - object.radius * object.scale;
+    assert.equal(radius + object.radius * object.scale, 64);
+    for (const [normalX, normalY] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const offset of [64, 64 + 1e-7, 64 - 1e-7]) {
+        const from = { x: object.x + normalX * offset - normalY * 128,
+          y: object.y + normalY * offset + normalX * 128 };
+        const to = { x: object.x + normalX * offset + normalY * 128,
+          y: object.y + normalY * offset - normalX * 128 };
+        const expected = offset < 64 ? object : null;
+        assert.equal(structures.sweptObstruction(from, to, radius), expected, `${kind} offset ${offset}`);
+        assert.equal(structures.sweptObstruction(to, from, radius), expected, `${kind} reversed offset ${offset}`);
+      }
+    }
+    const diagonalRadius = 80 - object.radius * object.scale;
+    assert.equal(diagonalRadius + object.radius * object.scale, 80);
+    // The 48/64/80 normal is perpendicular to the -64/48 tangent.
+    for (const offset of [0, 1e-7, -1e-7]) {
+      const from = { x: object.x + 112, y: object.y + 16 + offset };
+      const to = { x: object.x - 16, y: object.y + 112 + offset };
+      const expected = offset < 0 ? object : null;
+      assert.equal(structures.sweptObstruction(from, to, diagonalRadius), expected);
+      assert.equal(structures.sweptObstruction(to, from, diagonalRadius), expected);
+    }
+  }
+});
+
+test('zero-length and outward structure sweeps agree with point obstruction at rounded diagonal boundaries', () => {
+  for (const kind of ['oak', 'pine', 'rock']) {
+    const { structures, object } = isolatedStructure(kind);
+    const angles = [0, Math.PI / 4, ...[237, 276, 542, 570, 286, 582].map(value => value * Math.PI / 18000)];
+    for (const radius of [0, 10, 64 - object.radius * object.scale]) {
+      assert.equal(structures.sweptObstruction(object, object, radius), object);
+      for (const angle of angles) for (const gap of [-1e-7, 0, 1e-7]) {
+        const distance = radius + object.radius * object.scale + gap;
+        const point = { x: object.x + Math.cos(angle) * distance, y: object.y + Math.sin(angle) * distance };
+        const expected = structures.obstruction(point.x, point.y, radius);
+        const message = `${kind}, radius ${radius}, angle ${angle}, gap ${gap}`;
+        assert.equal(structures.sweptObstruction(point, { ...point }, radius), expected, message);
+        const away = { x: point.x + Math.cos(angle) * 4, y: point.y + Math.sin(angle) * 4 };
+        assert.equal(structures.sweptObstruction(point, away, radius), expected, `outward ${message}`);
+        assert.equal(structures.sweptObstruction(away, point, radius), expected, `reversed ${message}`);
+      }
+    }
+    const outside = { x: 21000, y: 21000 };
+    assert.equal(structures.sweptObstruction(outside, outside), structures.obstruction(outside.x, outside.y));
+  }
+});
+
+test('structure sweeps retain the canonical collider for endpoint overlap and complete crossings', () => {
+  for (const kind of ['oak', 'pine', 'rock']) {
+    const { structures, object } = isolatedStructure(kind);
+    for (const radius of [0, 10]) {
+      const reach = radius + object.radius * object.scale;
+      const left = { x: object.x - reach - 20, y: object.y };
+      const inside = { x: object.x + reach / 2, y: object.y };
+      const right = { x: object.x + reach + 20, y: object.y };
+      assert.equal(structures.obstruction(left.x, left.y, radius), null);
+      assert.equal(structures.obstruction(right.x, right.y, radius), null);
+      assert.equal(structures.obstruction(inside.x, inside.y, radius), object);
+      for (const [from, to] of [[left, inside], [inside, right], [inside, object], [left, right]]) {
+        assert.equal(structures.sweptObstruction(from, to, radius), object);
+        assert.equal(structures.sweptObstruction(to, from, radius), object);
+        if (radius === 10) assert.equal(structures.sweptObstruction(from, to), object, 'default footprint is 10');
+      }
+    }
+  }
+});
+
+test('very long structure sweeps cannot tunnel through a shallow collider crossing', () => {
+  for (const kind of ['oak', 'pine', 'rock']) {
+    const { structures, object } = isolatedStructure(kind);
+    const radius = 10, y = object.y + radius + object.radius * object.scale - 1e-5;
+    const from = { x: -19900, y }, to = { x: 19889, y };
+    assert.equal(structures.obstruction(from.x, from.y, radius), null);
+    assert.equal(structures.obstruction(to.x, to.y, radius), null);
+    assert.equal(structures.sweptObstruction(from, to, radius), object);
+    assert.equal(structures.sweptObstruction(to, from, radius), object);
+  }
+});
+
+test('structure sweep broad phase includes collider centers across chunk boundaries and outside the center path', () => {
+  for (const kind of ['oak', 'pine', 'rock']) {
+    const { structures, object } = isolatedStructure(kind,
+      candidate => Math.floor(candidate.y / 600) !== Math.floor((candidate.y + 63.5) / 600));
+    const radius = 64 - object.radius * object.scale;
+    const from = { x: object.x - 800, y: object.y + 63.5 };
+    const to = { x: object.x + 800, y: from.y };
+    assert.notEqual(Math.floor(from.x / 600), Math.floor(to.x / 600));
+    assert.notEqual(Math.floor(object.y / 600), Math.floor(from.y / 600));
+    assert.ok(Math.abs(from.y - object.y) > radius, 'actor-only padding would omit the collider center');
+    assert.equal(structures.obstruction(from.x, from.y, radius), null);
+    assert.equal(structures.obstruction(to.x, to.y, radius), null);
+    assert.equal(structures.sweptObstruction(from, to, radius), object);
+    assert.equal(structures.sweptObstruction(to, from, radius), object);
+  }
+});
+
+test('structure sweeps validate both endpoints and a finite nonnegative footprint', () => {
+  const structures = createOzarkStructures(terrain('unknown')), point = { x: 0, y: 0 };
+  for (const invalid of [null, undefined, {}, { x: 0 }, { x: '0', y: 0 },
+    { x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: -Infinity, y: 0 }]) {
+    assert.throws(() => structures.sweptObstruction(invalid, point), TypeError);
+    assert.throws(() => structures.sweptObstruction(point, invalid), TypeError);
+  }
+  for (const radius of [-1, NaN, Infinity, -Infinity, '10', null]) {
+    assert.throws(() => structures.sweptObstruction(point, point, radius), TypeError);
+  }
+  assert.equal(structures.sweptObstruction(point, point), null);
+  assert.equal(structures.sweptObstruction(point, point, 0), null);
+});
+
+test('unrepresentable finite sweep arithmetic fails closed instead of missing a collider', () => {
+  const { structures, object } = isolatedStructure('oak');
+  for (const magnitude of [1e154, 1e200, Number.MAX_VALUE]) {
+    const from = { x: -magnitude, y: object.y }, to = { x: magnitude, y: object.y };
+    assert.throws(() => structures.sweptObstruction(from, to, 10), RangeError);
+    assert.throws(() => structures.sweptObstruction(to, from, 10), RangeError);
+  }
+  assert.throws(() => structures.sweptObstruction({ x: 0, y: 0 },
+    { x: Number.MIN_VALUE, y: 0 }, 10), RangeError);
+  assert.throws(() => structures.sweptObstruction({ x: 0, y: 0 },
+    { x: 1, y: 0 }, 1e200), RangeError);
+  // A stationary outside-world query still has point-obstruction semantics.
+  const outside = { x: 21000, y: 21000 };
+  assert.equal(structures.sweptObstruction(outside, outside), null);
 });
 
 test('generation never places structures in water or on nonwalkable grades; queries validate inputs', () => {
