@@ -8,10 +8,12 @@ import { observeNpc,requestNpcAction,tickNpc } from '../src/npc.js';
 import { SocialCoordinator } from '../src/social.js';
 import { resolvePoint } from '../src/naming-runtime.js';
 import { validLexicon,resolveName } from '../src/naming-state.js';
+import { contactEscape } from '../src/discovery.js';
+import { recordEvent } from '../src/npc-memory.js';
 const geometry=createOzarkWorldGeometry();
-function fixture({unique=true}={}){
+function fixture({unique=true,legacyGround=false}={}){
   let visible=true;
-  const g=Object.freeze({...geometry,lineOfSight:(...args)=>visible&&geometry.lineOfSight(...args)});
+  const g=Object.freeze({...geometry,groundAt:legacyGround?point=>geometry.observe(point).ground:geometry.groundAt,lineOfSight:(...args)=>visible&&geometry.lineOfSight(...args)});
   const state=createOzarkState(g),[a,b]=state.agents,e=state.environment;
   state.elapsed=e.elapsed=e.ecology.elapsed=60;
   const source=e.ecology.plants.find(p=>p.kind==='apple_tree'&&p.quantity>0&&
@@ -136,4 +138,52 @@ test('ambiguous pointing and unresolved word consume bounded one-shot opportunit
   const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>state.environment,getCommunity:()=>state.community});
   for(let i=0;i<400;i++){state.environment.elapsed+=.1;state.environment.ecology.elapsed=state.environment.elapsed;state.elapsed=state.environment.elapsed;for(const n of state.agents)tickNpc(n,.1,state.environment);social.tick(.1);}
   assert.equal(JSON.stringify(state.agents.map(n=>n.lexicon)),before);assert.equal(state.community.messages.length,messages);assert.equal(social.naming.pendingCount(),0);
+});
+
+test('ground-only safety preserves full state and pending cancellation before cooldown in both phases', () => {
+  for (const phase of ['select', 'confirm']) {
+    for (const reason of ['none', 'shallow-water', 'deep-water', 'deep-pond', 'sleep', 'urgent', 'contact', 'range', 'occluded']) {
+      const run = legacyGround => {
+        const f = fixture({legacyGround});
+        f.name(f.a); f.step(); f.advance(SOCIAL_RULES.speechCooldown + .2); f.step();
+        assert.equal(f.social.naming.pendingCount(), 1);
+        if (phase === 'confirm') { f.advance(.1); f.step(); }
+        const positions = {'shallow-water':{x:-1200,y:240}, 'deep-water':{x:-1200,y:220}, 'deep-pond':{x:-11800,y:11800}};
+        // Move both actors together so water, rather than range, interrupts.
+        if (positions[reason]) for (const n of [f.a,f.b]) n.position = {...positions[reason]};
+        if (reason === 'sleep') f.b.lifecycle = 'COLLAPSED';
+        if (reason === 'urgent') f.b.physiology.waterDeficitMl = 5000;
+        if (reason === 'contact') {
+          // Controlled injection of the ordinary experienced-contact event;
+          // escape still needs the actor's genuinely observed reachable cells.
+          recordEvent(f.b, 'condition', {code:'CONTACT_INJURY', provenance:'experienced contact',
+            scene:f.b.scene, sourceId:f.source.id, sourcePosition:{x:f.b.position.x-30,y:f.b.position.y}});
+          assert.ok(contactEscape(f.b), 'contact fixture must have a real observed escape route');
+        }
+        if (reason === 'range') f.b.position.x += 600;
+        if (reason === 'occluded') f.setVisible(false);
+        // Neither selection nor confirmation is eligible yet, but safety must
+        // still cancel immediately at this same simulation instant.
+        f.a.social.lastSpokeAt = f.b.social.lastSpokeAt = f.e.elapsed;
+        const messages = f.state.community.messages.length;
+        f.step();
+        assert.equal(f.social.naming.pendingCount(), reason === 'none' ? 1 : 0, `${phase}: ${reason}`);
+        assert.equal(f.state.community.messages.length, messages);
+        assert.equal(f.b.lexicon.heard[0].confirmation, null);
+        const result = structuredClone(f.state);
+        f.social.dispose();
+        return result;
+      };
+      assert.deepEqual(run(false), run(true), `${phase}: ${reason}`);
+    }
+  }
+});
+
+test('ground-only safety leaves the complete successful lexical protocol state unchanged', () => {
+  const run = legacyGround => {
+    const f = fixture({legacyGround}); f.name(f.a); f.step(); confirm(f);
+    assert.ok(f.b.lexicon.heard[0].confirmation);
+    const state = structuredClone(f.state); f.social.dispose(); return state;
+  };
+  assert.deepEqual(run(false), run(true));
 });

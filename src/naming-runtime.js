@@ -26,7 +26,7 @@ export class NamingRuntime {
   pendingCount(){return this.#pending.size;}
   safe(n){
     if(!awake(n))return false;
-    const b=bodySignals(n),ground=ozarkAgentWorld(n)?.observe(n.position)?.ground;
+    const b=bodySignals(n),ground=ozarkAgentWorld(n)?.groundAt(n.position);
     return !['urgent','unconscious','recovering'].includes(b.overall)&&
       !['ravenous','faint with hunger'].includes(b.hunger)&&!['parched','desperate thirst'].includes(b.thirst)&&
       !['winded','exhausted'].includes(b.stamina)&&!['weary','exhausted'].includes(b.fatigue)&&
