@@ -18,6 +18,8 @@ Run `npm run check`, `npm run build`, then `npm run smoke` in a supported sandbo
 
 Run `node scripts/verify-renewable-sharing-desktop.mjs` for the new two-process feeding/handoff evidence, alongside the existing aquatic and carcass native harnesses. Its short run does not establish multi-day reproduction; see [renewable native QA](RENEWABLE-SHARING-NATIVE-QA.md) and [ecology evidence](RENEWABLE-AQUATIC-ECOLOGY.md).
 
+Run `node scripts/verify-structural-movement-desktop.mjs` for the targeted old-coordinate collision regression. Three independent sandboxed Electron processes write a valid near-tree save with a real failed and partially paid unfinished move, restore exact coordinates/clocks/history, exercise paid blocked and retreating ordinary player steps, and reopen the resulting save. Actual before/after screenshots and close/quit evidence are retained under `test-results/structural-movement-desktop/`. Existing history must remain exact; unfinished movement may add only an honest restart-cancellation receipt, not completion. The fixture uses disclosed initial placement and controlled movement, not learned recovery. `--prepare-only` and Node fixture/assertion tests prepare the runner but are not native evidence. This targeted path runs in the existing Linux/macOS desktop CI job without new application hooks, IPC or sandbox exceptions.
+
 ## Diagnostics, not physical-feature gates
 
 Keep fixed ordinary-controller discovery/adoption results and failures. Do not silently turn failures green, substitute externally commanded actions for autonomy, or promise longer runtime will discover a skill. CI may label these jobs nonblocking diagnostics while keeping their actual assertion outcomes and artifacts visible.

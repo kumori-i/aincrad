@@ -281,10 +281,16 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
     const length = Math.hypot(to.x - from.x, to.y - from.y);
     const halfStep = length / 2;
     const midpoint = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    // Retain conservative footprint expansion for water, bounds and terrain.
+    // Solid circles instead use the exact segment sweep: an inflated circle
+    // at the start would forbid valid departures from nearby trunks/rocks.
     const sites = [from, midpoint, to].map(point =>
-      classify(point.x, point.y, radius + halfStep, mode));
+      classifyTerrain(point.x, point.y, radius + halfStep, mode));
     const blocked = sites.find(site => !site.walkable);
     if (blocked) return blocked;
+    const obstacle = structuralLayer?.sweptObstruction(from, to, radius);
+    if (obstacle) return { ...sites[0], walkable: false,
+      reason: obstacle.kind === 'rock' ? 'solid-rock' : 'tree-trunk' };
     if (length === 0) return sites[0];
     // A local height check catches narrow crest rises between otherwise
     // passable endpoints. Submerged travel is not a terrain climb.
