@@ -89,3 +89,32 @@ retrying actions or saves. Inspect the screenshots; byte size is not semantic QA
 execution. Missing display/runtime is reported as not run, never bypassed. This
 controlled timing trial does not establish spontaneous language, mutual attention,
 long-run survival or autonomous discovery of the initial encounter.
+
+### Bounded naming clarification
+
+`tests/naming-repair.test.mjs` and `tests/naming-repair-state.test.mjs` cover the
+listener-triggered clarification, current-sight re-point and separate word-only
+retry, including negative ambiguity/conflict controls and strict optional receipt
+validation. Controlled observation overrides are diagnostic fixtures, not evidence
+of naturally occurring language. Restart and compaction must retain consumed
+budgets without restoring a runnable exchange; prior schema-12 saves remain valid.
+Native execution still requires a supported sandboxed display/runtime. Node
+roundtrips do not establish native close/reopen behavior.
+
+`node scripts/verify-naming-repair-desktop.mjs` prepares and runs a targeted
+three-process sandboxed repair/save regression on supported Linux/macOS displays.
+The disclosed fixture initially places the listener outside source sight but near
+the speaker, waits for an actual unresolved request and explicit clarification,
+then externally relocates the listener to permit current-sight re-pointing. An
+isolated `SocialCoordinator`, not ordinary autonomous controllers, drives the
+exchange while body, ecology and paid-action time continue. It captures one
+completed repair and another interrupted just after the fresh word-only retry.
+Exact saved bytes, consumed budgets, clocks, physiology and history are compared
+on actual app reopening and again in a third process; a separate decoded-actor
+probe checks no replay after fresh sight. This is not autonomous travel evidence.
+
+`--prepare-only` and the serialized Node fixture tests establish preparation only,
+never native execution. Native logs and capture attempts are retained under
+`test-results/naming-repair-desktop/`; inspect actual screenshots when that runner
+is executed. Missing display or sandbox capability is a blocked verification row,
+not permission to weaken the sandbox.

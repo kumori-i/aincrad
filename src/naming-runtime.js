@@ -6,7 +6,7 @@ import { actorLineOfSight } from './perception.js';
 import { senseEcology } from './ecology.js';
 import { rememberDiscoveryObservation, contactEscape } from './discovery.js';
 import { ozarkAgentWorld } from './ozark-agent-world.js';
-import { validLexicon, recordGrounding, resolveName, confirmReference, markNameAnnounced, markReferenceRequested } from './naming-state.js';
+import { validLexicon, recordGrounding, resolveName, confirmReference, markNameAnnounced, markReferenceRequested, recordRepairStep } from './naming-state.js';
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 export const NAMING_POINT_RADIUS=12;
@@ -46,7 +46,15 @@ export class NamingRuntime {
         !this.local(row.speaker,row.listener)||!this.followupSafe(row.speaker)||!this.followupSafe(row.listener)||
         !this.social.agents().includes(row.speaker)||!this.social.agents().includes(row.listener)||
         row.speaker.epoch!==row.epochs[0]||row.listener.epoch!==row.epochs[1]||
-        this.social.foodSharing?.holding(row.speaker)||this.social.foodSharing?.holding(row.listener)||!this.followupTarget(row))this.endOpportunity(row);
+        this.social.foodSharing?.holding(row.speaker)||this.social.foodSharing?.holding(row.listener)){this.endOpportunity(row);continue;}
+      if(!this.followupTarget(row)){
+        // Lost grounding withdraws acceleration, not the already received word.
+        // Let its listener independently evaluate and, if unresolved, clarify
+        // under the ordinary cooldown. Repaired requests cannot reopen repair.
+        const pending=this.#pending.get(row.speaker.id);
+        if(pending?.opportunity===row&&pending.phase==='select'&&!pending.retried)pending.opportunity=null;
+        this.endOpportunity(row);
+      }
     }
   }
   // One brief continuation of a genuinely grounded introduction. It cannot
@@ -103,15 +111,60 @@ export class NamingRuntime {
   }
   evidence(message,speaker,listener,object){return {messageId:message.id,at:message.at,scene:speaker.scene,
     speakerPosition:{...speaker.position},listenerPosition:{...listener.position},objectPosition:{...object.position}};}
+  // This phase exists only because the listener actually failed to resolve a
+  // received word request. Saved receipts consume budgets but never create it.
+  repairStep(p,phase,event){
+    return recordRepairStep(p.speaker,p.listener,p.token,p.originalRequest??p.request,phase,event);
+  }
+  proposed(){return {id:`message:${this.social.community().nextId}`,at:this.environment.elapsed};}
+  pendingSafe(p){
+    return this.local(p.speaker,p.listener)&&this.followupSafe(p.speaker)&&this.followupSafe(p.listener)&&
+      this.social.agents().includes(p.speaker)&&this.social.agents().includes(p.listener)&&
+      p.speaker.epoch===p.epochs[0]&&p.listener.epoch===p.epochs[1]&&
+      !this.social.foodSharing?.holding(p.speaker)&&!this.social.foodSharing?.holding(p.listener);
+  }
   tick(){
     if(!this.environment)return;
     const now=this.environment.elapsed;
     this.pruneOpportunities();
     for(const [key,p] of this.#pending){
-      if(now-p.request.at>=NAMING_EXCHANGE_SECONDS||now<p.request.at||!this.local(p.speaker,p.listener)){
+      const origin=p.originalRequest??p.request;
+      if(now-origin.at>=NAMING_EXCHANGE_SECONDS||now<origin.at||!this.pendingSafe(p)){
         this.#pending.delete(key);continue;
       }
       const {speaker,listener}=p;
+      if(p.phase==='repoint'){
+        if(now<=p.clarification.at||!this.ready(speaker))continue;
+        // Resolve the request against the speaker's own remembered association,
+        // never the listener's dictionary or the old request's coordinates.
+        const own=speaker.lexicon?.own.find(r=>r.token===p.token&&
+          r.checkedWith.some(c=>c.peerId===listener.id&&c.event.messageId===origin.messageId));
+        const object=own&&this.visible(speaker).find(o=>o.id===own.objectId);
+        if(!object){this.#pending.delete(key);continue;}
+        const receiverObjects=this.visible(listener),proposed=this.proposed();
+        const event=this.evidence(proposed,speaker,listener,object);
+        if(!this.repairStep(p,'repoint',event)){this.#pending.delete(key);continue;}
+        this.emit(speaker,listener,`I mean this individual by ${p.token}.`);
+        const resolved=resolvePoint(receiverObjects,object.position);
+        if(resolved?.id!==object.id||!recordGrounding(listener,speaker.id,p.token,resolved.id,event)||
+          resolveName(listener,p.token,speaker.id,receiverObjects.map(o=>o.id))!==object.id){this.#pending.delete(key);return;}
+        // Repointing is not understanding. Only genuine local re-grounding
+        // permits the existing three-turn timing for a separate word-only test.
+        this.offerFollowup(speaker,listener,own,event);
+        p.opportunity=this.opportunityFor(p);p.phase='retry';p.repoint=event;
+        return;
+      }
+      if(p.phase==='retry'){
+        if(now<=p.repoint.at||!this.ready(speaker,p))continue;
+        const own=speaker.lexicon?.own.find(r=>r.token===p.token&&r.objectId===p.intendedId);
+        const object=own&&this.visible(speaker).find(o=>o.id===own.objectId);
+        if(!object){this.#pending.delete(key);if(p.opportunity)this.endOpportunity(p.opportunity);continue;}
+        const event=this.evidence(this.proposed(),speaker,listener,object);
+        if(!this.repairStep(p,'retry',event)){this.#pending.delete(key);if(p.opportunity)this.endOpportunity(p.opportunity);continue;}
+        this.emit(speaker,listener,`Which individual do I call ${p.token}?`,p.opportunity);
+        p.request=event;p.phase='select';p.retried=true;
+        return;
+      }
       if(p.phase==='select'){
         if(now<=p.request.at||!this.ready(listener,p))continue;
         const seen=this.visible(listener);
@@ -119,7 +172,20 @@ export class NamingRuntime {
         // The intended ID and pointing geometry never enter this resolution.
         const selected=resolveName(listener,p.token,speaker.id,seen.map(o=>o.id));
         const object=seen.find(o=>o.id===selected);
-        if(!object){this.#pending.delete(key);if(p.opportunity)this.endOpportunity(p.opportunity);continue;}
+        if(!object){
+          if(p.opportunity)this.endOpportunity(p.opportunity);
+          p.opportunity=null;
+          // Failure, not silence, supplies the listener's clarification. Do not
+          // accelerate this ungrounded turn using the old introduction window.
+          if(p.retried){this.#pending.delete(key);continue;}
+          if(!this.ready(listener)){this.#pending.set(key,p);continue;}
+          const proposed=this.proposed(),event={messageId:proposed.id,at:proposed.at,scene:listener.scene};
+          if(!this.repairStep(p,'clarification',event)){this.#pending.delete(key);continue;}
+          this.emit(listener,speaker,`Which individual do you mean by ${p.token}?`);
+          p.originalRequest=p.request;p.clarification=event;p.phase='repoint';
+          this.#pending.set(key,p);
+          return;
+        }
         const message=this.emit(listener,speaker,`Do you mean this individual by ${p.token}?`,p.opportunity);
         p.selection=this.evidence(message,speaker,listener,object);p.selectedId=selected;
         const indicated=resolvePoint(this.visible(speaker),object.position);
@@ -171,7 +237,7 @@ export class NamingRuntime {
           const message=this.emit(speaker,listener,`Which individual do I call ${own.token}?`,opportunity);
           const request=this.evidence(message,speaker,listener,object);
           if(!markReferenceRequested(speaker,own,listener.id,request))return;
-          this.#pending.set(speaker.id,{speaker,listener,token:own.token,intendedId:own.objectId,request,phase:'select',opportunity});
+          this.#pending.set(speaker.id,{speaker,listener,token:own.token,intendedId:own.objectId,request,phase:'select',opportunity,epochs:[speaker.epoch,listener.epoch]});
           return;
         }
       }

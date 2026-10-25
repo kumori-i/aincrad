@@ -1,4 +1,4 @@
-import { validLexicon } from './naming-state.js';
+import { validLexicon, validRepairCorrespondence } from './naming-state.js';
 import { validHumanHint } from './human-hints.js';
 import { validHandlingInquiries } from './handling-inquiry.js';
 import { cleanPeerTeaching, restorePeerTeaching } from './peer-teaching.js';
@@ -410,14 +410,16 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   if((raw.community.messages||[]).some(m=>!validTransferSpeech(m)))fail('invalid community method transfer');
   // Lexical evidence is independent of rotating speech, but must still link to
   // the non-evicting owner admission. This is consistency, not authentication.
+  if(!validRepairCorrespondence(agents))fail('individual name repair receipts do not correspond');
   for(const listener of agents)for(const heard of listener.lexicon?.heard||[]){
     const speaker=agents.find(n=>n.id===heard.speakerId);
     const own=speaker?.lexicon?.own.find(r=>r.token===heard.token&&r.objectId===heard.objectId);
     const announced=own?.announcedTo.find(r=>r.peerId===listener.id);
-    if(!announced||!sameExact(announced.event,heard.grounding))fail('individual name has no matching local owner announcement');
+    const repair=speaker?.lexicon?.repairReceipts?.find(r=>r.speakerId===speaker.id&&r.listenerId===listener.id&&r.token===heard.token);
+    if(!announced||!sameExact(announced.event,heard.grounding)&&!sameExact(repair?.repoint,heard.grounding))fail('individual name has no matching local owner announcement');
     if(heard.confirmation){
       const checked=own.checkedWith.find(r=>r.peerId===listener.id);
-      if(!checked||!sameExact(checked.event,heard.confirmation.request))fail('individual reference has no matching owner request');
+      if(!checked||!sameExact(checked.event,heard.confirmation.request)&&!sameExact(repair?.retry,heard.confirmation.request))fail('individual reference has no matching owner request');
     }
   }
   const community = validateCommunity(raw.community);

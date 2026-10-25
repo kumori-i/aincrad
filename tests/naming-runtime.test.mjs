@@ -125,12 +125,13 @@ test('rejected reference evidence never utters a successful confirmation',()=>{
   assert.equal(f.state.community.messages.length,before);assert.equal(f.b.lexicon.heard[0].confirmation,null);
 });
 
-test('ambiguous pointing and unresolved word consume bounded one-shot opportunities across restart',()=>{
+test('ambiguous pointing and clarified unresolved word retain consumed opportunities across restart',()=>{
   const f=fixture({unique:false});const own=f.name(f.a);
   assert.equal(resolvePoint(f.social.naming.visible(f.b),f.source.position),null);
   f.step();assert.equal(own.announcedTo.length,1);assert.equal(f.b.lexicon,undefined);
   f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();assert.equal(own.checkedWith.length,1);assert.equal(f.social.naming.pendingCount(),1);
-  f.advance(.1);f.step();assert.equal(f.social.naming.pendingCount(),0);assert.equal(f.b.lexicon,undefined);
+  f.advance(.1);f.step();assert.equal(f.social.naming.pendingCount(),1);assert.equal(f.b.lexicon.heard.length,0);
+  assert.equal(f.b.lexicon.repairReceipts.length,1);
   const disk=storage();assert.equal(writeOzarkSave(disk,f.state,f.g),true);
   const loaded=loadOzarkSave(disk,f.g);assert.equal(loaded.blocked,false,loaded.error);f.social.dispose();
   const state=loaded.state;for(const n of state.agents){bindOzarkWorldAgent(n,f.g,state);observeNpc(n,state.environment);}
