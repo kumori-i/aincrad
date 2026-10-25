@@ -36,12 +36,15 @@ jobs:
       - name: Verify macOS bounded naming follow-up and interrupted save
         if: runner.os == 'macOS'
         run: node scripts/verify-naming-followup-desktop.mjs
+      - name: Verify macOS bounded naming repair and interrupted retry
+        if: runner.os == 'macOS'
+        run: node scripts/verify-naming-repair-desktop.mjs
       - name: Install sandbox-preserving Linux desktop
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb openbox
       - name: Exercise Linux window and saved structural departure
         if: runner.os == 'Linux'
-        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-openbox.log" 2>&1 & npm run smoke && node scripts/verify-structural-movement-desktop.mjs && node scripts/verify-movement-recovery-desktop.mjs && node scripts/verify-naming-followup-desktop.mjs'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-openbox.log" 2>&1 & npm run smoke && node scripts/verify-structural-movement-desktop.mjs && node scripts/verify-movement-recovery-desktop.mjs && node scripts/verify-naming-followup-desktop.mjs && node scripts/verify-naming-repair-desktop.mjs'
       - name: Package Linux for the runner architecture
         if: runner.os == 'Linux'
         run: npm run package:linux

@@ -3,7 +3,7 @@ import { DISCOVERY_RULES } from './discovery-config.js';
 
 // Supplied token machinery, not an invented grammar or a category classifier.
 // These tiny independent receipts survive ordinary conversation/action compaction.
-export const OWN_NAME_LIMIT=24, HEARD_NAME_LIMIT=48, NAMING_CHOICE_LIMIT=256;
+export const OWN_NAME_LIMIT=24, HEARD_NAME_LIMIT=48, NAMING_CHOICE_LIMIT=256, NAMING_REPAIR_LIMIT=48;
 const agents=['aster','mira'];
 const reserved=new Set(('constructor prototype proto object objects aster mira human all you your yours they them their this that these those here there it its she her him his who what where when why how and the food water apple tree fish animal stone rock red green blue brown yellow round smooth rough small large long short inspect grasp release pull sample strike catch move eat drink wait rest sleep say name point select confirm tiny streamlined body fins still scaled bony frame silver grey pale pink scales exposed soft tissue bones sharp unpleasant strong furry ears stocky tail slender bushy mottled russet fur rapid footfalls quiet breathing rustling stem leaves branching thin bark trunk leafy crown blossoms growths bare branches low tangled stems purple prickly clusters tuft narrow blades fibrous closely cropped dense dark').split(' '));
 export const validNameToken=value=>typeof value==='string'&&/^[a-z]{3,16}$/.test(value)&&!reserved.has(value);
@@ -17,6 +17,10 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const message=x=>typeof x==='string'&&/^message:[1-9][0-9]{0,14}$/.test(x)&&Number.isSafeInteger(Number(x.slice(8)));
 const ordinal=x=>Number(x.slice(8));
 const clone=x=>structuredClone(x);
+const same=(a,b)=>a===b||plain(a)&&plain(b)&&Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(k=>Object.hasOwn(b,k)&&same(a[k],b[k]));
+const after=(a,b)=>!!a&&!!b&&message(a.messageId)&&message(b.messageId)&&a.at>b.at&&ordinal(a.messageId)>ordinal(b.messageId);
+const withinRepair=(event,request)=>after(event,request)&&event.at-request.at<120;
+
 const initial=n=>((n.seed>>>0)^(n.id==='mira'?0xb5297a4d:0x68e31da4))>>>0;
 const step=x=>(Math.imul(x,1664525)+1013904223)>>>0;
 const consonants='bdfgklmnprstvz',vowels='aeiou';
@@ -63,7 +67,7 @@ function retainedEncounter(n,e){
   return true;
 }
 export function validLexicon(raw,npc,{pointValid}={}){
-  if(!exact(raw,['version','ownerId','rng','counter','considered','own','heard','saturated'])||raw.version!==1||!agents.includes(npc.id)||raw.ownerId!==npc.id||
+  if(!exact(raw,['version','ownerId','rng','counter','considered','own','heard','saturated',...(Object.hasOwn(raw||{},'repairReceipts')?['repairReceipts']:[])])||raw.version!==1||!agents.includes(npc.id)||raw.ownerId!==npc.id||
     !Number.isSafeInteger(raw.counter)||raw.counter<0||raw.counter>NAMING_CHOICE_LIMIT||!Number.isInteger(raw.rng)||raw.rng<0||raw.rng>0xffffffff||
     !Array.isArray(raw.considered)||raw.considered.length!==raw.counter||!raw.considered.every(positive)||new Set(raw.considered).size!==raw.considered.length||
     !Array.isArray(raw.own)||raw.own.length>OWN_NAME_LIMIT||!Array.isArray(raw.heard)||raw.heard.length>HEARD_NAME_LIMIT||typeof raw.saturated!=='boolean'||raw.saturated&&raw.heard.length!==HEARD_NAME_LIMIT)return false;
@@ -87,7 +91,7 @@ export function validLexicon(raw,npc,{pointValid}={}){
     bindings.add(key);events.add(row.grounding.messageId);
     if(row.confirmation)for(const [role,e] of Object.entries(row.confirmation)){if(events.has(e.messageId)||!retainedEvent(npc,e,role==='selection'?npc.id:row.speakerId,role==='selection'?row.speakerId:npc.id))return false;events.add(e.messageId);}
   }
-  return true;
+  return validRepairs(raw,npc,pointValid,events);
 }
 function genuineEncounter(npc,e,sight){
   if(!e||!Array.isArray(npc.discovery?.experiments)||npc.discovery.experiments.filter(x=>x.id===e.id).length!==1||!npc.discovery.experiments.includes(e))return null;
@@ -144,4 +148,94 @@ export function markReferenceRequested(npc,row,peerId,event){
   const lex=npc.lexicon,announcement=row?.announcedTo?.find(a=>a.peerId===peerId);
   if(!lex||!validLexicon(lex,npc)||!lex.own.includes(row)||!announcement||row.checkedWith.length||!validEvent(event,npc,undefined,false)||event.at<=announcement.event.at||ordinal(event.messageId)<=ordinal(announcement.event.messageId))return false;
   row.checkedWith.push({peerId,event:clone(event)});if(!validLexicon(lex,npc)){row.checkedWith.pop();return false;}return true;
+}
+
+// Position-free clarification is evidence of a received unresolved word, never
+// a new observation. Only a subsequent ordinary pointing event has geometry.
+function validRepairs(lex,npc,pointValid,used){
+  if(!Object.hasOwn(lex,'repairReceipts'))return true;
+  if(!Array.isArray(lex.repairReceipts)||lex.repairReceipts.length>NAMING_REPAIR_LIMIT)return false;
+  const tuples=new Set(),repairEvents=new Set(),requests=new Set();
+  let previous=null;
+  for(const r of lex.repairReceipts){
+    if(!exact(r,['speakerId','listenerId','token','requestId','clarification','repoint','retry'])||
+      !agents.includes(r.speakerId)||!agents.includes(r.listenerId)||r.speakerId===r.listenerId||
+      ![r.speakerId,r.listenerId].includes(npc.id)||!validNameToken(r.token)||!message(r.requestId)||
+      !exact(r.clarification,['messageId','at','scene'])||!message(r.clarification.messageId)||
+      !time(r.clarification.at,npc)||r.clarification.scene!=='valley'||ordinal(r.clarification.messageId)<=ordinal(r.requestId))return false;
+    if(previous&&!after(r.clarification,previous))return false;
+    previous=r.clarification;
+    const key=`${r.speakerId}|${r.listenerId}|${r.token}`;
+    if(tuples.has(key)||requests.has(r.requestId))return false;
+    tuples.add(key);requests.add(r.requestId);
+    const own=npc.id===r.speakerId?lex.own.find(o=>o.token===r.token):null;
+    const request=own?.checkedWith.find(c=>c.peerId===r.listenerId)?.event;
+    if(npc.id===r.speakerId&&(!request||request.messageId!==r.requestId||!withinRepair(r.clarification,request)))return false;
+    if(r.repoint!==null&&(!validEvent(r.repoint,npc,pointValid,r.retry!==null)||!after(r.repoint,r.clarification)))return false;
+    if(r.retry!==null&&(!r.repoint||!validEvent(r.retry,npc,pointValid,false)||!after(r.retry,r.repoint)))return false;
+    for(const [phase,event] of [['clarification',r.clarification],['repoint',r.repoint],['retry',r.retry]]){
+      if(event===null)continue;
+      if(repairEvents.has(event.messageId)||event.messageId===r.requestId||request&&!withinRepair(event,request)||
+        !retainedEvent(npc,event,phase==='clarification'?r.listenerId:r.speakerId,phase==='clarification'?r.speakerId:r.listenerId))return false;
+      if(used.has(event.messageId)){
+        // The only legal aliases are the very same grounding or retry request,
+        // for this listener and speaker-qualified word; all others fail closed.
+        const aliases=npc.id===r.listenerId?lex.heard.filter(h=>h.speakerId===r.speakerId&&h.token===r.token&&
+          (phase==='repoint'&&same(h.grounding,event)||phase==='retry'&&same(h.confirmation?.request,event))):[];
+        if(aliases.length!==1)return false;
+      }
+      repairEvents.add(event.messageId);
+    }
+  }
+  // A clarification cannot borrow another repair's original request identity.
+  for(const identity of requests)if(repairEvents.has(identity))return false;
+  return true;
+}
+
+/** Cross-agent consistency, not authentication. Optional receipts never rebuild
+ * a live phase, and their non-evicting budgets survive ordinary log compaction. */
+export function validRepairCorrespondence(actors){
+  for(const actor of actors)for(const r of actor.lexicon?.repairReceipts||[]){
+    const speaker=actors.find(n=>n.id===r.speakerId),listener=actors.find(n=>n.id===r.listenerId);
+    if(!speaker||!listener)return false;
+    const peer=actor.id===r.speakerId?listener:speaker;
+    const matches=(peer.lexicon?.repairReceipts||[]).filter(x=>x.speakerId===r.speakerId&&x.listenerId===r.listenerId&&x.token===r.token);
+    if(matches.length!==1||!same(matches[0],r))return false;
+    const own=speaker.lexicon?.own.find(o=>o.token===r.token);
+    const request=own?.checkedWith.find(c=>c.peerId===listener.id)?.event;
+    if(!request||request.messageId!==r.requestId||!withinRepair(r.clarification,request)||
+      [r.repoint,r.retry].some(e=>e&&!withinRepair(e,request)))return false;
+    if(listener.lexicon?.heard.some(h=>h.confirmation?.request.messageId===request.messageId))return false;
+    const binding=listener.lexicon?.heard.find(h=>h.speakerId===speaker.id&&h.token===r.token&&h.objectId===own.objectId);
+    if(r.retry&&(!binding||binding.grounding.at>r.repoint.at||
+      ordinal(binding.grounding.messageId)>ordinal(r.repoint.messageId)))return false;
+    if(r.retry&&binding?.confirmation&&binding.confirmation.request.messageId===r.retry.messageId&&
+      !withinRepair(binding.confirmation.confirmation,request))return false;
+  }
+  return true;
+}
+
+/** Preflight and consume one emitted repair turn atomically. Runtime supplies
+ * actual local reception/sensing; persisted data is not runnable authority. */
+export function recordRepairStep(speaker,listener,token,request,phase,event){
+  if(!speaker||!listener||!event||!['clarification','repoint','retry'].includes(phase)||speaker.id===listener.id)return false;
+  const a=speaker.lexicon,b=listener.lexicon??createLexicon(listener);
+  if(!a||!validLexicon(a,speaker)||!validLexicon(b,listener))return false;
+  const own=a.own.find(o=>o.token===token),original=own?.checkedWith.find(c=>c.peerId===listener.id)?.event;
+  if(!original||!same(original,request)||!withinRepair(event,original)||
+    phase==='retry'&&resolveName(listener,token,speaker.id,[own.objectId])!==own.objectId)return false;
+  const key=r=>r.speakerId===speaker.id&&r.listenerId===listener.id&&r.token===token;
+  const old=(a.repairReceipts||[]).find(key),other=(b.repairReceipts||[]).find(key);
+  if(phase==='clarification'?(old||other):(!old||!other||!same(old,other)||old.requestId!==request.messageId||old[phase]!==null))return false;
+  const next=phase==='clarification'?{speakerId:speaker.id,listenerId:listener.id,token,requestId:request.messageId,
+    clarification:clone(event),repoint:null,retry:null}:{...clone(old),[phase]:clone(event)};
+  const candidate=lex=>({...lex,repairReceipts:[...(lex.repairReceipts||[]).filter(r=>!key(r)),clone(next)]});
+  // Preserve admission order, even when another word was repaired in between.
+  const preserve=(lex,c)=>{if(old){const index=(lex.repairReceipts||[]).findIndex(key);c.repairReceipts.splice(index,0,c.repairReceipts.pop());}return c;};
+  const nextA=preserve(a,candidate(a)),nextB=preserve(b,candidate(b));
+  if(!validLexicon(nextA,speaker)||!validLexicon(nextB,listener)||
+    !validRepairCorrespondence([{...speaker,lexicon:nextA},{...listener,lexicon:nextB}]))return false;
+  a.repairReceipts=nextA.repairReceipts;
+  listener.lexicon=b;b.repairReceipts=nextB.repairReceipts;
+  return true;
 }
