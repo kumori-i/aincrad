@@ -1,3 +1,4 @@
+import { validVisualSamples } from './visual-group-memory.js';
 import { validHumanHint } from './human-hints.js';
 import { validHandlingInquiries } from './handling-inquiry.js';
 import { validMethodTrials } from './method-transfer-state.js';
@@ -54,6 +55,7 @@ export function deriveDiscoveryPractice(experiments,trialsByObject){
 /** Persistence restores data only. A forged routine cannot outlive its executed evidence. */
 export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.experience,interruption=null){
   const d=createDiscoveryMemory();if(!raw||raw.version!==1)return d;d.nextId=Math.max(1,Math.floor(num(raw.nextId,1e9)));
+  if(raw.visualSamples!==undefined&&validVisualSamples(raw.visualSamples,npc))d.visualSamples=structuredClone(raw.visualSamples);
   if(raw.methodTrials!==undefined)d.methodTrials=validMethodTrials(raw.methodTrials,npc?.id)?structuredClone(raw.methodTrials):null;
   for(const item of Object.values(raw.observations||{}).slice(-DISCOVERY_RULES.maxObjects)){const o=cleanSensoryObject(item);if(o)d.observations[o.id]=o;}
   d.experiments=(Array.isArray(raw.experiments)?raw.experiments:[]).slice(-DISCOVERY_RULES.maxExperiments).filter(e=>Number.isInteger(e?.id)&&e.id>0&&DISCOVERY_RULES.allPrimitives.includes(e.primitive)&&objectId(e.targetId)&&validCaptureExperiment(e)&&validResultObjectRow(e.primitive,e.targetId,e)&&(!npc||(Array.isArray(rawExperience)?rawExperience:[]).some(x=>x.id===e.actionId&&validCaptureExperiment(e,x)&&matchingResultObject(e,x)))).map(e=>({id:e.id,at:num(e.at),primitive:e.primitive,targetId:e.targetId,ok:e.ok===true,code:text(e.code,60),durationSeconds:num(e.durationSeconds,30),...(objectId(e.materialId)?{materialId:e.materialId}:{}),...(Object.hasOwn(e,'resultObjectId')?{resultObjectId:e.resultObjectId}:{}),...(Number.isInteger(e.actionId)?{actionId:e.actionId}:{}),...(typeof e.ingestionId==='string'?{ingestionId:text(e.ingestionId,80)}:{})}));

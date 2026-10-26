@@ -55,3 +55,15 @@ Separate naming state and runtime modules retain bounded personal lexical eviden
 The retired original-world Cardinal panel is not part of this runtime. Some engine/diagnostic building blocks remain for future bounded supervision work. Reliable autonomous pursuit, long-term self-maintenance, generic taught hunt plans and richer social reasoning remain separate features.
 
 See [verification](TESTING.md) for required evidence, and [roadmap](ROADMAP.md) for explicit limits.
+
+## Passive visual similarity memory
+
+`visual-group-memory.js` retains at most 32 actor-owned exact cue triples with
+at most two ordinary sensory sample times each. Only the ordinary
+`rememberObservation` ingress opts into recording; speech/naming refreshes and
+action descriptions do not. Derived tentative groups require two individuals
+with two distinct-time samples each, not independent encounters. The supplied
+shape/color/texture rule changes no policy or action authority. The journal
+projects support separately from individual names and shows restored/unseen
+members as remembered-only. Optional schema-12 evidence is strictly validated;
+reload never senses. See [scope](TENTATIVE-VISUAL-GROUPS.md).
