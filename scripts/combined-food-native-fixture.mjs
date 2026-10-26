@@ -112,10 +112,14 @@ export async function presentCombinedFoodUi(expected) {
   if(get('#npc-panel').classList.contains('hidden'))get('#open-npc').click();get('#npc-tab-character').click();
   if(get('#npc-select').value!==expected.actorId){get('#npc-select').value=expected.actorId;get('#npc-select').dispatchEvent(new Event('change',{bubbles:true}));}
   const checkbox=get('#npc-numeric-debug');checkbox.closest('details').open=true;if(!checkbox.checked)checkbox.click();
+  // The inert native route does not run periodic panel updates. Refresh through
+  // the ordinary read-only tab event after enabling exact numeric diagnostics.
+  get('#npc-tab-character').click();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   const actor=before.agents.find(n=>n.id===expected.actorId),label=get('#npc-nourishment').previousElementSibling;
   require(label.textContent.includes('Food satisfaction')&&label.title==='Appetite satisfaction, not stored energy or calorie coverage.','Misleading appetite label');
-  require(get('#npc-nourishment-value').textContent===actor.nourishment.toFixed(1)+' / 100','Rendered projection mismatch');
+  const actual=get('#npc-nourishment-value').textContent,expectedText=actor.nourishment.toFixed(1)+' / 100';
+  require(actual===expectedText,'Rendered projection mismatch: actual '+JSON.stringify(actual)+'; expected '+JSON.stringify(expectedText));
   for(const [id,key] of [['energy','energy'],['fatigue','fatigue'],['sleep','sleepPressure']])require(get('#npc-'+id+'-debug').textContent===actor[key].toFixed(1),'Separate '+id+' diagnostic mismatch');
   get('#npc-condition').scrollIntoView({block:'center'});
   const after=window.__ozarkWorld.fullSnapshot();require(after.selectedAgentId===expected.actorId,'Wrong selected actor');after.selectedAgentId=before.selectedAgentId;
