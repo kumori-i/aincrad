@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCombinedFoodScene,combinedFoodEvidence,probeCombinedFoodRestore} from '../scripts/combined-food-native-fixture.mjs';
+import vm from 'node:vm';
+import {loadOzarkSave,writeOzarkSave,OZARK_SAVE_KEY} from '../src/ozark-save.js';
+import {createCombinedFoodScene,combinedFoodEvidence,probeCombinedFoodRestore,canonicalCombinedFoodCheckpoint} from '../scripts/combined-food-native-fixture.mjs';
 const serialized=fn=>Function('return ('+fn.toString()+')')();
 test('serialized combined native fixture has actual paid food, finite water, funding and reload evidence (Node preparation only)',{timeout:120000},async()=>{
   const scene=await serialized(createCombinedFoodScene)(new URL('../',import.meta.url),serialized(combinedFoodEvidence));
@@ -19,4 +21,15 @@ test('serialized combined native fixture has actual paid food, finite water, fun
   assert.equal(restored.memory.experience.at(-1).details.result.ok,false);
   const probe=await serialized(probeCombinedFoodRestore)(new URL('../',import.meta.url),saved.raw,summary);
   assert.deepEqual(probe,{decodedByteProbe:true,noPaymentWitness:true,noCompletionWitness:true,noCopiedActionReplay:true});
+  let stored=saved.raw;const disk={getItem:()=>stored,setItem:(_key,value)=>{stored=value;}};
+  const loaded=loadOzarkSave(disk,scene.geometry);assert.equal(loaded.blocked,false,loaded.error);
+  const live=loaded.state,beforeCanonical=structuredClone(live);
+  const canonical=vm.runInNewContext('('+canonicalCombinedFoodCheckpoint.toString()+')',{structuredClone,localStorage:disk,window:{__ozarkWorld:{
+    fullSnapshot:()=>structuredClone(live),snapshot:()=>({started:false}),save:()=>writeOzarkSave(disk,live,scene.geometry),
+  }}});
+  const first=canonical(combinedFoodEvidence);assert.equal(first.originalRaw,saved.raw);assert.notEqual(first.raw,saved.raw,'Explicit save persists the already-generated restart receipt');
+  assert.deepEqual(live,beforeCanonical);assert.deepEqual(first.canonicalEvidence,saved.expectedRestored);
+  const second=canonical(combinedFoodEvidence);assert.equal(second.raw,first.raw,'Canonical save is idempotent');
+  const reopened=loadOzarkSave(disk,scene.geometry);assert.equal(reopened.blocked,false,reopened.error);assert.deepEqual(combinedFoodEvidence(reopened.state),first.canonicalEvidence);
+  assert.equal(disk.getItem(OZARK_SAVE_KEY),first.raw);
 });

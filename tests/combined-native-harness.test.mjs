@@ -36,6 +36,11 @@ test('native combined food prepare-only validates the three-process runner witho
     assert.match(source,/Actual app preserves measured pre-save/);
     assert.match(source,/Actual screenshot state delta equals measured0.2 seconds/);
     assert.match(source,/pausedNoDecayDuringRendering:true/);
+    assert.match(source,/Explicit canonical checkpoint retains exact restored physical\/history evidence/);
+    assert.match(source,/Reselecting original actor restores exact canonical baseline bytes/);
+    assert.match(source,/selectorSaveTransitionsVerified:true/);
+    assert.match(source,/canonical-checkpoint\.json/);
+    assert.match(source,/selector-transitions\.json/);
     assert.match(source,/reloadDoesNotReplayPaidWork:true/);
     assert.match(source,/JSON\.stringify\(\{passed:true,nativeExecutionPerformed:true,/,'Actual verify phase records native execution');
     assert.doesNotMatch(source,/passed:true,nativeExecutionPerformed:false/,'No successful native verification is mislabeled as preparation');

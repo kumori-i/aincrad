@@ -105,24 +105,51 @@ export async function probeCombinedFoodRestore(moduleBase,raw,summary) {
   return {decodedByteProbe:true,noPaymentWitness:true,noCompletionWitness:true,noCopiedActionReplay:true};
 }
 
+/** Explicit normalization of the already-restored app, before selector UI saves.
+ * This is a save transition, not rendering; original and canonical bytes survive. */
+export function canonicalCombinedFoodCheckpoint(projectEvidence) {
+  const require=(v,m)=>{if(!v)throw Error(m);};
+  const before=window.__ozarkWorld.fullSnapshot(),originalRaw=localStorage.getItem('aincrad.world.v2');
+  require(!window.__ozarkWorld.snapshot().started,'Canonical checkpoint must not advance simulation');
+  require(window.__ozarkWorld.save()===true,'Explicit canonical checkpoint save failed');
+  const after=window.__ozarkWorld.fullSnapshot(),raw=localStorage.getItem('aincrad.world.v2');
+  require(JSON.stringify(after)===JSON.stringify(before),'Canonical save changed full live state');
+  const saved=JSON.parse(raw),expected=projectEvidence(before),canonicalEvidence=projectEvidence(saved);
+  require(JSON.stringify(canonicalEvidence)===JSON.stringify(expected),'Canonical save changed physical/history evidence');
+  // Include retained cognition, statistics and random state beyond the native
+  // physical/history projection, without mistaking codec normalization for ticks.
+  for(const actor of before.agents){const stored=saved.agents.find(n=>n.id===actor.id);
+    for(const key of ['cognition','stats','rng'])require(JSON.stringify(stored[key])===JSON.stringify(actor[key]),'Canonical save changed '+actor.id+' '+key);
+  }
+  return {originalRaw,raw,canonicalEvidence,fullLiveStateUnchanged:true,savedEvidenceMatchesLive:true};
+}
+
 export async function presentCombinedFoodUi(expected) {
   const require=(v,m)=>{if(!v)throw Error(m);},get=s=>{const n=document.querySelector(s);require(n,'Missing '+s);return n;};
   const before=window.__ozarkWorld.fullSnapshot(),bytes=localStorage.getItem('aincrad.world.v2');
   require(!window.__ozarkWorld.snapshot().started&&before.elapsed===expected.elapsed,'Unexpected native progression');
   if(get('#npc-panel').classList.contains('hidden'))get('#open-npc').click();get('#npc-tab-character').click();
-  if(get('#npc-select').value!==expected.actorId){get('#npc-select').value=expected.actorId;get('#npc-select').dispatchEvent(new Event('change',{bubbles:true}));}
+  require(JSON.stringify(window.__ozarkWorld.fullSnapshot())===JSON.stringify(before)&&localStorage.getItem('aincrad.world.v2')===bytes,'Opening panel changed state/save');
+  const selectionSaved=get('#npc-select').value!==expected.actorId;
+  if(selectionSaved){get('#npc-select').value=expected.actorId;get('#npc-select').dispatchEvent(new Event('change',{bubbles:true}));}
+  const selected=window.__ozarkWorld.fullSnapshot(),selectedBytes=localStorage.getItem('aincrad.world.v2');
+  require(selected.selectedAgentId===expected.actorId,'Wrong selected actor');
+  const expectedSelected=structuredClone(before);expectedSelected.selectedAgentId=expected.actorId;
+  require(JSON.stringify(selected)===JSON.stringify(expectedSelected),'Selector changed full live state beyond selectedAgentId');
+  const expectedDisk=JSON.parse(bytes);expectedDisk.selectedAgentId=expected.actorId;
+  require(selectedBytes===(selectionSaved?JSON.stringify(expectedDisk):bytes),'Selector save changed canonical bytes beyond selectedAgentId');
   const checkbox=get('#npc-numeric-debug');checkbox.closest('details').open=true;if(!checkbox.checked)checkbox.click();
   // The inert native route does not run periodic panel updates. Refresh through
   // the ordinary read-only tab event after enabling exact numeric diagnostics.
   get('#npc-tab-character').click();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  const actor=before.agents.find(n=>n.id===expected.actorId),label=get('#npc-nourishment').previousElementSibling;
+  const actor=selected.agents.find(n=>n.id===expected.actorId),label=get('#npc-nourishment').previousElementSibling;
   require(label.textContent.includes('Food satisfaction')&&label.title==='Appetite satisfaction, not stored energy or calorie coverage.','Misleading appetite label');
   const actual=get('#npc-nourishment-value').textContent,expectedText=actor.nourishment.toFixed(1)+' / 100';
   require(actual===expectedText,'Rendered projection mismatch: actual '+JSON.stringify(actual)+'; expected '+JSON.stringify(expectedText));
   for(const [id,key] of [['energy','energy'],['fatigue','fatigue'],['sleep','sleepPressure']])require(get('#npc-'+id+'-debug').textContent===actor[key].toFixed(1),'Separate '+id+' diagnostic mismatch');
   get('#npc-condition').scrollIntoView({block:'center'});
-  const after=window.__ozarkWorld.fullSnapshot();require(after.selectedAgentId===expected.actorId,'Wrong selected actor');after.selectedAgentId=before.selectedAgentId;
-  require(JSON.stringify(after)===JSON.stringify(before)&&localStorage.getItem('aincrad.world.v2')===bytes,'Rendering changed state/save');
-  return {readOnly:true,foodSatisfaction:get('#npc-nourishment-value').textContent,label:label.textContent,tooltip:label.title};
+  require(JSON.stringify(window.__ozarkWorld.fullSnapshot())===JSON.stringify(selected)&&localStorage.getItem('aincrad.world.v2')===selectedBytes,'Read-only rendering changed state/save after selection');
+  return {readOnly:!selectionSaved,renderingReadOnly:true,selectionSaved,selectionOnlySelectedAgentId:true,
+    foodSatisfaction:get('#npc-nourishment-value').textContent,label:label.textContent,tooltip:label.title};
 }

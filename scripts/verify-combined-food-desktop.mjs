@@ -11,7 +11,7 @@ import { buildApplication } from './build.mjs';
 import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile,
   currentRouteSnapshot, assertCurrentRoute } from './carcass-native-contract.mjs';
-import { combinedFoodEvidence, createCombinedFoodScene, presentCombinedFoodUi, probeCombinedFoodRestore } from './combined-food-native-fixture.mjs';
+import { combinedFoodEvidence, createCombinedFoodScene, presentCombinedFoodUi, probeCombinedFoodRestore, canonicalCombinedFoodCheckpoint } from './combined-food-native-fixture.mjs';
 import { assertStructuralRestoredHistory } from './structural-movement-native-contract.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -119,17 +119,26 @@ async function exercisePhase(win) {
   assert.equal(summary.pausedProjectionUnchanged,true);
   const probe=await win.webContents.executeJavaScript('(' + ${JSON.stringify(probeCombinedFoodRestore.toString())} + ')(document.baseURI,' + JSON.stringify(bytes) + ',' + JSON.stringify(fixture.summary) + ')');
   assert.equal(probe.noCopiedActionReplay,true);
+  const canonical=await win.webContents.executeJavaScript('(' + ${JSON.stringify(canonicalCombinedFoodCheckpoint.toString())} + ')((' + evidence.toString() + '))');
+  assert.equal(canonical.originalRaw,bytes);assert.equal(canonical.fullLiveStateUnchanged,true);
+  assert.deepEqual(canonical.canonicalEvidence,restored,'Explicit canonical checkpoint retains exact restored physical/history evidence');
+  await fs.writeFile(path.join(context.output,'canonical-checkpoint.json'),JSON.stringify(canonical,null,2));
   const ui=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentCombinedFoodUi.toString())} + ')(' + JSON.stringify(fixture.summary) + ')');
   assert.equal(ui.readOnly,true);
   await waitFor(win,'window.__ozarkWorld.detailReady()');
   const screenshot=await capture(win,'01-actual-app-reopened-food-funding.png');
   const waterUi=await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentCombinedFoodUi.toString())} + ')(' + JSON.stringify({...fixture.summary,actorId:fixture.summary.partialActorId}) + ')');
-  assert.equal(waterUi.foodSatisfaction,'0.0 / 100');
+  assert.equal(waterUi.foodSatisfaction,'0.0 / 100');assert.equal(waterUi.renderingReadOnly,true);
+  assert.equal(waterUi.selectionSaved,true);assert.equal(waterUi.selectionOnlySelectedAgentId,true);
+  const waterRaw=await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')");
   const waterScreenshot=await capture(win,'02-actual-app-water-only-actor.png');
   await win.webContents.executeJavaScript('(' + ${JSON.stringify(presentCombinedFoodUi.toString())} + ')(' + JSON.stringify(fixture.summary) + ')');
-  assert.deepEqual(await snapshot(win),restored,'Panel/capture must not alter state');
+  assert.deepEqual(await snapshot(win),restored,'Reselection and read-only rendering preserve full projected state');
+  assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"),canonical.raw,'Reselecting original actor restores exact canonical baseline bytes');
+  await fs.writeFile(path.join(context.output,'selector-transitions.json'),JSON.stringify({canonicalRaw:canonical.raw,waterRaw,restoredRaw:canonical.raw,onlySelectedAgentIdChanged:true},null,2));
   assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.save()'),true);
   const raw=await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')");
+  assert.equal(raw,canonical.raw,'Final checkpoint save is idempotent');
   await fs.writeFile(path.join(context.output,'after-checkpoint.json'),JSON.stringify({raw,expectedRestored:restored,ui,summary:fixture.summary,physicalBeforeSave:fixture.physicalBeforeSave,waterUi,screenshots:[screenshot,waterScreenshot]},null,2));
   await session.defaultSession.flushStorageData();
 }
@@ -153,7 +162,7 @@ async function verifyPhase(win) {
   assert.deepEqual(await snapshot(win),restored);
   await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:true,
     sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,
-    exactClocksStocksHistoryAndDebits:true,noClosedTimeProgression:true,reloadDoesNotReplayPaidWork:true,decodedByteWitnessProbe:true,readOnlyBeforeAfterRendering:true,pausedNoDecayDuringRendering:true,checkpointToCaptureStateSeconds:expected.summary.checkpointToSavedStateSeconds,
+    exactClocksStocksHistoryAndDebits:true,noClosedTimeProgression:true,reloadDoesNotReplayPaidWork:true,decodedByteWitnessProbe:true,readOnlyBeforeAfterRendering:true,pausedNoDecayDuringRendering:true,selectorSaveTransitionsVerified:true,originalRestartNormalizationVerified:true,checkpointToCaptureStateSeconds:expected.summary.checkpointToSavedStateSeconds,
     screenshots:[...expected.screenshots,screenshot],fixtureDisclosure:expected.summary.fixtureDisclosure,nativeCoverage:expected.summary.nativeCoverage,
     scope:'Controlled real whole/partial food and water actions, zero/partial funding, actual app save/reopen and exact physiology panel. Detached decoded-byte probe verifies no regenerated runtime witnesses. Not autonomous foraging or survival evidence.'},null,2));
 }
