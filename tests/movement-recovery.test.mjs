@@ -18,20 +18,21 @@ function fixture({speed=1,drift=0,wall=30,jitter=false}={}){
   const environment=createEnvironment(1,{mode:'discovery',populate:false});
   environment.ecology={plants:[],animals:[],materials:[]};
   const calls=[],control={wall,occluded:false,ground:'dry-ground',freeze:false};let count=0;
-  const geometry={profile:OZARK_WORLD_PROFILE,bounds:{minX:-19000,maxX:19000,minY:-14200,maxY:14200},
+  const geometry={fundedAdvance:true,profile:OZARK_WORLD_PROFILE,bounds:{minX:-19000,maxX:19000,minY:-14200,maxY:14200},
     canOccupy:()=>true,classify:()=>({walkable:true,reason:'dry-ground'}),
     sample:()=>({paint:'oak-pine-woodland',canopy:0,light:1,elevation:200,habitat:'meadow'}),
     observe:()=>({ground:control.ground,nearby:[]}),groundAt:()=>control.ground,
     lineOfSight:()=>!control.occluded,
-    advance(position,dx,dy,dt,sprint=false,mode='walk'){
-      const before={...position},length=Math.hypot(dx,dy);count++;
-      if(length&&!control.freeze){
-        const travel=jitter?(count%2?1:-1):CONFIG.walkSpeed*dt*speed;
+    advance(position,dx,dy,dt,sprint=false,mode='walk',funding){
+      const before={...position},length=Math.hypot(dx,dy);const paid=length?(funding?funding(dt,1):dt):0;if(length)count++;
+      if(length&&paid>0&&!control.freeze){
+        const travel=jitter?(count%2?1:-1):CONFIG.walkSpeed*paid*speed;
         const x=position.x+dx/length*travel,y=position.y+dy/length*travel;
         if(x<=control.wall){position.x=x;position.y=y;}
       }
+      const inputDx=position.x-before.x,inputDy=position.y-before.y;
       position.x+=drift*dt;
-      const motion={distance:Math.hypot(position.x-before.x,position.y-before.y),driftDistance:Math.abs(drift*dt),waterSeconds:drift?dt:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:dt};
+      const motion={paidSeconds:paid,inputDx,inputDy,distance:Math.hypot(position.x-before.x,position.y-before.y),driftDistance:Math.abs(drift*dt),waterSeconds:drift?dt:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:paid};
       calls.push({dx,dy,before,after:{...position},dt,mode,...motion});return motion;
     }};
   bindOzarkWorldAgent(actor,geometry,{geometryIdentity:OZARK_WORLD_PROFILE.identity,agents:[actor]});

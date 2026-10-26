@@ -1,3 +1,4 @@
+import { validFoodWarningMessages, validFoodWarningReports } from './food-warning.js';
 import { validVisualSamples } from './visual-group-memory.js';
 import { validLexicon, validRepairCorrespondence } from './naming-state.js';
 import { validHumanHint } from './human-hints.js';
@@ -7,7 +8,7 @@ import { validMethodTrials } from './method-transfer-state.js';
 import { validInquiries } from './observational-inquiry-state.js';
 // The sole current-world save boundary. Historical save keys are not read,
 // migrated, deleted or overwritten; corrupt current bytes remain protected.
-import { CONFIG, NPC_RULES } from './config.js';
+import { CONFIG, NPC_RULES, SOCIAL_RULES } from './config.js';
 import { ozarkWorldMode, ozarkGeometryMatchesMode, freshOzarkWorldMode } from './ozark-world-features.js';
 import { BIOLOGY_RULES, simulationSeconds } from './biology-config.js';
 import { OZARK_WORLD_PROFILE } from './ozark-world-geometry.js';
@@ -242,10 +243,16 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   if((raw.discovery.handlingAdmissions!==undefined||raw.discovery.handlingQuestions!==undefined)&&!validHandlingInquiries(raw.discovery,raw))fail(`${id} has invalid own handling inquiries`);
   if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
   if(raw.discovery.inquiries!==undefined && (!validInquiries(raw.discovery.inquiries,raw.discovery,raw.elapsed,id)||!raw.discovery.inquiries.every(q=>[q.sourcePosition,q.actorPosition].every(point=>observationReachable(point,q.at,id,raw.position,raw.elapsed,geometry))))) fail(`${id} has invalid observational inquiries`);
+  if(!validFoodWarningReports(raw)||!validFoodWarningMessages(raw.social.heard||[],raw.elapsed,SOCIAL_RULES.maxHeard))fail(`${id} has invalid adverse warning testimony`);
   if((raw.social.heard||[]).some(m=>!validTransferSpeech(m)))fail(`${id} has invalid heard method transfer`);
   if(raw.discovery.reports.some(r=>r.hint!==undefined&&(r.sourceId!=='human'||!validHumanHint(r.hint))))fail(`${id} has invalid human hint metadata`);
+  // Strict optional schema-12 human appetite state. Only absence migrates;
+  // malformed authored state must not be silently clamped or defaulted.
+  if(Object.hasOwn(raw.physiology,'satietyHours')&&!finite(raw.physiology.satietyHours,0,BIOLOGY_RULES.humanSatietyMaximumHours))fail(`${id} has invalid appetite state`);
+  const comparablePhysiology=Object.hasOwn(raw.physiology,'satietyHours')?raw.physiology:{...raw.physiology,satietyHours:Math.max(0,Math.min(BIOLOGY_RULES.humanSatietyMaximumHours,BIOLOGY_RULES.humanSatietyMaximumHours-raw.physiology.hoursSinceMeal))};
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
+  if(!sameExact(raw.discovery.reports.filter(r=>r.warning!==undefined),canonical.discovery.reports.filter(r=>r.warning!==undefined)))fail(`${id} would lose adverse warning testimony`);
   if(raw.discovery.visualSamples!==undefined&&!sameExact(raw.discovery.visualSamples,canonical.discovery.visualSamples))fail(`${id} would lose visual samples`);
   if(raw.lexicon!==undefined&&!sameExact(raw.lexicon,canonical.lexicon))fail(`${id} would lose individual name evidence`);
   // New method reports are strict optional schema-12 data. Legacy exact-source
@@ -267,7 +274,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   if (canonical.scene !== 'valley' || !sameExact(canonical.position, raw.position) ||
       !sameExact(canonical.memory.sources, raw.memory.sources) ||
       !sameExact(canonical.memory.blockedEdges, raw.memory.blockedEdges) ||
-      ACTOR_PHYSICAL_FIELDS.some(field => !sameExact(raw[field], canonical[field])) ||
+      ACTOR_PHYSICAL_FIELDS.some(field => !sameExact(field==='physiology'?comparablePhysiology:raw[field], canonical[field])) ||
       AUTHORED_MEMORY_FIELDS.some(field => !sameExact(raw.memory[field], canonical.memory[field])) ||
       !actorEvidenceExact(raw, canonical) || (raw.discovery.inquiries!==undefined&&!sameExact(raw.discovery.inquiries,canonical.discovery.inquiries)) || retainedProofIntegrityError(canonical)) {
     fail(`${id} would lose physical or learned evidence during validation`);
@@ -410,6 +417,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     fail('ecology identity does not match the playable world');
   }
   assertAquaticOwnership(environment.ecology, agents);
+  if(!validFoodWarningMessages(raw.community.messages||[],raw.elapsed,SOCIAL_RULES.maxMessages))fail('invalid community adverse warning testimony');
   if((raw.community.messages||[]).some(m=>!validTransferSpeech(m)))fail('invalid community method transfer');
   // Lexical evidence is independent of rotating speech, but must still link to
   // the non-evicting owner admission. This is consistency, not authentication.

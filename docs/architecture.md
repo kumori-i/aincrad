@@ -67,3 +67,42 @@ shape/color/texture rule changes no policy or action authority. The journal
 projects support separately from individual names and shows restored/unseen
 members as remembered-only. Optional schema-12 evidence is strictly validated;
 reload never senses. See [scope](TENTATIVE-VISUAL-GROUPS.md).
+
+## Adverse-material testimony
+
+`food-warning.js` validates bounded delivered sender-proof snapshots and binds
+them to exact heard peer messages and separate unverified reports. Local speech
+constructs canonical uncertain wording from actual adverse personal evidence.
+`sampleEligible` consults unexpired exact held-material caution without changing
+physiology or copying personal learning. Optional schema-12 metadata is strict;
+heard eviction retires authority, and reload does not re-deliver. See
+[scope and limitations](FOOD-WARNINGS.md).
+
+## Appetite, funded work and retained food evidence
+
+Human `satietyHours` is bounded appetite memory, independent of available/stored
+energy. Accepted food credits it and ordinary physiology time decays it; water
+alone does not. `projectPhysiology` reflects committed ingestion immediately
+without advancing simulation time. Qualitative hunger and energy remain distinct
+inputs to care selection; exact calorie stores are not cognition inputs.
+
+`npc-effort-funding.js` certifies physical work only after a matching energy debit
+and metabolic ledger entry. Runtime-only witnesses gate interaction progress and
+movement input, with finite deadlines and separately integrated passive current.
+Controller sanitization forwards learned-run travel ownership only for the
+original admitted request; unrelated urgent care does not inherit its deadline.
+
+`discovery-completion.js` pairs optional literal-true final-mouthful metadata with
+actual successful sample receipts. A separate transient witness permits only the
+bounded finished-piece acquisition exception; save metadata cannot recreate it.
+`food-source-caution.js` uses the actor's own retained exact extraction/adverse
+receipt chain, never donor knowledge or hidden ancestry. Direct adverse material,
+own-source caution and received peer warnings independently gate sampling.
+
+`receipt-proof.js` contains neutral provenance checks; diagnostic procedure
+projections do not become action authority. Retention permits 168 experiments
+and a 169-row staging scan, including four recent own extraction origins plus
+origins needed by held materials. Strict schema-12 validation rejects malformed
+appetite, completion and testimony data instead of inventing or replaying proof.
+See [food mechanics](food-balance/README.md), [funding](NPC-EFFORT-FUNDING.md) and
+[source-bound verification](food-system/VERIFICATION.md).

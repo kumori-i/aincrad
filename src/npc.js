@@ -1,3 +1,4 @@
+import { fundNpcEffort, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
 import { motorStalled, resetMotorWindow, recordMotorTrail, finishMotorEvidence, takeRecoveryRoute, markRecovery, isRecovery, recoverySafe } from './movement-recovery.js';
 import { CONFIG, NPC_RULES, NPC_PRESETS, BODY_RULES, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
 import { canStand, moveActor, distance, clamp } from './world.js';
@@ -9,9 +10,9 @@ import { perceive, tileKey, tilePoint, actorLineOfSight, rememberedCells, rememb
 import { knownRoute } from './navigation.js';
 import { recordEvent, rememberObservation, policyContext, learnOutcome, recoveryLesson, learningCostTick } from './npc-memory.js';
 import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from './biology-config.js';
-import { beginSleep, tickPhysiology, ingestWater, exertPhysiology, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology, projectPhysiology } from './biology.js';
+import { beginSleep, tickPhysiology, ingestWater, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology, projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { requestSharedDiscoveryGrasp, requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback, retireDiscoveryAction } from './discovery-actions.js';
+import { requestSharedDiscoveryGrasp, requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback, retireDiscoveryAction, discoveryActionPaidSeconds } from './discovery-actions.js';
 import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 const allowedActions=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
@@ -50,7 +51,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   const handling=takeDiscoveryActionFeedback(npc,active);
   if(handling)result.handling=handling;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
-  if(active&&result.durationSeconds===undefined)result.durationSeconds=Math.max(0,npc.elapsed-active.startedAt);
+  if(active&&result.durationSeconds===undefined)result.durationSeconds=active.kind==='interaction'?discoveryActionPaidSeconds(npc,active):Math.max(0,npc.elapsed-active.startedAt);
   if(active&&movementActions.has(active.request.type)&&ozarkAgentWorld(npc)){
     const expected=active.attemptedDistance||0,forward=active.forwardProgress||0;
     const ratio=expected>0?forward/expected:0;
@@ -238,6 +239,7 @@ export function requestNpcAction(npc,raw,environment={}){
     }
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
+    if(npc.mode==='discovery')npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,raw,npc.active,{travel:true}));
     if(recoveryRoute)markRecovery(npc.active);
     if(ozarkAgentWorld(npc))Object.assign(npc.active,{startWetness:npc.thermal.wetness,startStamina:npc.physiology.stamina,startFatigue:npc.physiology.fatigue,forwardProgress:0,attemptedDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,passiveDriftSeconds:0});
   }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,startEnergy:npc.energy,startStamina:npc.stamina,startFatigue:npc.fatigue,startSleepPressure:npc.sleepPressure};
@@ -403,7 +405,7 @@ function tickDiscoveryNpc(npc,dt,environment){
   if(signals.overall!=='settled')npc.stats.warningSeconds+=dt;
   if(Object.keys(signals).some(key=>signals[key]!==previousSignals[key]))recordEvent(npc,'condition',{code:'BODY_SIGNAL',body:signals});
   if(npc.elapsed-npc.bodyFeedback.since>=30){if(signals.overall!=='settled')recordEvent(npc,'condition',{code:'BODY_FEEDBACK',intervalSeconds:npc.elapsed-npc.bodyFeedback.since,riskCost:npc.bodyFeedback.cost,body:signals,scene:npc.scene});npc.bodyFeedback={since:npc.elapsed,cost:0};}
-  if(npc.health<=0){const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile];collapseNpc(npc,f.waterDeficitMl/(p.massKg*1000)>.05?'dehydration':f.availableEnergyKcal<=0?'prolonged deprivation':Math.max(npc.thermal.hot,npc.thermal.cold)>=80?'thermal exposure':'injury');return;}
+  if(npc.health<=0){if(ozark){const drift=ozark.advance(npc.position,0,0,dt,false);wetOzarkBody(npc,dt,drift.waterSeconds);}const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile];collapseNpc(npc,f.waterDeficitMl/(p.massKg*1000)>.05?'dehydration':f.availableEnergyKcal<=0?'prolonged deprivation':Math.max(npc.thermal.hot,npc.thermal.cold)>=80?'thermal exposure':'injury');return;}
   const active=npc.active;
   if(ozark&&!movementActions.has(active?.request.type)){
     // The river moves a body even when the actor has chosen no movement.
@@ -412,7 +414,7 @@ function tickDiscoveryNpc(npc,dt,environment){
   }
   if(!active)return;
   const losses={riskCost:Math.max(0,npc.riskCost-(active.startRisk||0))};
-  if(active.kind==='interaction'){tickDiscoveryAction(npc,dt,environment,{complete,exert:exertPhysiology});return;}
+  if(active.kind==='interaction'){tickDiscoveryAction(npc,dt,environment,{complete});return;}
   if(active.request.type==='sleep'){
     if(!isSleeping(npc)){
       const finished=npc.physiology.sleep.wakeReason==='finished sleep';complete(npc,active.request,{ok:finished,code:finished?'SLEPT':'REST_INTERRUPTED',body:bodySignals(npc),wakeReason:npc.physiology.sleep.wakeReason,...losses},active.context,active.startPosition,active.startScene);npc.nextDecisionAt=npc.elapsed;
@@ -424,44 +426,49 @@ function tickDiscoveryNpc(npc,dt,environment){
     else if(npc.elapsed>=active.expiresAt)complete(npc,active.request,{ok:true,code:active.request.type==='rest'?'RESTED':'WAITED',body:signals,...losses},active.context,active.startPosition,active.startScene);
     return;
   }
-  if(isRecovery(active)&&!recoverySafe(npc)){complete(npc,active.request,{ok:false,code:'PRIORITY_CHANGED',distance:active.travelled||0,...losses},active.context,active.startPosition,active.startScene);return;}
+  let integrated=0,waterSeconds=0;
+  const finishPassive=()=>{
+    if(!ozark)return;
+    const remaining=Math.max(0,dt-integrated);
+    if(remaining>1e-12){const drift=ozark.advance(npc.position,0,0,remaining,false);waterSeconds+=drift.waterSeconds||0;active.passiveDriftSeconds+=(drift.waterSeconds||0);}
+    integrated=dt;active.waterSeconds+=waterSeconds;wetOzarkBody(npc,dt,waterSeconds);
+  };
+  if(isRecovery(active)&&!recoverySafe(npc)){finishPassive();complete(npc,active.request,{ok:false,code:'PRIORITY_CHANGED',distance:active.travelled||0,...losses},active.context,active.startPosition,active.startScene);return;}
+  // A deadline cannot be bypassed by an already reached waypoint. Passive
+  // current still owns the entire elapsed step, even when work is finished.
+  if(npc.elapsed-dt>=active.expiresAt){finishPassive();expireNpcRun(npc,active);complete(npc,active.request,{ok:false,code:'ACTION_TIMEOUT',distance:active.travelled||0,...losses},active.context,active.startPosition,active.startScene);return;}
   const target=active.route?.[active.index];
-  if(!target){complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled||0,novelCells:active.novelCells||0,...losses},active.context,active.startPosition,active.startScene);return;}
+  if(!target){finishPassive();complete(npc,active.request,{ok:true,code:'ARRIVED',distance:active.travelled||0,novelCells:active.novelCells||0,...losses},active.context,active.startPosition,active.startScene);return;}
   const dx=target.x-npc.position.x,dy=target.y-npc.position.y,d=Math.hypot(dx,dy);
-  if(d<3){if(!isRecovery(active)&&rememberedCells(npc)[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;resetMotorWindow(active);return;}
+  if(d<3){finishPassive();if(!isRecovery(active)&&rememberedCells(npc)[tileKey(target)]?.walkable)npc.navigationAnchor=tileKey(target);active.index++;active.blockedFor=0;resetMotorWindow(active);return;}
   const exhausted=npc.stamina<15||npc.fatigue>75||npc.energy<15||npc.physiology.sleep.inertiaHours>0,pace=exhausted?BIOLOGY_RULES.exhaustionWalkMultiplier:1;
-  let moved,forward,stalled=false;
+  const duration=Math.min(Math.min(dt,Math.max(0,active.expiresAt-(npc.elapsed-dt)))*pace,d/CONFIG.walkSpeed);
+  let moved=0,forward=0,stalled=false;
   if(ozark){
-    const before={...npc.position},duration=Math.min(dt*pace,d/CONFIG.walkSpeed);
-    const mode=active.request.type==='move'?'walk':active.request.type;
-    let motion=ozark.advance(npc.position,dx,dy,duration,false,mode);
-    // A walking request made while already in deep water cannot propel the
-    // actor, but it also cannot cancel the river's passive current.
-    const passiveDrift=mode==='walk'&&motion.distance===0;
-    if(passiveDrift)motion=ozark.advance(npc.position,0,0,duration,false,'walk');
-    moved=motion.distance;
-    // The result includes current drift; conservatively exclude all passive
-    // drift from forward progress so a favorable current cannot hide a stall.
-    const signedProgress=((npc.position.x-before.x)*dx+(npc.position.y-before.y)*dy)/d-motion.driftDistance;
-    forward=Math.max(0,signedProgress);
-    stalled=motorStalled(active,duration,CONFIG.walkSpeed*duration,signedProgress);
-    recordMotorTrail(npc,active,before,motion);
-    active.forwardProgress+=forward;
-    active.attemptedDistance+=CONFIG.walkSpeed*duration;
-    active.waterSeconds+=(motion.waterSeconds||0);
-    if(mode==='swim')active.swimSeconds+=(motion.swimSeconds||0);
-    active.climbSeconds+=(motion.climbSeconds||0);
-    active.fallRiskSeconds+=(motion.fallRiskSeconds||0);
-    if(passiveDrift)active.passiveDriftSeconds+=(motion.waterSeconds||0);
-    wetOzarkBody(npc,dt,motion.waterSeconds);
-    // A resisted step still costs effort; passive current displacement is not
-    // credited as purposeful progress or as extra work.
-    const effort=ozarkPersistentWorldAgent(npc)?Math.max(1,(motion.effortSeconds||0)/Math.max(duration,1e-9)):
-      1+.6*motion.waterSeconds/Math.max(duration,1e-9);
-    exertPhysiology(npc,duration,effort);
+    const before={...npc.position},mode=active.request.type==='move'?'walk':active.request.type;
+    // Old adapters must not silently ignore payment and propel without funding.
+    // Canonical geometry and test adapters explicitly support this contract.
+    if(ozark.fundedAdvance===true&&duration>0){
+      const motion=ozark.advance(npc.position,dx,dy,duration,false,mode,
+        (seconds,effort)=>fundNpcEffort(npc,seconds,effort).paidSeconds);
+      integrated=duration;waterSeconds+=motion.waterSeconds||0;
+      const paid=Number.isFinite(motion.paidSeconds)?motion.paidSeconds:0;
+      moved=motion.distance;
+      const signedProgress=((motion.inputDx||0)*dx+(motion.inputDy||0)*dy)/d;
+      forward=Math.max(0,signedProgress);
+      stalled=motorStalled(active,paid,CONFIG.walkSpeed*paid,signedProgress);
+      if(paid>0)recordMotorTrail(npc,active,before,motion);
+      active.forwardProgress+=forward;
+      active.attemptedDistance+=CONFIG.walkSpeed*paid;
+      if(mode==='swim')active.swimSeconds+=(motion.swimSeconds||0);
+      active.climbSeconds+=(motion.climbSeconds||0);
+      active.fallRiskSeconds+=(motion.fallRiskSeconds||0);
+      if(!paid||!forward)active.passiveDriftSeconds+=(motion.waterSeconds||0);
+    }
+    finishPassive();
   }else{
-    moved=moveActor(npc.position,dx,dy,Math.min(dt*pace,d/CONFIG.walkSpeed),false,npc.scene);
-    exertPhysiology(npc,moved/CONFIG.walkSpeed,1);
+    const paid=fundNpcEffort(npc,duration,1).paidSeconds;
+    moved=moveActor(npc.position,dx,dy,paid,false,npc.scene);
     forward=moved;
   }
   active.travelled+=moved;updateFeelings(npc);
@@ -475,6 +482,7 @@ function tickDiscoveryNpc(npc,dt,environment){
   }
   if(active.blockedFor>1||npc.elapsed>active.expiresAt){
     const code=active.blockedFor>1?'ROUTE_BLOCKED':'ACTION_TIMEOUT';
+    if(code==='ACTION_TIMEOUT')expireNpcRun(npc,active);
     if(active.blockedFor>1&&!isRecovery(active)){const from=active.index?active.route[active.index-1]:active.startPosition;npc.navigationAnchor=tileKey(from);const edge=[tileKey(from),tileKey(target)].sort().join('>'),edges=rememberedEdges(npc);edges[edge]={observedAt:npc.elapsed,retryAfter:npc.elapsed+60};const entries=Object.entries(edges);if(entries.length>512)delete edges[entries[0][0]];}
     complete(npc,active.request,{ok:false,code,distance:active.travelled,novelCells:active.novelCells||0,...(ozarkPersistentWorldAgent(npc)?{blockedTarget:{x:target.x,y:target.y}}:{}),...losses},active.context,active.startPosition,active.startScene);
   }

@@ -12,8 +12,8 @@ import { validateNpc, recordEvent } from '../src/npc-memory.js';
 function fixture(kind='apple_tree'){
   const n=createNpc({mode:'discovery',seed:74193}),e=createEnvironment(74193,{mode:'discovery'}),plant=e.ecology.plants.find(p=>p.kind===kind&&p.quantity>0);
   n.position=[{x:plant.position.x+45,y:plant.position.y},{x:plant.position.x-45,y:plant.position.y},{x:plant.position.x,y:plant.position.y+45}].find(p=>canStand(p.x,p.y,'valley'));assert.ok(n.position);
-  // An explicit hungry-body fixture isolates learned sampling opportunity.
-  n.physiology.hoursSinceMeal=12;projectPhysiology(n);observeNpc(n,e);return{n,e,plant};
+  // Explicit appetite and waning-energy fixtures isolate learned sampling opportunity.
+  n.physiology.hoursSinceMeal=12;n.physiology.satietyHours=0;n.physiology.availableEnergyKcal=700;projectPhysiology(n);observeNpc(n,e);return{n,e,plant};
 }
 function tick(f,seconds=1/60){for(let i=0;i<Math.ceil(seconds*60);i++){tickEnvironment(f.e,1/60);tickEcology(f.e.ecology,1/60,f.e,[f.n]);tickNpc(f.n,1/60,f.e);processDiscoveryFeedback(f.n,{recordEffect:effect=>recordEvent(f.n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});}}
 function act(f,action){const r=requestNpcAction(f.n,action,f.e);if(r.code==='ACTION_STARTED')for(let i=0;i<1200&&f.n.active;i++)tick(f);assert.equal(f.n.active,null);return f.n.lastResult||r;}
@@ -102,6 +102,7 @@ test('delayed discomfort from a new portion disconfirms its evidenced chain with
   for(let i=0;i<24000&&!f.n.discovery.effects.some(e=>e.objectId===f.id&&e.effect==='discomfort');i++)tick(f);
   assert.ok(f.n.discovery.effects.some(e=>e.objectId===f.id&&e.effect==='discomfort'));assert.ok(positives(f).size>=2);
   const t=f.n.discovery.techniques.find(t=>t.sourceId===f.plant.id);assert.equal(t.confidence,'revised');assert.ok(t.evidence.includes(hurtSample.id));
+  f.n.physiology.satietyHours=4;f.n.physiology.availableEnergyKcal=700;projectPhysiology(f.n); // Energy-driven care cannot erase delayed adverse evidence.
   assert.notDeepEqual(discoveryDecision(f.n).action,{type:'sample',targetId:f.id});const restored=validateNpc(JSON.parse(JSON.stringify(f.n)));assert.equal(restored.discovery.techniques.find(t=>t.sourceId===f.plant.id).confidence,'revised');
 });
 
@@ -122,7 +123,7 @@ test('older pending nourishment cannot silently undo experienced source disconfi
   // Controlled negative fixture: ordinary finite animal stock, engine strike
   // conversion and spoil chemistry. No source recipe is inserted into memory.
   for(let i=0;i<4;i++)interactEcologyObject(e.ecology,animal.id,'strike',{actorId:n.id,position:n.position,power:4});
-  const source=e.ecology.materials.find(m=>m.kind==='carcass');assert.ok(source);source.ageHours=3*24;source.spoiled=true;n.physiology.hoursSinceMeal=12;projectPhysiology(n);observeNpc(n,e);
+  const source=e.ecology.materials.find(m=>m.kind==='carcass');assert.ok(source);source.ageHours=3*24;source.spoiled=true;n.physiology.hoursSinceMeal=12;n.physiology.satietyHours=0;n.physiology.availableEnergyKcal=700;projectPhysiology(n);observeNpc(n,e);
   const f={n,e};assert.equal(act(f,{type:'pull',targetId:source.id}).ok,true);f.id=n.inventory.items[0];
   assert.equal(act(f,{type:'sample',targetId:f.id}).ok,true);awaitPositives(f,1);assert.equal(act(f,{type:'sample',targetId:f.id}).ok,true);awaitPositives(f,2);
   assert.equal(act(f,{type:'sample',targetId:f.id}).ok,true);const pendingAt=n.discovery.samplesPending[f.id];

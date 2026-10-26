@@ -1,3 +1,5 @@
+import { ownExtractionOrigins } from '../src/food-source-caution.js';
+import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNpc } from '../src/npc-state.js';
@@ -35,7 +37,7 @@ function fillEntrySlots(n) {
   assert.equal(canIngestMaterial(n,{massGrams:30}).code,'TOO_FULL');
   assert.equal(bodySignals(n).digestion,'settled');
 }
-function hunger(n,hours=8){n.physiology.hoursSinceMeal=hours;n.physiology.waterDeficitMl=250;projectPhysiology(n);}
+function hunger(n,hours=8){n.physiology.hoursSinceMeal=hours;n.physiology.satietyHours=Math.max(0,6-hours);n.physiology.waterDeficitMl=250;projectPhysiology(n);}
 
 test('ordinary learned consumption respects a recent swallowing refusal and retries after the existing cooldown',()=>{
   const {n,e,id}=learnedFixture();fillEntrySlots(n);hunger(n);
@@ -175,9 +177,11 @@ test('a real source failure survives optional detail removal and both current an
   assert.equal(act({type:'grasp',targetId:other.id}).ok,true);
   for(let i=0;i<180;i++)assert.equal(act({type:'inspect_object',targetId:other.id}).ok,true);
   for(let i=0;i<18000&&bodySignals(n).hunger==='content';i++)advance();
-  assert.notEqual(bodySignals(n).hunger,'content');assert.equal(plant.quantity,0);assert.equal(n.discovery.experiments.length,160);
-  const d=n.discovery,proof=new Set(d.techniques.flatMap(t=>t.evidence));
-  assert.ok(d.experiments.every(x=>proof.has(x.id)||n.inventory.items.includes(x.targetId)||n.inventory.items.includes(x.materialId)||d.samplesPending[x.targetId]!==undefined||d.samplesPending[x.materialId]!==undefined));
+  assert.notEqual(bodySignals(n).hunger,'content');assert.equal(plant.quantity,0);assert.equal(n.discovery.experiments.length,DISCOVERY_RULES.maxExperiments);
+  const d=n.discovery,proof=new Set(d.techniques.flatMap(t=>t.evidence)),origins=ownExtractionOrigins(n);
+  const originRoots=new Set([...origins.slice(-DISCOVERY_RULES.capacity),...origins.filter(x=>n.inventory.items.includes(x.materialId))].map(x=>x.id));
+  assert.ok(originRoots.size<=2*DISCOVERY_RULES.capacity,'Only bounded recent/held own extraction roots survive independently');
+  assert.ok(d.experiments.every(x=>proof.has(x.id)||originRoots.has(x.id)||n.inventory.items.includes(x.targetId)||n.inventory.items.includes(x.materialId)||d.samplesPending[x.targetId]!==undefined||d.samplesPending[x.materialId]!==undefined));
   assert.deepEqual(discoveryDecision(n).action,{type:'pull',targetId:plant.id});assert.equal(act({type:'pull',targetId:plant.id}).code,'nothing_detached');
   const key=`${plant.id}|pull`;assert.equal(d.trials[key].lastOk,false);assert.equal(d.trials[key].lastAt,n.elapsed);
   const raw=JSON.parse(JSON.stringify(n));raw.discovery.experiments=raw.discovery.experiments.filter(x=>!(x.targetId===plant.id&&x.code==='nothing_detached'));

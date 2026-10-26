@@ -26,7 +26,7 @@ function storage() {
   };
 }
 
-export function blockedMove(from, target) {
+function physicalMove(from, target, timeout = false) {
   const state = createOzarkState(geometry), actor = state.agents[0];
   // A localized synthetic physical fixture, not a fresh survival replay. The
   // start is the first coarse-run self-edge's real location. No observations,
@@ -48,9 +48,12 @@ export function blockedMove(from, target) {
   assert.deepEqual(actor.memory.blockedEdges, {});
   assert.equal(requestNpcAction(actor, { type: 'move', target },
     state.environment).code, 'STARTED');
-  const route = structuredClone(actor.active.route);
+  const route = structuredClone(actor.active.route),admittedAction=actor.active,openingPhysiology=structuredClone(actor.physiology);
+  // Blocked-edge fixtures retain their original two-second bound. Only the
+  // explicit current-wading timeout probe follows its actual admitted deadline.
+  const limit=timeout?Math.ceil((admittedAction.expiresAt-admittedAction.startedAt)/CONFIG.fixedStep)+1:120;
   let steps = 0;
-  while (actor.active && steps < 120) {
+  while (actor.active && steps < limit) {
     state.elapsed += CONFIG.fixedStep;
     tickEnvironment(state.environment, CONFIG.fixedStep);
     tickOzarkEcology(state.environment.ecology, CONFIG.fixedStep,
@@ -62,15 +65,19 @@ export function blockedMove(from, target) {
   assert.equal(actor.active, null, 'the native-tick action must terminate');
   const receipt = actor.memory.experience.find(event => event.type === 'action');
   assert.ok(receipt);
-  assert.equal(receipt.details.result.code, 'ROUTE_BLOCKED');
+  assert.equal(receipt.details.result.code, timeout?'ACTION_TIMEOUT':'ROUTE_BLOCKED');
+  if(timeout)assert.ok(Math.abs(receipt.details.result.durationSeconds-(admittedAction.expiresAt-admittedAction.startedAt))<1e-8,'timeout must match original admitted deadline');
   assert.equal(receipt.details.result.ok, false);
   assert.deepEqual(receipt.details.startPosition, from);
   assert.deepEqual(receipt.details.action, { type: 'move', target });
   assert.ok(Math.abs(receipt.details.result.durationSeconds -
     steps * CONFIG.fixedStep) < 1e-9,
     'fixture tick count and receipt duration agree within clock precision');
-  return { state, actor, disk, previousBytes, route, receipt };
+  return { state, actor, disk, previousBytes, route, receipt,admittedAction,openingPhysiology,steps };
 }
+
+export const blockedMove=(from,target)=>physicalMove(from,target);
+export const timedOutWadingMove=(from,target)=>physicalMove(from,target,true);
 
 export function evidence(actor) {
   return structuredClone({

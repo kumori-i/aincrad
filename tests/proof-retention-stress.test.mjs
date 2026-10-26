@@ -9,6 +9,7 @@ import { ingestMaterial, canIngestMaterial } from '../src/biology.js';
 import { recordEvent } from '../src/npc-memory.js';
 import { retainedProofIntegrityError } from '../src/proof-retention.js';
 const proofIntegrityProblem=state=>state.agents.map(retainedProofIntegrityError).find(Boolean)||null;
+import { ownExtractionOrigins } from '../src/food-source-caution.js';
 import { BIOLOGY_RULES } from '../src/biology-config.js';
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { NPC_RULES, CAVES } from '../src/config.js';
@@ -112,6 +113,7 @@ test('24 real digestive input slots refuse only physical swallowing under full m
 // own matching condition receipt, and all ingestion identities are distinct.
 function fullOwnerFixture() {
   const npc = createNpc({ mode: 'discovery' });
+  npc.elapsed = 20000; // Synthetic receipts below are retained past events.
   npc.memory.experience = []; npc.memory.skills = [];
   npc.discovery.experiments = []; npc.discovery.effects = [];
   npc.discovery.reports = []; npc.discovery.techniques = [];
@@ -123,9 +125,9 @@ function fullOwnerFixture() {
     npc.memory.experience.push(row); return row;
   };
   const experiment = (primitive, targetId, extra = {}) => {
-    const result = { ok: true, code: 'DONE', ...extra };
+    const result = { ok: true, code: primitive === 'pull' ? 'piece_detached' : primitive === 'grasp' ? 'object_held' : 'DONE', durationSeconds: 1, ...extra };
     const receipt = event('action', { action: { type: primitive, targetId }, result });
-    const row = { id: nextExperiment++, at: receipt.at, primitive, targetId, ok: true, code: 'DONE',
+    const row = { id: nextExperiment++, at: receipt.at, primitive, targetId, ok: true, code: result.code,
       durationSeconds: 1, actionId: receipt.id, ...extra };
     npc.discovery.experiments.push(row); return row;
   };
@@ -134,6 +136,11 @@ function fullOwnerFixture() {
     npc.discovery.observations[id] = { id, scene: 'valley', position: { x: 0, y: 0 }, appearance: {}, observedAt: 1 };
     return experiment('pull', sourceId, { materialId: id });
   });
+  // Four older held extraction origins, four newer unheld origins, and four
+  // distinct latest held grasps must all remain hard owners simultaneously.
+  const recentOrigins = Array.from({ length: DISCOVERY_RULES.capacity }, (_, i) =>
+    experiment('pull', sourceId, { materialId: `object:${900010 + i}` }));
+  const latestHeld = held.map(id => experiment('grasp', id));
   npc.inventory.items = held;
   const effects = [];
   for (let i = 0; i < DISCOVERY_RULES.maxEffects; i++) {
@@ -163,7 +170,9 @@ function fullOwnerFixture() {
   event('action', { action: { type: 'sleep' }, result: { ok: true, code: 'SLEPT' } });
   for (const shelter of CAVES)
     event('action', { action: { type: 'enter_shelter', shelterId: shelter.id }, result: { ok: true, code: 'ENTERED' } });
-  const detail = Array.from({ length: 175 }, () => event('decision', { summary: 'bounded detail' }).id);
+  // Eight extra hard action receipts replace eight unowned detail rows so the
+  // fixture still hits the same maximum scan budget, rather than exceeding it.
+  const detail = Array.from({ length: 175 - 2 * DISCOVERY_RULES.capacity }, () => event('decision', { summary: 'bounded detail' }).id);
   for (let i = 0; i < DISCOVERY_RULES.maxReports; i++)
     npc.discovery.reports.push({ id: `report:${i + 1}`, at: i, status: 'unverified', proposed: [], evidence: [effects[i].sample.id] });
   for (let i = 0; i < NPC_RULES.maxSkills; i++)
@@ -174,11 +183,15 @@ function fullOwnerFixture() {
       evidence: [acquisition[0].id, effects[i].sample.id] });
   npc.memory.nextId = nextEvent;
   npc.discovery.nextId = nextExperiment;
-  return { npc, staging };
+  return { npc, staging, acquisition, recentOrigins, latestHeld };
 }
 
-test('full distinct hard ownership fits 157 experiments and retires shared soft owners deterministically', () => {
-  const { npc, staging } = fullOwnerFixture();
+test('full distinct hard ownership fits 165 experiments and retires shared soft owners deterministically', () => {
+  const { npc, staging, acquisition, recentOrigins, latestHeld } = fullOwnerFixture();
+  assert.equal(PROOF_RETENTION_BOUNDS.experiments, 165);
+  assert.equal(ownExtractionOrigins(npc).length, 2 * DISCOVERY_RULES.capacity);
+  assert.deepEqual(ownExtractionOrigins(npc).slice(-DISCOVERY_RULES.capacity).map(e => e.id), recentOrigins.map(e => e.id));
+  assert.equal(new Set([...acquisition, ...recentOrigins, ...latestHeld].map(e => e.actionId)).size, 3 * DISCOVERY_RULES.capacity);
   assert.equal(npc.discovery.experiments.length, PROOF_RETENTION_BOUNDS.experiments);
   assert.equal(npc.memory.experience.length, PROOF_RETENTION_BOUNDS.scannedExperience);
   assert.equal(npc.physiology.stomach.length, BIOLOGY_RULES.maxDigestiveInputs);
@@ -201,6 +214,10 @@ test('full distinct hard ownership fits 157 experiments and retires shared soft 
   assert.equal(applyProofRetention(npc, plan), true);
   assert.equal(npc.discovery.experiments.length, PROOF_RETENTION_BOUNDS.experiments);
   assert.equal(npc.memory.experience.length, NPC_RULES.maxExperience);
+  for (const owner of [...acquisition, ...recentOrigins, ...latestHeld]) {
+    assert.ok(npc.discovery.experiments.some(e => e.id === owner.id), `hard owner ${owner.id} retained`);
+    assert.ok(npc.memory.experience.some(e => e.id === owner.actionId), `hard receipt ${owner.actionId} retained`);
+  }
   assert.deepEqual({ effects: npc.discovery.effects, stomach: npc.physiology.stomach,
     feedback: npc.physiology.feedback, inventory: npc.inventory.items }, before);
   assert.equal(npc.rng, rng);

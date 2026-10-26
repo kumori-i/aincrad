@@ -125,13 +125,43 @@ async function reopenPhase(win) {
   assert.ok(journal.rows.some(row=>row.sourceId===interrupted.materialId && row.status==='retired'));
   assert.ok(journal.text.includes('Could a small sample from this exact source ease my hunger?'));
   screenshots.push(await capture(win, '02-restored-learning-inquiries.png'));
+  const foodSatisfactionUI = [];
+  for (const actor of snapshot.agents) {
+    await win.webContents.executeJavaScript('(' + (function (actorId) {
+      const select=document.getElementById('npc-select');select.value=actorId;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      const toggle=document.getElementById('npc-numeric-debug');
+      toggle.closest('details').open=true;toggle.checked=true;
+      toggle.dispatchEvent(new Event('change',{bubbles:true}));
+      document.getElementById('npc-condition').scrollIntoView({block:'center'});
+    }).toString() + ')(' + JSON.stringify(actor.id) + ')');
+    await waitFor(win, "document.getElementById('npc-nourishment-value').textContent === " + JSON.stringify(actor.nourishment.toFixed(1)+' / 100') + " && document.getElementById('npc-energy-debug').textContent === " + JSON.stringify(actor.energy.toFixed(1)));
+    const rendered=await win.webContents.executeJavaScript('(' + (function () {
+      const value=document.getElementById('npc-nourishment-value'),label=value.parentElement;
+      return {label:label.firstChild.textContent.trim(),tooltip:label.title,
+        foodText:value.textContent,foodValue:document.getElementById('npc-nourishment').value,
+        energyText:document.getElementById('npc-energy-debug').textContent,
+        hidden:document.getElementById('npc-condition').classList.contains('hidden')};
+    }).toString() + ')()');
+    assert.equal(rendered.label,'Food satisfaction');
+    assert.equal(rendered.tooltip,'Appetite satisfaction, not stored energy or calorie coverage.');
+    assert.equal(rendered.hidden,false);assert.ok(Math.abs(rendered.foodValue-actor.nourishment)<1e-8);
+    assert.equal(rendered.energyText,actor.energy.toFixed(1));
+    foodSatisfactionUI.push({actorId:actor.id,...rendered});
+    screenshots.push(await capture(win,'03-food-satisfaction-'+actor.id+'.png'));
+  }
+
+  await win.webContents.executeJavaScript('(' + (function (actorId) {
+    const select=document.getElementById('npc-select');select.value=actorId;
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  }).toString() + ')(' + JSON.stringify(before.selectedAgentId) + ')');
   assert.deepEqual(await win.webContents.executeJavaScript('window.__ozarkWorld.fullSnapshot()'), before, 'Journal inspection must remain read-only');
   await fs.writeFile(path.join(context.output, 'result.json'), JSON.stringify({passed:true,
     sourceFingerprint:context.sourceFingerprint, twoIndependentElectronProcesses:true,
     exactDiskBytesAcrossClosedProcess:true, noClosedTimeProgression:true, sandboxPreferencesVerified:true,
     sameStateInquiryAblationChangesNextAction:true, inquirySelectedPaidActions:true, witnessedNotPersonalProof:true, ownFeedbackPreserved:true,
     interruptedWorkNotReplayed:true, heldSuccessorPreserved:true, noDuplicateSourceDebit:true,
-    pauseAndJournalReadOnly:true, summary:expected.summary, screenshots, journal,
+    pauseAndJournalReadOnly:true, summary:expected.summary, screenshots, journal, foodSatisfactionUI,
     fixtureDisclosure:expected.summary.fixtureDisclosure}, null, 2));
   console.log('PASS: native separate-process reopen retained inquiry evidence and interrupted unfinished work.');
 }

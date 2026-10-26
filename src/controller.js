@@ -1,3 +1,4 @@
+import { forwardNpcRunTravel } from './npc-effort-funding.js';
 import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
 import { CONFIG, NPC_RULES } from './config.js';
 import { distance, clamp } from './world.js';
@@ -170,6 +171,7 @@ export class NpcController {
   perform(raw){
     const n=this.npc,action=cognitiveAction(n,raw);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
     if([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
+    forwardNpcRunTravel(n,raw,action);
     return requestNpcAction(n,action,this.environment);
   }
   decideOffline({survivalOnly=false}={}){

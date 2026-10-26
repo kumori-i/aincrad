@@ -1,3 +1,5 @@
+import { extractionOriginError, ownExtractionOrigins } from './food-source-caution.js';
+import { matchingFinishedMaterial } from './discovery-completion.js';
 import { retireHandlingInquiries } from './handling-inquiry.js';
 import { retireInquiries } from './observational-inquiry-state.js';
 import { matchingResultObject } from './discovery-result-object.js';
@@ -11,9 +13,9 @@ import { cleanSensoryObject, deriveDiscoveryPractice, objectId, discoveryAcquire
 const pendingLimit = BIOLOGY_RULES.maxDigestiveInputs + BIOLOGY_RULES.maxFeedback;
 export const PROOF_RETENTION_BOUNDS = Object.freeze({
   pending: pendingLimit,
-  experiments: pendingLimit + DISCOVERY_RULES.maxEffects + DISCOVERY_RULES.capacity + 1,
+  experiments: pendingLimit + DISCOVERY_RULES.maxEffects + 3 * DISCOVERY_RULES.capacity + 1,
   experience: DISCOVERY_RULES.maxExperiments + pendingLimit + DISCOVERY_RULES.maxEffects + 1 + 1 + CAVES.length + 2,
-  stagedExperiments: pendingLimit + DISCOVERY_RULES.maxEffects + DISCOVERY_RULES.capacity + 2,
+  stagedExperiments: pendingLimit + DISCOVERY_RULES.maxEffects + 3 * DISCOVERY_RULES.capacity + 2,
   stagedExperience: DISCOVERY_RULES.maxExperiments + pendingLimit + DISCOVERY_RULES.maxEffects + 1 + 1 + CAVES.length + 3,
   scannedExperiments: DISCOVERY_RULES.maxExperiments + 1,
   scannedExperience: NPC_RULES.maxExperience + 2,
@@ -56,7 +58,7 @@ function uniqueIndex(rows, key) {
 // Keep the existing action/sample cross-check exact. In particular, an action
 // with the same target or result text is not a substitute for the original ID.
 function validExperiment(experiment, receipt) {
-  return matchingResultObject(experiment,receipt) && positiveId(experiment?.id) && positiveId(experiment.actionId) && time(experiment.at) &&
+  return matchingResultObject(experiment,receipt) && matchingFinishedMaterial(experiment,receipt) && positiveId(experiment?.id) && positiveId(experiment.actionId) && time(experiment.at) &&
     DISCOVERY_RULES.allPrimitives.includes(experiment.primitive) && objectId(experiment.targetId) &&
     validCaptureExperiment(experiment,receipt) && receipt?.type === 'action' && receipt.at === experiment.at &&
     receipt.details?.action?.type === experiment.primitive && receipt.details.action.targetId === experiment.targetId &&
@@ -309,6 +311,8 @@ export function retainedProofIntegrityError(npc) {
       array(npc.physiology?.stomach).length > BIOLOGY_RULES.maxDigestiveInputs ||
       array(npc.physiology?.feedback).length > BIOLOGY_RULES.maxFeedback)
     return 'uncommitted-proof-retirement';
+  const originError = extractionOriginError(npc);
+  if (originError) return originError;
   const index = indexes(npc);
   if (!index) return 'malformed-proof-input';
   // Validate raw optional relations before any canonicalizer can erase malformed
@@ -318,6 +322,13 @@ export function retainedProofIntegrityError(npc) {
       npc.memory.experience.some(r => r.details?.result && Object.hasOwn(r.details.result, 'resultObjectId') &&
       !matchingResultObject(index.experimentsByAction.get(r.id), r)))
     return 'invalid-result-object-relation';
+  const finishes = npc.discovery.experiments.filter(e => Object.hasOwn(e, 'finishedMaterial'));
+  if (finishes.some(e => !matchingFinishedMaterial(e, index.events.get(e.actionId))) ||
+      new Set(finishes.map(e => e.targetId)).size !== finishes.length ||
+      new Set(finishes.map(e => e.ingestionId)).size !== finishes.length ||
+      npc.memory.experience.some(r => r.details?.result && Object.hasOwn(r.details.result, 'finishedMaterial') &&
+      !matchingFinishedMaterial(index.experimentsByAction.get(r.id), r)))
+    return 'invalid-finished-material-relation';
   const feedbackError = legacyFeedbackError(npc, index);
   if (feedbackError) return feedbackError;
   const unknownError = unknownPhysicalError(npc, index);
@@ -411,8 +422,17 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
       source.skills.length > NPC_RULES.maxSkills || array(npc.physiology?.stomach).length > BIOLOGY_RULES.maxDigestiveInputs ||
       array(npc.physiology?.feedback).length > BIOLOGY_RULES.maxFeedback || array(npc.inventory?.items).length > DISCOVERY_RULES.capacity)
     return fail('malformed-proof-input');
+  const originError = extractionOriginError(npc);
+  if (originError) return fail(originError);
   const index = indexes(npc);
   if (!index) return fail('malformed-proof-input');
+  const finishes = npc.discovery.experiments.filter(e => Object.hasOwn(e, 'finishedMaterial'));
+  if (finishes.some(e => !matchingFinishedMaterial(e, index.events.get(e.actionId))) ||
+      new Set(finishes.map(e => e.targetId)).size !== finishes.length ||
+      new Set(finishes.map(e => e.ingestionId)).size !== finishes.length ||
+      npc.memory.experience.some(r => r.details?.result && Object.hasOwn(r.details.result, 'finishedMaterial') &&
+      !matchingFinishedMaterial(index.experimentsByAction.get(r.id), r)))
+    return fail('invalid-finished-material-relation');
   const feedbackError = legacyFeedbackError(npc, index);
   if (feedbackError) return fail(feedbackError);
   const unknownError = unknownPhysicalError(npc, index);
@@ -483,6 +503,13 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
     if (!objectId(id) || !observations[id] || !acquisition) return fail('incomplete-held-provenance');
     keepExperiment(acquisition);
   }
+  // Informational extraction origins are distinct from latest motor ownership.
+  // Four recent origins survive dropping/handing away; held origins survive
+  // displacement from that finite recent set. At most eight additional pairs.
+  const origins = ownExtractionOrigins(npc).map(origin => valid.get(origin.id))
+    .filter(Boolean).sort((a,b) => b.actionId-a.actionId);
+  for (const origin of origins.filter((row,i) => i < DISCOVERY_RULES.capacity || held.has(row.materialId)))
+    keepExperiment(origin);
   if (npc.flask?.fillEventId != null) {
     const fill = events.get(npc.flask.fillEventId);
     if (fill?.type !== 'action' || fill.details?.action?.type !== 'fill_flask' || fill.details?.result?.ok !== true)

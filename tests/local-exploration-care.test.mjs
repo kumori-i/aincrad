@@ -257,7 +257,7 @@ function foodFixture() {
     n.position = [{ x: plant.position.x + 45, y: plant.position.y }, { x: plant.position.x - 45, y: plant.position.y }]
       .find(p => canStand(p.x, p.y));
     assert.ok(n.position);
-    n.physiology.hoursSinceMeal = 20;
+    n.physiology.hoursSinceMeal = 20;n.physiology.satietyHours=Math.max(0,6-20);
     projectPhysiology(n);
     observeNpc(n, e);
     const f = { n, e, plant };
@@ -273,7 +273,7 @@ function foodFixture() {
   const f = structuredClone(learned);
   // A body checkpoint isolates urgent care. Every food association and item
   // above was earned by actual acquisition, swallowing and delayed feedback.
-  f.n.physiology.hoursSinceMeal = 20;
+  f.n.physiology.hoursSinceMeal = 20;f.n.physiology.satietyHours=Math.max(0,6-20);
   f.n.physiology.waterDeficitMl = 250;
   projectPhysiology(f.n);
   assert.ok(['ravenous', 'faint with hunger'].includes(bodySignals(f.n).hunger));

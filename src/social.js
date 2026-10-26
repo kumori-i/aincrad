@@ -1,3 +1,4 @@
+import { canonicalAdverseWarning, cleanFoodWarning, foodWarningText, validFoodWarningMessage, retireUnheardFoodWarnings } from './food-warning.js';
 import { NamingRuntime } from './naming-runtime.js';
 import { humanHintHelp, looksLikeHumanHint } from './human-hints.js';
 import { FoodSharing, FOOD_SHARING_ACTIONS } from './food-sharing.js';
@@ -6,7 +7,7 @@ import { actorLineOfSight } from './perception.js';
 import { recordClaim } from './cognition.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
-import { recordTechniqueReport, recordDiscoveryClaim, recordPeerTechnique, freshMethodAppearance } from './discovery.js';
+import { recordTechniqueReport, recordDiscoveryClaim, recordDiscoveryReport, recordPeerTechnique, freshMethodAppearance } from './discovery.js';
 import { validateDiscoveryMemory } from './discovery-state.js';
 import { cleanPeerTeaching, peerTeachingText } from './peer-teaching.js';
 
@@ -59,6 +60,7 @@ function validMessage(raw) {
     ...(raw.offline === true ? { offline: true } : {}),
     ...(raw.model === true && raw.senderId!=='human' ? { model: true } : {}),
     ...(raw.channel==='peer'&&cleanPeerTeaching(raw.teaching)?{teaching:cleanPeerTeaching(raw.teaching)}:{}),
+    ...(raw.warning!==undefined&&validFoodWarningMessage(raw)?{warning:cleanFoodWarning(raw.warning)}:{}),
     ...(['pending', 'answered', 'superseded'].includes(raw.questionState) ? {questionState: raw.questionState} : {}),
   };
 }
@@ -213,7 +215,8 @@ export class SocialCoordinator {
       memory.journalSeen = bounded([...memory.journalSeen, message.id], SOCIAL_RULES.maxMessages);
     }
     if (memory.heard.some(item => item.id === message.id)) return false;
-    memory.heard.push({...message}); memory.heard = bounded(memory.heard, SOCIAL_RULES.maxHeard);
+    memory.heard.push(structuredClone(message)); memory.heard = bounded(memory.heard, SOCIAL_RULES.maxHeard);
+    retireUnheardFoodWarnings(npc);
     return true;
   }
 
@@ -229,9 +232,9 @@ export class SocialCoordinator {
     memory.lastContactAt = finite(npc.elapsed);
   }
 
-  append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false,model=false,teaching=null}, at) {
+  append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false,model=false,teaching=null,warning=null}, at) {
     const community = this.community();
-    const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {}),...(model&&senderId!=='human'?{model:true}:{}),...(channel==='peer'&&cleanPeerTeaching(teaching)?{teaching:cleanPeerTeaching(teaching)}:{})};
+    const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {}),...(model&&senderId!=='human'?{model:true}:{}),...(channel==='peer'&&cleanPeerTeaching(teaching)?{teaching:cleanPeerTeaching(teaching)}:{}),...(channel==='peer'&&cleanFoodWarning(warning)?{warning:cleanFoodWarning(warning)}:{})};
     community.messages.push(message); community.messages = bounded(community.messages, SOCIAL_RULES.maxMessages);
     return message;
   }
@@ -316,7 +319,13 @@ export class SocialCoordinator {
     if (!aliveAndAwake(target)) return {ok: false, code: 'PEER_UNAVAILABLE'};
     const memory = this.ensure(npc), at = nowFor(npc, this.getEnvironment?.());
     if (memory.lastSpokeAt !== null && at - memory.lastSpokeAt < SOCIAL_RULES.speechCooldown) return {ok: false, code: 'CONVERSATION_COOLDOWN'};
-    let teaching=null;
+    let teaching=null,warning=null;
+    if(action.effectId!==undefined&&action.offline===true&&npc.mode==='discovery'&&target.mode==='discovery'){
+      // Delivery uses the shared event clock, not a listener whose body may
+      // still be one sequential population step behind the speaker.
+      warning=canonicalAdverseWarning(npc,action.effectId,at);
+      if(warning){if(action.techniqueId!==undefined)return {ok:false,code:'CONFLICTING_TESTIMONY'};text=foodWarningText(warning);}
+    }
     if(action.techniqueId!==undefined){
       if(npc.mode!=='discovery'||target.mode!=='discovery')return {ok:false,code:'TEACHING_UNAVAILABLE'};
       const verified=validateDiscoveryMemory(npc.discovery,npc),technique=verified.techniques.find(t=>t.id===action.techniqueId);
@@ -328,7 +337,7 @@ export class SocialCoordinator {
     }
     const key = teaching?`${target.id}:method:${teaching.sourceObjectId}:${teaching.acquisition}`:`${target.id}:${fingerprint(text)}`;
     if (memory.conversationKeys.some(item => item.key === key && at - item.at < SOCIAL_RULES.topicCooldown)) return {ok: false, code: 'REPEATED_CONVERSATION'};
-    const message = this.append({senderId: npc.id, recipientId: target.id, channel: 'peer', text, offline: action.offline === true,teaching}, at);
+    const message = this.append({senderId: npc.id, recipientId: target.id, channel: 'peer', text, offline: action.offline === true,teaching,warning}, at);
     memory.lastSpokeAt = at; memory.conversationKeys = bounded([...memory.conversationKeys, {key, at}], 32);
     this.receive(npc, message); this.receive(target, message);
     const claims = matchingClaims(npc, text);
@@ -339,7 +348,11 @@ export class SocialCoordinator {
     }
     if (!claims.length) recordClaim(target, {subject: npc.name, kind: 'general', text}, {sourceId: npc.id, at, channel: 'peer', messageId: message.id});
     if(teaching)recordPeerTechnique(target,text,teaching,{sourceId:npc.id,channel:'peer',messageId:message.id,at});
-    if(!teaching&&npc.mode==='discovery'&&target.mode==='discovery'&&action.offline===true){
+    if(warning){
+      const report=recordDiscoveryReport(target,text,{sourceId:npc.id,channel:'peer',messageId:message.id,at});
+      if(report){report.objectId=warning.materialId;report.warning=structuredClone(warning);}
+    }
+    if(!teaching&&!warning&&npc.mode==='discovery'&&target.mode==='discovery'&&action.offline===true){
       const effect=validateDiscoveryMemory(npc.discovery,npc).effects.find(effect=>effect.id===action.effectId);
       if(effect)recordDiscoveryClaim(target,{objectId:effect.objectId,effect:effect.effect},{sourceId:npc.id,channel:'peer',messageId:message.id,at});
     }
@@ -447,7 +460,24 @@ export class SocialCoordinator {
   /** Discovery speech describes sensed appearances and executed consequences.
    * It cannot turn animal metadata, a model's prose, or a human report into an
    * independently verified technique. */
+  adverseDialogue(npc){
+    if(npc.mode!=='discovery'||!aliveAndAwake(npc)||['urgent','unconscious','recovering'].includes(bodySignals(npc).overall))return null;
+    const at=nowFor(npc,this.getEnvironment?.()),memory=this.ensure(npc);
+    if(memory.lastSpokeAt!==null&&at-memory.lastSpokeAt<SOCIAL_RULES.speechCooldown)return null;
+    for(const peer of this.nearby(npc).filter(aliveAndAwake)){
+      // Canonical own receipts only. This selection never reads peer knowledge.
+      for(const effect of (npc.discovery?.effects||[]).slice().reverse()){
+        const warning=canonicalAdverseWarning(npc,effect.id,npc.elapsed);
+        if(!warning)continue;
+        const text=foodWarningText(warning),key=`${peer.id}:${fingerprint(text)}`;
+        if(!memory.conversationKeys.some(item=>item.key===key&&at-item.at<SOCIAL_RULES.topicCooldown))return {type:'say',targetId:peer.id,text,effectId:effect.id,offline:true};
+      }
+    }
+    return null;
+  }
+
   discoveryDialogue(npc){
+    const warning=this.adverseDialogue(npc);if(warning)return warning;
     if(!aliveAndAwake(npc))return null;
     const body=bodySignals(npc);
     if(['urgent','unconscious','recovering'].includes(body.overall))return null;
@@ -501,7 +531,7 @@ export class SocialCoordinator {
 
   /** Evidence-derived offline language. The optional model can use the same validated actions. */
   maybeDialogue(npc) {
-    if(npc.mode==='discovery')return this.foodSharing.choose(npc)||this.discoveryDialogue(npc);
+    if(npc.mode==='discovery')return this.adverseDialogue(npc)||this.foodSharing.choose(npc)||this.discoveryDialogue(npc);
     if (!aliveAndAwake(npc) || npc.hydration < 45 || npc.nourishment < 45 || npc.health < 70 || Math.max(npc.thermal?.hot ?? 0, npc.thermal?.cold ?? 0) > 40) return null;
     const at = nowFor(npc, this.getEnvironment?.()), memory = this.ensure(npc), observation = this.observe(npc);
     if (observation.pendingHumanTurn && (memory.lastJournalAt === null || at - memory.lastJournalAt >= SOCIAL_RULES.speechCooldown)) {

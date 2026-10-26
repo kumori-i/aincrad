@@ -330,17 +330,21 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
   }
 
   /** Fixed internal slices keep outcomes stable across caller time partitions. */
-  function advance(actor, dx, dy, dt, sprint = false, mode = 'walk') {
+  function advance(actor, dx, dy, dt, sprint = false, mode = 'walk', funding) {
+    // Engine-only opt-in. Player and animal callers keep their original path
+    // and receipt shape; paid NPC input never borrows time from passive drift.
+    const funded = funding !== undefined;
     movementMode(mode);
     const zero = Object.freeze({ distance: 0, driftDistance: 0,
       waterSeconds: 0, swimSeconds: 0, climbSeconds: 0,
       blockedClimbSeconds: 0, fallRiskSeconds: 0, effortSeconds: 0,
-      depthProxy: null, footing: null, currentCue: null, mode });
+      depthProxy: null, footing: null, currentCue: null, mode,
+      ...(funded ? { paidSeconds: 0, inputDx: 0, inputDy: 0 } : {}) });
     if (!finitePoint(actor) || !Number.isFinite(dx) || !Number.isFinite(dy) ||
         !Number.isFinite(dt) || dt <= 0) return zero;
     // A body already in deep water still drifts while idle or unconscious.
     // This grants no intentional swimming to a default walking request.
-    const passiveSwim = mode === 'walk' && dx === 0 && dy === 0 &&
+    const passiveSwim = mode === 'walk' && (funded || dx === 0 && dy === 0) &&
       !classify(actor.x, actor.y).walkable &&
       classify(actor.x, actor.y, CONFIG.playerRadius, 'swim').reason === 'swimming';
     const physicalMode = passiveSwim ? 'swim' : mode;
@@ -355,10 +359,11 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
     const start = { x: actor.x, y: actor.y };
     let driftDistance = 0, waterSeconds = 0, swimSeconds = 0;
     let climbSeconds = 0, blockedClimbSeconds = 0, fallRiskSeconds = 0;
-    let effortSeconds = 0;
+    let effortSeconds = 0, paidSeconds = 0, inputDx = 0, inputDy = 0;
     for (let index = 0; index < slices; index += 1) {
       const before = classify(actor.x, actor.y, CONFIG.playerRadius, physicalMode);
-      let blocked = null;
+      let blocked = null, paid = 0;
+      const rejectedWalk = funded && mode === 'walk' && before.reason === 'swimming';
       if (inputLength > 0) {
         const swimming = before.reason === 'swimming';
         const climbing = physicalMode === 'climb' && before.grade > PROFILE.walkGrade;
@@ -367,10 +372,21 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
             before.reason === 'shallow-water' ? PROFILE.wadeWalkMultiplier : 1;
         const speed = CONFIG.walkSpeed * (sprint && !swimming && !climbing ?
           CONFIG.sprintMultiplier : 1) * speedFactor;
-        blocked = sweptAxes(actor, inputX * speed * seconds,
-          inputY * speed * seconds, physicalMode).blocked;
-        effortSeconds += seconds * (swimming ? 2.6 :
-          climbing ? 2 : before.reason === 'shallow-water' ? 1.6 : 1);
+        const effort = rejectedWalk ? 1 : swimming ? 2.6 :
+          climbing ? 2 : before.reason === 'shallow-water' ? 1.6 : 1;
+        const payment = funded ? (typeof funding === 'function' ? funding(seconds, effort) : 0) : seconds;
+        paid = Number.isFinite(payment) ? Math.max(0, Math.min(seconds, payment)) : 0;
+        paidSeconds += paid;
+        const inputStart = { x: actor.x, y: actor.y };
+        if (!rejectedWalk && paid > 0) {
+          blocked = sweptAxes(actor, inputX * speed * paid,
+            // A passive swim fallback must never grant a walking command
+            // permission to propel back into deep water after reaching shore.
+            inputY * speed * paid, funded ? mode : physicalMode).blocked;
+        }
+        inputDx += actor.x - inputStart.x;
+        inputDy += actor.y - inputStart.y;
+        effortSeconds += paid * effort;
       }
       const afterInput = classify(actor.x, actor.y, CONFIG.playerRadius, physicalMode);
       if (afterInput.currentDirection && isWater(afterInput)) {
@@ -384,13 +400,13 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
       const after = classify(actor.x, actor.y, CONFIG.playerRadius, physicalMode);
       if (isWater(before) || isWater(afterInput) || isWater(after)) waterSeconds += seconds;
       if ([before, afterInput, after].some(footing => footing.reason === 'swimming'))
-        swimSeconds += seconds;
+        swimSeconds += funded ? (rejectedWalk ? 0 : paid) : seconds;
       if (physicalMode === 'climb' && inputLength > 0 &&
           [before, afterInput, after].some(footing => footing.grade > PROFILE.walkGrade))
-        climbSeconds += seconds;
+        climbSeconds += funded ? paid : seconds;
       if (physicalMode === 'climb' && blocked?.reason === 'excessive-grade') {
-        blockedClimbSeconds += seconds;
-        if (blocked.grade >= PROFILE.fallRiskGrade) fallRiskSeconds += seconds;
+        blockedClimbSeconds += funded ? paid : seconds;
+        if (blocked.grade >= PROFILE.fallRiskGrade) fallRiskSeconds += funded ? paid : seconds;
       }
     }
     const footing = classify(actor.x, actor.y, CONFIG.playerRadius, physicalMode);
@@ -400,6 +416,7 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
       blockedClimbSeconds, fallRiskSeconds, effortSeconds,
       depthProxy: footing.depthProxy ?? 0,
       footing: footing.reason, currentCue: footing.currentCue ?? null, mode,
+      ...(funded ? { paidSeconds, inputDx, inputDy } : {}),
     });
   }
 
@@ -482,6 +499,7 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
   const result = Object.freeze({
     profile: PROFILE, bounds: BOUNDS, spawn: PLAYER_SPAWN,
     agentSpawns: SPAWNS, sample, cartographicSample: sampleTerrain, classify, canOccupy, advance, move,
+    fundedAdvance: true,
     lineOfSight, observe, groundAt,
     ...(structures ? { structureVersion: 1,
       structureContract: structuralLayer.profileContract, structures: structuralLayer, lightAt } : {}),

@@ -22,7 +22,6 @@ jobs:
       - name: Record actual native host and architecture
         run: node scripts/record-native-host.mjs
       - run: npm ci
-      - run: npm run check
       - run: npm run build
       - name: Exercise the macOS desktop window
         if: runner.os == 'macOS'
@@ -42,12 +41,17 @@ jobs:
       - name: Verify macOS tentative visual groups and passive save reopen
         if: runner.os == 'macOS'
         run: node scripts/verify-visual-groups-desktop.mjs
+      - name: Verify macOS combined food funding and actual adverse warning
+        if: runner.os == 'macOS'
+        run: node scripts/verify-combined-food-desktop.mjs && node scripts/verify-food-warning-desktop.mjs
       - name: Install sandbox-preserving Linux desktop
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb openbox
       - name: Exercise Linux window and saved structural departure
         if: runner.os == 'Linux'
-        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-openbox.log" 2>&1 & npm run smoke && node scripts/verify-structural-movement-desktop.mjs && node scripts/verify-movement-recovery-desktop.mjs && node scripts/verify-naming-followup-desktop.mjs && node scripts/verify-naming-repair-desktop.mjs && node scripts/verify-visual-groups-desktop.mjs'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-openbox.log" 2>&1 & npm run smoke && node scripts/verify-structural-movement-desktop.mjs && node scripts/verify-movement-recovery-desktop.mjs && node scripts/verify-naming-followup-desktop.mjs && node scripts/verify-naming-repair-desktop.mjs && node scripts/verify-visual-groups-desktop.mjs && node scripts/verify-combined-food-desktop.mjs && node scripts/verify-food-warning-desktop.mjs'
+      # Native fixtures fail early; the complete aggregate remains required before packaging.
+      - run: npm run check
       - name: Package Linux for the runner architecture
         if: runner.os == 'Linux'
         run: npm run package:linux

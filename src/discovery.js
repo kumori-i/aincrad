@@ -1,3 +1,7 @@
+import { receivedMaterialCaution } from './food-warning.js';
+import { markNpcRunTravel } from './npc-effort-funding.js';
+import { experiencedFoodSourceCaution } from './food-source-caution.js';
+import { witnessedMaterialCompletion } from './discovery-completion.js';
 import { ingestVisualSamples } from './visual-group-memory.js';
 import { recoveryChoice } from './movement-recovery.js';
 import { chooseOwnName } from './naming-state.js';
@@ -73,7 +77,7 @@ export function recordDiscoveryOutcome(npc,action,result,event){
 }
 function recordDiscoveryOutcomeLinked(npc,action,result,event){
   if(!DISCOVERY_RULES.allPrimitives.includes(action?.type))return;
-  const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(Object.hasOwn(result,'resultObjectId')?{resultObjectId:result.resultObjectId}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
+  const d=memory(npc),experiment={id:d.nextId++,at:npc.elapsed,primitive:action.type,targetId:action.targetId,ok:result.ok===true,code:String(result.code||'NO_CHANGE').slice(0,60),durationSeconds:Math.max(0,result.durationSeconds||0),actionId:event.id,...(objectId(result.materialId)?{materialId:result.materialId}:{}),...(Object.hasOwn(result,'resultObjectId')?{resultObjectId:result.resultObjectId}:{}),...(result.finishedMaterial===true?{finishedMaterial:true}:{}),...(result.ingestionId?{ingestionId:String(result.ingestionId).slice(0,80)}:{})};
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
   d.experiments.push(experiment); linkInquiryOutcome(d,experiment); recordHandlingOutcome(npc,experiment,{appearance:id=>freshMethodAppearance(npc,id)}); // The enclosing action transaction links before shared compaction.
@@ -343,9 +347,33 @@ function supportedHeldMaterial(npc,id){
   const portions=new Set(d.effects.filter(effect=>effect.objectId===id&&effect.effect==='sustained'&&effect.ingestionId&&d.experiments.some(sample=>sample.primitive==='sample'&&sample.ok&&sample.targetId===id&&sample.ingestionId===effect.ingestionId&&sample.actionId===effect.actionId&&effect.at>=sample.at)).map(effect=>effect.ingestionId));
   return portions.size>=2;
 }
+// Only the prior-piece acquisition delay is relaxed. Each next piece still
+// earns its own sampling outcomes, and every pending digestion remains intact.
+function finishedSourceMaterial(npc,acquired,technique){
+  const d=memory(npc),id=acquired.materialId;
+  if(acquired.ok!==true||acquired.targetId!==technique.sourceId||technique.confidence!=='supported'||acquired.primitive!==technique.steps[0]?.type||
+    npc.inventory.items.includes(id)||priorAdverseSource(d,technique.sourceId)||
+    d.effects.some(e=>e.objectId===id&&(e.effect==='discomfort'||['aching','hurting'].includes(e.pain))))return false;
+  const actionMatches=e=>npc.memory.experience.some(r=>r.id===e.actionId&&r.type==='action'&&r.at===e.at&&
+    r.details.action?.type===e.primitive&&r.details.action.targetId===e.targetId&&
+    r.details.result?.ok===e.ok&&r.details.result.code===e.code&&
+    (r.details.result.materialId||undefined)===(e.materialId||undefined)&&
+    (r.details.result.ingestionId||undefined)===(e.ingestionId||undefined));
+  if(!actionMatches(acquired))return false;
+  const finish=d.experiments.find(e=>e.targetId===id&&e.finishedMaterial===true&&
+    e.id>acquired.id&&e.at>=acquired.at&&e.at===d.samplesPending[id]&&witnessedMaterialCompletion(npc,e));
+  if(!finish||sampleAcquisition(d,finish)!==acquired||d.experiments.some(e=>e.targetId===id&&e.id>finish.id&&['sample','grasp','release','catch'].includes(e.primitive)))return false;
+  const portions=new Set(d.effects.filter(effect=>effect.objectId===id&&effect.effect==='sustained'&&
+    effect.source==='experienced'&&conditionMatches(npc.memory.experience.find(r=>r.id===effect.proofEventId),effect)&&
+    d.experiments.some(sample=>sample.primitive==='sample'&&sample.ok&&sample.targetId===id&&
+      sample.id>acquired.id&&sample.id<=finish.id&&sample.at>=acquired.at&&sample.ingestionId===effect.ingestionId&&
+      sample.actionId===effect.actionId&&effect.at>=sample.at&&actionMatches(sample))).map(e=>e.ingestionId));
+  return portions.size>=2;
+}
 function sampleEligible(npc,id,body=bodySignals(npc),foodLearning=true){
   const d=memory(npc);
-  if(availabilityBlocked(npc,'sample',id)||samplingBlocked(npc,body)||d.effects.some(e=>e.objectId===id&&e.effect==='discomfort'))return false;
+  if(experiencedFoodSourceCaution(npc,id))return false; // Own exact-source caution also protects generic/ablated sampling.
+  if(availabilityBlocked(npc,'sample',id)||samplingBlocked(npc,body)||d.effects.some(e=>e.objectId===id&&(e.effect==='discomfort'||['aching','hurting'].includes(e.pain)))||receivedMaterialCaution(npc,id))return false;
   // Keep every pending identity for delayed feedback/protection, even when
   // repeated positive experience supports another physical bite before it arrives.
   if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds&&!(foodLearning&&supportedHeldMaterial(npc,id)))return false;
@@ -389,7 +417,7 @@ function learnedStep(npc){
   if(!id){d.run=null;return null;}
   if(availabilityBlocked(npc,step.type,id)){d.run=null;return null;}
   if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return null;const object=d.observations[id];
-  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return move;d.run=null;return null;}
+  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return markNpcRunTravel(npc,move);d.run=null;return null;}
   run.awaiting=true;run.expectedType=step.type;run.expectedId=id;return {type:step.type,targetId:id};
 }
 /** Pain from actual observed contact supports avoidance; appearance alone predicts no threat. */
@@ -459,12 +487,15 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true}
   if(!restDeferred&&(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue)))return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
   if(depletedAfterRefusal&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'wait',seconds:5},'Rest was interrupted or refused while I felt depleted; without an available learned relief action, I can keep still briefly and reassess my sensations.','rest');
   if(d.run){const action=learnedStep(npc);if(action)return wrap(action,'I am repeating an operation sequence supported by my own bodily feedback.','food');}
-  const hungry=foodLearning&&body.hunger!=='content'&&!samplingBlocked(npc,body);
+  // Appetite is not fuel: a content stomach can coexist with waning energy.
+  // Necessary sleep/rest and immediate safety have already been considered.
+  const energyFoodNeed=['waning','low','depleted'].includes(body.energy);
+  const hungry=foodLearning&&(body.hunger!=='content'||energyFoodNeed)&&!samplingBlocked(npc,body);
   const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
-  if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
-  if(hungry&&trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
+  if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},energyFoodNeed?'My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.':'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
+  if(hungry&&(trialHunger||energyFoodNeed)&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
   if(hungry&&!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
-    const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+    const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds&&!finishedSourceMaterial(npc,e,t))).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
     for(const technique of candidates){
       d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
       const action=learnedStep(npc);

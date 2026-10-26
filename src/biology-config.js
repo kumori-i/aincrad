@@ -2,6 +2,8 @@ import { CONFIG } from './config.js';
 
 /** Approximate, configurable game physiology. Values are not clinical predictions. */
 export const BIOLOGY_RULES = Object.freeze({
+  // Appetite is gameplay meal memory, not a calorie store or metabolic rate.
+  humanSatietyMaximumHours: 6, humanSatietyHoursPerKcal: 4 / 95,
   version: 1, maxDigestiveInputs: 24, maxFeedback: 64,
   feedbackDelayHours: .15, maximumTickHours: 1,
   humanSleepOnsetHours: 1 / 12, maximumSleepHours: 12,

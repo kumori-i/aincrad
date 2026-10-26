@@ -18,7 +18,8 @@ test('native discovery drink projects fullness before its original receipt witho
 
   assert.equal(result.code, 'DRANK');
   assert.equal(actor.nourishment, projected.nourishment);
-  assert.ok(actor.nourishment > before.nourishment, 'already swallowed water contributes fullness');
+  assert.equal(actor.nourishment, before.nourishment, 'water contributes transient gut fullness, never food satisfaction');
+  assert.equal(actor.physiology.satietyHours, before.physiology.satietyHours);
   assert.equal(actor.hydration, before.hydration);
   assert.equal(result.hydrationGain, 0);
   assert.equal(result.delayed, true);

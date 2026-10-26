@@ -5,7 +5,8 @@ import {createNpc} from '../src/npc-state.js';
 import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction,collapseNpc} from '../src/npc.js';
 import {requestDiscoveryAction,tickDiscoveryAction,primitiveDuration} from '../src/discovery-actions.js';
 import {lookupEcologyObject,interactEcologyObject} from '../src/ecology.js';
-import {beginSleep} from '../src/biology.js';
+import {beginSleep,exertPhysiology} from '../src/biology.js';
+import {npcEffortCost} from '../src/npc-effort-funding.js';
 import {canStand,freshState,CAVE_OBJECTS} from '../src/world.js';
 import {lineOfSight} from '../src/perception.js';
 
@@ -68,9 +69,18 @@ test('completion replacement survives cleanup and pays its own later work',()=>{
 });
 
 test('exertion reentry charges and completes only the outer action',()=>{
-  const f=fixture(),mass=f.juvenile.structureMassGrams;start(f,true);let exertions=0,completions=0;
-  tickDiscoveryAction(f.n,4,f.env,{exert(n,seconds,effort){exertions++;assert.equal(seconds,4);assert.equal(effort,2.2);assert.equal(tickDiscoveryAction(n,4,f.env),false);},complete(){completions++;}});
+  const f=fixture(),mass=f.juvenile.structureMassGrams,available=f.n.physiology.availableEnergyKcal,metabolized=f.n.physiology.totals.metabolizedKcal;
+  const active=start(f,true);let exertions=0,completions=0;
+  tickDiscoveryAction(f.n,4,f.env,{exert(n,seconds,effort){
+    exertions++;assert.equal(seconds,4);assert.equal(effort,2.2);
+    exertPhysiology(n,seconds,effort); // Delegate actual debit before trying to reenter the paid outer slice.
+    const paidBody=clone(n.physiology);assert.equal(tickDiscoveryAction(n,4,f.env),false);assert.deepEqual(n.physiology,paidBody,'reentry cannot charge already paid outer work');
+  },complete(){completions++;}});
   near(f.juvenile.structureMassGrams,mass-10);assert.equal(exertions,1);assert.equal(completions,1);assert.equal(f.n.active,null);
+  near(available-f.n.physiology.availableEnergyKcal,npcEffortCost(4,2.2));
+  near(f.n.physiology.totals.metabolizedKcal-metabolized,npcEffortCost(4,2.2));
+  const paid=clone(f.n.physiology);f.n.active=active;assert.equal(tickDiscoveryAction(f.n,4,f.env),false);
+  assert.deepEqual(f.n.physiology,paid);near(f.juvenile.structureMassGrams,mass-10);
 });
 
 test('exertion cancellation or replacement never commits the old action',()=>{

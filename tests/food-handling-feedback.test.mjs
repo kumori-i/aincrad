@@ -1,3 +1,5 @@
+import { npcWorkAllowance } from '../src/npc-effort-funding.js';
+import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { validLexicon } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,6 +70,28 @@ function withContractHandling() {
   const n = contractActor();
   for (const id of [1, 2]) receipt(n, id).details.result.handling = felt(receipt(n, id).details.result.durationSeconds);
   return n;
+}
+// Fully funded trajectories retain all physical results. Only the reviewed
+// finite wall-time allowance differs from the historical unused nominal limit.
+function withHistoricalDeadline(n,baseline) {
+  const out=clone(n);
+  if(out.active?.kind==='interaction'){
+    near(out.active.expiresAt,out.active.startedAt+npcWorkAllowance(out.active.seconds,DISCOVERY_RULES.effort[out.active.request.type]));
+    near(baseline.active.expiresAt,baseline.active.startedAt+baseline.active.seconds+.05);
+    out.active.expiresAt=baseline.active.expiresAt;
+  }
+  // Cancellation now reports summed certified work instead of subtracting two
+  // absolute clocks. In these fully funded fixtures they differ only by roundoff.
+  const durations=(value,old)=>{
+    if(!value||typeof value!=='object'||!old||typeof old!=='object')return;
+    for(const key of Object.keys(value)){
+      if(key==='durationSeconds'&&typeof value[key]==='number'&&typeof old[key]==='number'){
+        near(value[key],old[key]);value[key]=old[key];
+      }else durations(value[key],old[key]);
+    }
+  };
+  durations(out,baseline);
+  return out;
 }
 function withoutHandling(n) {
   const out = clone(n); if (out.lastResult) delete out.lastResult.handling;
@@ -375,11 +399,11 @@ test('effort projection is bounded to sixteen witnessed rows and truncation keep
 test('actual bounded receipt/experiment retirement retains valid handling without changing practice', () => {
   const f = fixture();
   for (let i = 0; i < 170; i++) finish(f, 'inspect_object');
-  assert.equal(f.n.discovery.experiments.length, 160); assert.equal(f.n.discovery.practice.inspect_object.successes, 170);
+  assert.equal(f.n.discovery.experiments.length, DISCOVERY_RULES.maxExperiments); assert.equal(f.n.discovery.practice.inspect_object.successes, 170);
   for (let i = 0; i < 425; i++) recordEvent(f.n, 'decision', { summary: 'Unrelated bounded test observation.' });
   assert.ok(f.n.memory.experience.length <= 400);
   const restored = validateNpc(JSON.parse(JSON.stringify(f.n)));
-  assert.equal(restored.discovery.practice.inspect_object.successes, 170); assert.equal(restored.discovery.experiments.length, 160);
+  assert.equal(restored.discovery.practice.inspect_object.successes, 170); assert.equal(restored.discovery.experiments.length, DISCOVERY_RULES.maxExperiments);
   for (const e of restored.discovery.experiments) {
     const r = receipt(restored, e.actionId); assert.ok(r); assert.equal(r.details.result.handling.source, 'experienced');
     near(r.details.result.handling.activeActionSeconds, r.details.result.durationSeconds);
@@ -395,7 +419,7 @@ test('short legal trajectories match the SHA-frozen prepatch engine except addit
       // Exclude only that additive ledger, never action/body/policy RNG state.
       if(f.n.lexicon!==undefined)assert.equal(validLexicon(f.n.lexicon,f.n),true);
       delete physical.lexicon;
-      assert.deepEqual(physical, b.n); assert.deepEqual(f.e, b.e);
+      assert.deepEqual(withHistoricalDeadline(physical,b.n), b.n); assert.deepEqual(f.e, b.e);
       assert.equal(f.n.rng, b.n.rng);
       const aDecision = clone(f.n), bDecision = clone(b.n);
       assert.deepEqual(discoveryDecision(aDecision), discoveryDecision(bDecision)); assert.equal(aDecision.rng, bDecision.rng);
@@ -437,7 +461,7 @@ test('low-level helper work, RNG, physiology and finite outcome match the frozen
   for (const dt of [.25, .5, 1, 3.25]) {
     tickDiscoveryAction(f.n, dt, f.e, { complete(n, action, result) { actual = result; } });
     baselineDiscovery.tickDiscoveryAction(b.n, dt, b.e, { complete(n, action, result) { expected = result; } });
-    assert.deepEqual(f.n, b.n); assert.deepEqual(f.e, b.e);
+    assert.deepEqual(withHistoricalDeadline(f.n,b.n), b.n); assert.deepEqual(f.e, b.e);
   }
   assert.deepEqual(actual.handling, felt(5)); delete actual.handling; assert.deepEqual(actual, expected);
 });
