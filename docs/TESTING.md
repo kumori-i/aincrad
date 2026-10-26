@@ -118,3 +118,20 @@ never native execution. Native logs and capture attempts are retained under
 `test-results/naming-repair-desktop/`; inspect actual screenshots when that runner
 is executed. Missing display or sandbox capability is a blocked verification row,
 not permission to weaken the sandbox.
+
+### Passive tentative visual groups
+
+`tests/visual-group-memory.test.mjs` covers the supplied exact-cue rule, bounded
+retention, time deduplication, changed/missing cues, strict ownership and read-only
+projection. Integration fixtures use real ordinary perception on disclosed
+controlled exposures, test speech refresh exclusion and optional schema-12
+roundtrips/invalid input protection. A test-only disabled observer comparison
+must preserve all other world state; it is not a production policy switch.
+
+`node scripts/verify-visual-groups-desktop.mjs --prepare-only` prepares a targeted
+three-process native harness. Without `--prepare-only`, supported sandboxed native
+execution records actual selected-actor panel captures and exact save/reopen
+comparisons, using the existing inert disposable test route. Controlled placement
+and time-separated sensing are not independent encounters or autonomous concept
+formation. Preparation and Node fixture passes are not native execution. Never
+bypass display, socket or sandbox denials to run the native row.

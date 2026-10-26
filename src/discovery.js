@@ -1,3 +1,4 @@
+import { ingestVisualSamples } from './visual-group-memory.js';
 import { recoveryChoice } from './movement-recovery.js';
 import { chooseOwnName } from './naming-state.js';
 import { parseHumanHint } from './human-hints.js';
@@ -57,7 +58,10 @@ function localMethodSource(npc,id){
 export function discoveryPrimitives(npc){
   return ozarkFiniteAquaticAgent(npc)?DISCOVERY_RULES.allPrimitives:DISCOVERY_RULES.primitives;
 }
-export function rememberDiscoveryObservation(npc,objects=[]){
+export function rememberDiscoveryObservation(npc,objects=[],{visualSample=false}={}){
+  // Only ordinary personal perception contributes time-separated visual samples.
+  // Naming/speech refreshes and action-result descriptions never enter this ledger.
+  if(visualSample)ingestVisualSamples(npc,objects);
   const d=memory(npc);if(!d.search.home)d.search.home={...npc.position};
   for(const raw of objects)rememberDirectDiscoveryObject(npc,raw);
   d.observations=retainHeldObservations(npc,d.observations);

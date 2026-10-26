@@ -48,7 +48,7 @@ const finite=(v,otherwise=0,max=1e10)=>Number.isFinite(v)?clamp(v,0,max):otherwi
 const str=(v,max=600)=>typeof v==='string'?v.slice(0,max):'';
 const cellsFor=(npc,scene=npc.scene)=>scene==='valley'?npc.memory.cells:(npc.memory.caveCells[scene]||={});
 export function rememberObservation(npc,observation){
-  if(npc.mode==='discovery')rememberDiscoveryObservation(npc,observation.objects||[]);
+  if(npc.mode==='discovery')rememberDiscoveryObservation(npc,observation.objects||[],{visualSample:true});
   const m=npc.memory;m.foods||={};m.shelters||={};m.caveCells||={};m.caveEdges||={};m.caveExits||={};m.features||={};m.effects||={};
   if(!npc.learning){
     const origin=m.exploration.origin;

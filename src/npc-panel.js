@@ -1,3 +1,4 @@
+import { visualGroups, visualSampleCurrent } from './visual-group-memory.js';
 import { lexicalLabels } from './naming-state.js';
 import { humanHintHelp } from './human-hints.js';
 import { peerTeachingLabel } from './peer-teaching.js';
@@ -84,6 +85,25 @@ export function renderHandlingInquiries(parent, npc) {
   }
   if (rows.length > 4) add(parent, 'p', `Showing 4 of ${rows.length} retained handling questions, with pending attempts first. Older questions remain in memory.`, 'small');
 }
+// A projection only: remembered membership never grants sight or action authority.
+export function renderVisualGroups(parent, npc) {
+  const groups = visualGroups(npc);
+  if (!groups.length) return;
+  add(parent, 'p', 'Tentative remembered similarity', 'eyebrow');
+  add(parent, 'p', 'Supplied rule: exact shape, color and texture match. At least two individuals, each seen at two distinct simulation times. These are time-separated observations, not independent encounters or discovered categories.', 'small');
+  for (const [index, group] of groups.entries()) {
+    const entry = add(parent, 'div', '', 'knowledge-entry');
+    entry.dataset.visualGroup = String(index);
+    add(entry, 'p', `Looks alike: ${group.cues.shape} · ${group.cues.color} · ${group.cues.texture}`);
+    for (const member of group.members) {
+      const current = visualSampleCurrent(npc, member.objectId);
+      const row = add(entry, 'p', `${member.objectId} · ${current ? 'current ordinary visual sample' : 'remembered only'} · ${member.times.length} retained observations at ${member.times.map(String).join(', ')} simulation seconds`, 'provenance');
+      row.dataset.visualMember = member.objectId;
+      row.dataset.visualStatus = current ? 'current' : 'remembered';
+    }
+    add(entry, 'p', 'Other properties unknown: no shared food, safety, behavior or name is inferred. Absence is not disproof. Remembered members cannot be acted on from this group.', 'small');
+  }
+}
 // Display retained lexical evidence only. A label is not a current sensory receipt.
 export function renderGroundedNames(parent, npc, agents = []) {
   const rows = lexicalLabels(npc);
@@ -158,6 +178,7 @@ export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCom
   function renderDiscovery(n,skills){
     const d=n.discovery||{},knowledge=$('npc-object-knowledge'),experiments=$('npc-experiments');knowledge.replaceChildren();experiments.replaceChildren();
     renderGroundedNames(knowledge,n,getAgents());
+    renderVisualGroups(knowledge,n);
     renderObservationalInquiries(knowledge,n,getAgents());
     renderHandlingInquiries(knowledge,n);
     const effects=d.effects||[],reports=d.reports||[];

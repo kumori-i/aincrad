@@ -1,3 +1,4 @@
+import { validVisualSamples } from './visual-group-memory.js';
 import { validLexicon, validRepairCorrespondence } from './naming-state.js';
 import { validHumanHint } from './human-hints.js';
 import { validHandlingInquiries } from './handling-inquiry.js';
@@ -236,6 +237,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if(raw.discovery.visualSamples!==undefined&&!validVisualSamples(raw.discovery.visualSamples,raw))fail(`${id} has invalid visual samples`);
   if(raw.lexicon!==undefined&&!validLexicon(raw.lexicon,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid individual names`);
   if((raw.discovery.handlingAdmissions!==undefined||raw.discovery.handlingQuestions!==undefined)&&!validHandlingInquiries(raw.discovery,raw))fail(`${id} has invalid own handling inquiries`);
   if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
@@ -244,6 +246,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   if(raw.discovery.reports.some(r=>r.hint!==undefined&&(r.sourceId!=='human'||!validHumanHint(r.hint))))fail(`${id} has invalid human hint metadata`);
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
+  if(raw.discovery.visualSamples!==undefined&&!sameExact(raw.discovery.visualSamples,canonical.discovery.visualSamples))fail(`${id} would lose visual samples`);
   if(raw.lexicon!==undefined&&!sameExact(raw.lexicon,canonical.lexicon))fail(`${id} would lose individual name evidence`);
   // New method reports are strict optional schema-12 data. Legacy exact-source
   // reports retain their previous compatibility contract.
