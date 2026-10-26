@@ -31,7 +31,7 @@ export function bodySignals(npc){
 function discoveryBodySignals(npc){
   const f=npc.physiology,p=BIOLOGY_PROFILES[f.profile]||BIOLOGY_PROFILES.human,t=npc.thermal||{},s=npc.sensation||{},deficit=f.waterDeficitMl/(p.massKg*1000);
   const gut=f.stomach.reduce((sum,item)=>sum+item.remainingMassGrams,0)/p.stomachCapacityGrams,fast=f.hoursSinceMeal;
-  const hunger=gut>.3?'content':fast<4?'content':fast<7?'peckish':fast<16?'hungry':f.availableEnergyKcal>p.availableCapacityKcal*.1?'ravenous':'faint with hunger';
+  const hunger=f.profile==='human'?(f.satietyHours>=2-1e-8?'content':f.satietyHours>=1-1e-8?'peckish':f.availableEnergyKcal<=p.availableCapacityKcal*.1?'faint with hunger':fast<16?'hungry':'ravenous'):(gut>.3?'content':fast<4?'content':fast<7?'peckish':fast<16?'hungry':f.availableEnergyKcal>p.availableCapacityKcal*.1?'ravenous':'faint with hunger');
   const thirst=deficit<.005?'quenched':deficit<.012?'dry mouth':deficit<.025?'thirsty':deficit<.045?'parched':'desperate thirst';
   const urgent=deficit>=.045||f.health<=25||Math.max(t.hot||0,t.cold||0)>=80||f.availableEnergyKcal<=p.availableCapacityKcal*.08;
   const unconscious=npc.lifecycle==='COLLAPSED'||f.health<=0,groggy=f.sleep.inertiaHours>0,sleepiness=clampPressure(f.sleepPressure-(f.circadianAlertness||0)*12);

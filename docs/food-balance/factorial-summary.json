@@ -1,0 +1,3000 @@
+{
+  "status": "completed-diagnostic",
+  "purpose": "one-seed factorial diagnosis, not acceptance",
+  "prefixChecks": [
+    {
+      "arm": "baseline",
+      "actor": "aster",
+      "boundarySimulationSeconds": 399.99999999996487,
+      "expectedActions": 134,
+      "actualActions": 134,
+      "equal": true,
+      "difference": null,
+      "initialStateEqual": true,
+      "physicalStartEqual": true
+    },
+    {
+      "arm": "baseline",
+      "actor": "mira",
+      "boundarySimulationSeconds": 399.99999999996487,
+      "expectedActions": 134,
+      "actualActions": 134,
+      "equal": true,
+      "difference": null,
+      "initialStateEqual": true,
+      "physicalStartEqual": true
+    },
+    {
+      "arm": "combined",
+      "actor": "aster",
+      "boundarySimulationSeconds": 399.99999999996487,
+      "expectedActions": 131,
+      "actualActions": 131,
+      "equal": true,
+      "difference": null,
+      "initialStateEqual": true,
+      "physicalStartEqual": true
+    },
+    {
+      "arm": "combined",
+      "actor": "mira",
+      "boundarySimulationSeconds": 399.99999999996487,
+      "expectedActions": 135,
+      "actualActions": 135,
+      "equal": true,
+      "difference": null,
+      "initialStateEqual": true,
+      "physicalStartEqual": true
+    }
+  ],
+  "physicalStartsMatch": true,
+  "contrasts": [
+    {
+      "actor": "aster",
+      "hour": 1,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 0,
+          "spentKcal": 239.24232033213877,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -239.24232033194858,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 74.87502380953704,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 0,
+          "spentKcal": 239.24232033213877,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -239.24232033194858,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 50.00000000002404,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 239.24232033213877,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -239.24232033194858,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 50.00000000002404,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 239.24232033213877,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -239.24232033194858,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 74.87502380953704,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        }
+      }
+    },
+    {
+      "actor": "aster",
+      "hour": 2,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 3.4284444444447204,
+          "spentKcal": 481.9918836159715,
+          "ingestedKcal": 16.285714285714285,
+          "reserveChangeKcal": -478.56343917088816,
+          "pendingKcal": 12.857269841270458,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 77.14009174605926,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 3.4286455026457787,
+          "spentKcal": 479.61725135039967,
+          "ingestedKcal": 19,
+          "reserveChangeKcal": -476.1886058471282,
+          "pendingKcal": 15.571354497355115,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 46.66666666671475,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 3.4284444444447204,
+          "spentKcal": 481.9918836159715,
+          "ingestedKcal": 16.285714285714285,
+          "reserveChangeKcal": -478.56343917088816,
+          "pendingKcal": 12.857269841270458,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 44.761904761952835,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 3.4286455026457787,
+          "spentKcal": 479.61725135039967,
+          "ingestedKcal": 19,
+          "reserveChangeKcal": -476.1886058471282,
+          "pendingKcal": 15.571354497355115,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 77.28295640214392,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0.00020105820105831285,
+          "combinedMinusBaseline": 0.00020105820105831285,
+          "interaction": 0
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": -2.3746322655718473,
+          "combinedMinusBaseline": -2.3746322655718473,
+          "interaction": 0
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 2.7142857142857153,
+          "combinedMinusBaseline": 2.7142857142857153,
+          "interaction": 0
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 2.374833323759958,
+          "combinedMinusBaseline": 2.374833323759958,
+          "interaction": 0
+        }
+      }
+    },
+    {
+      "actor": "aster",
+      "hour": 3,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 31.33914285713152,
+          "spentKcal": 712.9553252413232,
+          "ingestedKcal": 54.285714285714285,
+          "reserveChangeKcal": -681.6161823882721,
+          "pendingKcal": 22.946571428575318,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 61.474570476106386,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 38.154613756595765,
+          "spentKcal": 706.1211128181804,
+          "ingestedKcal": 76,
+          "reserveChangeKcal": -667.9664990659658,
+          "pendingKcal": 37.84538624339093,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 70.00000000007209,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 26.318719576709412,
+          "spentKcal": 734.1684438021897,
+          "ingestedKcal": 38,
+          "reserveChangeKcal": -707.8497242288722,
+          "pendingKcal": 11.681280423283194,
+          "health": 99.99913217859604,
+          "condition": 100,
+          "foodbar": 43.33333333340545,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "wet",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 25.499999999999833,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 38.154613756595765,
+          "spentKcal": 706.1211128181804,
+          "ingestedKcal": 76,
+          "reserveChangeKcal": -667.9664990659658,
+          "pendingKcal": 37.84538624339093,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 63.73084910041216,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": -5.020423280422108,
+          "careMinusBaseline": 6.815470899464245,
+          "combinedMinusBaseline": 6.815470899464245,
+          "interaction": 5.020423280422108
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 21.21311856086652,
+          "careMinusBaseline": -6.834212423142731,
+          "combinedMinusBaseline": -6.834212423142731,
+          "interaction": -21.21311856086652
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": -16.285714285714285,
+          "careMinusBaseline": 21.714285714285715,
+          "combinedMinusBaseline": 21.714285714285715,
+          "interaction": 16.285714285714285
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": -26.233541840600083,
+          "careMinusBaseline": 13.649683322306373,
+          "combinedMinusBaseline": 13.649683322306373,
+          "interaction": 26.233541840600083
+        }
+      }
+    },
+    {
+      "actor": "aster",
+      "hour": 4,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 53.87777140222803,
+          "spentKcal": 890.4713598161236,
+          "ingestedKcal": 57,
+          "reserveChangeKcal": -836.5935884226928,
+          "pendingKcal": 3.1202222222223917,
+          "health": 99.99978275000616,
+          "condition": 100,
+          "foodbar": 53.82066609269494,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "walking",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 97.04526353540449,
+          "spentKcal": 875.9464327494882,
+          "ingestedKcal": 127.57142857142856,
+          "reserveChangeKcal": -778.9011692240456,
+          "pendingKcal": 30.523650793656635,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 89.52380952390567,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 37.99799362445322,
+          "spentKcal": 929.6085417759431,
+          "ingestedKcal": 38,
+          "reserveChangeKcal": -891.6105481597479,
+          "pendingKcal": 0,
+          "health": 99.99783771434704,
+          "condition": 100,
+          "foodbar": 26.6666666667495,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 95.64999999999586,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 97.04526353540449,
+          "spentKcal": 875.9464327494882,
+          "ingestedKcal": 127.57142857142856,
+          "reserveChangeKcal": -778.9011692240456,
+          "pendingKcal": 30.523650793656635,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 58.25279594003763,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 75.0166666666637,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": -15.879777777774805,
+          "careMinusBaseline": 43.16749213317646,
+          "combinedMinusBaseline": 43.16749213317646,
+          "interaction": 15.879777777774805
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 39.137181959819486,
+          "careMinusBaseline": -14.524927066635428,
+          "combinedMinusBaseline": -14.524927066635428,
+          "interaction": -39.137181959819486
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": -19,
+          "careMinusBaseline": 70.57142857142856,
+          "combinedMinusBaseline": 70.57142857142856,
+          "interaction": 19
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": -55.016959737055004,
+          "careMinusBaseline": 57.69241919864726,
+          "combinedMinusBaseline": 57.69241919864726,
+          "interaction": 55.016959737055004
+        }
+      }
+    },
+    {
+      "actor": "aster",
+      "hour": 5,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 56.41421591619868,
+          "spentKcal": 1068.0162487048772,
+          "ingestedKcal": 57,
+          "reserveChangeKcal": -1011.6020328021987,
+          "pendingKcal": 0.583269841269992,
+          "health": 99.99705076833762,
+          "condition": 100,
+          "foodbar": 42.46500165449274,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "walking",
+            "digestion": "empty",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 150.01182872777505,
+          "spentKcal": 1100.895085801219,
+          "ingestedKcal": 190,
+          "reserveChangeKcal": -950.88325708911,
+          "pendingKcal": 39.98263492063776,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 98.43148148148374,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "waning",
+            "stamina": "winded",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 48.64643806889575,
+          "spentKcal": 1116.9954359073108,
+          "ingestedKcal": 70.57142857142857,
+          "reserveChangeKcal": -1068.348997851106,
+          "pendingKcal": 21.922984126986044,
+          "health": 99.99497751838946,
+          "condition": 100,
+          "foodbar": 32.85714285722894,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 150.03333333334487,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 150.01182872777505,
+          "spentKcal": 1100.895085801219,
+          "ingestedKcal": 190,
+          "reserveChangeKcal": -950.88325708911,
+          "pendingKcal": 39.98263492063776,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 53.39260426742314,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "waning",
+            "stamina": "winded",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 77.03333333333025,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": -7.767777847302931,
+          "careMinusBaseline": 93.59761281157637,
+          "combinedMinusBaseline": 93.59761281157637,
+          "interaction": 7.767777847302931
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 48.97918720243365,
+          "careMinusBaseline": 32.87883709634184,
+          "combinedMinusBaseline": 32.87883709634184,
+          "interaction": -48.97918720243365
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 13.57142857142857,
+          "careMinusBaseline": 133,
+          "combinedMinusBaseline": 133,
+          "interaction": -13.57142857142857
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": -56.74696504890744,
+          "careMinusBaseline": 60.71877571308869,
+          "combinedMinusBaseline": 60.71877571308869,
+          "interaction": 56.74696504890744
+        }
+      }
+    },
+    {
+      "actor": "aster",
+      "hour": 6,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 56.99699043667712,
+          "spentKcal": 1274.229582038807,
+          "ingestedKcal": 57,
+          "reserveChangeKcal": -1217.2325916197442,
+          "pendingKcal": 0,
+          "health": 99.99610435132423,
+          "condition": 100,
+          "foodbar": 33.17122913911669,
+          "body": {
+            "hunger": "hungry",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "uncomfortable",
+            "activity": "resting",
+            "digestion": "empty",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 195.98761071244513,
+          "spentKcal": 1259.9891913663487,
+          "ingestedKcal": 241.57142857142856,
+          "reserveChangeKcal": -1064.0015806757874,
+          "pendingKcal": 45.57627513227842,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 99.23333333333444,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 75.25196194798987,
+          "spentKcal": 1280.507768151162,
+          "ingestedKcal": 92.28571428571428,
+          "reserveChangeKcal": -1205.2558062192256,
+          "pendingKcal": 17.03123809523941,
+          "health": 99.9927775656352,
+          "condition": 100,
+          "foodbar": 31.428571428657097,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "uncomfortable",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 225.05000000007124,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 195.98761071244513,
+          "spentKcal": 1259.9891913663487,
+          "ingestedKcal": 241.57142857142856,
+          "reserveChangeKcal": -1064.0015806757874,
+          "pendingKcal": 45.57627513227842,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 49.10866009548825,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 150.03333333334487,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 18.254971511312746,
+          "careMinusBaseline": 138.990620275768,
+          "combinedMinusBaseline": 138.990620275768,
+          "interaction": -18.254971511312746
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 6.278186112355115,
+          "careMinusBaseline": -14.240390672458261,
+          "combinedMinusBaseline": -14.240390672458261,
+          "interaction": -6.278186112355115
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 35.28571428571428,
+          "careMinusBaseline": 184.57142857142856,
+          "combinedMinusBaseline": 184.57142857142856,
+          "interaction": -35.28571428571428
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": 11.976785400518565,
+          "careMinusBaseline": 153.2310109439568,
+          "combinedMinusBaseline": 153.2310109439568,
+          "interaction": -11.976785400518565
+        }
+      }
+    },
+    {
+      "actor": "mira",
+      "hour": 1,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 0,
+          "spentKcal": 233.7006656979342,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -233.70066569763003,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 73.79904761906066,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "walking",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 0,
+          "spentKcal": 233.7006656979342,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -233.70066569763003,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 50.00000000002404,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "walking",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 233.7006656979342,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -233.70066569763003,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 50.00000000002404,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "walking",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 233.7006656979342,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -233.70066569763003,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 73.79904761906066,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "easy breathing",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "soaked",
+            "overall": "settled",
+            "activity": "walking",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        }
+      }
+    },
+    {
+      "actor": "mira",
+      "hour": 2,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 0,
+          "spentKcal": 494.8713056036067,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -494.87130560276273,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 66.87169047621694,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 0,
+          "spentKcal": 494.8713056036067,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -494.87130560276273,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 33.33333333338142,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 494.8713056036067,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -494.87130560276273,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 33.33333333338142,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 494.8713056036067,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -494.87130560276273,
+          "pendingKcal": 0,
+          "health": 100,
+          "condition": 100,
+          "foodbar": 66.87169047621694,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        }
+      }
+    },
+    {
+      "actor": "mira",
+      "hour": 3,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 0,
+          "spentKcal": 736.8632794665697,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -736.8632794697915,
+          "pendingKcal": 0,
+          "health": 99.99882175001576,
+          "condition": 100,
+          "foodbar": 59.64079761908799,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 0,
+          "spentKcal": 740.0532140625276,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -740.0532140658033,
+          "pendingKcal": 0,
+          "health": 99.99892900000778,
+          "condition": 100,
+          "foodbar": 16.666666666705478,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 739.6058236534648,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -739.6058236566896,
+          "pendingKcal": 0,
+          "health": 99.99894003573287,
+          "condition": 100,
+          "foodbar": 16.666666666705478,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 5.566666666666652,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 740.0532140625276,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -740.0532140658033,
+          "pendingKcal": 0,
+          "health": 99.99892900000778,
+          "condition": 100,
+          "foodbar": 58.40040476194509,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 10.516666666666769,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 2.7425441868950884,
+          "careMinusBaseline": 3.1899345959578795,
+          "combinedMinusBaseline": 3.1899345959578795,
+          "interaction": -2.7425441868950884
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 0,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": 0
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": -2.742544186898158,
+          "careMinusBaseline": -3.189934596011881,
+          "combinedMinusBaseline": -3.189934596011881,
+          "interaction": 2.742544186898158
+        }
+      }
+    },
+    {
+      "actor": "mira",
+      "hour": 4,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 0,
+          "spentKcal": 894.8001408995597,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -894.8001409078861,
+          "pendingKcal": 0,
+          "health": 99.99333571445516,
+          "condition": 100,
+          "foodbar": 51.383547619101705,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 0,
+          "spentKcal": 922.9905672587579,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -922.9905672671448,
+          "pendingKcal": 0,
+          "health": 99.9947426428844,
+          "condition": 100,
+          "foodbar": 4.2100891729009854e-11,
+          "body": {
+            "hunger": "hungry",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 3.7428240740740315,
+          "spentKcal": 905.4530028965466,
+          "ingestedKcal": 31.666666666666664,
+          "reserveChangeKcal": -901.71017883069,
+          "pendingKcal": 27.923842592592635,
+          "health": 99.99430150011979,
+          "condition": 100,
+          "foodbar": 22.222222222264744,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 75.0166666666637,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 922.9905672587579,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -922.9905672671448,
+          "pendingKcal": 0,
+          "health": 99.9947426428844,
+          "condition": 100,
+          "foodbar": 49.71923809529174,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 75.0166666666637,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 3.7428240740740315,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": -3.7428240740740315
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 10.652861996986985,
+          "careMinusBaseline": 28.190426359198227,
+          "combinedMinusBaseline": 28.190426359198227,
+          "interaction": -10.652861996986985
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 31.666666666666664,
+          "careMinusBaseline": 0,
+          "combinedMinusBaseline": 0,
+          "interaction": -31.666666666666664
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": -6.910037922803895,
+          "careMinusBaseline": -28.19042635925871,
+          "combinedMinusBaseline": -28.19042635925871,
+          "interaction": 6.910037922803895
+        }
+      }
+    },
+    {
+      "actor": "mira",
+      "hour": 5,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 9.831620370370256,
+          "spentKcal": 1072.0362811279372,
+          "ingestedKcal": 31.666666666666664,
+          "reserveChangeKcal": -1062.2046607703232,
+          "pendingKcal": 21.83504629629641,
+          "health": 99.9867600776027,
+          "condition": 100,
+          "foodbar": 42.258536309630664,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 0,
+          "spentKcal": 1067.2085348452817,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -1067.2085348583496,
+          "pendingKcal": 0,
+          "health": 99.98821050602442,
+          "condition": 100,
+          "foodbar": 0,
+          "body": {
+            "hunger": "hungry",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 34.26421296296255,
+          "spentKcal": 1073.3896498523934,
+          "ingestedKcal": 79.16666666666667,
+          "reserveChangeKcal": -1039.125436901566,
+          "pendingKcal": 44.90245370370412,
+          "health": 99.98841154176596,
+          "condition": 100,
+          "foodbar": 38.88888888893954,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 150.03333333334487,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 0,
+          "spentKcal": 1067.2085348452817,
+          "ingestedKcal": 0,
+          "reserveChangeKcal": -1067.2085348583496,
+          "pendingKcal": 0,
+          "health": 99.98821050602442,
+          "condition": 100,
+          "foodbar": 41.11326190482902,
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 150.03333333334487,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 24.432592592592297,
+          "careMinusBaseline": -9.831620370370256,
+          "combinedMinusBaseline": -9.831620370370256,
+          "interaction": -24.432592592592297
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 1.3533687244562316,
+          "careMinusBaseline": -4.827746282655426,
+          "combinedMinusBaseline": -4.827746282655426,
+          "interaction": -1.3533687244562316
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": 47.50000000000001,
+          "careMinusBaseline": -31.666666666666664,
+          "combinedMinusBaseline": -31.666666666666664,
+          "interaction": -47.50000000000001
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": 23.079223868757254,
+          "careMinusBaseline": -5.00387408802635,
+          "combinedMinusBaseline": -5.00387408802635,
+          "interaction": -23.079223868757254
+        }
+      }
+    },
+    {
+      "actor": "mira",
+      "hour": 6,
+      "metrics": {
+        "baseline": {
+          "absorbedKcal": 71.67398148152125,
+          "spentKcal": 1273.4428295563064,
+          "ingestedKcal": 190.00000000000003,
+          "reserveChangeKcal": -1201.7688480898505,
+          "pendingKcal": 118.32601851851861,
+          "health": 99.98150674569304,
+          "condition": 100,
+          "foodbar": 42.296705952748404,
+          "body": {
+            "hunger": "hungry",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "uncomfortable",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "combined": {
+          "absorbedKcal": 19.2036719576698,
+          "spentKcal": 1276.6032542029018,
+          "ingestedKcal": 35.285714285714285,
+          "reserveChangeKcal": -1257.399582261889,
+          "pendingKcal": 16.082042328045333,
+          "health": 99.98263574559896,
+          "condition": 100,
+          "foodbar": 9.317460317462773,
+          "body": {
+            "hunger": "hungry",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "uncomfortable",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": null,
+          "sleepSeconds": null
+        },
+        "satietyOnly": {
+          "absorbedKcal": 77.13532350273223,
+          "spentKcal": 1287.5610681175858,
+          "ingestedKcal": 111.28571428571428,
+          "reserveChangeKcal": -1210.4257446298725,
+          "pendingKcal": 34.14933623991943,
+          "health": 99.98224592412724,
+          "condition": 100,
+          "foodbar": 44.76190476197877,
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "hot",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "uncomfortable",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 168.08333333335923,
+          "sleepSeconds": null
+        },
+        "careOnly": {
+          "absorbedKcal": 19.2036719576698,
+          "spentKcal": 1276.6032542029018,
+          "ingestedKcal": 35.285714285714285,
+          "reserveChangeKcal": -1257.399582261889,
+          "pendingKcal": 16.082042328045333,
+          "health": 99.98263574559896,
+          "condition": 100,
+          "foodbar": 32.829658518525264,
+          "body": {
+            "hunger": "hungry",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "low",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "uncomfortable",
+            "activity": "resting",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "assistance": {
+            "energyKcal": 0,
+            "waterMl": 0,
+            "count": 0
+          },
+          "restSeconds": 190.96666666671078,
+          "sleepSeconds": null
+        }
+      },
+      "contrasts": {
+        "absorbedKcal": {
+          "satietyMinusBaseline": 5.461342021210982,
+          "careMinusBaseline": -52.470309523851455,
+          "combinedMinusBaseline": -52.470309523851455,
+          "interaction": -5.461342021210982
+        },
+        "spentKcal": {
+          "satietyMinusBaseline": 14.11823856127944,
+          "careMinusBaseline": 3.160424646595402,
+          "combinedMinusBaseline": 3.160424646595402,
+          "interaction": -14.11823856127944
+        },
+        "ingestedKcal": {
+          "satietyMinusBaseline": -78.71428571428575,
+          "careMinusBaseline": -154.71428571428575,
+          "combinedMinusBaseline": -154.71428571428575,
+          "interaction": 78.71428571428575
+        },
+        "reserveChangeKcal": {
+          "satietyMinusBaseline": -8.65689654002199,
+          "careMinusBaseline": -55.6307341720385,
+          "combinedMinusBaseline": -55.6307341720385,
+          "interaction": 8.65689654002199
+        }
+      }
+    }
+  ],
+  "failures": [],
+  "limitations": [
+    "One seed; interacting agents do not identify an actor-local causal mechanism.",
+    "Existing full baseline/combined are reused, not rerun; only their 400-second prefixes receive new decision instrumentation.",
+    "Old full reports lack hourly rest/sleep durations: null is missing evidence, not zero. New arms retain hourly durations; old full-run durations remain in original report.",
+    "No acceptance claim or after-result tuning. All per-agent factorial cells and failures are retained.",
+    "Private numeric bodies are developer-only evidence and are never injected into policy observations."
+  ],
+  "rawSha256": "d46d5895c1399980e2416b2d750292788dd938e47340a509e97e536ecd2ec988",
+  "protocolSha256": "ff027031a2883f470eb982f4ba8b53b6c8aaf1c267070c6980dd86e8dffb56f8",
+  "evaluatorSha256": "986437a5f42d66bbde9de1578f23a86ba4ea830562c0c77cca8275f9978d3139",
+  "sources": {
+    "baseline": "ebaef37d61a50d994a0dbcb7e6e5a1c2a064c6c7e952a6de0dc4337e3c98b788",
+    "combined": "799df7125dd1b30072e228c4eabb9914977a1db161118a11df4e614c7043db08",
+    "satietyOnly": "28649e6302d33042390e9da4406b0ad1f1d69c429f63e68b395b1de985a42125",
+    "careOnly": "0343a294ae6bf5600864c310a4b148f15fb067266392a997c34edb28f71b2f3f"
+  },
+  "firstDivergences": [
+    {
+      "left": "baseline",
+      "right": "combined",
+      "actor": null,
+      "scope": "global requested order",
+      "horizon": 400,
+      "requested": {
+        "ordinal": 201,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "combined",
+      "actor": "aster",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 102,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "combined",
+      "actor": "mira",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 123,
+        "left": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "strike",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 877490441
+        },
+        "right": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "inspect_object",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 3376957140
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "satietyOnly",
+      "actor": null,
+      "scope": "global requested order",
+      "horizon": 400,
+      "requested": {
+        "ordinal": 207,
+        "left": {
+          "actor": "aster",
+          "at": 307.5333333333823,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "An earlier portion of this held object brought bodily relief; I can test another portion.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 1984722477
+        },
+        "right": {
+          "actor": "aster",
+          "at": 307.5333333333823,
+          "action": {
+            "type": "catch",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 3673321028
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "satietyOnly",
+      "actor": "aster",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 105,
+        "left": {
+          "actor": "aster",
+          "at": 307.5333333333823,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "An earlier portion of this held object brought bodily relief; I can test another portion.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 1984722477
+        },
+        "right": {
+          "actor": "aster",
+          "at": 307.5333333333823,
+          "action": {
+            "type": "catch",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 3673321028
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "satietyOnly",
+      "actor": "mira",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 128,
+        "left": {
+          "actor": "mira",
+          "at": 380.64999999998247,
+          "action": {
+            "type": "move",
+            "target": {
+              "x": 560,
+              "y": 1040
+            }
+          },
+          "reason": "I can approach an unfamiliar object within my observed map.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 2696279328
+        },
+        "right": {
+          "actor": "mira",
+          "at": 380.64999999998247,
+          "action": {
+            "type": "move",
+            "target": {
+              "x": 0,
+              "y": 1040
+            }
+          },
+          "reason": "I can approach an unfamiliar object within my observed map.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 2585702789
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "careOnly",
+      "actor": null,
+      "scope": "global requested order",
+      "horizon": 400,
+      "requested": {
+        "ordinal": 201,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "careOnly",
+      "actor": "aster",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 102,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        }
+      }
+    },
+    {
+      "left": "baseline",
+      "right": "careOnly",
+      "actor": "mira",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 123,
+        "left": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "strike",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 877490441
+        },
+        "right": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "inspect_object",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 3376957140
+        }
+      }
+    },
+    {
+      "left": "combined",
+      "right": "satietyOnly",
+      "actor": null,
+      "scope": "global requested order",
+      "horizon": 400,
+      "requested": {
+        "ordinal": 201,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        }
+      }
+    },
+    {
+      "left": "combined",
+      "right": "satietyOnly",
+      "actor": "aster",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 102,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        }
+      }
+    },
+    {
+      "left": "combined",
+      "right": "satietyOnly",
+      "actor": "mira",
+      "scope": null,
+      "horizon": 400,
+      "requested": {
+        "ordinal": 123,
+        "left": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "inspect_object",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 3376957140
+        },
+        "right": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "strike",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 877490441
+        }
+      }
+    },
+    {
+      "left": "combined",
+      "right": "careOnly",
+      "actor": null,
+      "scope": "global requested order",
+      "horizon": 400,
+      "requested": null
+    },
+    {
+      "left": "combined",
+      "right": "careOnly",
+      "actor": "aster",
+      "scope": null,
+      "horizon": 400,
+      "requested": null
+    },
+    {
+      "left": "combined",
+      "right": "careOnly",
+      "actor": "mira",
+      "scope": null,
+      "horizon": 400,
+      "requested": null
+    },
+    {
+      "left": "satietyOnly",
+      "right": "careOnly",
+      "actor": null,
+      "scope": "global requested order",
+      "horizon": 900,
+      "requested": {
+        "ordinal": 201,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        }
+      }
+    },
+    {
+      "left": "satietyOnly",
+      "right": "careOnly",
+      "actor": "aster",
+      "scope": null,
+      "horizon": 900,
+      "requested": {
+        "ordinal": 102,
+        "left": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "release",
+            "targetId": "object:730"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 4206742064
+        },
+        "right": {
+          "actor": "aster",
+          "at": 296.883333333392,
+          "action": {
+            "type": "sample",
+            "targetId": "object:727"
+          },
+          "reason": "My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.",
+          "body": {
+            "hunger": "content",
+            "thirst": "quenched",
+            "thermal": "comfortable",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "easing"
+          },
+          "rng": 2118372003
+        }
+      }
+    },
+    {
+      "left": "satietyOnly",
+      "right": "careOnly",
+      "actor": "mira",
+      "scope": null,
+      "horizon": 900,
+      "requested": {
+        "ordinal": 123,
+        "left": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "strike",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 877490441
+        },
+        "right": {
+          "actor": "mira",
+          "at": 366.7166666666618,
+          "action": {
+            "type": "inspect_object",
+            "targetId": "object:674"
+          },
+          "reason": "An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.",
+          "body": {
+            "hunger": "peckish",
+            "thirst": "quenched",
+            "thermal": "warm",
+            "energy": "waning",
+            "stamina": "breathing hard",
+            "fatigue": "fresh",
+            "sleepiness": "alert",
+            "pain": "none",
+            "wetness": "dry",
+            "overall": "settled",
+            "activity": "awake",
+            "digestion": "settled",
+            "sleep": "awake",
+            "relief": "none"
+          },
+          "rng": 3376957140
+        }
+      }
+    }
+  ]
+}

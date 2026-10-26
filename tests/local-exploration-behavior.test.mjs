@@ -185,7 +185,7 @@ test('other-scene terrain and remote object memories cannot supply current-scene
 // not a claim that the U is a naturally observed or physically traversable cave.
 function detourFixture(width=480) {
   const n=createNpc({mode:'discovery',seed:74193});n.scene='refuge';n.position={x:1280,y:1280};
-  n.physiology.hoursSinceMeal=8;n.memory.caveExits.refuge={...CAVE_EXIT,observedAt:0};
+  n.physiology.hoursSinceMeal=8;n.physiology.satietyHours=Math.max(0,6-8);n.memory.caveExits.refuge={...CAVE_EXIT,observedAt:0};
   const cells=n.memory.caveCells.refuge={};n.memory.caveEdges.refuge={};
   const add=(x,y)=>{const key=tileKey({x,y});cells[key]={key,x,y,scene:'refuge',walkable:true,terrain:'remembered',visits:0,observedAt:0};};
   for(let x=1280;x>=1280-width;x-=80)add(x,1280);
@@ -230,7 +230,7 @@ function fileStorage(path) {return {getItem:key=>{assert.equal(key,CONFIG.saveKe
 
 test('observed cave exit behavior and its unchanged RNG still complete the real scene transition',()=>{
   const n=createNpc({mode:'discovery',seed:74193}),e=createEnvironment();
-  n.scene='refuge';n.position={...CAVE_SPAWN};n.physiology.hoursSinceMeal=8;
+  n.scene='refuge';n.position={...CAVE_SPAWN};n.physiology.hoursSinceMeal=8;n.physiology.satietyHours=Math.max(0,6-8);
   const observation=observeNpc(n,e);assert.ok(observation.exit);assert.ok(Object.keys(rememberedCells(n)).length>0);
   const expected={action:{type:'exit_shelter'},reason:'My body needs something outside this refuge.',need:'survival',provider:'discovery-learner'};
   // This is another frozen successful original-policy decision, with no RNG draw.

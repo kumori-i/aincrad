@@ -63,7 +63,7 @@ function sampleFixture(kind = 'ordinary') {
     material.toxicity = 0;
     material.digestHours = .05;
   } else {
-    npc.physiology.hoursSinceMeal = 12;
+    npc.physiology.hoursSinceMeal = 12;npc.physiology.satietyHours=Math.max(0,6-12);
   }
   assert.equal(finish(npc, environment, { type: 'sample', targetId: id }).ok, true);
   const sample = npc.discovery.experiments.findLast(row => row.primitive === 'sample' && row.targetId === id);
@@ -115,13 +115,16 @@ function storage() {
 
 test('proof budget derives from current fixed caps and stages within both buffers', () => {
   assert.equal(PROOF_RETENTION_BOUNDS.pending, BIOLOGY_RULES.maxDigestiveInputs + BIOLOGY_RULES.maxFeedback);
-  assert.equal(PROOF_RETENTION_BOUNDS.experiments, 157);
-  assert.equal(PROOF_RETENTION_BOUNDS.experience, 320);
-  assert.equal(PROOF_RETENTION_BOUNDS.stagedExperiments, 158);
-  assert.equal(PROOF_RETENTION_BOUNDS.stagedExperience, 321);
-  assert.equal(PROOF_RETENTION_BOUNDS.experience, NPC_RULES.maxExperience - 80);
+  assert.equal(PROOF_RETENTION_BOUNDS.experiments, 165);
+  assert.equal(PROOF_RETENTION_BOUNDS.experience, 328);
+  assert.equal(PROOF_RETENTION_BOUNDS.stagedExperiments, 166);
+  assert.equal(PROOF_RETENTION_BOUNDS.stagedExperience, 329);
+  assert.equal(PROOF_RETENTION_BOUNDS.experience, NPC_RULES.maxExperience - 72);
   assert.equal(PROOF_RETENTION_BOUNDS.heldObservations, DISCOVERY_RULES.capacity);
   assert.equal(CAVES.length, 4);
+  assert.equal(DISCOVERY_RULES.maxExperiments,168);
+  assert.equal(PROOF_RETENTION_BOUNDS.scannedExperiments,169);
+  assert.equal(DISCOVERY_RULES.maxExperiments-PROOF_RETENTION_BOUNDS.stagedExperiments,2);
 });
 
 for (const kind of ['water relief', 'sustained', 'discomfort', 'no noticeable change']) {
@@ -392,7 +395,7 @@ test('a source technique keeps an alternate complete real witness when its oldes
     processDiscoveryFeedback(npc);
   }
   assert.equal(npc.physiology.stomach.some(row => row.id === first.ingestionId), false);
-  npc.physiology.hoursSinceMeal = 12;
+  npc.physiology.hoursSinceMeal = 12;npc.physiology.satietyHours=Math.max(0,6-12);
   assert.equal(finish(npc, environment, { type: 'sample', targetId: id }).ok, true);
   const second = npc.discovery.experiments.findLast(row => row.primitive === 'sample');
   assert.notEqual(second.ingestionId, first.ingestionId);
@@ -423,7 +426,7 @@ test('a source technique keeps an alternate complete real witness when its oldes
     processDiscoveryFeedback(npc);
   }
   assert.equal(npc.physiology.stomach.some(row => row.id === second.ingestionId), false);
-  npc.physiology.hoursSinceMeal = 12;
+  npc.physiology.hoursSinceMeal = 12;npc.physiology.satietyHours=Math.max(0,6-12);
   projectPhysiology(npc);
   npc.discovery.run = null;
   const beforeAction = discoveryDecision(npc).action;

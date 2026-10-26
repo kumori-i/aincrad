@@ -32,7 +32,7 @@ Publication/merge requires the exact reviewed source tree, terminal CI evidence 
 
 ## Platform-specific evidence
 
-The desktop and three native capability workflows target Linux and macOS, never Windows. `test-results/host.json` records actual `process.platform`, `process.arch`, OS release, Node version, git commit/tree and worktree status. The renderer source fingerprint remains renderer-only: it is not proof of the desktop/harness source tree. Archive host metadata alongside native process logs and results; parent publication checks must reconcile the tested tree with the published head.
+The desktop and three native capability workflows target Linux and macOS, never Windows. `test-results/host.json` records actual `process.platform`, `process.arch`, OS release, Node version, git commit/tree and worktree status. The renderer source fingerprint remains renderer-only: it is not proof of the desktop/harness source tree. Archive host metadata alongside native process logs and results; release verification must reconcile the tested tree with the published head.
 
 The renewable native harness also checks macOS last-window retention, standard Close/Quit menu roles, programmatic `activate` recreation of a sandboxed window, exact save bytes and no closed-time progression before another close and explicit `app.quit()`. This is actual Electron lifecycle coverage, not a physical Dock click or menu-keypress test. The recreated native QA window uses the explicit inert test route to compare the saved clock exactly; it does not establish normal automatic simulation restart after a Dock click. Separate-process reopening remains required on both OSes.
 
@@ -135,3 +135,40 @@ comparisons, using the existing inert disposable test route. Controlled placemen
 and time-separated sensing are not independent encounters or autonomous concept
 formation. Preparation and Node fixture passes are not native execution. Never
 bypass display, socket or sandbox denials to run the native row.
+
+## Combined food satisfaction, funding and warnings
+
+Run `npm run check` and `npm run build` on the exact release tree. Preserve the
+actual test counts, failures and skips. Focused preparation or a pass on a prior
+runtime is not a substitute. The [acceptance specification](food-system/ACCEPTANCE.md)
+and [verification record](food-system/VERIFICATION.md) distinguish historical
+observations from pending/current release-source evidence.
+Use the [self-contained running guide](food-system/RUNNING.md) to generate exact
+release manifests and run the budget and capability gates without private inputs.
+
+Coverage includes appetite dose/time and water controls, immediate committed
+projection, finite paid portions, energy conservation, strict save validation,
+completion/payment witness loss on restore, exact source provenance, bounded
+retention, action deadlines, movement funding and passive current. Reentry hooks
+must delegate a real debit before claiming paid completion; a callback invocation
+alone is not energy payment. Obstructed-edge fixtures must distinguish genuinely
+blocked input from paid wading opposed by current.
+
+`tests/food-warning.test.mjs` covers canonical adverse proof, speech access,
+independent full-state/RNG eligible choices, delayed harm, exact identity, expiry,
+malformed saves and bounded reports. Own-source caution tests separately reject
+missing, ambiguous or donor provenance. Retain failed/inconclusive opportunities
+and harmful pre-feedback exposure; do not count an ineligible control choice as
+successful avoidance.
+
+`node scripts/verify-combined-food-desktop.mjs --prepare-only` and
+`node scripts/verify-food-warning-desktop.mjs --prepare-only` prepare isolated
+three-process runners. Node fixture/harness tests and preparation do not establish
+native execution. Linux/macOS desktop CI runs both real runners with sandboxing,
+normal close/reopen and exact source/build identities. Inspect actual screenshots.
+Native execution remains **not run** until those release-source checks complete.
+
+The [native coverage contract](food-balance/NATIVE-ACCEPTANCE.md) distinguishes
+whole/water app screenshots, partial-dose renderer assertions, engine-only hourly
+curves and detached decoded-save witness probes. No browser substitute, older
+source evidence or sandbox bypass satisfies the native row.

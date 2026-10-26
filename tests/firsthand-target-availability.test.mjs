@@ -24,7 +24,7 @@ function finish(n,e,action){
   assert.equal(n.active,null,'bounded physical action');
   return n.lastResult||started;
 }
-function hungry(n){n.physiology.hoursSinceMeal=20;n.physiology.waterDeficitMl=250;projectPhysiology(n);}
+function hungry(n){n.physiology.hoursSinceMeal=20;n.physiology.satietyHours=Math.max(0,6-20);n.physiology.waterDeficitMl=250;projectPhysiology(n);}
 function fixture(){
   const n=createNpc({mode:'discovery',seed}),e=createEnvironment(seed,{mode:'discovery'});
   const plant=e.ecology.plants.find(p=>p.kind==='apple_tree'&&p.quantity>2);

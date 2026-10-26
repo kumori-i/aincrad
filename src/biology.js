@@ -19,7 +19,7 @@ export function createPhysiology(profile='human',overrides={}){
     stomach:[],feedback:[],outsideAssistance:{energyKcal:0,waterMl:0,count:0},
     totals:{ingestedKcal:0,ingestedWaterMl:0,absorbedKcal:0,absorbedWaterMl:0,metabolizedKcal:0,waterLostMl:0,discardedKcal:0,discardedWaterMl:0},
   };
-  for(const key of ['availableEnergyKcal','storedEnergyKcal','waterDeficitMl','health','condition','stamina','fatigue','sleepPressure','hoursSinceMeal','awakeHours','starvationHours'])if(Number.isFinite(overrides[key]))physiology[key]=overrides[key];
+  for(const key of ['availableEnergyKcal','storedEnergyKcal','waterDeficitMl','health','condition','stamina','fatigue','sleepPressure','hoursSinceMeal','awakeHours','starvationHours','satietyHours'])if(Number.isFinite(overrides[key]))physiology[key]=overrides[key];
   return validatePhysiology(physiology,{profile});
 }
 
@@ -28,6 +28,8 @@ export function validatePhysiology(raw,{profile=raw?.profile||'human',elapsed=0}
   const f={version:R.version,profile,clockHours:clamp(number(raw?.clockHours,gameHours(elapsed)),0,24*100000),nextId:clamp(Math.floor(number(raw?.nextId,1)),1,1e9)};
   const ranges={availableEnergyKcal:[0,p.availableCapacityKcal,p.initialAvailableKcal],storedEnergyKcal:[0,p.storedCapacityKcal,p.initialStoredKcal],waterDeficitMl:[0,p.bodyWaterMl,p.initialWaterDeficitMl],health:[0,100,100],condition:[0,100,100],stamina:[0,100,100],fatigue:[0,100,5],sleepPressure:[0,100,10],hoursSinceMeal:[0,24*100000,p.initialHoursSinceMeal],awakeHours:[0,24*100000,0],starvationHours:[0,24*100000,0],circadianAlertness:[-1,1,0]};
   for(const [key,[min,max,fallback]]of Object.entries(ranges))f[key]=clamp(number(raw?.[key],fallback),min,max);
+  // Optional human-only save field: old meal age never receives credit from water.
+  if(profile==='human')f.satietyHours=clamp(number(raw?.satietyHours,R.humanSatietyMaximumHours-f.hoursSinceMeal),0,R.humanSatietyMaximumHours);
   f.sleep={state:sleepStates.includes(raw?.sleep?.state)?raw.sleep.state:'awake',hours:clamp(number(raw?.sleep?.hours,0),0,R.maximumSleepHours),remainingHours:clamp(number(raw?.sleep?.remainingHours,0),0,R.maximumSleepHours),depth:clamp(number(raw?.sleep?.depth,0),0,1),inertiaHours:clamp(number(raw?.sleep?.inertiaHours,0),0,2),wakeReason:text(raw?.sleep?.wakeReason)};
   let mass=0;f.stomach=[];
   for(const v of Array.isArray(raw?.stomach)?raw.stomach.slice(0,R.maxDigestiveInputs):[]){
@@ -55,7 +57,7 @@ export function projectPhysiology(actor){
   const f=ensure(actor),p=profileOf(f.profile),deficitFraction=f.waterDeficitMl/(p.massKg*1000);
   actor.hydration=clamp(100-deficitFraction/.065*100,0,100);
   const fullness=f.stomach.reduce((sum,v)=>sum+v.remainingMassGrams,0)/p.stomachCapacityGrams;
-  actor.nourishment=clamp(100-f.hoursSinceMeal*9+fullness*40,0,100);
+  actor.nourishment=f.profile==='human'?clamp(f.satietyHours/R.humanSatietyMaximumHours*100,0,100):clamp(100-f.hoursSinceMeal*9+fullness*40,0,100);
   actor.energy=clamp(f.availableEnergyKcal/p.availableCapacityKcal*100*(.55+.45*f.condition/100),0,100);
   actor.stamina=f.stamina;actor.fatigue=f.fatigue;actor.sleepPressure=f.sleepPressure;actor.health=f.health;
   actor.thermal??={hot:0,cold:0,wetness:0};
@@ -104,6 +106,9 @@ export function ingestMaterial(actor,material,provenance={}){
   const kcal=clamp(number(material.energyKcal,0),0,50000),water=clamp(number(material.waterMl,0),0,20000),toxicity=clamp(number(material.toxicity??material.hazard,0),0,1);
   const id=`ingestion:${f.nextId++}`;f.stomach.push({id,objectId:text(provenance.objectId),actionId:actionId(provenance.actionId),provenance:text(provenance.source??provenance.provenance)||'interaction',at:number(provenance.at,number(actor.elapsed,0)),remainingKcal:kcal,remainingWaterMl:water,remainingMassGrams:mass,originalKcal:kcal,originalWaterMl:water,originalMassGrams:mass,absorbedKcal:0,absorbedWaterMl:0,harm:0,digestHours:clamp(number(material.digestHours,2),.05,24),elapsedHours:0,toxicity,feedbackSent:false,waterFeedbackSent:false,sustenanceFeedbackSent:false});
   f.totals.ingestedKcal+=kcal;f.totals.ingestedWaterMl+=water;
+  // Only this committed physical ingestion credits appetite; receipts and loads do not.
+  if(f.profile==='human')f.satietyHours=Math.min(R.humanSatietyMaximumHours,f.satietyHours+kcal*R.humanSatietyHoursPerKcal);
+  projectPhysiology(actor); // Project committed state without advancing digestion or time.
   return{ok:true,code:'SWALLOWED',ingestionId:id,delayed:true};
 }
 
@@ -154,7 +159,7 @@ export function tickPhysiology(actor,dt,conditions={},options={}){
   if(!Number.isFinite(dt)||dt<=0)return{damage:0,woke:false,impaired:false};
   const f=ensure(actor),p=profileOf(f.profile),hours=gameHours(dt),before=f.health;let woke=false,wakeReason=null;
   // Use small game-time steps so accelerated time preserves absorption/arousal ordering.
-  let left=hours;while(left>1e-10){const h=Math.min(left,.05);left-=h;f.clockHours+=h;f.hoursSinceMeal+=h;
+  let left=hours;while(left>1e-10){const h=Math.min(left,.05);left-=h;f.clockHours+=h;f.hoursSinceMeal+=h;if(f.profile==='human')f.satietyHours=Math.max(0,f.satietyHours-h);
     const sleeping=f.sleep.state==='sleeping',onset=f.sleep.state==='onset',resting=options.activity==='resting'||actor.active?.request?.type==='rest';
     const hour=number(conditions.hour,8);f.circadianAlertness=Math.cos((hour-15)/24*Math.PI*2);
     const basal=p.basalKcalPerDay/24*(sleeping?.85:1),required=basal*h;

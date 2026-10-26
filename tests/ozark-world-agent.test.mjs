@@ -23,20 +23,20 @@ function fixture() {
   const state={geometryIdentity:OZARK_WORLD_PROFILE.identity,agents:[aster,mira]};
   const calls={sample:[],classify:[],advance:[]};
   const geometry=Object.freeze({
-    profile:OZARK_WORLD_PROFILE,
+    fundedAdvance:true,profile:OZARK_WORLD_PROFILE,
     bounds:{minX:-19000,maxX:19000,minY:-14200,maxY:14200},
     classify(x,y){calls.classify.push({x,y});return {walkable:Number.isFinite(x)&&Number.isFinite(y)&&x<900&&!(x>=120&&x<=280),reason:x>=120&&x<=280?'deep-water':'dry-ground'};},
     canOccupy(x,y){return Number.isFinite(x)&&Number.isFinite(y)&&x<900;},
     sample(x,y){calls.sample.push({x,y});return {paint:[160,240].includes(x)?'surface-water':'oak-pine-woodland',canopy:.8,light:.1,elevation:200,habitat:'shaded-cove'};},
     observe(point){return {ground:point.x>=120&&point.x<=280?'deep-water':'dry-land',nearby:[]};},
     lineOfSight(from,to){return !(from.x===0&&to.x===0&&to.y===160);},
-    advance(actor,dx,dy,dt,sprint=false,mode='walk'){calls.advance.push({x:actor.x,y:actor.y,dx,dy,dt,mode});
-      const d=Math.hypot(dx,dy),speed=CONFIG.walkSpeed*Math.min(dt,.25);
+    advance(actor,dx,dy,dt,sprint=false,mode='walk',funding){calls.advance.push({x:actor.x,y:actor.y,dx,dy,dt,mode});
+      const d=Math.hypot(dx,dy),paid=d?(funding?funding(dt,mode==='swim'?2.6:1):dt):0,speed=CONFIG.walkSpeed*Math.min(paid,.25);
       if(d){actor.x+=dx/d*speed;actor.y+=dy/d*speed;}
       const waterSeconds=actor.x>=120&&actor.x<=280?dt:0;
-      return {distance:d?speed:0,driftDistance:0,waterSeconds,
-        swimSeconds:mode==='swim'?waterSeconds:0,climbSeconds:0,
-        fallRiskSeconds:0,effortSeconds:dt*(mode==='swim'?2.6:1)};
+      return {paidSeconds:paid,inputDx:d?dx/d*speed:0,inputDy:d?dy/d*speed:0,distance:d?speed:0,driftDistance:0,waterSeconds,
+        swimSeconds:mode==='swim'&&waterSeconds?paid:0,climbSeconds:0,
+        fallRiskSeconds:0,effortSeconds:paid*(mode==='swim'?2.6:1)};
     },
   });
   const environment=createEnvironment(3,{mode:'discovery',populate:false});
@@ -164,10 +164,11 @@ test('full-world swim is bounded physical movement with exertion and no hidden d
 test('a resisted climb can slip, injure the body and finish with a truthful receipt',()=>{
   const f=fixture();
   const blocked=Object.freeze({...f.geometry,
-    advance(_actor,_dx,_dy,dt,_sprint,mode){
+    advance(_actor,_dx,_dy,dt,_sprint,mode,funding){
+      const paid=(_dx||_dy)?(funding?funding(dt,2):dt):0;
       f.calls.advance.push({mode,dt});
-      return {distance:0,driftDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,
-        fallRiskSeconds:mode==='climb'?dt:0,effortSeconds:2*dt};
+      return {paidSeconds:paid,inputDx:0,inputDy:0,distance:0,driftDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,
+        fallRiskSeconds:mode==='climb'?paid:0,effortSeconds:2*paid};
     },
   });
   bindOzarkWorldAgent(f.aster,blocked,f.state);observeNpc(f.aster,f.environment);
@@ -195,13 +196,14 @@ test('a first local divide sighting permits a bounded climb experiment without a
 test('offline controller turns an actual blocked walk receipt into a swim request',()=>{
   const f=fixture();
   const water=Object.freeze({...f.geometry,
-    advance(actor,dx,dy,dt,_sprint,mode){
+    advance(actor,dx,dy,dt,_sprint,mode,funding){
+      const paid=(dx||dy)?(funding?funding(dt,mode==='swim'?2.6:1):dt):0;
       f.calls.advance.push({x:actor.x,y:actor.y,mode});
-      if(mode==='walk'&&dx>0&&actor.x>=105)return {distance:0,driftDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:dt};
-      const d=Math.hypot(dx,dy),step=Math.min(d,CONFIG.walkSpeed*dt);
+      if(mode==='walk'&&dx>0&&actor.x>=105)return {paidSeconds:paid,inputDx:0,inputDy:0,distance:0,driftDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:paid};
+      const d=Math.hypot(dx,dy),step=Math.min(d,CONFIG.walkSpeed*paid);
       if(d){actor.x+=dx/d*step;actor.y+=dy/d*step;}
       const wet=actor.x>=120&&actor.x<=280?dt:0;
-      return {distance:step,driftDistance:0,waterSeconds:wet,swimSeconds:mode==='swim'?wet:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:dt*(mode==='swim'?2.6:1)};
+      return {paidSeconds:paid,inputDx:d?dx/d*step:0,inputDy:d?dy/d*step:0,distance:step,driftDistance:0,waterSeconds:wet,swimSeconds:mode==='swim'&&wet?paid:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:paid*(mode==='swim'?2.6:1)};
     },
   });
   bindOzarkWorldAgent(f.aster,water,f.state);
@@ -224,11 +226,11 @@ test('offline controller turns an actual blocked walk receipt into a swim reques
 test('a blocked walk in deep water still receives passive current without claiming swimming',()=>{
   const f=fixture();
   const deep=Object.freeze({...f.geometry,
-    advance(actor,dx,dy,dt,_sprint,mode){
+    advance(actor,dx,dy,dt,_sprint,mode,funding){
+      const paid=(dx||dy)?(funding?funding(dt,mode==='swim'?2.6:1):dt):0;
       f.calls.advance.push({dx,dy,mode});
-      if(dx||dy)return {distance:0,driftDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:dt};
-      actor.x+=.5;
-      return {distance:.5,driftDistance:.5,waterSeconds:dt,swimSeconds:dt,climbSeconds:0,fallRiskSeconds:0,effortSeconds:0};
+      const drift=30*dt;actor.x+=drift;
+      return {paidSeconds:paid,inputDx:0,inputDy:0,distance:drift,driftDistance:drift,waterSeconds:dt,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,effortSeconds:paid};
     },
   });
   bindOzarkWorldAgent(f.aster,deep,f.state);observeNpc(f.aster,f.environment);
@@ -236,7 +238,7 @@ test('a blocked walk in deep water still receives passive current without claimi
   tickNpc(f.aster,CONFIG.fixedStep,f.environment);
   assert.equal(f.aster.position.x,.5);
   assert.equal(f.aster.active.forwardProgress,0);
-  assert.ok(f.calls.advance.some(call=>call.mode==='walk'&&call.dx===0&&call.dy===0));
+  assert.equal(f.calls.advance.length,1,'the funded resisted slice integrates current once');
   for(let i=0;i<120&&f.aster.active;i++)tickNpc(f.aster,CONFIG.fixedStep,f.environment);
   assert.equal(f.aster.lastResult.code,'ROUTE_BLOCKED');
   assert.equal(f.aster.lastResult.movement.traversal,'adrift');

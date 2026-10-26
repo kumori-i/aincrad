@@ -1,3 +1,5 @@
+import { DISCOVERY_RULES } from './discovery-config.js';
+import { matchingFinishedMaterial } from './discovery-completion.js';
 import { matchingResultObject } from './discovery-result-object.js';
 import { validCaptureExperiment } from './discovery-state.js';
 import { bodySignals } from './interoception.js';
@@ -7,7 +9,7 @@ import { bodySignals } from './interoception.js';
 const captures = new WeakMap();
 const PHASE = 'before-discoveryDecision';
 export const DISCOVERY_CANDIDATE_LIMITS = Object.freeze({
-  receipts: 400, experiments: 160, effects: 64, techniques: 24, held: 4,
+  receipts: 400, experiments: DISCOVERY_RULES.maxExperiments, effects: 64, techniques: 24, held: 4,
   stomach: 24, rowsPerCandidate: 16,
 });
 const L = DISCOVERY_CANDIDATE_LIMITS;
@@ -62,7 +64,7 @@ function index(rows, key) {
 }
 function matchesExperiment(e, receipt, now) {
   const action = receipt?.details?.action, result = receipt?.details?.result;
-  return matchingResultObject(e,receipt) && id(e?.id) && id(e.actionId) && time(e.at) && e.at <= now &&
+  return matchingResultObject(e,receipt) && matchingFinishedMaterial(e,receipt) && id(e?.id) && id(e.actionId) && time(e.at) && e.at <= now &&
     knownPrimitive(e.primitive) && objectId(e.targetId) && typeof e.ok === 'boolean' &&
     validCaptureExperiment(e,receipt) && receipt?.type === 'action' && receipt.at === e.at && knownPrimitive(action?.type) && action.type === e.primitive &&
     objectId(action.targetId) && action.targetId === e.targetId && result?.ok === e.ok &&

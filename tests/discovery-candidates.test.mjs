@@ -6,6 +6,7 @@ import { gunzipSync } from 'node:zlib';
 import { NpcController } from '../src/controller.js';
 import { collectDiscoveryCandidateSnapshot as collect, captureDiscoveryCandidates, DISCOVERY_CANDIDATE_LIMITS } from '../src/discovery-candidates.js';
 import { createNpc } from '../src/npc-state.js';
+import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { createEnvironment } from '../src/environment.js';
 import { bodySignals } from '../src/interoception.js';
 import { beginSleep } from '../src/biology.js';
@@ -20,6 +21,9 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // controller (a841114). This compares current behavior with/without capture,
 // not equivalence to historical f5f13c3e. Its previous normalized pin was
 // 94247f8faebf22de63cc1b5f58437ba012b599e5f7700a044022cb356fad449c.
+// The combined funding integration adds only forwardNpcRunTravel import/call
+// (reviewed840a5d7), retained in both instrumentation arms. Prior normalized pin:
+// 27fee85180e8edf0ab5c3eac28798ef7087d118104686c5a80b8d0014d3d38ea.
 // Retain the exact new pin: unrelated controller edits still require review.
 const baselineSource = source
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
@@ -27,7 +31,7 @@ const baselineSource = source
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')
   .replace('dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}', 'dispose(){this.disposed=true;this.cancel();}')
   .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '');
-assert.equal(sha(baselineSource), '27fee85180e8edf0ab5c3eac28798ef7087d118104686c5a80b8d0014d3d38ea', 'baseline controller bytes');
+assert.equal(sha(baselineSource), '6177a5daff69fe65d614542ad4bb4d1a5780a338f53f6338102461af51bf7a1a', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));
@@ -43,7 +47,7 @@ function assertFrozenDetached(report, actor) {
 function forbiddenPaths(value, path = '') {
   if (!value || typeof value !== 'object') return [];
   const forbidden = new Set(['riskCost', 'hydration', 'nourishment', 'physiology', 'stomach', 'totals',
-    'energyKcal', 'availableEnergyKcal', 'storedEnergyKcal', 'remainingKcal', 'waterMl', 'remainingWaterMl',
+    'energyKcal', 'availableEnergyKcal', 'storedEnergyKcal', 'satietyHours', 'remainingKcal', 'waterMl', 'remainingWaterMl',
     'massGrams', 'nutrition', 'species', 'materialType', 'edible', 'learnedValue', 'score', 'rank', 'winner', 'selectedAction']);
   return Object.entries(value).flatMap(([key, child]) => [...(forbidden.has(key) ? [`${path}/${key}`] : []), ...forbiddenPaths(child, `${path}/${key}`)]);
 }
@@ -178,8 +182,8 @@ test('absent retained continuity and release/regrasp/strike interruptions cannot
 
 test('bounds fail closed before traversing any oversized input array', () => {
   assert.deepEqual(Object.fromEntries(['receipts', 'experiments', 'effects', 'techniques', 'held'].map(key => [key, DISCOVERY_CANDIDATE_LIMITS[key]])),
-    { receipts: 400, experiments: 160, effects: 64, techniques: 24, held: 4 });
-  for (const [path, limit] of [[['memory', 'experience'], 400], [['discovery', 'experiments'], 160], [['discovery', 'effects'], 64],
+    { receipts: 400, experiments: DISCOVERY_RULES.maxExperiments, effects: 64, techniques: 24, held: 4 });
+  for (const [path, limit] of [[['memory', 'experience'], 400], [['discovery', 'experiments'], DISCOVERY_RULES.maxExperiments], [['discovery', 'effects'], 64],
     [['discovery', 'techniques'], 24], [['inventory', 'items'], 4], [['physiology', 'stomach'], 24]]) {
     const n = contractActor(), array = new Array(limit + 1); let reads = 0;
     Object.defineProperty(array, '0', { get() { reads++; throw new Error('must not walk oversized input'); } });
@@ -375,16 +379,16 @@ test('maximum retained ledgers cap every output row list while retaining a late 
     n.discovery.experiments.push(sample); n.discovery.effects.push(effect);
     n.memory.experience.push(actionReceipt(sample), recognition(effect, 66 + i, 400 + i));
   }
-  for (let i = 65; i < 160; i++) {
+  for (let i = 65; i < DISCOVERY_RULES.maxExperiments; i++) {
     const experiment = { id: i + 1, actionId: i + 65, at: 600 + i, primitive: 'inspect_object', targetId: 'object:99', ok: true, code: 'INSPECTED', durationSeconds: 1 };
     n.discovery.experiments.push(experiment); n.memory.experience.push(actionReceipt(experiment));
   }
-  for (let id = 225; id <= 400; id++) n.memory.experience.push({ id, at: 900, type: 'action', details: { action: { type: id % 2 ? 'rest' : 'wait' }, result: { ok: true, code: 'WAITED', durationSeconds: 1 } } });
+  for (let id = DISCOVERY_RULES.maxExperiments + 65; id <= 400; id++) n.memory.experience.push({ id, at: 900, type: 'action', details: { action: { type: id % 2 ? 'rest' : 'wait' }, result: { ok: true, code: 'WAITED', durationSeconds: 1 } } });
   n.memory.experience.sort((a, b) => a.id - b.id);
   const original = n.discovery.techniques[0]; n.discovery.techniques = Array.from({ length: 24 }, (_, i) => ({ ...structuredClone(original), id: `technique:aster:${i + 1}` }));
   n.inventory.items = ['object:2', 'object:3', 'object:4', 'object:5'];
   n.physiology.stomach = Array.from({ length: 24 }, () => ({ remainingMassGrams: 0 }));
-  assert.equal(n.memory.experience.length, 400); assert.equal(n.discovery.experiments.length, 160); assert.equal(n.discovery.effects.length, 64);
+  assert.equal(n.memory.experience.length, 400); assert.equal(n.discovery.experiments.length, DISCOVERY_RULES.maxExperiments); assert.equal(n.discovery.effects.length, 64);
   const before = structuredClone(n), report = collect(n); assert.equal(report.status, 'captured'); assert.equal(report.candidates.length, 26);
   for (const c of report.candidates) {
     for (const key of ['observedTiming', 'observedEffects', 'observedRefusals', 'pendingEvidence']) assert.ok(c[key].rows.length <= 16);

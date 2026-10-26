@@ -1,3 +1,5 @@
+import { fundNpcEffort, npcWorkAllowance, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
+import { registerMaterialCompletion } from './discovery-completion.js';
 import { publishConsumption } from './consumption-events.js';
 import { recordAquaticCaptureFailure } from './aquatic-ecology.js';
 import { CONFIG } from './config.js';
@@ -17,7 +19,13 @@ export function primitiveDuration(npc,type){
 // Action identity belongs to this runtime only; saves interrupt active commands.
 const ticking = new WeakSet(), settled = new WeakSet();
 const actionActors = new WeakMap();
+const paidWork = new WeakMap();
 const sharedGrasps = new WeakMap();
+// The action's public counters and elapsed clock are not proof of paid work.
+// Cancellation can consume this witness while a new hook slice is unreturned.
+export function discoveryActionPaidSeconds(npc,active){
+  return active&&actionActors.get(active)===npc?paidWork.get(active)?.worked||0:0;
+}
 export function retireDiscoveryAction(npc,active){
   if(active&&actionActors.get(active)===npc)settled.add(active);
 }
@@ -93,8 +101,10 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   const aim=request.type==='catch'?recentDiscoveryAim(npc,request.targetId):null;
   if(request.type==='catch'){const capture=catchCheck(npc,request,environment,aim);if(!capture.ok)return done(options.complete,npc,request,capture);}
   const seconds=primitiveDuration(npc,request.type);
-  npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+seconds+.05,seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
+  npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+npcWorkAllowance(seconds,DISCOVERY_RULES.effort[request.type]),seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   actionActors.set(npc.active,npc);
+  npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active));
+  paidWork.set(npc.active,{seconds,worked:0,elapsed:0,startedAt:npc.elapsed,deadline:npc.active.expiresAt,request:{...request}});
   if(options.sharing){options.sharing.request=request;options.sharing.seconds=seconds;sharedGrasps.set(npc.active,options.sharing);}
   if(request.type==='catch')catchWitnesses.set(npc.active,{actor:npc,discovery:npc.discovery,physiology:npc.physiology,
     targetId:request.targetId,scene:npc.scene,aim:{...aim},seconds,worked:0});
@@ -111,18 +121,38 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
   if(settled.has(active)){if(npc.active===active)npc.active=null;return false;}
   ticking.add(active);let terminal=false;
   try{
-    const worked=Math.min(dt,Math.max(0,active.seconds-active.worked));active.worked+=worked;
-    try{(options.exert||exertPhysiology)(npc,worked,DISCOVERY_RULES.effort[active.request.type]);}
+    const work=paidWork.get(active);
+    if(!work)return false;
+    const sharingNow=sharedGrasps.get(active);
+    if(sharingNow&&!sharedCheck(npc,active.request,environment,sharingNow).ok){
+      settled.add(active);terminal=true;
+      done(options.complete,npc,active.request,{ok:false,code:'SHARING_INTERRUPTED',durationSeconds:work.worked},active);return true;
+    }
+    const elapsedBefore=Math.max(work.elapsed,Math.max(0,npc.elapsed-work.startedAt-dt));
+    work.elapsed=Math.max(work.elapsed+dt,npc.elapsed-work.startedAt);
+    const remaining=Math.max(0,work.deadline-work.startedAt-elapsedBefore);
+    const requested=Math.min(dt,remaining,Math.max(0,work.seconds-work.worked));
+    let worked;
+    try{worked=fundNpcEffort(npc,requested,DISCOVERY_RULES.effort[work.request.type],options.exert||exertPhysiology).paidSeconds;}
     catch(error){settled.add(active);terminal=true;throw error;}
     // A throwing or synchronously cancelling hook cannot certify its current
     // work slice. Prior returned slices remain available to interruption receipts.
     const witness=handlingWitnesses.get(active);
-    if(witness&&npc.active===active)witness.worked+=worked;
+    const valid=npc.active===active&&active.request.type===work.request.type&&active.request.targetId===work.request.targetId&&
+      (!witness||witness.physiology===npc.physiology&&witness.discovery===npc.discovery);
+    if(witness&&valid)witness.worked+=worked;
     const captureWitness=catchWitnesses.get(active);
-    if(captureWitness&&npc.active===active)captureWitness.worked+=worked;
-    // A hook may cancel or replace work. It cannot authorize the captured action.
+    if(captureWitness&&valid)captureWitness.worked+=worked;
     if(npc.active!==active){settled.add(active);return true;}
-    if(active.worked+1e-8<active.seconds)return true;
+    if(valid)work.worked+=worked;
+    active.worked=work.worked;
+    if(work.worked+1e-8<work.seconds){
+      if(work.elapsed+1e-9<work.deadline-work.startedAt)return true;
+      settled.add(active);terminal=true;
+      expireNpcRun(npc,active,work.startedAt+work.elapsed);
+      if(active.request.type==='catch')recordAquaticCaptureFailure(environment.ecology,{miss:false});
+      done(options.complete,npc,active.request,{ok:false,code:'ACTION_TIMEOUT',durationSeconds:work.worked},active);return true;
+    }
     // Retire before validation, effects or callbacks; even a throwing callback
     // cannot replay this physical completion. Keep its context until completion.
     settled.add(active);terminal=true;
@@ -167,7 +197,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       if(!material?.ok)result={ok:false,code:material?.code||'CANNOT_SAMPLE'};
       else {
         const ingestion=material.ingestion;
-        result={ok:ingestion.ok===true,code:ingestion.code||'SWALLOWED',delayed:ingestion.delayed===true,...(ingestion.ingestionId?{ingestionId:ingestion.ingestionId}:{})};
+        result={ok:ingestion.ok===true,code:ingestion.code||'SWALLOWED',delayed:ingestion.delayed===true,...(ingestion.ingestionId?{ingestionId:ingestion.ingestionId}:{}),...(ingestion.ok===true&&material.remaining===false?{finishedMaterial:true}:{})};
         if(result.ok){publishConsumption(environment.ecology,npc,witnessedSource);npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
       }
     }else {
@@ -188,10 +218,13 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     // Swallowing a final portion may exhaust the globally persisted held material.
     npc.inventory.items=npc.inventory.items.filter(id=>lookupEcologyObject(environment.ecology,id)?.heldBy===npc.id);
     if(request.type==='catch'&&!result.ok)recordAquaticCaptureFailure(environment.ecology,{miss:result.code==='fish_missed'});
-    done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);return true;
+    const completion=done(options.complete,npc,request,{...result,durationSeconds:active.worked},active);
+    if(result.finishedMaterial===true&&completion?.eventId)registerMaterialCompletion(npc,{
+      targetId:request.targetId,actionId:completion.eventId,ingestionId:result.ingestionId,at:npc.elapsed});
+    return true;
   }finally{
     ticking.delete(active);
-    if(terminal||npc.active!==active){handlingWitnesses.delete(active);catchWitnesses.delete(active);sharedGrasps.delete(active);}
+    if(terminal||npc.active!==active){handlingWitnesses.delete(active);catchWitnesses.delete(active);sharedGrasps.delete(active);paidWork.delete(active);}
     if(terminal&&npc.active===active)npc.active=null;
   }
 }

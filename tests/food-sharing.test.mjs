@@ -53,7 +53,7 @@ test('voluntary offer alone cannot transfer; accepted handover pays and preserve
 });
 
 test('local request is qualitative and exposes only one offered object, never private inventories',()=>{
- const f=fixture(),{a,b,social,controllers}=f;b.physiology.hoursSinceMeal=8;
+ const f=fixture(),{a,b,social,controllers}=f;b.physiology.hoursSinceMeal=8;b.physiology.satietyHours=Math.max(0,6-8);
  assert.equal(social.foodSharing.choose(b).type,'request_food');
  const request=controllers[1].perform(social.foodSharing.choose(b));assert.equal(request.code,'FOOD_REQUESTED');
  const observed=social.observe(a).foodSharing;assert.equal(observed.requests[0].senderId,b.id);assert.match(observed.requests[0].text,/hungry/);
@@ -130,7 +130,7 @@ test('prepared local encounter: both live controllers complete a voluntary reque
  // of autonomous fishing, travel, food discovery, or long-term social living.
  assert.equal(f.finish(a,{type:'sample',targetId:item}).ok,true);f.advance(100);processDiscoveryFeedback(a);
  assert.ok(a.discovery.effects.some(effect=>effect.objectId===item&&effect.effect==='sustained'));
- b.physiology.hoursSinceMeal=8;
+ b.physiology.hoursSinceMeal=8;b.physiology.satietyHours=Math.max(0,6-8);
  assert.equal(controllers[1].perform(social.foodSharing.choose(b)).code,'FOOD_REQUESTED');
  // A recent dialogue must not make a pending exchange wait for the generic
  // twelve-second conversation cadence. This is not an idle/action override.

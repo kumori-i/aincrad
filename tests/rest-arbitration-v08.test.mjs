@@ -17,7 +17,7 @@ import { PopulationRuntime } from '../src/population.js';
 let empty,earned;
 function fixture(learn=false){
   if(!empty){const n=createNpc({mode:'discovery',seed:74193}),e=createEnvironment(74193,{mode:'discovery'}),plant=e.ecology.plants.find(x=>x.kind==='apple_tree'&&x.quantity>0);n.position=[{x:plant.position.x+45,y:plant.position.y},{x:plant.position.x-45,y:plant.position.y}].find(p=>canStand(p.x,p.y,'valley'));assert.ok(n.position);observeNpc(n,e);empty={n,e,plant};}
-  if(learn&&!earned){const f=structuredClone(empty);f.n.physiology.hoursSinceMeal=12;projectPhysiology(f.n);assert.equal(act(f,{type:'pull',targetId:f.plant.id}).ok,true);f.id=f.n.inventory.items[0];for(let k=1;k<=2;k++){assert.equal(act(f,{type:'sample',targetId:f.id}).ok,true);for(let i=0;i<24000&&positiveCount(f)<k;i++)tick(f);assert.equal(positiveCount(f),k);}earned=f;}
+  if(learn&&!earned){const f=structuredClone(empty);f.n.physiology.hoursSinceMeal=12;f.n.physiology.satietyHours=Math.max(0,6-12);projectPhysiology(f.n);assert.equal(act(f,{type:'pull',targetId:f.plant.id}).ok,true);f.id=f.n.inventory.items[0];for(let k=1;k<=2;k++){assert.equal(act(f,{type:'sample',targetId:f.id}).ok,true);for(let i=0;i<24000&&positiveCount(f)<k;i++)tick(f);assert.equal(positiveCount(f),k);}earned=f;}
   return structuredClone(learn?earned:empty);
 }
 function positiveCount(f){return new Set(f.n.discovery.effects.filter(x=>x.effect==='sustained'&&x.objectId===f.id).map(x=>x.ingestionId)).size;}
@@ -181,7 +181,7 @@ test('ordinary hunger tries a second earned source when the first has no observe
   for(let i=0;i<24000&&!f.n.discovery.techniques.some(t=>t.sourceId===bramble.id);i++)tick(f);
   assert.ok(f.n.discovery.techniques.some(t=>t.sourceId===bramble.id));
   if(f.n.inventory.items.includes(firstBerry))assert.equal(act(f,{type:'release',targetId:firstBerry}).ok,true);
-  f.n.physiology.hoursSinceMeal=8;projectPhysiology(f.n);
+  f.n.physiology.hoursSinceMeal=8;f.n.physiology.satietyHours=Math.max(0,6-8);projectPhysiology(f.n);
   // A real failed continuation gives the nearby source one failure. The remote
   // earned source then ranks first, even though it has no observed route.
   assert.deepEqual(discoveryDecision(f.n).action,{type:'pull',targetId:bramble.id});
@@ -195,7 +195,7 @@ test('ordinary hunger tries a second earned source when the first has no observe
   const raw=JSON.parse(JSON.stringify(f.n));raw.memory.cells={};f.n=validateNpc(raw);
   assert.ok(distance(f.n.position,bramble.position)<=80);
   assert.ok(distance(f.n.position,apple.position)>80);
-  const urgent=validateNpc(raw);urgent.physiology.hoursSinceMeal=17;projectPhysiology(urgent);
+  const urgent=validateNpc(raw);urgent.physiology.hoursSinceMeal=17;urgent.physiology.satietyHours=Math.max(0,6-17);projectPhysiology(urgent);
   assert.deepEqual(discoveryDecision(urgent).action,{type:'pull',targetId:bramble.id},'urgent nearby learned care retains its existing priority');
   const noAlternative=validateNpc(raw);delete noAlternative.discovery.observations[bramble.id];
   const withoutSource=discoveryDecision(noAlternative);
@@ -223,7 +223,7 @@ test('full hands resume a proved acquisition with one unproved first bite after 
   assert.equal(new Set(held).size,4);
   assert.ok(held.every(id=>f.n.discovery.experiments.some(e=>e.ok&&e.targetId===source.id&&e.primitive==='pull'&&e.materialId===id)));
   assert.ok(held.every(id=>!f.n.discovery.effects.some(e=>e.objectId===id)),'none of these physical pieces is already known food');
-  f.n.physiology.hoursSinceMeal=17;f.n.physiology.waterDeficitMl=250;projectPhysiology(f.n);
+  f.n.physiology.hoursSinceMeal=17;f.n.physiology.satietyHours=Math.max(0,6-17);f.n.physiology.waterDeficitMl=250;projectPhysiology(f.n);
   const started=discoveryDecision(f.n);
   assert.deepEqual(started.action,{type:'sample',targetId:held[0]});
   assert.equal(started.need,'food');
@@ -231,7 +231,7 @@ test('full hands resume a proved acquisition with one unproved first bite after 
   const raw=JSON.parse(JSON.stringify(f.n));f.n=validateNpc(raw);
   assert.equal(f.n.discovery.run,null,'save-like validation clears the transient sequence');
   const clone=()=>validateNpc(JSON.parse(JSON.stringify(raw)));
-  const ordinary=clone();ordinary.physiology.hoursSinceMeal=8;projectPhysiology(ordinary);
+  const ordinary=clone();ordinary.physiology.hoursSinceMeal=8;ordinary.physiology.satietyHours=Math.max(0,6-8);projectPhysiology(ordinary);
   assert.deepEqual(discoveryDecision(ordinary).action,{type:'sample',targetId:held[0]},'ordinary hunger also finishes the acquired held trial');
 
   const noReceipt=clone();noReceipt.discovery.experiments=noReceipt.discovery.experiments.filter(e=>!held.includes(e.materialId));
@@ -249,7 +249,7 @@ test('full hands resume a proved acquisition with one unproved first bite after 
   assert.notEqual(discoveryDecision(revised).need,'food','adverse technique revision keeps its gate');
   const overFailed=clone();overFailed.discovery.techniques.forEach(t=>t.failures=t.successes+3);
   assert.notEqual(discoveryDecision(overFailed).need,'food','retained failures keep their gate');
-  const peckish=clone();peckish.physiology.hoursSinceMeal=5;projectPhysiology(peckish);
+  const peckish=clone();peckish.physiology.hoursSinceMeal=5;peckish.physiology.satietyHours=Math.max(0,6-5);projectPhysiology(peckish);
   assert.notEqual(discoveryDecision(peckish).need,'food','peckish does not promote an untried piece');
   const thirsty=clone();thirsty.physiology.waterDeficitMl=1000;thirsty.flask.water=200;projectPhysiology(thirsty);
   assert.equal(discoveryDecision(thirsty).action.type,'drink','observed body thirst remains higher priority');

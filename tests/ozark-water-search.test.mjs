@@ -87,7 +87,7 @@ test('an exhausted dry-mouth actor cares for the body before surveying', () => {
 
 test('ravenous hunger keeps a dry-mouth survey from preempting food trials', () => {
   const { actor, observation } = freshOzark();
-  actor.physiology.hoursSinceMeal = 20;
+  actor.physiology.hoursSinceMeal = 20;actor.physiology.satietyHours=Math.max(0,6-20);
   assert.equal(bodySignals(actor).hunger, 'ravenous');
   assert.equal(bodySignals(actor).thirst, 'dry mouth');
   assert.deepEqual(observation.sources, []);

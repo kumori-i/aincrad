@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "fixtureSha256": "14ac52c10c93edcdde65f4fc1bb6b9c2c5d768f5d8de52436099e07034d2e6b2",
+  "originalReportSha256": "fa2718a3d3ba585e4a8b68a31446cf8fde72c4af6abc2c2fa20e7510a8755716",
+  "originalReportStatus": "failed",
+  "baselineTrialCanonicalSha256": "a54edc7fe1f6450cecea52450a1681d371b52705cd1328d5c59735cc614f9322",
+  "baselineSourceCanonicalSha256": "570422439c1c59aa975a465a780b54ce12020eba7d21b094aefe8701b8ba75f8",
+  "reconstructedInitialStateSourceReportSha256": "3434ce39b5d10edb446e0d18a8807429629abccc8bac64624e61c92ba9a088e9",
+  "initialStateCanonicalSha256": "8d7c4a8f6562facd64f0bfa83981bfde72aad3c283aa584e622b89e8f21f472e",
+  "originalRecordedInitialStateSha256": "8d7c4a8f6562facd64f0bfa83981bfde72aad3c283aa584e622b89e8f21f472e",
+  "originalRecordedNormalizedStartSha256": "8feae371ce7f35de1e7e54334258dc4b0a822080da12b533b0d9ac40058b4f8a",
+  "releaseNormalizedStartSha256": "b04d005900e94c0a54727b3ff5f02028ffa7cfe640dcefd9c5541aa3b6b6acb5",
+  "method": "Exact baseline trial and full runtime manifest copied from the verified original report. Raw initial state reconstructed from frozen main in a later controlled report, then checked against the original recorded complete-state hash. Only start reconstruction was rerun; baseline600-second measurements are preserved observations, not a fresh replay.",
+  "contentScope": "Generated simulation state, technical source identities and experiment measurements only; no conversation, credentials, coordination instructions or user save."
+}

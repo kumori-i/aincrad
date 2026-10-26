@@ -1,3 +1,4 @@
+import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNpc } from '../src/npc-state.js';
@@ -94,10 +95,10 @@ test('retained techniques survive unrelated events and digestive feedback evicti
   const restored=validateNpc(JSON.parse(JSON.stringify(n)));assert.equal(restored.discovery.techniques.length,1);assert.equal(restored.discovery.techniques[0].sourceId,technique.sourceId);assert.equal(restored.discovery.techniques[0].confidence,technique.confidence);assert.ok(restored.discovery.effects.some(e=>e.effect==='sustained'));
 });
 test('cumulative valid practice survives detail-log rotation and restart',()=>{
-  const {n,e,plant}=fixture();for(let i=0;i<190;i++)finish(n,e,{type:'inspect_object',targetId:plant.id});assert.equal(n.discovery.practice.inspect_object.successes,190);assert.equal(n.discovery.experiments.length,160);const cost=primitiveDuration(n,'inspect_object');const restored=validateNpc(JSON.parse(JSON.stringify(n)));assert.equal(restored.discovery.practice.inspect_object.successes,190);assert.equal(primitiveDuration(restored,'inspect_object'),cost);
+  const {n,e,plant}=fixture();for(let i=0;i<190;i++)finish(n,e,{type:'inspect_object',targetId:plant.id});assert.equal(n.discovery.practice.inspect_object.successes,190);assert.equal(n.discovery.experiments.length,DISCOVERY_RULES.maxExperiments);const cost=primitiveDuration(n,'inspect_object');const restored=validateNpc(JSON.parse(JSON.stringify(n)));assert.equal(restored.discovery.practice.inspect_object.successes,190);assert.equal(primitiveDuration(restored,'inspect_object'),cost);
 });
 test('duplicating a saved successful command cannot multiply practice',()=>{
-  const {n,e,plant}=fixture();finish(n,e,{type:'inspect_object',targetId:plant.id});const raw=createDiscoveryMemory();raw.observations=n.discovery.observations;raw.experiments=Array.from({length:160},()=>({...n.discovery.experiments[0]}));const restored=validateDiscoveryMemory(raw);assert.equal(restored.experiments.length,1);assert.equal(restored.practice.inspect_object.successes,1);
+  const {n,e,plant}=fixture();finish(n,e,{type:'inspect_object',targetId:plant.id});const raw=createDiscoveryMemory();raw.observations=n.discovery.observations;raw.experiments=Array.from({length:DISCOVERY_RULES.maxExperiments},()=>({...n.discovery.experiments[0]}));const restored=validateDiscoveryMemory(raw);assert.equal(restored.experiments.length,1);assert.equal(restored.practice.inspect_object.successes,1);
 });
 test('finite generic mouthfuls consume the entire held object with elapsed effort',()=>{
   const {n,e,plant}=fixture();finish(n,e,{type:'pull',targetId:plant.id});const id=n.inventory.items[0],material=e.ecology.materials.find(m=>m.id===id),mass=material.massGrams,kcal=material.energyKcal,before=n.elapsed,energy=n.physiology.totals.metabolizedKcal;

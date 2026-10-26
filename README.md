@@ -23,6 +23,23 @@ The first installation downloads Electron. After installation, offline play need
 - Ground, shoreline, tree and map rendering use original pixel artwork. Visual detail does not manufacture food, complete an action or advance simulation time.
 - A day lasts one hour at normal speed. Escape pauses explicitly; maps, the journal, blur and minimized windows do not. Closing the application stops progression, without offline catch-up.
 
+## Food satisfaction and paid work
+
+Human **Food satisfaction** is appetite, not stored calories. A 95 kcal apple
+adds four gameplay satisfaction-hours before time spent eating; a normal 30 g
+portion adds two-thirds of an hour, water adds none, and satisfaction is capped
+at six hours. Energy, digestion and expenditure remain separate. See
+[food mechanics and limitations](docs/food-balance/README.md).
+
+Human NPC actions and purposeful movement now require
+[paid work](docs/NPC-EFFORT-FUNDING.md) before progress or physical output is
+credited. Strict personal adverse-source evidence and attributed exact-material
+warnings can defer sampling, but do not establish general food safety. Saves
+retain physical debits and bounded learning, not unfinished work authority.
+Controlled feeding improvements do not establish reliable autonomous survival;
+[source-bound verification](docs/food-system/VERIFICATION.md) separates historical
+results, release reruns and native checks still awaiting execution.
+
 ## Hunting, fishing and handling
 
 Agents have real timed primitive actions, including strikes and shore catches. They do not start with a complete hunting or fishing routine.
@@ -38,6 +55,8 @@ These mechanics being available **does not establish reliable autonomous use or 
 Fresh agents receive basic movement, bodily drives, senses and action primitives, not food labels or recipes. Their personal techniques require their own completed actions and experienced feedback.
 
 An agent can communicate an actually learned, exact-source procedure through nearby speech. The recipient can try the taught steps without randomly rediscovering the sequence. The advice remains attributed testimony, not copied firsthand experience, proficiency or a free meal. Physical availability, effort, ownership and adverse feedback still matter.
+
+A real adverse personal sample can now produce a [local exact-material warning](docs/FOOD-WARNINGS.md). An awake listener who actually hears it temporarily defers sampling that same identified material. The warning remains attributed, uncertain testimony—not the listener's own illness, a species-wide food label or a promise that other portions are safe. Dropping/regrasping preserves physical identity; reload does not replay missed warnings.
 
 Human journal advice can suggest actions against something the agent has observed, but only through a [restricted whole-command grammar](docs/HUMAN-HINTS.md). Unsupported procedures produce no partial steps; saved human requests do not resume after reload. A vague phrase such as “kill the animals” does not identify a target or guarantee a hunting sequence. The interface distinguishes unresolved advice from a usable suggestion. Existing qualitative feeling reports describe modeled bodily sensations, not a claim of humanlike consciousness or complete social reasoning. Nearby food requests and voluntary offers can lead to a real timed handoff of an exact held item. The recipient must independently accept and grasp it; ownership, capacity and proximity are rechecked, and learning still requires their own subsequent experience. Broad skill generalization and richer social relationships remain future work.
 
