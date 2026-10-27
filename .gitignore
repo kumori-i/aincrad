@@ -9,3 +9,8 @@ test-results/
 release/
 
 dist/
+
+# Optional isolated pixel-communication research environment
+.pixel-lab-venv/
+__pycache__/
+*.py[cod]

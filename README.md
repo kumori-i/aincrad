@@ -15,6 +15,14 @@ npm start
 
 The first installation downloads Electron. After installation, offline play needs no account, API key or model service. `npm start` builds and launches the desktop application; `npm run dev` rebuilds during development. Generated `dist/` files are not committed or deployed as a website.
 
+## Experimental pixel communication lab
+
+An [isolated offline research lab](docs/pixel-language/README.md) trains two small,
+randomly initialized neural networks to communicate about synthetic RGB object
+crops using arbitrary discrete symbols. It does not run in the game or change
+Aster, Mira, live vision, settings or saves. Results include failed attempts and
+held-out message-ablation controls; harness delivery is not a language claim.
+
 ## One physical world
 
 - Ozark terrain, river/pond water and differentiated habitats are the common geometry for the player, people, animals and resources.

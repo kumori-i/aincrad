@@ -1,0 +1,37 @@
+{
+  "protocol_version": 1,
+  "main_seeds": [
+    17,
+    29,
+    43
+  ],
+  "pilot_seed": 101,
+  "pilot_steps": 400,
+  "steps": 7500,
+  "batch_size": 128,
+  "learning_rate": 0.001,
+  "optimizer": "Adam default betas=(0.9,0.999), eps=1e-8; no weight decay",
+  "gradient_clip_norm": 5,
+  "baseline_initial": 0.25,
+  "baseline_decay": 0.95,
+  "entropy_linear_schedule": [
+    0.02,
+    0.002
+  ],
+  "initialization": "PyTorch module defaults, distinct sequential seeded draws; no imported weights",
+  "threads": 2,
+  "max_seconds_per_main_run": 600,
+  "evaluation_episode_seed": 20261027,
+  "evaluation_split_ids": {
+    "validation": 0,
+    "iid": 1,
+    "combination": 2,
+    "nuisance": 3,
+    "combined": 4
+  },
+  "evaluation_stream": "SeedSequence([20261027, split_id, candidate_count])",
+  "evaluation_episodes_per_cell": 2048,
+  "bootstrap_samples": 1000,
+  "bootstrap": "Percentile 95%; resample episode rows with replacement, independently re-derange their messages each replicate; conditional on fitted model and empirical episode distribution, not seed uncertainty.",
+  "amendment": "After failed pilot, extend main/control horizon only; recorded before any final evaluations."
+}
