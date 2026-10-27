@@ -7,7 +7,7 @@ const authorized={CI:'true',AINCRAD_NATIVE_DIALOG_CI:'1',DISPLAY:':99'};
 function harness(platform='linux'){
   const calls=[];
   return {calls,options:{pid:1234,action:'save',destination:'/isolated/generated/current.json',screenshot:'/isolated/evidence/dialog.png',platform,env:authorized,
-    run:async(file,args)=>{calls.push({file,args});return {stdout:file==='xdotool'&&['search','getwindowfocus'].includes(args[0])?'77\n':''};},wait:async()=>{},read:async()=>png,write:async()=>{}}};
+    run:async(file,args)=>{calls.push({file,args});return {stdout:file==='xdotool'&&['search','getwindowfocus'].includes(args[0])?'77\n':file==='xprop'&&args[1]==='77'?'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n_NET_WM_PID(CARDINAL) = 1234':''};},wait:async()=>{},read:async()=>png,write:async()=>{}}};
 }
 
 test('command contract only: native automation requires explicit isolated CI authorization',async()=>{
@@ -18,7 +18,7 @@ test('command contract only: native automation requires explicit isolated CI aut
 test('command contract only: Linux targets exactly one visible app-PID Save dialog and captures before keyboard action',async()=>{
   const {calls,options}=harness();const result=await driveNativeSaveDialog(options);
   assert.equal(result.realOsDialog,true);
-  assert.deepEqual(calls[0],{file:'xdotool',args:['search','--onlyvisible','--pid','1234','--name','^Back up current stored Aincrad world before reset$']});
+  assert.deepEqual(calls[0],{file:'xdotool',args:['search','--all','--onlyvisible','--pid','1234','--name','^Back up current stored Aincrad world before reset$']});
   const capture=calls.findIndex(c=>c.file==='import');
   const input=calls.findIndex(c=>c.file==='xdotool'&&c.args[0]==='key');
   assert.ok(capture<input);
@@ -127,4 +127,32 @@ test('command contract only: Mac recognition failure retains screenshot and AX h
   assert.ok(source.includes('(count textFields) is 1'));
   assert.ok(source.includes('(count foundSheets) is not 1'));
   assert.ok(!source.includes('text field 1 of saveSheet'));
+});
+
+test('command contract only: both dialog searches require conjunction of PID and exact title',async()=>{
+  const {calls,options}=harness();await driveNativeSaveDialog(options);
+  const searches=calls.filter(c=>c.file==='xdotool'&&c.args[0]==='search');
+  assert.equal(searches.length,2);
+  for(const search of searches){assert.ok(search.args.includes('--all'));assert.ok(search.args.includes('--pid'));assert.ok(search.args.includes('--name'));assert.ok(!search.args.includes('--any'));}
+});
+test('command contract only: independently reject search results with wrong PID or main-window title',async()=>{
+  for(const properties of [
+    'WM_NAME(STRING) = "Aincrad — Ozark wilderness"\n_NET_WM_PID(CARDINAL) = 1234',
+    'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n_NET_WM_PID(CARDINAL) = 9999',
+  ]){
+    const {calls,options}=harness();const successful=options.run;
+    await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{
+      if(file==='xprop'&&args[1]==='77'){calls.push({file,args});return {stdout:properties};}
+      return successful(file,args,settings);
+    }}),/independently match exact Save title and Electron PID/);
+    assert.ok(!calls.some(c=>['key','type','windowfocus'].includes(c.args[0])));
+  }
+});
+test('command contract only: genuine multiple search matches remain an error',async()=>{
+  const {calls,options}=harness();const successful=options.run;
+  await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{
+    if(file==='xdotool'&&args[0]==='search'){calls.push({file,args});return {stdout:'77\n88\n'};}
+    return successful(file,args,settings);
+  }}),/Multiple matching native Save dialogs/);
+  assert.ok(!calls.some(c=>['key','type'].includes(c.args[0])));
 });

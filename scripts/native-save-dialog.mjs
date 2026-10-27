@@ -98,7 +98,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     if(!env.DISPLAY)throw new Error('Real native Save dialog automation requires an X11 DISPLAY');
     for(let i=0;i<100;i++){
       let result;
-      try { result=await command('xdotool',['search','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']); }
+      try { result=await command('xdotool',['search','--all','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']); }
       catch(error){
         // xdotool search exit 1 with no diagnostic is the documented no-match
         // result. Missing tools, display errors and permission denials are final.
@@ -138,9 +138,11 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     const properties=(await command('xprop',['-id',id,'WM_CLASS','WM_NAME','_NET_WM_NAME','_NET_WM_PID','WM_TRANSIENT_FOR'])).stdout;
     const parent=tree.match(/Parent window id:\s*(0x[0-9a-f]+)/i)?.[1];
     const transient=properties.match(/WM_TRANSIENT_FOR[^\n]*window id #\s*(0x[0-9a-f]+)/i)?.[1];
-    return {id,tree,properties,parent:parent&&parent!=='0x0'?windowIdentity(parent):null,
+    const names=properties.split('\n').map(line=>line.match(/^(?:_NET_WM_NAME|WM_NAME)\([^)]*\) = "(.*)"$/)?.[1]).filter(name=>name!==undefined);
+    const ownerPid=Number(properties.match(/^_NET_WM_PID\(CARDINAL\) = ([0-9]+)$/m)?.[1]);
+    return {id,tree,properties,ownerPid,parent:parent&&parent!=='0x0'?windowIdentity(parent):null,
       transient:transient&&transient!=='0x0'?windowIdentity(transient):null,
-      namedDialog:properties.split('\n').some(line=>/^_NET_WM_NAME\(|^WM_NAME\(/.test(line)&&line.endsWith('= "'+title+'"'))};
+      namedDialog:names.length>0&&names.every(name=>name===title)};
   }
   async function focusedDialog(){
     const raw=windowIdentity((await command('xdotool',['getwindowfocus','-f'])).stdout.trim());
@@ -153,7 +155,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     for(let n=0;queue.length&&n<16;n++){
       const id=queue.shift();if(visited.has(id))continue;visited.add(id);
       const info=await inspectXWindow(id);focus.windows.push(info);
-      if(id===target){focus.trusted=true;return true;}
+      if(id===target){focus.trusted=info.namedDialog&&info.ownerPid===pid;return focus.trusted;}
       if(info.parent)queue.push(info.parent);
       if(info.namedDialog&&info.transient)queue.push(info.transient);
     }
@@ -162,6 +164,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   if(platform==='linux'){
     diagnostics.rootTree=(await command('xwininfo',['-root','-tree'])).stdout;
     diagnostics.target=await inspectXWindow(windowIdentity(windowId));
+    if(!diagnostics.target.namedDialog||diagnostics.target.ownerPid!==pid)throw new Error('Selected X window does not independently match exact Save title and Electron PID; no input was sent');
     if(!await focusedDialog())throw new Error('Native Save focus ownership cannot be proved; no input was sent');
   }
   async function linuxInput(args){
@@ -179,8 +182,13 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     await linuxInput(['key','--clearmodifiers','Return']);
     await wait(500);
     // GTK may first resolve the typed location, leaving the Save dialog open.
-    const names=await command('xdotool',['search','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']).catch(error=>{if(error.commandCode===1&&!error.commandStderr.trim())return {stdout:''};throw error;});
-    if(names.stdout.trim()===windowId)await linuxInput(['key','--clearmodifiers','Return']);
+    const names=await command('xdotool',['search','--all','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']).catch(error=>{if(error.commandCode===1&&!error.commandStderr.trim())return {stdout:''};throw error;});
+    const remaining=names.stdout.trim().split(/\s+/).filter(Boolean);
+    if(remaining.length>1)throw new Error('Multiple matching native Save dialogs; no further input was sent');
+    if(remaining.length===1){
+      if(remaining[0]!==windowId)throw new Error('Native Save target changed; no further input was sent');
+      await linuxInput(['key','--clearmodifiers','Return']);
+    }
   }
   diagnostics.status='input-completed';
   await write(screenshot+'.dialog.json',JSON.stringify(diagnostics,null,2));
