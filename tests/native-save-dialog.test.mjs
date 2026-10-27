@@ -5,9 +5,9 @@ import { driveNativeSaveDialog } from '../scripts/native-save-dialog.mjs';
 const png=Buffer.alloc(12000);Buffer.from([137,80,78,71,13,10,26,10]).copy(png);
 const authorized={CI:'true',AINCRAD_NATIVE_DIALOG_CI:'1',DISPLAY:':99'};
 function harness(platform='linux'){
-  const calls=[];let searches=0;
+  const calls=[];let searches=0,clock=0;
   return {calls,options:{pid:1234,action:'save',destination:'/isolated/generated/current.json',screenshot:'/isolated/evidence/dialog.png',platform,env:authorized,
-    run:async(file,args)=>{calls.push({file,args});return {stdout:file==='xdotool'&&args[0]==='search'?(++searches===1?'77\n':''):file==='xdotool'&&args[0]==='getwindowfocus'?'77\n':file==='xprop'&&args[1]==='77'?'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n_NET_WM_PID(CARDINAL) = 1234':''};},wait:async()=>{},read:async()=>png,write:async()=>{}}};
+    run:async(file,args)=>{calls.push({file,args});return {stdout:file==='xdotool'&&args[0]==='search'?(++searches===1?'77\n':''):file==='xdotool'&&args[0]==='getwindowfocus'?'77\n':file==='xprop'&&args[1]==='77'?'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n_NET_WM_PID(CARDINAL) = 1234':''};},now:()=>clock,wait:async ms=>{clock+=ms;},read:async()=>png,write:async()=>{}}};
 }
 
 test('command contract only: native automation requires explicit isolated CI authorization',async()=>{
@@ -157,13 +157,13 @@ test('command contract only: genuine multiple search matches remain an error',as
   assert.ok(!calls.some(c=>['key','type'].includes(c.args[0])));
 });
 
-test('command contract only: GTK Save replaces entire Name value, captures text entry, and submits once',async()=>{
+test('command contract only: GTK Save replaces entire Name value, captures text entry, and activates Save mnemonic once',async()=>{
   const {calls,options}=harness();await driveNativeSaveDialog(options);
   const inputs=calls.filter(c=>c.file==='xdotool'&&['key','type'].includes(c.args[0]));
-  assert.deepEqual(inputs.map(c=>c.args[0]==='type'?'type':c.args.at(-1)),['ctrl+l','ctrl+a','type','Return']);
+  assert.deepEqual(inputs.map(c=>c.args[0]==='type'?'type':c.args.at(-1)),['ctrl+l','ctrl+a','type','alt+s']);
   const typed=calls.findIndex(c=>c.args[0]==='type');
   const entered=calls.findIndex(c=>c.file==='import'&&c.args.at(-1).endsWith('.path-entered.png'));
-  const submitted=calls.findIndex(c=>c.args.at(-1)==='Return');
+  const submitted=calls.findIndex(c=>c.args.at(-1)==='alt+s');
   const after=calls.findIndex(c=>c.file==='import'&&c.args.at(-1).endsWith('.after-submit.png'));
   assert.ok(typed<entered&&entered<submitted&&submitted<after);
 });
@@ -173,9 +173,41 @@ test('command contract only: nondismissal fails with post-submit OS screenshot a
     if(file==='xdotool'&&args[0]==='search'){calls.push({file,args});return {stdout:'77\n'};}
     return successful(file,args,settings);
   },write:async(_path,data)=>{record=JSON.parse(data);}}),/remained open after one submission/);
-  assert.equal(calls.filter(c=>c.args.at(-1)==='Return').length,1);
+  assert.equal(calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
   assert.equal(calls.filter(c=>c.args[0]==='search').length,51);
   assert.equal(record.saveDialogDismissed,false);assert.equal(record.status,'failed');
   assert.ok(calls.some(c=>c.file==='import'&&c.args.at(-1)===record.postInputScreenshot));
   assert.ok(record.postInputScreenshot.endsWith('.after-submit.png'));
+});
+
+test('command contract only: translated effective message locales refuse the English mnemonic before input',async()=>{
+  for(const locale of [
+    {LANG:'fr_FR.UTF-8'},
+    {LANG:'en_US.UTF-8',LC_MESSAGES:'de_DE.UTF-8'},
+    {LANG:'en_US.UTF-8',LC_ALL:'fr_FR.UTF-8'},
+    {LC_ALL:'en_US.UTF-8',LANGUAGE:'fr:en'},
+  ]){
+    const {calls,options}=harness();const env={...authorized,...locale};
+    await assert.rejects(driveNativeSaveDialog({...options,env}),/existing English\/C message locale/);
+    assert.ok(!calls.some(c=>['key','type'].includes(c.args[0])));
+    assert.deepEqual(env,{...authorized,...locale},'Never changes launched application locale');
+  }
+});
+test('command contract only: locale precedence honors untranslated C and English LANGUAGE selection',async()=>{
+  for(const locale of [{LC_ALL:'C',LANGUAGE:'fr',LANG:'fr_FR.UTF-8'},{LC_ALL:'fr_FR.UTF-8',LANGUAGE:'en:fr'},{LANG:'C.UTF-8'}]){
+    const {calls,options}=harness();await driveNativeSaveDialog({...options,env:{...authorized,...locale}});
+    assert.equal(calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
+    assert.ok(!calls.some(c=>c.args.includes('Return')));
+  }
+});
+test('command contract only: one direct Save mnemonic follows measured550ms readiness, never Return',async()=>{
+  const {calls,options}=harness();const successful=options.run,waited=[];let record;
+  await driveNativeSaveDialog({...options,wait:async ms=>{waited.push(ms);await options.wait(ms);},run:async(file,args,settings)=>{
+    if(args.at(-1)==='alt+s')assert.ok(options.now()>=550,'Wait occurs before activation');
+    return successful(file,args,settings);
+  },write:async(_path,data)=>{record=JSON.parse(data);}});
+  assert.equal(waited.length,1);assert.ok(waited[0]>=550);
+  assert.equal(record.minimumVisibleMs,550);assert.ok(record.visibleBeforeActivationMs>=550);
+  assert.equal(calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
+  assert.ok(!calls.some(c=>c.args.includes('Return')));
 });

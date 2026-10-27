@@ -75,7 +75,7 @@ end run`;
 
 
 export async function driveNativeSaveDialog({pid, action, destination, screenshot,
-  platform = process.platform, env = process.env, run = execute, wait = sleep, read = readFile, write = writeFile}) {
+  platform = process.platform, env = process.env, run = execute, wait = sleep, read = readFile, write = writeFile, now = () => performance.now()}) {
   if (env.CI !== 'true' || env.AINCRAD_NATIVE_DIALOG_CI !== '1')
     throw new Error('Real dialog automation is restricted to an explicitly authorized isolated CI desktop');
   if (!Number.isSafeInteger(pid) || pid < 1 || !['cancel','save'].includes(action) ||
@@ -92,7 +92,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
       throw failure;
     }
   };
-  let windowId;
+  let windowId,recognizedAt;
   try {
   if(platform==='linux'){
     if(!env.DISPLAY)throw new Error('Real native Save dialog automation requires an X11 DISPLAY');
@@ -166,6 +166,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     diagnostics.target=await inspectXWindow(windowIdentity(windowId));
     if(!diagnostics.target.namedDialog||diagnostics.target.ownerPid!==pid)throw new Error('Selected X window does not independently match exact Save title and Electron PID; no input was sent');
     if(!await focusedDialog())throw new Error('Native Save focus ownership cannot be proved; no input was sent');
+    recognizedAt=now();
   }
   async function linuxInput(args){
     if(!await focusedDialog())throw new Error('Native Save dialog lost proven target/descendant focus; input stopped');
@@ -177,6 +178,14 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   }else if(action==='cancel'){
     await linuxInput(['key','--clearmodifiers','Escape']);
   }else{
+    // gettext LANGUAGE overrides message locale except in the untranslated C/
+    // POSIX locale. Never change the already-running app's locale for this test.
+    const messageLocale=env.LC_ALL||env.LC_MESSAGES||env.LANG||'C';
+    const preferredLanguage=env.LANGUAGE?.split(':').find(Boolean);
+    const effectiveLocale=/^(?:C|POSIX)$/.test(messageLocale)?messageLocale:preferredLanguage||messageLocale;
+    diagnostics.messageLocale=messageLocale;diagnostics.effectiveMnemonicLocale=effectiveLocale;
+    if(!/^(?:C(?:[.@]|$)|POSIX$|en(?:[_@.-]|$))/i.test(effectiveLocale))
+      throw new Error('Direct Save mnemonic requires an existing English/C message locale; no input was sent');
     // GTK3 location_toggle_popup_handler in SAVE mode only focuses the existing
     // Name entry; it does not clear/select its text. Select the whole value,
     // including any unselected .json suffix, before typing the absolute path.
@@ -186,8 +195,20 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     await linuxInput(['type','--clearmodifiers','--delay','1','--',destination]);
     diagnostics.pathEnteredScreenshot=screenshot+'.path-entered.png';
     await command('import',['-window','root',diagnostics.pathEnteredScreenshot]);
-    await linuxInput(['key','--clearmodifiers','Return']);
-    // Observe completion only. Never send an ungrounded second Return into a
+    // Electron44.7's Chromium152 deliberately makes Save a non-default response.
+    // Activate GTK_STOCK_SAVE (_Save) directly, rather than entry Return.
+    // https://raw.githubusercontent.com/chromium/chromium/152.0.7977.130/ui/gtk/select_file_dialog_linux_gtk.cc
+    // https://docs.gtk.org/gtk3/ctor.Button.new_with_mnemonic.html
+    // Conservative test readiness after verified recognition, not a claim that
+    // this pinned Chromium version has a minimum-display security timer.
+    const remainingVisibleMs=550-(now()-recognizedAt);
+    diagnostics.minimumVisibleMs=550;
+    diagnostics.activationWaitMs=remainingVisibleMs>0?Math.ceil(remainingVisibleMs)+1:0;
+    if(diagnostics.activationWaitMs)await wait(diagnostics.activationWaitMs);
+    diagnostics.visibleBeforeActivationMs=now()-recognizedAt;
+    if(diagnostics.visibleBeforeActivationMs<550)throw new Error('Native Save visible interval could not be established; no activation was sent');
+    await linuxInput(['key','--clearmodifiers','alt+s']);
+    // Observe completion only. Never send an ungrounded second activation into a
     // still-open chooser, completion popup or newly opened error dialog.
     let dismissed=false;
     for(let attempt=0;attempt<50;attempt++){
