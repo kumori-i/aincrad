@@ -92,7 +92,7 @@ The player avatar explores and observes. Agent hunting/fishing actions are not a
 
 ## Saves and scope
 
-There is one supported current save format and key, `aincrad.world.v2`. This increment starts a fresh world instead of loading the earlier v1 slot; those earlier bytes are left untouched. A valid current save resumes; an absent slot starts a fresh current world. Corrupt current data is protected rather than silently overwritten. Original-world and historical save migrations are retired. Old save files are not required or automatically imported, and are not deleted by the new bootstrap.
+There is one supported current save format and key, `aincrad.world.v2`. This increment starts a fresh world instead of loading the earlier v1 slot; those earlier bytes are left untouched. A valid current save resumes; an absent slot starts a fresh current world. Corrupt current data is protected rather than silently overwritten. **Reset world…** in the pause menu or protected-save screen offers an explicit fresh start, with optional local export of the exact stored bytes. Confirmation is required; there is no in-app undo/import. App/model settings and unrelated storage are preserved. See [reset safety and backup details](docs/WORLD-RESET.md). Original-world and historical save migrations are retired. Old save files are not required or automatically imported, and are not deleted by the new bootstrap.
 
 Cardinal diagnostic/supervision building blocks remain development work; the unified Ozark runtime does not expose the former original-world Cardinal panel. No complete ecology, reliable living, autonomous pursuit, agriculture, construction or emergent society is claimed.
 

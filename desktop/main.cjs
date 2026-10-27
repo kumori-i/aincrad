@@ -62,7 +62,7 @@ app.whenReady().then(async()=>{
   if(!SMOKE)try{config=JSON.parse(await readFile(configPath,'utf8'));}catch{}
   try{modelService=new ModelService({config});}catch{modelService=new ModelService();}
   function trusted(event){
-    try{const u=new URL(event.senderFrame.url);return event.senderFrame===event.sender.mainFrame&&u.protocol==='aincrad:'&&u.host==='app'&&u.pathname==='/index.html';}catch{return false;}
+    try{const u=new URL(event.senderFrame.url);return Boolean(win&&!win.isDestroyed()&&event.sender===win.webContents)&&event.senderFrame===event.sender.mainFrame&&!u.username&&!u.password&&u.protocol==='aincrad:'&&u.host==='app'&&u.pathname==='/index.html';}catch{return false;}
   }
   const handle=(channel,fn)=>ipcMain.handle(channel,async(event,...args)=>{if(!trusted(event))throw new Error('Untrusted model bridge sender.');return fn(...args);});
   handle('aincrad:model-status',()=>modelService.status());
@@ -75,6 +75,15 @@ app.whenReady().then(async()=>{
   handle('aincrad:model-decide',raw=>modelService.decide(raw));
   handle('aincrad:model-cancel',agentId=>modelService.cancel(agentId));
   const rawSaveBackup=createRawSaveBackupBridge({dialog,getWindow:()=>win,userDataPath:app.getPath('userData'),documentsPath:app.getPath('documents'),testMode:profileRoute.isTest});
+  handle('aincrad:current-world-export',raw=>rawSaveBackup.exportCurrentWorld(raw));
+  // Only main can reload the fixed application window. Renderer navigation
+  // remains denied; no URL, path or storage value is accepted by this route.
+  handle('aincrad:current-world-reload',()=>{
+    modelService.cancel();
+    session.defaultSession.flushStorageData();
+    win.webContents.reload();
+    return {ok:true};
+  });
   handle('aincrad:save-export-raw',(raw,sha)=>rawSaveBackup.exportRaw(raw,sha));
   handle('aincrad:save-restore-raw',()=>rawSaveBackup.restoreRaw());
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));

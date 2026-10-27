@@ -39,7 +39,8 @@ test('desktop UI and sandbox expose no retired world selector or recovery-copy I
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
  assert.match(main,/nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true/);
  for(const text of ['aincrad:world-open','aincrad:profile-create','createRecoveredProfileManager','runNativeProfileQa'])assert(!main.includes(text));
- assert(!preload.includes('aincradWorld'));assert(!preload.includes('aincradProfile'));
+ assert.doesNotMatch(preload,/\baincradWorld\b/,'The retired world-selection bridge remains absent');
+ assert.match(preload,/aincradWorldSave/,'Current fixed-key backup is distinct from retired world selection');assert(!preload.includes('aincradProfile'));
  assert(!html.includes('id="welcome"'));assert(!html.includes('id="pause-original"'));assert(html.includes('id="recovery-diagnosis"'));
  assert.match(main,/assetRoot=await realpath\(ROOT\)/);
 });

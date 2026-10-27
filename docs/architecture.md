@@ -14,7 +14,7 @@ Desktop primary targets are Linux and macOS, with host-architecture builds. Othe
 
 `ozark-agent-world.js` binds inhabitants to that geometry. `population.js` coordinates independent agents and nearby communication. `environment.ecology` is the single owner of finite resources. The shared clock advances environment, ecology and each body once; renderer frames never provide extra simulation ticks.
 
-`ozark-save.js` validates one current format under `aincrad.world.v2`. Current corrupt data is protected, and writes preserve compare-and-swap expectations. Retired keys are not read or migrated. Schema 12 requires aquatic v2. The retired v1 storage slot is not consulted: this increment starts fresh without destroying it. Reload interrupts unfinished actions without completing them or inventing action receipts. No closed-time catch-up occurs.
+`ozark-save.js` validates one current format under `aincrad.world.v2`. Current corrupt data is protected, and writes preserve compare-and-swap expectations. Retired keys are not read or migrated. Schema 12 requires aquatic v2. The retired v1 storage slot is not consulted: this increment starts fresh without destroying it. Explicit [world reset](WORLD-RESET.md) prepares and validates a fresh world before replacing only the active value; it freezes old save paths, requires confirmation, checks the captured bytes, disposes the old population and reloads. The current-world native backup route is separate from the obsolete raw-save bridge. Reload interrupts unfinished actions without completing them or inventing action receipts. No closed-time catch-up occurs.
 
 ## Physical capabilities
 

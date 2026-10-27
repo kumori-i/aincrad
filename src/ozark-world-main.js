@@ -3,7 +3,7 @@
 import { CONFIG } from './config.js';
 import { clockTime } from './world.js';
 import { createOzarkWorldGeometry } from './ozark-world-geometry.js';
-import { loadOzarkSave, writeOzarkSave } from './ozark-save.js';
+import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure } from './ozark-save.js';
 import { bindOzarkWorldAgent } from './ozark-agent-world.js';
 import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
@@ -11,6 +11,8 @@ import { createNpcPanel } from './npc-panel.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
+import { installWorldReset } from './world-reset-ui.js';
+import { saveFailureMessage } from './save-failure-message.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -35,6 +37,8 @@ let population = null;
 let renderer = null;
 let npcPanel = null;
 let started = false;
+let resetHeld = false;
+let resetRetired = false;
 let paused = false;
 let windowFocused = true;
 let panel = null;
@@ -68,11 +72,12 @@ function selectedAgent() {
   return population?.getAgent(state.selectedAgentId) || state.agents?.[0] || null;
 }
 function save(explicit = false) {
-  if (loaded.blocked || !state) return false;
+  if (resetHeld || resetRetired || loaded.blocked || !state) return false;
   const ok = writeOzarkSave(storage, state, geometry);
-  text('save-status', ok ? 'Ozark world saved locally' : 'Ozark save unavailable');
-  if (explicit) notify(ok ? 'The world was saved.' :
-    'Saving failed. The previous world save remains protected.', 8);
+  const failure = ok ? '' : saveFailureMessage(getOzarkSaveFailure(state));
+  text('save-status', ok ? 'Ozark world saved locally' : failure);
+  text('pause-save-failure', failure);
+  if (explicit) notify(ok ? 'The world was saved.' : failure, 12);
   if (!ok && started) {
     paused = true;
     keys.clear();
@@ -107,7 +112,7 @@ if (loaded.blocked) {
   text('recovery-profile-label', 'No saved bytes were changed.');
   text('recovery-diagnosis', loaded.error || 'The Ozark save could not be safely validated.');
   text('recovery-migration', 'No Ozark simulation or save writes will run.');
-  text('recovery-note', 'Keep this save for inspection. Nothing will overwrite or reset it.');
+  text('recovery-note', 'Keep this save for inspection. It will not be overwritten automatically. Reset world is an explicit, destructive choice.');
   text('save-status', 'Ozark save protected');
 } else {
   for (const npc of state.agents) bindOzarkWorldAgent(npc, geometry, state);
@@ -142,7 +147,7 @@ if (population) {
 }
 
 function begin() {
-  if (loaded.blocked || started || !save()) return false;
+  if (resetHeld || resetRetired || loaded.blocked || started || !save()) return false;
   started = true;
   show('hud');
   keys.clear(); $('world').focus({ preventScroll: true });
@@ -162,7 +167,7 @@ function openPanel(name) {
 }
 function togglePanel(name) { if (panel === name) closePanel(); else openPanel(name); }
 function setPause(value) {
-  if (!started) return;
+  if (!started || resetHeld || resetRetired) return;
   paused = value; keys.clear(); anim.moving = false;
   clock.reset(performance.now() / 1000);
   if (value) { closePanel(); show('pause-panel'); $('resume').focus(); }
@@ -260,6 +265,7 @@ function updateHud(now) {
     `Waypoint · ${Math.round(Math.hypot(waypoint.x - viewed.x, waypoint.y - viewed.y))} world units direct`);
 }
 function frame(now) {
+  if (resetRetired) return;
   const dt = clamp((now - lastFrame) / 1000, 0, .25);
   lastFrame = now;
   if (started && !paused) anim.time += dt;
@@ -280,14 +286,31 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-setInterval(() => {
+const simulationTimer = setInterval(() => {
   clock.advance(performance.now() / 1000, {
-    running: started && !paused && !loaded.blocked, speed: simulationSpeed,
+    running: started && !paused && !loaded.blocked && !resetHeld && !resetRetired, speed: simulationSpeed,
   });
   if (started && performance.now() - lastAutosave > 10000) {
     lastAutosave = performance.now(); save();
   }
 }, 1000 / 60);
+
+installWorldReset({
+  document, storage, geometry, previous: () => loaded.blocked ? null : state,
+  freeze: () => {
+    if (started) setPause(true);
+    npcPanel?.close();
+    resetHeld = true; keys.clear(); anim.moving = false;
+  },
+  release: () => { resetHeld = false; },
+  retire: () => {
+    resetRetired = true; started = false; paused = true; keys.clear();
+    clearInterval(simulationTimer); population?.dispose();
+  },
+  reload: () => window.aincradWorldSave?.reloadCurrentWorld
+    ? window.aincradWorldSave.reloadCurrentWorld() : location.reload(),
+  exportCurrentWorld: window.aincradWorldSave?.exportCurrentWorld,
+});
 
 $('open-map').addEventListener('click', () => togglePanel('map'));
 $('close-map').addEventListener('click', closePanel);
