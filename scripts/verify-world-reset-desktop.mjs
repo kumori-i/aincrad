@@ -107,6 +107,16 @@ async function fresh(win){
   await invariantKeys(win);
   return JSON.parse(JSON.stringify(actual));
 }
+async function presentFreshPausedUi(win,name){
+  const transition=await evaluate(win,"(()=>{const api=window.__ozarkWorld;const before=api.snapshot();if(before.started||before.elapsed!==0)throw new Error('Fresh presentation requires inert zero-time session');if(!api.start())throw new Error('Normal fresh-session start/save failed');api.pause();return api.snapshot();})()");
+  assert.equal(transition.started,true);assert.equal(transition.paused,true);assert.equal(transition.elapsed,0);
+  await waitFor(win,"!document.getElementById('hud').classList.contains('hidden') && document.getElementById('day').textContent.replaceAll(' ','')==='DAY01' && document.getElementById('npc-short').textContent.includes('Aster') && document.getElementById('npc-short').textContent.includes('Mira')");
+  const ui=await evaluate(win,"({hudVisible:getComputedStyle(document.getElementById('hud')).display!=='none',pauseVisible:!document.getElementById('pause-panel').classList.contains('hidden'),day:document.getElementById('day').textContent,agent:document.getElementById('npc-short').textContent,elapsed:window.__ozarkWorld.snapshot().elapsed})");
+  assert.equal(ui.hudVisible,true);assert.equal(ui.pauseVisible,true);assert.equal(ui.elapsed,0);
+  assert.match(ui.agent,/Aster/);assert.match(ui.agent,/Mira/);assert.equal(ui.day.replaceAll(' ',''),'DAY01');
+  await capture(win,name);
+  return ui;
+}
 async function openReset(win,protectedSave=false){
   await evaluate(win,"document.getElementById('"+(protectedSave?'recovery-reset-world':'reset-world')+"').click()");
   await waitFor(win,"document.getElementById('reset-dialog').open");
@@ -132,13 +142,15 @@ async function confirmedReset(win,protectedSave){
   await expectReload(win,()=>evaluate(win,"document.getElementById('reset-confirm').click();document.getElementById('reset-confirm').click()").catch(error=>{if(!/context|destroyed|navigation/i.test(error.message))throw error;}));
   await waitFor(win,'Boolean(window.__ozarkWorld)');
   assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().blocked'),false);
-  const state=await fresh(win);
+  await fresh(win);
   assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Disposable route remains inert after guarded reload');
-  await capture(win,phase+'-fresh.png');
-  const raw=await getRaw(win);
+  const resetRaw=await getRaw(win);
+  await capture(win,phase+'-fresh-inert.png');
+  const state=await fresh(win),raw=await getRaw(win);
+  assert.equal(raw,resetRaw,'Inert checkpoint preserves exact reset replacement bytes');
   // Wait beyond ordinary ten-second autosave to detect resurrected old-session writes.
   await delay(10500);assert.equal(await getRaw(win),raw,'Old autosave and pending work cannot resurrect the old world');
-  await fs.writeFile(path.join(context.output,phase+'-checkpoint.json'),JSON.stringify({raw,state,screenshots},null,2));
+  await fs.writeFile(path.join(context.output,phase+'-checkpoint.json'),JSON.stringify({raw,state,resetRaw,checkpointKind:'exact-reset-replacement-inert-no-subsequent-save',screenshots},null,2));
 }
 async function nativeBackupChecks(win){
   const {driveNativeSaveDialog}=await import(require('node:url').pathToFileURL(context.dialogHelper).href);
@@ -170,11 +182,14 @@ async function nativeBackupChecks(win){
   assert.equal(record.saveKey,'aincrad.world.v2');
   assert.equal(decodeCurrentWorldBackup(record).raw,original,'Actual native backup preserves exact invalid original stored bytes');
   assert.equal((await fs.stat(destination)).mode&0o777,0o600);
+  await fresh(win);const resetRaw=await getRaw(win);
+  assert.notEqual(resetRaw,original);
+  await capture(win,'protected-reset-fresh-inert.png');
   const state=await fresh(win),raw=await getRaw(win);
-  assert.notEqual(raw,original);await delay(10500);
+  assert.equal(raw,resetRaw,'Inert protected checkpoint preserves exact reset replacement bytes');
+  await delay(10500);
   assert.equal(await getRaw(win),raw,'Old autosave cannot resurrect backed-up world');
-  await capture(win,'protected-reset-fresh.png');
-  await fs.writeFile(path.join(context.output,phase+'-checkpoint.json'),JSON.stringify({raw,state,screenshots,backup:record},null,2));
+  await fs.writeFile(path.join(context.output,phase+'-checkpoint.json'),JSON.stringify({raw,state,resetRaw,checkpointKind:'exact-reset-replacement-inert-no-subsequent-save',screenshots,backup:record},null,2));
   await fs.writeFile(path.join(context.output,'native-backup-result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:true,actualDialogCancel:true,actualDialogSuccess:true,actualDialogForbiddenDestinationFailure:true,exactOriginalStoredBytes:true,dialogs:[canceled,failed,saved],visualInspection:'required'},null,2));
 }
 async function run(win){
@@ -196,7 +211,7 @@ async function run(win){
     assert.equal((await evaluate(win,'window.__ozarkWorld.fullSnapshot()')).agents[0].rescuePresentation,'quiet','Genuine presentation preference retained');
   }else if(phase==='reopen'){
     const previous=JSON.parse(await fs.readFile(path.join(context.output,'reset-checkpoint.json'),'utf8'));
-    assert.equal(await getRaw(win),previous.raw,'Independent reopen reads exact reset bytes after native unload');
+    assert.equal(await getRaw(win),previous.raw,'Independent reopen reads exact reset replacement bytes after native unload');
     assert.deepEqual(await fresh(win),previous.state,'Fresh saved world survives independent native restart');
     // Explicit generated invalid fixture only; never a real profile or user save.
     await evaluate(win,"localStorage.setItem('aincrad.world.v2','{generated-invalid-current-save')");
@@ -206,9 +221,11 @@ async function run(win){
     await cancelChecks(win,true);await nativeBackupChecks(win);
   }else{
     const previous=JSON.parse(await fs.readFile(path.join(context.output,'protected-reset-checkpoint.json'),'utf8'));
-    assert.equal(await getRaw(win),previous.raw,'Independent protected-reset reopen reads exact replacement bytes');
+    assert.equal(await getRaw(win),previous.raw,'Independent protected-reset reopen reads exact reset replacement bytes');
     assert.deepEqual(await fresh(win),previous.state);
-    await capture(win,'protected-reopen.png');
+    assert.equal(await getRaw(win),previous.resetRaw,'Independent reopen preserves original protected-reset replacement bytes before any normal start/save');
+    const ui=await presentFreshPausedUi(win,'protected-reopen-fresh-started-paused.png');
+    await fs.writeFile(path.join(context.output,'fresh-started-paused-ui.json'),JSON.stringify({ui,initialResetRaw:previous.resetRaw,normalSessionRaw:await getRaw(win),checkpointKind:'presentation-after-exact-reset-byte-reopen-verification'},null,2));
   }
 }
 app.on('browser-window-created',(_event,win)=>{
@@ -261,7 +278,7 @@ require(path.join(context.application,'desktop/main.cjs'));
     const processIds=await Promise.all(phases.map(async phase=>JSON.parse(await readFile(join(output,phase+'-host.json'),'utf8')).pid));
     assert.equal(new Set(processIds).size,phases.length,'Each close/reopen phase uses an independent Electron process');
     const result={passed:true,nativeExecutionPerformed:true,sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,harnessSha256,processIds,phases,
-      isolatedGeneratedFixturesOnly:true,confirmedResetAndCancel:true,protectedSaveReset:true,exactResetBytesSurviveNativeCloseAndReopen:true,otherKeysPreserved:true,
+      isolatedGeneratedFixturesOnly:true,confirmedResetAndCancel:true,protectedSaveReset:true,initialResetBytesRecorded:true,exactResetReplacementBytesSurviveNativeCloseAndReopen:true,freshPausedHudAndDayOneCaptured:true,otherKeysPreserved:true,
       nativeBackupDialogAcceptance:JSON.parse(await readFile(join(output,'native-backup-result.json'),'utf8')),visualInspection:'required',excludedCoverage:prepared.excludedCoverage};
     await writeFile(join(output,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
   }

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, access, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, isAbsolute } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
@@ -19,7 +19,9 @@ test('reset native preparation produces a syntax-valid isolated five-process run
     assert.deepEqual(prepared.sandboxBypassFlags,[]);
     assert.deepEqual(prepared.phases,['seed','reset','reopen','protected-reset','protected-reopen']);
     assert.match(prepared.harnessSha256,/^[a-f0-9]{64}$/);
-    assert.ok(prepared.application.startsWith(output));
+    const canonicalOutput=await realpath(output);
+    const applicationRelative=relative(canonicalOutput,prepared.application);
+    assert.ok(applicationRelative!==''&&!isAbsolute(applicationRelative)&&applicationRelative!=='..'&&!applicationRelative.startsWith('../'),'Prepared application remains inside canonical output, including macOS /var aliases');
     await assert.rejects(access(join(prepared.output,'result.json')));
     const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});
     assert.equal(syntax.status,0,syntax.stderr);
@@ -33,7 +35,7 @@ test('reset native preparation produces a syntax-valid isolated five-process run
       'Cancel leaves exact old stored bytes',
       'Native Escape leaves exact old stored bytes',
       'No-backup path requires explicit acknowledgement',
-      'Independent reopen reads exact reset bytes after native unload',
+      'Independent reopen reads exact reset replacement bytes after native unload',
       'Invalid fixture is protected, not automatically reset',
       'Old autosave and pending work cannot resurrect the old world',
       'Local model preferences remain unchanged',
@@ -44,6 +46,13 @@ test('reset native preparation produces a syntax-valid isolated five-process run
       'captureWithReadiness({',
       'win.webContents.sendInputEvent',
       'prefs.sandbox,true',
+      'Normal fresh-session start/save failed',
+      "checkpointKind:'exact-reset-replacement-inert-no-subsequent-save'",
+      'Independent reopen preserves original protected-reset replacement bytes before any normal start/save',
+      "checkpointKind:'presentation-after-exact-reset-byte-reopen-verification'",
+      "assert.equal(ui.hudVisible,true)",
+      "assert.equal(ui.pauseVisible,true)",
+      "assert.equal(ui.elapsed,0)",
       'Confirmed reset did not finish reloading',
       'resetStatus:document.getElementById',
       "phase+'-failure.png'",
