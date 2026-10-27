@@ -1,3 +1,4 @@
+import { namingProposal, beginNamingProposal, acceptNamingProposal, objectName } from './category-names.js';
 import { forwardNpcRunTravel } from './npc-effort-funding.js';
 import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
 import { CONFIG, NPC_RULES } from './config.js';
@@ -15,6 +16,7 @@ import { ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 import { setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates } from './discovery-candidates.js';
 
 function random(npc){npc.rng=(Math.imul(npc.rng,1664525)+1013904223)>>>0;return npc.rng/4294967296;}
+const namingAwake=n=>n.lifecycle==='AWAKE'&&!isSleeping(n)&&!['rest','sleep','nap'].includes(n.active?.request?.type);
 const thermalLevel=n=>Math.max(n.thermal?.hot||0,n.thermal?.cold||0);
 function decisionCondition(npc){return JSON.stringify({scene:npc.scene,lifecycle:npc.lifecycle,body:bodySignals(npc)});}
 /** The controller reacts to felt bands; exact stores remain the physical engine’s concern. */
@@ -61,7 +63,8 @@ function experienceSummary(event){
 export function decisionObservation(npc,social=null){
   if(npc.mode==='discovery'){
     const d=discoveryObservation(npc),expose=table=>Object.values(npc.memory[table]||{}).slice(-12).map(s=>({id:s.id,name:s.name,x:s.x,y:s.y,scene:s.scene,available:s.available!==false,observedAt:s.observedAt}));
-    return {mode:'discovery',identity:{id:npc.id,name:npc.name},objective:'Describe experienced sensations and grounded uncertainties. Human replies are optional. Words do not establish physical effects. Attributed procedures shared by a nearby peer may guide ordinary physical trials; they are not personal proof.',condition:{scene:npc.scene,lifecycle:npc.lifecycle,position:{...npc.position},body:bodySignals(npc),senses:sensedEnvironment(npc),inventory:{objects:(npc.inventory.items||[]).map(id=>npc.discovery.observations[id]).filter(Boolean),capacity:npc.inventory.capacity,flask:npc.flask.water<=.00001?'empty':npc.flask.water>=.999?'full':'some'}},observedAt:npc.elapsed,knownSources:expose('sources'),knownShelters:expose('shelters'),knownExit:npc.scene==='valley'?null:(npc.memory.caveExits?.[npc.scene]||null),knownTiles:Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<NPC_RULES.visionRadius+80).slice(-48).map(c=>({x:c.x,y:c.y,walkable:c.walkable,terrain:c.terrain,observedAt:c.observedAt})),...(ozarkPersistentWorldAgent(npc)?{terrainActions:{swim:'Attempt toward one currently seen tile within 160 pixels; physical current and bodily effort apply.',climb:'Attempt toward one currently seen tile within 160 pixels; physical grade, slip risk and bodily effort apply.'},recentTerrain:npc.memory.experience.filter(e=>e.type==='action'&&['move','swim','climb'].includes(e.details.action?.type)).slice(-6).map(e=>({at:e.at,action:e.details.action?.type,target:e.details.action?.target,result:e.details.result?.code,movement:e.details.result?.movement,blockedTarget:e.details.result?.blockedTarget}))}:{}),innerLife:cognitiveObservation(npc),discovery:d,social:social?.observe?.(npc)||{peers:[],journal:[],notes:[],pendingQuestion:null}};
+    const objectNames=d.observations.flatMap(object=>{const label=objectName(npc,object.id);return label?[{objectId:object.id,...label}]:[];});
+    return {mode:'discovery',objectNames,identity:{id:npc.id,name:npc.name},objective:'Describe experienced sensations and grounded uncertainties. Human replies are optional. Words do not establish physical effects. Attributed procedures shared by a nearby peer may guide ordinary physical trials; they are not personal proof.',condition:{scene:npc.scene,lifecycle:npc.lifecycle,position:{...npc.position},body:bodySignals(npc),senses:sensedEnvironment(npc),inventory:{objects:(npc.inventory.items||[]).map(id=>npc.discovery.observations[id]).filter(Boolean),capacity:npc.inventory.capacity,flask:npc.flask.water<=.00001?'empty':npc.flask.water>=.999?'full':'some'}},observedAt:npc.elapsed,knownSources:expose('sources'),knownShelters:expose('shelters'),knownExit:npc.scene==='valley'?null:(npc.memory.caveExits?.[npc.scene]||null),knownTiles:Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<NPC_RULES.visionRadius+80).slice(-48).map(c=>({x:c.x,y:c.y,walkable:c.walkable,terrain:c.terrain,observedAt:c.observedAt})),...(ozarkPersistentWorldAgent(npc)?{terrainActions:{swim:'Attempt toward one currently seen tile within 160 pixels; physical current and bodily effort apply.',climb:'Attempt toward one currently seen tile within 160 pixels; physical grade, slip risk and bodily effort apply.'},recentTerrain:npc.memory.experience.filter(e=>e.type==='action'&&['move','swim','climb'].includes(e.details.action?.type)).slice(-6).map(e=>({at:e.at,action:e.details.action?.type,target:e.details.action?.target,result:e.details.result?.code,movement:e.details.result?.movement,blockedTarget:e.details.result?.blockedTarget}))}:{}),innerLife:cognitiveObservation(npc),discovery:d,social:social?.observe?.(npc)||{peers:[],journal:[],notes:[],pendingQuestion:null}};
   }
   const cells=Object.values(rememberedCells(npc)).filter(c=>distance(c,npc.position)<=NPC_RULES.visionRadius+80).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,48);
   const expose=table=>Object.values(npc.memory[table]||{}).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position)).slice(0,12).map(s=>({id:s.id,name:s.name,x:s.x,y:s.y,scene:s.scene,available:s.available!==false,observedAt:s.observedAt,...(table==='foods'?{stock:s.stock,capacity:s.capacity}:{}),...(table==='shelters'&&Number.isFinite(s.experiencedTemperature)?{shelterExperience:s.experiencedTemperature>NPC_RULES.hotComfortMax?'hot':s.experiencedTemperature<NPC_RULES.coldComfortMin?'cold':'temperate',experiencedAt:s.experiencedAt}:{}),distance:npc.scene==='valley'?Math.round(distance(s,npc.position)):null,knownRouteSeconds:npc.scene==='valley'?routeEstimate(npc,s):null}));
@@ -137,12 +140,13 @@ export class LocalLearnerProvider {
 export class DesktopModelProvider {
   constructor(bridge,label='Configured local model',npcId='aster'){this.npcId=npcId;this.bridge=bridge;this.kind='local-model';this.label=label;}
   decide(npc,context={}){this.npcId=npc.id;return this.bridge.decide(decisionObservation(npc,context.social));}
+  proposeName(request){this.npcId=request.agentId;return this.bridge.proposeName(request);}
   cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false}={}){this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false}={}){this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
-  cancel(){this.generation++;this.pending=null;this.readyDecision=null;this.provider.cancel?.();}
+  cancel(){this.generation++;this.pending=null;if(this.namingPending)this.namingStatus={state:'cancelled',at:this.npc.elapsed};this.namingPending=null;this.readyDecision=null;this.provider.cancel?.();}
   setDiscoveryCandidateCapture(enabled){setDiscoveryCandidateCapture(this,enabled);}
   takeDiscoveryCandidateSnapshot(){return takeDiscoveryCandidateSnapshot(this);}
   dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}
@@ -213,11 +217,48 @@ export class NpcController {
     if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;if(ready.generation===this.generation&&ready.epoch===n.epoch&&ready.condition===decisionCondition(n))this.applyDecision(ready.decision);else{n.stats.staleResponses++;recordEvent(n,'provider',{code:'STALE_RESPONSE',gameplayFailure:false});}return;}
     if(n.skillRun){this.progressSkill();return;}if(n.elapsed>=n.nextDecisionAt){if(n.cognition?.plan?.status==='active'&&Math.max(...Object.values(needPriorities(n)))>=4)cancelPlan(n,'My bodily sensations call for immediate care.');const previousPlan=n.cognition?.plan?.status,planned=progressPlan(n);if(planned){this.perform(planned);return;}if(previousPlan==='active'&&n.cognition?.plan?.status!=='active'){n.nextDecisionAt=n.elapsed+2;return;}this.decide();}
   }
+  // Naming is an optional inert side channel. Bodily life and the physical
+  // decision loop never wait for it, and no proposal is a runnable action.
+  maybeName(){
+    const n=this.npc,provider=this.provider;
+    if(this.disposed||n.mode!=='discovery'||n.learning!==true||!namingAwake(n)||provider.kind!=='local-model'||
+      typeof provider.proposeName!=='function'||this.pending||this.namingPending||n.elapsed-this.namingLastAttemptAt<60)return;
+    const request=namingProposal(n);
+    if(!request||!beginNamingProposal(n,request))return;
+    this.namingLastAttemptAt=n.elapsed;
+    const pending={request,generation:this.generation,epoch:n.epoch,provider,npc:n};
+    this.namingPending=pending;this.namingStatus={state:'pending',at:n.elapsed};n.stats.modelCalls++;
+    let call;try{call=provider.proposeName(request);}catch(error){call=Promise.reject(error);}
+    const current=()=>!this.disposed&&this.namingPending===pending&&this.npc===n&&this.provider===provider&&
+      this.generation===pending.generation&&n.epoch===pending.epoch&&n.learning===true&&namingAwake(n)&&
+      n.elapsed>=request.observedAt&&n.elapsed-request.observedAt<=60;
+    pending.current=current;
+    Promise.resolve(call).then(result=>{
+      if(!current())return;
+      // The callback cannot mint a fresh visual receipt. Wait for ordinary
+      // perception on the next simulation sense step before applying a word.
+      pending.result=result;pending.received=true;
+    }).catch(error=>{
+      if(!current())return;
+      this.namingStatus={state:'unavailable',at:n.elapsed};
+      n.stats.modelFailures++;recordEvent(n,'provider',{code:'NAMING_MODEL_UNAVAILABLE',message:String(error.message||error).slice(0,200),gameplayFailure:false});
+    }).finally(()=>{if(this.namingPending===pending&&!pending.received){this.namingPending=null;if(this.namingStatus.state==='pending')this.namingStatus={state:'discarded',at:n.elapsed};}});
+  }
+  finishNaming(){
+    const pending=this.namingPending;
+    if(!pending?.received)return;
+    const current=pending.current();this.namingPending=null;
+    if(!current){this.namingStatus={state:'discarded',at:this.npc.elapsed};return;}
+    const accepted=acceptNamingProposal(this.npc,pending.request,pending.result);
+    this.namingStatus={state:accepted?'accepted':'not-adopted',at:this.npc.elapsed};
+    if(!accepted)recordEvent(this.npc,'provider',{code:'NAMING_PROPOSAL_NOT_ADOPTED',gameplayFailure:false});
+  }
   tickDiscovery(dt){
     if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;}
+    if(this.namingPending&&(!namingAwake(n)||!n.learning||n.elapsed<this.namingPending.request.observedAt||n.elapsed-this.namingPending.request.observedAt>60))this.cancel();
     if(isSleeping(n)||n.lifecycle!=='AWAKE')return;
     processDiscoveryFeedback(n,{foodLearning:this.discoveryFoodLearning,recordEffect:effect=>recordEvent(n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});
-    if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.social?.observe?.(n);this.senseAt=n.elapsed;}
+    if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.social?.observe?.(n);this.senseAt=n.elapsed;this.finishNaming();this.maybeName();}
     const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}
     // Dialogue inference runs alongside bodily life; it cannot select an experiment.
     if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;const action=ready.decision?.action;if(ready.generation===this.generation&&ready.epoch===n.epoch&&['ask_human','journal_reply'].includes(action?.type))this.perform({...action,model:true});else recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});}
@@ -231,7 +272,7 @@ export class NpcController {
       const dialogue=this.social?.maybeDialogue?.(n);
       if(dialogue){
         n.discovery.lastDialogueAt=n.elapsed;
-        if(this.provider.kind==='local-model'&&['journal_reply','ask_human'].includes(dialogue.type)&&!this.pending&&n.elapsed>=this.cooldownUntil){
+        if(this.provider.kind==='local-model'&&['journal_reply','ask_human'].includes(dialogue.type)&&!this.pending&&!this.namingPending&&n.elapsed>=this.cooldownUntil){
           const generation=this.generation,epoch=n.epoch;n.stats.modelCalls++;this.pending={at:n.elapsed};
           Promise.resolve().then(()=>this.provider.decide(n,{social:this.social})).then(decision=>{if(!this.disposed&&generation===this.generation&&epoch===n.epoch)this.readyDecision={decision,generation,epoch};}).catch(error=>{if(generation===this.generation){n.stats.modelFailures++;this.cooldownUntil=n.elapsed+30;recordEvent(n,'provider',{code:'MODEL_SERVICE_FAILURE',message:String(error.message||error).slice(0,200)});}}).finally(()=>{if(generation===this.generation)this.pending=null;});
         }else {this.perform({...dialogue,offline:true});return;}

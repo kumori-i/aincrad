@@ -1,7 +1,8 @@
 import { CONFIG, NPC_RULES, SOCIAL_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 
-// Supplied token machinery, not an invented grammar or a category classifier.
+// Legacy v1 save/fixture token machinery only. Production no longer invokes
+// seeded naming; existing individual bindings and strict replay checks remain.
 // These tiny independent receipts survive ordinary conversation/action compaction.
 export const OWN_NAME_LIMIT=24, HEARD_NAME_LIMIT=48, NAMING_CHOICE_LIMIT=256, NAMING_REPAIR_LIMIT=48;
 const agents=['aster','mira'];

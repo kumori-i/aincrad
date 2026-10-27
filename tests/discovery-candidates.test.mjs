@@ -24,6 +24,12 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // The combined funding integration adds only forwardNpcRunTravel import/call
 // (reviewed840a5d7), retained in both instrumentation arms. Prior normalized pin:
 // 27fee85180e8edf0ab5c3eac28798ef7087d118104686c5a80b8d0014d3d38ea.
+// The locally approved naming increment adds nonblocking, guarded model token
+// proposals and inert journal-name context (independently reviewed380a59c/tree
+// d2ec15996a13c70b28bf043657667410e1b7ecc2). Both instrumentation arms retain
+// those changes. Prior normalized pin:
+// 6177a5daff69fe65d614542ad4bb4d1a5780a338f53f6338102461af51bf7a1a.
+// This is current capture-on/off parity, not a rerun/relabel of historical trials.
 // Retain the exact new pin: unrelated controller edits still require review.
 const baselineSource = source
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
@@ -31,7 +37,7 @@ const baselineSource = source
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')
   .replace('dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}', 'dispose(){this.disposed=true;this.cancel();}')
   .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '');
-assert.equal(sha(baselineSource), '6177a5daff69fe65d614542ad4bb4d1a5780a338f53f6338102461af51bf7a1a', 'baseline controller bytes');
+assert.equal(sha(baselineSource), '7946d27ceaaf13075f3ac29a5f059da1bf48af4e66bf774d7ced073e188d876b', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));

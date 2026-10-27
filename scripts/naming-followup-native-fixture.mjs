@@ -21,7 +21,7 @@ export async function createNamingFollowupScene(moduleBase,projectEvidence) {
   const {senseEcology}=await use('ecology');
   const {observeNpc,requestNpcAction,tickNpc}=await use('npc');
   const {PopulationRuntime}=await use('population');
-  const {lexicalLabels}=await use('naming-state');
+  const {lexicalLabels,chooseOwnName}=await use('naming-state');
   const require=(value,message)=>{if(!value)throw new Error(message);};
   require(typeof projectEvidence==='function','Missing evidence projection');
   const geometry=createOzarkWorldGeometry(),state=createOzarkState(geometry),environment=state.environment;
@@ -53,11 +53,13 @@ export async function createNamingFollowupScene(moduleBase,projectEvidence) {
     require(requestNpcAction(speaker,{type:'inspect_object',targetId:source.id},environment).code==='ACTION_STARTED','Paid inspection not admitted');
     for(let i=0;speaker.active&&i<600;i++)tick();
     require(!speaker.active&&speaker.lastResult?.code==='OBJECT_OBSERVED','Paid inspection did not finish');
+    // Explicit historical seeded-name fixture, not current model inference.
+    chooseOwnName(speaker,speaker.discovery.experiments.at(-1),{objectId:source.id,at:speaker.elapsed,scene:speaker.scene,actorPosition:{...speaker.position},objectPosition:{...source.position}});
     own=lexicalLabels(speaker).find(row=>row.objectId===source.id&&row.status==='owner-chosen');
   }
   require(own,'Bounded fixed encounters produced no name; no favorable seed search');
   runtime=new PopulationRuntime(state,{cardinal:false});
-  const summary={fixtureDisclosure:'Controlled initial placement at the first physically eligible local source and up to four real paid inspections. No supplied name, confirmation or experience. Ordinary PopulationRuntime drives all subsequent introduction and follow-up turns with world, ecology and body time continuing. This is not spontaneous travel, general language or survival evidence.',
+  const summary={fixtureDisclosure:'Controlled initial placement at the first physically eligible local source and up to four real paid inspections. Legacy seeded-name fixture explicitly invoked after the paid encounter; no supplied confirmation or experience. Not current model inference. Ordinary PopulationRuntime drives all subsequent introduction and follow-up turns with world, ecology and body time continuing. This is not spontaneous travel, general language or survival evidence.',
     actorId:listener.id,speakerId:speaker.id,sourceObjectId:source.id,token:own.token,inspections,beforeEncounter,afterEncounter:project()};
   const binding=()=>listener.lexicon?.heard.find(row=>row.speakerId===speaker.id&&row.objectId===source.id&&row.token===own.token);
   const ground=()=>{

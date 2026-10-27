@@ -10,7 +10,7 @@ export async function createNamingUiFixture(moduleBase) {
   const { tickOzarkEcology } = await use('ozark-ecology');
   const { observeNpc, requestNpcAction, tickNpc } = await use('npc');
   const { SocialCoordinator } = await use('social');
-  const { lexicalLabels } = await use('naming-state');
+  const { lexicalLabels, chooseOwnName } = await use('naming-state');
   const geometry = createOzarkWorldGeometry(), state = createOzarkState(geometry), environment = state.environment;
   const [speaker, listener] = state.agents;
   for (const npc of state.agents) bindOzarkWorldAgent(npc, geometry, state);
@@ -42,6 +42,8 @@ export async function createNamingUiFixture(moduleBase) {
     if (admission.code !== 'ACTION_STARTED') throw new Error(admission.code);
     for (let i = 0; speaker.active && i < 100; i++) advance(.25);
     if (speaker.active || speaker.lastResult?.code !== 'OBJECT_OBSERVED') throw new Error('Paid naming encounter failed');
+    // Explicit historical seeded-name fixture, not current model inference.
+    chooseOwnName(speaker,speaker.discovery.experiments.at(-1),{objectId:source.id,at:speaker.elapsed,scene:speaker.scene,actorPosition:{...speaker.position},objectPosition:{...source.position}});
     own = lexicalLabels(speaker).find(row => row.objectId === source.id && row.status === 'owner-chosen');
   }
   if (!own) throw new Error('Bounded fixed-target encounters did not produce a name; no favorable-outcome search performed');
@@ -56,7 +58,7 @@ export async function createNamingUiFixture(moduleBase) {
   return { saveKey: OZARK_SAVE_KEY, raw: rows.get(OZARK_SAVE_KEY), summary: { elapsed: state.elapsed, actorId: listener.id,
     speakerId: speaker.id, sourceObjectId: source.id, token: own.token, status: 'heard-grounded', inspections, before,
     after: { elapsed: speaker.elapsed, energy: speaker.physiology.totals.metabolizedKcal },
-    boundary: 'Staged encounter placement, bounded repeated genuine paid inspections and local pointing, not autonomous travel, categories or food proof.' } };
+    boundary: 'Legacy seeded-name fixture with staged encounter placement, bounded repeated genuine paid inspections and local pointing, not autonomous travel, categories or food proof.' } };
 }
 
 /** Separate restart/fresh-sight reference check, or interruption after request. */
@@ -70,7 +72,7 @@ export async function continueNamingUiFixture(moduleBase, storage, mode = 'compl
   const { tickOzarkEcology } = await use('ozark-ecology');
   const { observeNpc, tickNpc } = await use('npc');
   const { SocialCoordinator } = await use('social');
-  const { lexicalLabels } = await use('naming-state');
+  const { lexicalLabels, chooseOwnName } = await use('naming-state');
   const geometry = createOzarkWorldGeometry(), loaded = loadOzarkSave(storage, geometry);
   if (loaded.blocked || !loaded.state) throw new Error(loaded.error || 'Missing naming fixture');
   const state = loaded.state, environment = state.environment, listener = state.agents.find(n => n.id === state.selectedAgentId);
@@ -124,7 +126,7 @@ export async function verifyInterruptedNamingUiFixture(moduleBase, storage) {
   const { tickEnvironment } = await use('environment');
   const { tickOzarkEcology } = await use('ozark-ecology');
   const { SocialCoordinator } = await use('social');
-  const { lexicalLabels } = await use('naming-state');
+  const { lexicalLabels, chooseOwnName } = await use('naming-state');
   const geometry = createOzarkWorldGeometry(), loaded = loadOzarkSave(storage, geometry);
   if (loaded.blocked || !loaded.state) throw new Error(loaded.error || 'Missing interrupted naming save');
   const state = loaded.state, environment = state.environment;

@@ -1,5 +1,7 @@
 # Grounded names for individuals
 
+> This page documents the retained legacy individual-name contract. New naming now uses [model-proposed appearance vocabulary](MODEL-CATEGORY-NAMES.md); old deterministic bindings remain valid and are not relabeled as model choices.
+
 This increment concerns names for particular encountered objects. It is not a category learner, species classifier, food inference system, invented grammar, or general natural-language planner.
 
 ## What is supplied and what is learned

@@ -1,3 +1,4 @@
+import { chooseOwnName } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG,SOCIAL_RULES } from '../src/config.js';
@@ -25,7 +26,9 @@ function fixture({unique=true,legacyGround=false}={}){
   for(const [n,dx] of [[a,45],[b,65]]){n.elapsed=60;n.position={x:source.position.x+dx,y:source.position.y};bindOzarkWorldAgent(n,g,state);observeNpc(n,e);}
   const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>e,getCommunity:()=>state.community});
   const advance=seconds=>{for(let t=0;t<seconds-1e-8;t+=.1){e.elapsed+=.1;state.elapsed=e.elapsed;e.ecology.elapsed=e.elapsed;for(const n of state.agents)tickNpc(n,.1,e);}};
-  const inspect=n=>{assert.equal(requestNpcAction(n,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');for(let i=0;n.active&&i<50;i++)advance(.1);assert.equal(n.lastResult.code,'OBJECT_OBSERVED');};
+  const inspect=n=>{assert.equal(requestNpcAction(n,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');for(let i=0;n.active&&i<50;i++)advance(.1);assert.equal(n.lastResult.code,'OBJECT_OBSERVED');
+    // Explicit legacy-save fixture only; production no longer seeds names.
+    chooseOwnName(n,n.discovery.experiments.at(-1),{objectId:source.id,at:n.elapsed,scene:n.scene,actorPosition:{...n.position},objectPosition:{...source.position}});};
   const name=n=>{for(let i=0;i<4&&!n.lexicon?.own.length;i++)inspect(n);assert.equal(n.lexicon.own.length,1);return n.lexicon.own[0];};
   const step=()=>social.naming.tick();
   return {state,a,b,e,source,social,advance,inspect,name,step,g,setVisible:v=>visible=v,setGround:v=>groundOverride=v};

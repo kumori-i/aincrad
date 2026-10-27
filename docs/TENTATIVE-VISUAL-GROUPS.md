@@ -1,5 +1,7 @@
 # Tentative remembered visual similarity
 
+> This page documents the passive sensory-memory substrate. The new [model-proposed naming layer](MODEL-CATEGORY-NAMES.md) can reuse its conservative cue evidence; the memory module itself does not generate names or grant action authority.
+
 This is private, passive memory, not category naming or behavioral generalization.
 The simulator supplies the existing peer-method appearance abstraction: exact
 shape, color and texture strings. Agents do **not** discover this similarity rule.

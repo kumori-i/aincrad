@@ -1,3 +1,4 @@
+import { chooseOwnName } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG,SOCIAL_RULES } from '../src/config.js';
@@ -23,7 +24,9 @@ function fixture({unique=true,legacyGround=false}={}){
   for(const [n,dx] of [[a,45],[b,65]]){n.elapsed=60;n.position={x:source.position.x+dx,y:source.position.y};bindOzarkWorldAgent(n,g,state);observeNpc(n,e);}
   const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>e,getCommunity:()=>state.community});
   const advance=seconds=>{for(let t=0;t<seconds-1e-8;t+=.1){e.elapsed+=.1;state.elapsed=e.elapsed;e.ecology.elapsed=e.elapsed;for(const n of state.agents)tickNpc(n,.1,e);}};
-  const inspect=n=>{assert.equal(requestNpcAction(n,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');for(let i=0;n.active&&i<50;i++)advance(.1);assert.equal(n.lastResult.code,'OBJECT_OBSERVED');};
+  const inspect=n=>{assert.equal(requestNpcAction(n,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');for(let i=0;n.active&&i<50;i++)advance(.1);assert.equal(n.lastResult.code,'OBJECT_OBSERVED');
+    // Explicit legacy-save fixture only; production no longer seeds names.
+    chooseOwnName(n,n.discovery.experiments.at(-1),{objectId:source.id,at:n.elapsed,scene:n.scene,actorPosition:{...n.position},objectPosition:{...source.position}});};
   const name=n=>{for(let i=0;i<4&&!n.lexicon?.own.length;i++)inspect(n);assert.equal(n.lexicon.own.length,1);return n.lexicon.own[0];};
   const step=()=>social.naming.tick();
   return {state,a,b,e,source,social,advance,inspect,name,step,g,setVisible:v=>visible=v};
@@ -32,7 +35,7 @@ const storage=()=>{const map=new Map();return {getItem:k=>map.get(k)??null,setIt
 function physical(f){return structuredClone(f.state.agents.map(n=>({rng:n.rng,inventory:n.inventory,physiology:n.physiology,experiments:n.discovery.experiments,practice:n.discovery.practice,effects:n.discovery.effects,techniques:n.discovery.techniques})));}
 function confirm(f){f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();assert.equal(f.social.naming.pendingCount(),1);f.advance(.1);f.step();f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();}
 
-test('real paid encounter chooses individual name, not first scan; independent naming leaves physical RNG untouched',()=>{
+test('legacy paid-encounter fixture preserves individual naming compatibility and physical RNG',()=>{
   const f=fixture();assert.equal(f.a.lexicon,undefined);const rng=f.a.rng,own=f.name(f.a);assert.equal(f.a.rng,rng);
   assert.equal(own.objectId,f.source.id);assert.equal(validLexicon(f.a.lexicon,f.a),true);
   const other=f.name(f.b);assert.notEqual(own.token,other.token);assert.equal(other.objectId,own.objectId);
@@ -187,4 +190,13 @@ test('ground-only safety leaves the complete successful lexical protocol state u
     const state = structuredClone(f.state); f.social.dispose(); return state;
   };
   assert.deepEqual(run(false), run(true));
+});
+
+test('fresh ordinary paid encounters do not create seeded names when no local model is configured',()=>{
+  const f=fixture();
+  assert.equal(requestNpcAction(f.a,{type:'inspect_object',targetId:f.source.id},f.e).code,'ACTION_STARTED');
+  for(let i=0;f.a.active&&i<50;i++)f.advance(.1);
+  assert.equal(f.a.lastResult.code,'OBJECT_OBSERVED');
+  assert.equal(f.a.lexicon,undefined);assert.equal(f.a.categoryNames,undefined);
+  assert.ok(f.a.discovery.experiments.some(e=>e.primitive==='inspect_object'&&e.ok));
 });

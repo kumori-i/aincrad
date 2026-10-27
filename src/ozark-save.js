@@ -1,3 +1,4 @@
+import { validCategoryNames, validCategoryCorrespondence } from './category-names.js';
 import { validFoodWarningMessages, validFoodWarningReports } from './food-warning.js';
 import { validVisualSamples } from './visual-group-memory.js';
 import { validLexicon, validRepairCorrespondence } from './naming-state.js';
@@ -249,6 +250,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
   if(raw.discovery.visualSamples!==undefined&&!validVisualSamples(raw.discovery.visualSamples,raw))fail(`${id} has invalid visual samples`);
+  if(raw.categoryNames!==undefined&&!validCategoryNames(raw.categoryNames,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid tentative category names`);
   if(raw.lexicon!==undefined&&!validLexicon(raw.lexicon,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid individual names`);
   if((raw.discovery.handlingAdmissions!==undefined||raw.discovery.handlingQuestions!==undefined)&&!validHandlingInquiries(raw.discovery,raw))fail(`${id} has invalid own handling inquiries`);
   if(raw.discovery.methodTrials!==undefined&&!validMethodTrials(raw.discovery.methodTrials,id))fail(`${id} has invalid method trial admissions`);
@@ -264,6 +266,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
     waterSourceAt });
   if(!sameExact(raw.discovery.reports.filter(r=>r.warning!==undefined),canonical.discovery.reports.filter(r=>r.warning!==undefined)))fail(`${id} would lose adverse warning testimony`);
   if(raw.discovery.visualSamples!==undefined&&!sameExact(raw.discovery.visualSamples,canonical.discovery.visualSamples))fail(`${id} would lose visual samples`);
+  if(raw.categoryNames!==undefined&&!sameExact(raw.categoryNames,canonical.categoryNames))fail(`${id} would lose tentative category name evidence`);
   if(raw.lexicon!==undefined&&!sameExact(raw.lexicon,canonical.lexicon))fail(`${id} would lose individual name evidence`);
   // New method reports are strict optional schema-12 data. Legacy exact-source
   // reports retain their previous compatibility contract.
@@ -431,6 +434,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   if((raw.community.messages||[]).some(m=>!validTransferSpeech(m)))fail('invalid community method transfer');
   // Lexical evidence is independent of rotating speech, but must still link to
   // the non-evicting owner admission. This is consistency, not authentication.
+  if(!validCategoryCorrespondence(agents))fail('category name examples do not correspond');
   if(!validRepairCorrespondence(agents))fail('individual name repair receipts do not correspond');
   for(const listener of agents)for(const heard of listener.lexicon?.heard||[]){
     const speaker=agents.find(n=>n.id===heard.speakerId);

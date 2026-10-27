@@ -1,3 +1,5 @@
+import { CategoryNameRuntime } from './category-name-runtime.js';
+import { namedObject } from './category-names.js';
 import { canonicalAdverseWarning, cleanFoodWarning, foodWarningText, validFoodWarningMessage, retireUnheardFoodWarnings } from './food-warning.js';
 import { NamingRuntime } from './naming-runtime.js';
 import { humanHintHelp, looksLikeHumanHint } from './human-hints.js';
@@ -186,9 +188,10 @@ export class SocialCoordinator {
     this.getAgents = getAgents; this.getCommunity = getCommunity; this.getEnvironment = getEnvironment;
     this.foodSharing = new FoodSharing(this);
     this.naming = new NamingRuntime(this);
+    this.categoryNaming = new CategoryNameRuntime(this);
   }
 
-  dispose(){this.foodSharing.dispose();this.naming.dispose();}
+  dispose(){this.foodSharing.dispose();this.naming.dispose();this.categoryNaming.dispose();}
 
   agents() {
     const agents = this.getAgents?.();
@@ -243,6 +246,7 @@ export class SocialCoordinator {
     if (!Number.isFinite(dt) || dt <= 0) return;
     const environment = this.getEnvironment?.();
     this.naming.tick();
+    this.categoryNaming.tick();
     for (const npc of this.agents()) {
       const social = this.ensure(npc), now = nowFor(npc, environment);
       const elapsed = social.lastUpdateAt === null ? Math.min(dt, now) : Math.max(0, now - social.lastUpdateAt);
@@ -485,13 +489,13 @@ export class SocialCoordinator {
     const discovery=npc.discovery;
     const effects=Array.isArray(discovery?.effects)?discovery.effects:[];
     const objects=Object.values(discovery?.observations??{});
-    const describeEffect=effect=>effect.effect==='sustained'?`After sampling ${effect.objectId}, I noticed relief in my body.`:effect.effect==='water relief'?`After sampling ${effect.objectId}, my thirst eased.`:effect.effect==='discomfort'?`After sampling ${effect.objectId}, I felt discomfort.`:`After sampling ${effect.objectId}, I did not notice a useful change.`;
+    const describeEffect=effect=>effect.effect==='sustained'?`After sampling ${namedObject(npc,effect.objectId)}, I noticed relief in my body.`:effect.effect==='water relief'?`After sampling ${namedObject(npc,effect.objectId)}, my thirst eased.`:effect.effect==='discomfort'?`After sampling ${namedObject(npc,effect.objectId)}, I felt discomfort.`:`After sampling ${namedObject(npc,effect.objectId)}, I did not notice a useful change.`;
     if(observation.pendingHumanTurn&&(memory.lastJournalAt===null||at-memory.lastJournalAt>=SOCIAL_RULES.speechCooldown)){
       const turn=observation.pendingHumanTurn,query=turn.text.toLowerCase();
       let response;
       const advice=discovery.reports.find(report=>report.sourceId==='human'&&report.messageId===turn.id);
       if(advice?.hint?.code==='accepted'||looksLikeHumanHint(turn.text)){
-        response=advice?.proposed.length?`I can attempt ${advice.proposed.map(step=>step.type).join(', then ')} on ${advice.proposed[0].targetId}. A strike or catch can fail; no outcome or food benefit is guaranteed.`:humanHintHelp(advice);
+        response=advice?.proposed.length?`I can attempt ${advice.proposed.map(step=>step.type).join(', then ')} on ${namedObject(npc,advice.proposed[0].targetId)}. A strike or catch can fail; no outcome or food benefit is guaranteed.`:humanHintHelp(advice);
       }else if(/how.*(feel|doing)|are you (okay|ok|well)|hungry|thirsty|tired/.test(query))response=`I feel ${body.overall}. My body feels ${body.hunger}, ${body.thirst}, and ${body.fatigue}.`;
       else if(/what.*(find|found|discover|learn)|food|apple|hunt|forag|eat/.test(query))response=effects.length?`${describeEffect(effects.at(-1))} I am comparing repeated experiences; unfamiliar materials remain uncertain.`:'I have not established which unfamiliar materials sustain me. I can try small, physical interactions and compare what happens. Your suggestions would be reports for me to test.';
       else if(/where.*(going|go|headed)|what.*(plan|doing|next)|your goal/.test(query))response=npc.cognition?.plan?.status==='active'?`My intention is ${npc.cognition.plan.goal}. I will revise it if conditions or my body change.`:'I am investigating what I can reach and comparing the consequences. I have no confirmed food technique yet.';
@@ -517,7 +521,7 @@ export class SocialCoordinator {
       }
     }
     if(at-(npc.cognition?.lastNoteAt??0)>=120&&effects.length){
-      const effect=effects.at(-1),title=`${effect.objectId}: experience`,text=`${describeEffect(effect)} This is a record of my own experience; other materials and future conditions remain untested.`;
+      const effect=effects.at(-1),title=`${namedObject(npc,effect.objectId)}: experience`,text=`${describeEffect(effect)} This is a record of my own experience; other materials and future conditions remain untested.`;
       if(!this.community().notes.some(note=>note.authorId===npc.id&&note.title===title&&note.text===text))return {type:'write_note',title,text,beliefIds:[],effectId:effect.id,offline:true};
     }
     if(at<90||memory.lastAskedAt!==null&&at-memory.lastAskedAt<SOCIAL_RULES.questionCooldown)return null;

@@ -1,3 +1,4 @@
+import { chooseOwnName } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, SOCIAL_RULES } from '../src/config.js';
@@ -26,6 +27,8 @@ function fixture(){
     assert.equal(requestNpcAction(a,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');
     for(let j=0;a.active&&j<50;j++)advance(.1);
     assert.equal(a.lastResult.code,'OBJECT_OBSERVED');
+    // Explicit legacy-save fixture; no seeded names in current production.
+    chooseOwnName(a,a.discovery.experiments.at(-1),{objectId:source.id,at:a.elapsed,scene:a.scene,actorPosition:{...a.position},objectPosition:{...source.position}});
   }
   assert.equal(a.lexicon.own.length,1);
   // Deliberate sensory test double, not naturally occurring extra world objects:
