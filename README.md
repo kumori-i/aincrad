@@ -66,13 +66,15 @@ A bounded [local method-transfer trial](docs/METHOD-TRANSFER.md) can use a speak
 
 A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can contrast a failed paid grasp with a retained successful pull on a different, currently similar-looking source. It may select one paid local pull, without automatically sampling or inferring food, safety or cause. This is supplied analogy machinery using personal outcomes, not an invented action grammar.
 
-A bounded [grounded-name exchange](docs/GROUNDED-NAMES.md) lets an agent choose a name for an individually encountered object, ground a peer’s word through local pointing, and later check a visible reference. An unresolved word can prompt one listener clarification, one fresh re-point and one independent retry; it cannot retry indefinitely. Chosen, heard and confirmed names stay separate. This is supplied communication machinery, not categories, invented grammar or food knowledge.
+A bounded [grounded-name exchange](docs/GROUNDED-NAMES.md) preserves existing names for individually encountered objects, grounds a peer’s word through local pointing, and can check a later visible reference. An unresolved word can prompt one listener clarification, one fresh re-point and one independent retry; it cannot retry indefinitely. Chosen, heard and confirmed names stay separate. This is supplied communication machinery, not categories, invented grammar or food knowledge.
 
-A passive [tentative visual similarity memory](docs/TENTATIVE-VISUAL-GROUPS.md) groups individually sensed objects only after two time-separated observations each. Its exact shape/color/texture rule is supplied, not discovered. The private journal distinguishes remembered support from current sight; this adds no category names, food inference or action authority.
+A passive [tentative visual similarity memory](docs/TENTATIVE-VISUAL-GROUPS.md) groups individually sensed objects only after two time-separated observations each. Its exact shape/color/texture rule is supplied, not discovered. The private journal distinguishes remembered support from current sight.
+
+An already configured local model can now propose [tentative appearance names](docs/MODEL-CATEGORY-NAMES.md), reusing a personal word for observed matching objects instead of assigning unrelated seeded syllables. Each agent keeps its own vocabulary and locally grounded peer examples, not a shared global dictionary. Changed or missing cues can suspend a membership; names never propagate food benefit or safety. Notes and conversation retain exact instance IDs beneath or alongside names. Offline play stays usable, but new model naming pauses rather than fabricating a model-chosen fallback.
 
 Movement feedback can detect a paid walk making negligible progress and propose one short, physically tested retreat along the actor's own recent trail. This [bounded recovery scaffold](docs/MOVEMENT-RECOVERY.md) does not guarantee escape or replace urgent care; it is distinct from fixing collision geometry.
 
-The optional local model assists conversation only. It is not required for offline learning, and text never bypasses the physical action engine.
+The optional local model assists conversation and proposes bounded appearance words. It is not required for offline learning, and neither text nor names bypass the physical action engine. The pretrained model's familiar associations are not firsthand knowledge or species truth.
 
 ## Controls
 

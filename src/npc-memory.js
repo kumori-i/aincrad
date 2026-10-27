@@ -1,3 +1,4 @@
+import { validCategoryNames } from './category-names.js';
 import { validLexicon } from './naming-state.js';
 import { NPC_RULES, CAVES, CAVE_EXIT } from './config.js';
 import { createNpc } from './npc-state.js';
@@ -257,6 +258,7 @@ export function validateNpc(raw,{restoring=true,canStandAt=canStand,
   n.modelBudget={since:Math.min(n.elapsed,finite(raw.modelBudget?.since)),calls:finite(raw.modelBudget?.calls,0,60)};n.bodyFeedback={since:Math.min(n.elapsed,finite(raw.bodyFeedback?.since)),cost:finite(raw.bodyFeedback?.cost)};n.lastResult=raw.lastResult?compact(raw.lastResult):null;
   for(const k of Object.keys(n.presentation))n.presentation[k]=Math.min(n.elapsed+12,finite(raw.presentation?.[k]));
   if(raw.lexicon!==undefined&&validLexicon(raw.lexicon,n))n.lexicon=structuredClone(raw.lexicon);
+  if(raw.categoryNames!==undefined&&validCategoryNames(raw.categoryNames,n))n.categoryNames=structuredClone(raw.categoryNames);
   n.cognition=validateCognition(raw.cognition,n);n.social=validateSocialMemory(raw.social,n);if(n.mode==='discovery')projectPhysiology(n);else n.bodyMode='awake';
   return n;
 }

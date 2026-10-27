@@ -12,7 +12,7 @@ export async function createNamingRepairScene(moduleBase,projectEvidence) {
   const {senseEcology}=await use('ecology');
   const {observeNpc,requestNpcAction,tickNpc}=await use('npc');
   const {SocialCoordinator}=await use('social');
-  const {lexicalLabels}=await use('naming-state');
+  const {lexicalLabels,chooseOwnName}=await use('naming-state');
   const require=(value,message)=>{if(!value)throw new Error(message);};
   require(typeof projectEvidence==='function','Missing evidence projection');
   const geometry=createOzarkWorldGeometry(),state=createOzarkState(geometry),environment=state.environment;
@@ -45,6 +45,8 @@ export async function createNamingRepairScene(moduleBase,projectEvidence) {
     require(requestNpcAction(speaker,{type:'inspect_object',targetId:source.id},environment).code==='ACTION_STARTED','Paid inspection not admitted');
     for(let i=0;speaker.active&&i<600;i++)tick();
     require(!speaker.active&&speaker.lastResult?.code==='OBJECT_OBSERVED','Paid inspection did not finish');
+    // Explicit historical seeded-name fixture, not current model inference.
+    chooseOwnName(speaker,speaker.discovery.experiments.at(-1),{objectId:source.id,at:speaker.elapsed,scene:speaker.scene,actorPosition:{...speaker.position},objectPosition:{...source.position}});
     own=lexicalLabels(speaker).find(row=>row.objectId===source.id&&row.status==='owner-chosen');
   }
   require(own,'Bounded fixed encounters produced no name; no favorable seed search');

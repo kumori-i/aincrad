@@ -1,0 +1,85 @@
+name: Appearance names native acceptance (mocked model)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/category-names-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/category-names-native-fixture.mjs'
+      - 'scripts/verify-category-names-desktop.mjs'
+      - 'scripts/build.mjs'
+      - 'scripts/record-native-host.mjs'
+      - 'scripts/native-capture-readiness.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'scripts/structural-movement-native-contract.mjs'
+      - 'tests/category-name*.test.mjs'
+      - 'tests/naming-model*.test.mjs'
+      - 'tests/naming-world-reset.test.mjs'
+      - 'tests/world-reset*.test.mjs'
+      - 'index.html'
+      - 'style.css'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-category-names:
+    name: Mocked naming, native UI and persistence (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      # Reuse the existing native Linux/macOS platform contract; no sandbox bypass.
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Record actual host, source commit and tree
+        run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - name: Verify mocked vocabulary, reset and stale-reply boundaries
+        id: focused
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          node --test tests/category-name*.test.mjs tests/naming-model*.test.mjs tests/naming-world-reset.test.mjs tests/world-reset.test.mjs tests/world-reset-ui.test.mjs 2>&1 | tee test-results/category-names-focused.log
+      - name: Install sandbox-preserving Linux test display and window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Verify Linux native named-object UI, exact save and three-process reopen (mocked proposals)
+        id: native_linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-category-names-openbox.log" 2>&1 & node scripts/verify-category-names-desktop.mjs'
+      - name: Verify macOS native named-object UI, exact save and three-process reopen (mocked proposals)
+        id: native_macos
+        if: runner.os == 'macOS'
+        run: node scripts/verify-category-names-desktop.mjs
+      - name: State verification scope without implying live inference
+        if: always()
+        shell: bash
+        env:
+          FOCUSED_OUTCOME: ${{ steps.focused.outcome }}
+          LINUX_OUTCOME: ${{ steps.native_linux.outcome }}
+          MACOS_OUTCOME: ${{ steps.native_macos.outcome }}
+        run: |
+          echo "Focused mocked vocabulary/reset/stale-reply tests: $FOCUSED_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Native category UI/persistence: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Names are explicit mocked model responses over real ordinary observations. No live inference, model download, species knowledge or autonomous discovery is claimed. Inspect retained native screenshots; image byte size is not semantic review. Actual reset/backup chooser and reset reopen remain covered by the separate World reset native acceptance workflow." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: category-names-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/category-names-focused.log
+            test-results/category-names-desktop/
+          if-no-files-found: warn
+          retention-days: 7

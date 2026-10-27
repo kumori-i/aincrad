@@ -34,7 +34,7 @@ The recipient may attempt taught steps without random rediscovery, using only a 
 
 Expiry, unavailable source and a failed physical attempt do not by themselves prove a food claim false. Own adverse or beneficial feedback supplies the relevant evidence. Restore must not reset ambiguous completed acquisitions into runnable advice. Human hints use the same reported-versus-experienced distinction and cannot resolve unknown animals through a private species table.
 
-`npc-panel.js` exposes qualitative sensations, nearby messages, teaching provenance and actual action outcomes. Exact physiology stays in developer inspection. Optional local language models serve conversation rather than generating trusted physical results.
+`npc-panel.js` exposes qualitative sensations, nearby messages, teaching provenance and actual action outcomes. Exact physiology stays in developer inspection. Optional local language models serve conversation and narrow vocabulary proposals rather than generating trusted physical results.
 
 ## Observation-driven inquiry
 
@@ -44,9 +44,11 @@ A runtime-only consumption transport admits actual accepted bites/samples, not f
 
 `handling-inquiry.js` links a completed paid failed grasp to an earlier own successful pull on a distinct currently similar-looking source. Fresh firsthand cues and ordinary care/access gates permit one exact-source paid pull, never an automatic sample. Non-evicting bounded admissions prevent replay; optional details retire when their receipt proof is compacted. Schema-12 optional metadata is strict, and UI/model views are read-only. See [scope and verification](HANDLING-CURIOSITY.md).
 
-## Grounded individual names
+## Grounded individual names and tentative appearance vocabulary
 
 Separate naming state and runtime modules retain bounded personal lexical evidence and coordinate local pointing and later reference checks. Event-time personal sensing, speech access and bodily priorities gate the protocol. Pending exchanges are not saved; retained names cannot recreate sensory observations. The selected-agent panel only projects chosen, heard-grounded and confirmed labels, without global renaming or model authority. See [scope and evidence boundaries](GROUNDED-NAMES.md).
+
+`category-names.js` adds an optional actor-owned appearance vocabulary without reinterpreting legacy individual bindings. A narrow local-model proposal returns only a token or abstention against personally sampled cues and existing vocabulary; the model does not choose actions. Conservative membership is derived from the supplied exact-cue rule, and listener grounding retains a local example rather than copying all speaker members. Changed or missing observations suspend membership without rewriting historical evidence. UI annotations distinguish present vocabulary from old event text, while bodily outcomes remain exact-instance evidence. Pending model work is bounded, cancellable and excluded after reset/disposal. See [model naming scope](MODEL-CATEGORY-NAMES.md).
 
 ## Presentation and remaining work
 
@@ -65,7 +67,9 @@ action descriptions do not. Derived tentative groups require two individuals
 with two distinct-time samples each, not independent encounters. The supplied
 shape/color/texture rule changes no policy or action authority. The journal
 projects support separately from individual names and shows restored/unseen
-members as remembered-only. Optional schema-12 evidence is strictly validated;
+members as remembered-only. The optional model-vocabulary layer may consume this
+conservative substrate, but the sample store itself grants no lexical or action
+authority. Optional schema-12 evidence is strictly validated;
 reload never senses. See [scope](TENTATIVE-VISUAL-GROUPS.md).
 
 ## Adverse-material testimony

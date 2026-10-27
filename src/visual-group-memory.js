@@ -8,6 +8,9 @@ import { actorLineOfSight } from './perception.js';
 export const VISUAL_SAMPLE_LIMIT = 32;
 const actors = ['aster', 'mira'];
 const currentSamples = new WeakMap();
+// Transient evidence identities change whenever a cue record is retired/revised.
+// They are never restored from disk or supplied to a language model.
+const sampleIdentities = new WeakMap();
 const awake = npc => npc?.mode === 'discovery' && actors.includes(npc.id) &&
   npc.lifecycle === 'AWAKE' && !isSleeping(npc) && npc.scene === 'valley';
 const visible = (npc, object) => object?.scene === npc.scene &&
@@ -54,6 +57,8 @@ export function ingestVisualSamples(npc, objects) {
   const prior = npc.discovery.visualSamples;
   if (prior !== undefined && !validVisualSamples(prior, npc)) return;
   const records = new Map((prior?.records || []).map(row => [row.objectId, row]));
+  const identities = sampleIdentities.get(npc) || new Map();
+  sampleIdentities.set(npc, identities);
   const batch = new Map(), positions = new Map();
   for (const object of objects) {
     if (!objectId(object?.id) || !visible(npc, object)) continue;
@@ -66,9 +71,10 @@ export function ingestVisualSamples(npc, objects) {
     } else batch.set(object.id, cues);
   }
   for (const [id, cues] of batch) {
-    if (!cues) { records.delete(id); continue; }
+    if (!cues) { records.delete(id); identities.delete(id); continue; }
     const old = records.get(id);
     const same = old && old.scene === npc.scene && appearanceCuesMatch(old.cues, cues);
+    if (!same || !identities.has(id)) identities.set(id, {});
     const times = same ? [...old.times] : [];
     if (times.at(-1) !== npc.elapsed) times.push(npc.elapsed);
     records.set(id, { objectId:id, scene:npc.scene, cues, times:times.slice(-2) });
@@ -78,6 +84,7 @@ export function ingestVisualSamples(npc, objects) {
   const retained = [...records.values()].sort((a, b) =>
     b.times.at(-1) - a.times.at(-1) || compareIds(a, b)).slice(0, VISUAL_SAMPLE_LIMIT);
   npc.discovery.visualSamples = { version:1, ownerId:npc.id, records:retained.sort(compareIds) };
+  for (const id of identities.keys()) if (!retained.some(row => row.objectId === id)) identities.delete(id);
   currentSamples.set(npc, { at:npc.elapsed, scene:npc.scene, objects:new Map(retained
     .filter(row => batch.get(row.objectId)).map(row => [row.objectId, {cues:{...row.cues},
       scene:npc.scene, position:positions.get(row.objectId)}])) });
@@ -103,4 +110,9 @@ export function visualSampleCurrent(npc, id) {
   const batch = currentSamples.get(npc), object = batch?.objects.get(id);
   return !!object && awake(npc) && batch.at === npc.elapsed && batch.scene === npc.scene &&
     visible(npc, object);
+}
+
+/** Runtime identity of uninterrupted personally sampled cues, not save authority. */
+export function visualSampleIdentity(npc, id) {
+  return visualSampleCurrent(npc, id) ? sampleIdentities.get(npc)?.get(id) ?? null : null;
 }

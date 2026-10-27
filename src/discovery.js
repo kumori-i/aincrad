@@ -4,7 +4,6 @@ import { experiencedFoodSourceCaution } from './food-source-caution.js';
 import { witnessedMaterialCompletion } from './discovery-completion.js';
 import { ingestVisualSamples } from './visual-group-memory.js';
 import { recoveryChoice } from './movement-recovery.js';
-import { chooseOwnName } from './naming-state.js';
 import { parseHumanHint } from './human-hints.js';
 import { recordHandlingOutcome, handlingExperiment, handlingInquiries, HANDLING_QUESTION } from './handling-inquiry.js';
 import { observationalInquiries, observationalExperiment, priorAdverseSource } from './observational-learning.js';
@@ -81,9 +80,8 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   const key=`${action.targetId}|${action.type}`,trials=d.trials||=( {}),trial=trials[key]||=( {attempts:0,successes:0,failures:0,seconds:0,lastAt:0,lastCode:''});trial.attempts++;trial[experiment.ok?'successes':'failures']++;if(experiment.ok)trial.seconds+=experiment.durationSeconds;trial.lastAt=npc.elapsed;trial.lastCode=experiment.code;trial.lastOk=experiment.ok;
   if(Object.keys(trials).length>768){const protectedObjects=new Set(d.techniques.map(t=>t.sourceId));const candidates=Object.entries(trials).filter(([key])=>!protectedObjects.has(key.split('|')[0])).sort((a,b)=>a[1].lastAt-b[1].lastAt);delete trials[candidates[0]?.[0]||Object.keys(trials)[0]];}
   d.experiments.push(experiment); linkInquiryOutcome(d,experiment); recordHandlingOutcome(npc,experiment,{appearance:id=>freshMethodAppearance(npc,id)}); // The enclosing action transaction links before shared compaction.
-  const sight=firsthandSightings.get(npc)?.get(action.targetId),seen=d.observations[action.targetId];
-  if(sight&&seen&&sight.at===npc.elapsed&&freshMethodAppearance(npc,action.targetId))
-    chooseOwnName(npc,experiment,{objectId:seen.id,at:npc.elapsed,scene:npc.scene,actorPosition:{...npc.position},objectPosition:{...seen.position}});
+  // Naming is an optional asynchronous model proposal over ordinary sensory
+  // evidence, not a seeded syllable side effect of a completed action.
   const practice=d.practice[action.type]||=( {successes:0,failures:0,seconds:0});
   // A rejected command is not practice. Successful inspection cannot improve pulling.
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;

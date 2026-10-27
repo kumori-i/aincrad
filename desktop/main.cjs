@@ -73,6 +73,7 @@ app.whenReady().then(async()=>{
     await rename(configPath+'.tmp',configPath);return status;
   });
   handle('aincrad:model-decide',raw=>modelService.decide(raw));
+  handle('aincrad:model-name',raw=>modelService.proposeName(raw));
   handle('aincrad:model-cancel',agentId=>modelService.cancel(agentId));
   const rawSaveBackup=createRawSaveBackupBridge({dialog,getWindow:()=>win,userDataPath:app.getPath('userData'),documentsPath:app.getPath('documents'),testMode:profileRoute.isTest});
   handle('aincrad:current-world-export',raw=>rawSaveBackup.exportCurrentWorld(raw));
