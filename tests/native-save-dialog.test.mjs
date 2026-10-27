@@ -69,37 +69,48 @@ test('command contract only: already focused modal receives no WM activation or 
   assert.ok(calls.some(c=>c.args[0]==='getwindowfocus'));
   assert.ok(!calls.some(c=>['windowactivate','windowfocus'].includes(c.args[0])));
 });
-test('command contract only: unfocused dialog gets one ordinary focus request after screenshot and is verified',async()=>{
-  const {calls,options}=harness();const successful=options.run;let focus=0;
-  await driveNativeSaveDialog({...options,action:'cancel',run:async(file,args,settings)=>{
-    if(args[0]==='getwindowfocus'&&++focus===1){calls.push({file,args});return {stdout:'88\n'};}
+test('command contract only: known child focus is preserved rather than moved to wrapper',async()=>{
+  const {calls,options}=harness();const successful=options.run;
+  const result=await driveNativeSaveDialog({...options,action:'cancel',run:async(file,args,settings)=>{
+    if(file==='xdotool'&&args[0]==='getwindowfocus'){calls.push({file,args});return {stdout:'88\n'};}
+    if(file==='xwininfo'&&args[1]==='88'){calls.push({file,args});return {stdout:'Parent window id: 0x4d'};}
     return successful(file,args,settings);
   }});
-  const requests=calls.filter(c=>c.args[0]==='windowfocus');
-  assert.deepEqual(requests,[{file:'xdotool',args:['windowfocus','77']}]);
-  assert.ok(calls.findIndex(c=>c.file==='import')<calls.findIndex(c=>c.args[0]==='windowfocus'));
-  assert.ok(!calls.some(c=>c.args.includes('--sync')));
+  assert.equal(result.realOsDialog,true);
+  assert.ok(calls.some(c=>c.args.includes('Escape')));
+  assert.ok(!calls.some(c=>['windowfocus','windowactivate'].includes(c.args[0])));
 });
-test('command contract only: wrong focus after one request blocks input and records target/focus diagnostics',async()=>{
+test('command contract only: unrelated focus blocks input and records X hierarchy diagnostics',async()=>{
   const {calls,options}=harness();const successful=options.run;let record;
   await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{
     if(args[0]==='getwindowfocus'){calls.push({file,args});return {stdout:'88\n'};}
     return successful(file,args,settings);
-  },write:async(path,data)=>{record={path,data:JSON.parse(data)};}}),/did not acquire exact target focus/);
-  assert.ok(!calls.some(c=>['key','type'].includes(c.args[0])));
-  assert.equal(record.path,options.screenshot+'.dialog.json');
-  assert.equal(record.data.windowId,'77');assert.deepEqual(record.data.focus,['88','88']);
-  assert.equal(record.data.status,'failed');
+  },write:async(path,data)=>{record={path,data:JSON.parse(data)};}}),/focus ownership cannot be proved/);
+  assert.ok(!calls.some(c=>['key','type','windowfocus','windowactivate'].includes(c.args[0])));
+  assert.equal(record.data.windowId,'77');assert.equal(record.data.focus[0].raw,'88');
+  assert.equal(record.data.focus[0].trusted,false);assert.equal(record.data.status,'failed');
+  assert.ok(Object.hasOwn(record.data,'rootTree'));assert.equal(record.data.target.id,'77');
 });
-test('command contract only: focus loss immediately before input is not refocused or retried',async()=>{
+test('command contract only: exact-title transient relationship can prove a native chooser, title alone cannot',async()=>{
+  for(const linked of [true,false]){
+    const {calls,options}=harness();const successful=options.run;
+    const operation=driveNativeSaveDialog({...options,action:'cancel',run:async(file,args,settings)=>{
+      if(args[0]==='getwindowfocus'){calls.push({file,args});return {stdout:'88\n'};}
+      if(file==='xprop'&&args[1]==='88'){calls.push({file,args});return {stdout:'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n'+(linked?'WM_TRANSIENT_FOR(WINDOW): window id # 0x4d':'')};}
+      return successful(file,args,settings);
+    }});
+    if(linked)await operation;else await assert.rejects(operation,/focus ownership cannot be proved/);
+    assert.equal(calls.some(c=>c.args.includes('Escape')),linked);
+  }
+});
+test('command contract only: focus loss before input stops without refocusing',async()=>{
   const {calls,options}=harness();const successful=options.run;let focus=0;
   await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{
-    if(args[0]==='getwindowfocus'&&++focus>1){calls.push({file,args});return {stdout:'88\n'};}
+    if(args[0]==='getwindowfocus'&&++focus>2){calls.push({file,args});return {stdout:'88\n'};}
     return successful(file,args,settings);
-  }}),/lost exact target focus/);
+  }}),/lost proven target/);
   assert.ok(!calls.some(c=>['key','type','windowfocus'].includes(c.args[0])));
 });
-
 test('command contract only: Mac recognition failure retains screenshot and AX hierarchy without input',async()=>{
   const {calls,options}=harness('darwin');const successful=options.run;let record;
   await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{

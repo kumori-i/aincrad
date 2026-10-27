@@ -84,7 +84,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   const diagnostics={platform,pid,action,screenshot,commands:[],focus:[]};
   const command = async (file,args) => {
     const entry={file,args};diagnostics.commands.push(entry);
-    try { const result=await run(file,args,{encoding:'utf8',timeout:10000,env});entry.stdout=result.stdout;return result; }
+    try { const result=await run(file,args,{encoding:'utf8',timeout:10000,maxBuffer:256*1024,env});entry.stdout=result.stdout;return result; }
     catch(error) {
       entry.error={code:error.code,signal:error.signal,killed:error.killed,stderr:error.stderr,message:error.message};
       const failure=new Error(`Native dialog command ${file} failed (tool/display/Accessibility/Automation permission required): ${error.stderr || error.message}`);
@@ -128,21 +128,44 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   const png=await read(screenshot);
   if(png.length<=10000 || !png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))
     throw new Error('Native dialog screenshot is missing/empty; Screen Recording or display access may be required');
-  async function focusedDialog(){
-    // Without -f, xdotool resolves a focused child to its WM_CLASS ancestor.
-    // Accept only our exact PID/title-recognized dialog, never a sibling window.
-    const focused=(await command('xdotool',['getwindowfocus'])).stdout.trim();
-    diagnostics.focus.push(focused);
-    return focused===windowId;
+  const windowIdentity=value=>{
+    if(!/^(?:[0-9]+|0x[0-9a-f]+)$/i.test(value))throw new Error('Invalid X window identity');
+    const numeric=BigInt(value);if(numeric<=0n||numeric>0xffffffffn)throw new Error('Invalid X window identity');
+    return String(numeric);
+  };
+  async function inspectXWindow(id){
+    const tree=(await command('xwininfo',['-id',id,'-tree'])).stdout;
+    const properties=(await command('xprop',['-id',id,'WM_CLASS','WM_NAME','_NET_WM_NAME','_NET_WM_PID','WM_TRANSIENT_FOR'])).stdout;
+    const parent=tree.match(/Parent window id:\s*(0x[0-9a-f]+)/i)?.[1];
+    const transient=properties.match(/WM_TRANSIENT_FOR[^\n]*window id #\s*(0x[0-9a-f]+)/i)?.[1];
+    return {id,tree,properties,parent:parent&&parent!=='0x0'?windowIdentity(parent):null,
+      transient:transient&&transient!=='0x0'?windowIdentity(transient):null,
+      namedDialog:properties.split('\n').some(line=>/^_NET_WM_NAME\(|^WM_NAME\(/.test(line)&&line.endsWith('= "'+title+'"'))};
   }
-  if(platform==='linux'&&!await focusedDialog()){
-    // Modal dialogs may already own keyboard focus without becoming the WM's
-    // active window. Do not wait for _NET_ACTIVE_WINDOW via windowactivate --sync.
-    await command('xdotool',['windowfocus',windowId]);
-    if(!await focusedDialog())throw new Error('Native Save dialog did not acquire exact target focus; no input was sent');
+  async function focusedDialog(){
+    const raw=windowIdentity((await command('xdotool',['getwindowfocus','-f'])).stdout.trim());
+    const resolved=windowIdentity((await command('xdotool',['getwindowfocus'])).stdout.trim());
+    const focus={raw,resolved,windows:[],trusted:false};diagnostics.focus.push(focus);
+    const target=windowIdentity(windowId),queue=[raw],visited=new Set();
+    // Prove child ancestry, or a title-matched native transient relation, to the
+    // exact PID/title target. Numeric XID ranges and matching titles alone do not
+    // confer trust. Preserve current GTK child focus; never focus the wrapper.
+    for(let n=0;queue.length&&n<16;n++){
+      const id=queue.shift();if(visited.has(id))continue;visited.add(id);
+      const info=await inspectXWindow(id);focus.windows.push(info);
+      if(id===target){focus.trusted=true;return true;}
+      if(info.parent)queue.push(info.parent);
+      if(info.namedDialog&&info.transient)queue.push(info.transient);
+    }
+    return false;
+  }
+  if(platform==='linux'){
+    diagnostics.rootTree=(await command('xwininfo',['-root','-tree'])).stdout;
+    diagnostics.target=await inspectXWindow(windowIdentity(windowId));
+    if(!await focusedDialog())throw new Error('Native Save focus ownership cannot be proved; no input was sent');
   }
   async function linuxInput(args){
-    if(!await focusedDialog())throw new Error('Native Save dialog lost exact target focus; input stopped');
+    if(!await focusedDialog())throw new Error('Native Save dialog lost proven target/descendant focus; input stopped');
     return command('xdotool',args);
   }
   // Capturing a real OS screen is necessary but not a semantic visual review.
