@@ -89,6 +89,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
       entry.error={code:error.code,signal:error.signal,killed:error.killed,stderr:error.stderr,message:error.message};
       const failure=new Error(`Native dialog command ${file} failed (tool/display/Accessibility/Automation permission required): ${error.stderr || error.message}`);
       failure.commandCode=error.code;failure.commandStderr=error.stderr || '';
+      failure.commandSignal=error.signal;failure.commandKilled=error.killed;
       throw failure;
     }
   };
@@ -212,7 +213,20 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     // still-open chooser, completion popup or newly opened error dialog.
     let dismissed=false;
     for(let attempt=0;attempt<50;attempt++){
-      const names=await command('xdotool',['search','--all','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']).catch(error=>{if(error.commandCode===1&&!error.commandStderr.trim())return {stdout:''};throw error;});
+      let names;
+      try { names=await command('xdotool',['search','--all','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']); }
+      catch(error){
+        if(error.commandCode===1&&!error.commandSignal&&!error.commandKilled&&!error.commandStderr.trim())names={stdout:''};
+        // A child can disappear while xdotool recursively enumerates X windows.
+        // Only this exact post-activation X_QueryTree diagnostic is inconclusive:
+        // it is NOT proof of dismissal. Require a later clean no-match, retain
+        // the failed command, and never send another activation or input.
+        else if(error.commandCode===1&&!error.commandSignal&&!error.commandKilled&&
+          /^X Error of failed request:  BadWindow \(invalid Window parameter\)\n  Major opcode of failed request:  15 \(X_QueryTree\)\n  Resource id in failed request:  0x[0-9a-f]+\n  Serial number of failed request:  \d+\n  Current serial number in output stream:  \d+\n?$/.test(error.commandStderr)){
+          diagnostics.inconclusiveDisappearanceProbes=(diagnostics.inconclusiveDisappearanceProbes||0)+1;
+          await wait(100);continue;
+        }else throw error;
+      }
       const remaining=names.stdout.trim().split(/\s+/).filter(Boolean);
       if(remaining.length>1)throw new Error('Multiple matching native Save dialogs; no further input was sent');
       if(remaining.length===0){dismissed=true;break;}
@@ -222,7 +236,9 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
     diagnostics.postInputScreenshot=screenshot+'.after-submit.png';
     await command('import',['-window','root',diagnostics.postInputScreenshot]);
     diagnostics.saveDialogDismissed=dismissed;
-    if(!dismissed)throw new Error('Native Save chooser remained open after one submission; inspect path-entered and after-submit OS screenshots');
+    if(!dismissed)throw new Error(diagnostics.inconclusiveDisappearanceProbes
+      ? 'Native Save dismissal could not be established after one submission; inspect command diagnostics and OS screenshots'
+      : 'Native Save chooser remained open after one submission; inspect path-entered and after-submit OS screenshots');
 
   }
   diagnostics.status='input-completed';
