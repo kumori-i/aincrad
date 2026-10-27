@@ -50,3 +50,13 @@
 .biome-woodland{background:#638248}.biome-cove{background:#496c50}.biome-glade{background:#b0aa76}.biome-terrace{background:#739d5c}.biome-clearing{background:#8fa453}.biome-water{background:#286e88}
 
 .world-loading{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#18372e;color:#f5e4b9;font:14px 'Courier New',monospace;pointer-events:none}.world-loading strong{font-size:32px;letter-spacing:6px}.world-loading.hidden{display:none}
+
+/* Native modal dialog keeps destructive confirmation above every game panel. */
+#reset-dialog { padding: 0; border: 0; border-radius: 18px; color: inherit; background: transparent; max-width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+#reset-dialog::backdrop { background: rgb(5 20 16 / .82); }
+#reset-dialog .menu-card { width: auto; max-width: none; box-sizing: border-box; }
+#reset-dialog button { width: 100%; margin-top: 10px; }
+#reset-dialog .check-row { margin: 18px 0 8px; text-align: left; }
+#reset-dialog .danger { padding: 13px 19px; border-radius: 10px; font: inherit; font-weight: 700; line-height: 1.4; background: #8e342e; border: 1px solid #cf7e70; color: #fff8ed; }
+#reset-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+#reset-dialog [hidden] { display: none; }

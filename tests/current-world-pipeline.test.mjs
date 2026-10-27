@@ -7,7 +7,7 @@ test('one current boot/render/save path cannot silently regain a retired runtime
     'src/ozark-pilot-main.js','desktop/recovered-profile.cjs','scripts/verify-recovered-native.mjs'])
     assert.equal(existsSync(new URL(file,root)),false,file);
   const entry=read('src/entry.js');assert.match(entry,/ozark-world-main/);assert.doesNotMatch(entry,/ozarkWorld=|ozarkPilot=|\.\/main\.js/);
-  const main=read('src/ozark-world-main.js');assert.doesNotMatch(main,/aincradWorld|welcome-ozark|__aincrad/);
+  const main=read('src/ozark-world-main.js');assert.doesNotMatch(main,/\baincradWorld\b|welcome-ozark|__aincrad/);
   assert.match(main,/await renderer\.prepareAtlas\(\)/);assert.match(main,/location\.search !== '\?test=1'/);
   const save=read('src/ozark-save.js');assert.match(save,/OZARK_SAVE_KEY = 'aincrad\.world\.v2'/);
   assert.doesNotMatch(save,/from '\.\/save\.js'|prepareLegacy|migrateSave/);

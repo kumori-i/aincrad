@@ -51,6 +51,16 @@ const PROOF_FIELDS = Object.freeze([
 // A state can replace only the exact Ozark bytes from which it was loaded (or
 // an empty Ozark slot when fresh). A changed or unknown slot is never replaced.
 const expectedRawByState = new WeakMap();
+// Reporting only: fixed codes never retain storage contents or exception text.
+const saveFailureByState = new WeakMap();
+const canTrackState = state => state !== null && (typeof state === 'object' || typeof state === 'function');
+export function getOzarkSaveFailure(state) {
+  return canTrackState(state) ? saveFailureByState.get(state) ?? null : 'untracked-state';
+}
+function failedSave(state, code) {
+  if (canTrackState(state)) saveFailureByState.set(state, code);
+  return false;
+}
 const fail = reason => { throw new Error(`Ozark save protected: ${reason}`); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const finite = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
@@ -495,19 +505,33 @@ export function loadOzarkSave(storage, geometry) {
 
 /** A same-slot, exact-byte compare prevents a stale process replacing a save. */
 export function writeOzarkSave(storage, state, geometry) {
+  let phase = 'untracked-state';
   try {
-    if (!expectedRawByState.has(state)) return false;
+    if (!expectedRawByState.has(state)) return failedSave(state, 'untracked-state');
     const expected = expectedRawByState.get(state);
-    if (storage.getItem(OZARK_SAVE_KEY) !== expected) return false;
+    phase = 'storage-read';
+    if (storage.getItem(OZARK_SAVE_KEY) !== expected) return failedSave(state, 'stored-value-changed');
+    phase = 'live-validation';
     const canonical = validateOzarkState(state, geometry, { restoring: false });
+    phase = 'serialization';
     const { npc: _alias, ...disk } = canonical;
     const raw = JSON.stringify(disk);
-    if (raw.length > 16 * 1024 * 1024) return false;
+    if (raw.length > 16 * 1024 * 1024) return failedSave(state, 'save-too-large');
+    phase = 'storage-write';
     storage.setItem(OZARK_SAVE_KEY, raw);
-    if (storage.getItem(OZARK_SAVE_KEY) !== raw) return false;
+    phase = 'readback-verification';
+    if (storage.getItem(OZARK_SAVE_KEY) !== raw) return failedSave(state, 'readback-verification');
     expectedRawByState.set(state, raw);
+    saveFailureByState.delete(state);
     return true;
-  } catch { return false; }
+  } catch (error) {
+    // A write may have committed even if it throws. These codes classify the
+    // failing stage, never promise that the prior value remains on disk.
+    if (phase === 'storage-write') {
+      try { if (error?.name === 'QuotaExceededError') phase = 'quota-write'; } catch {}
+    }
+    return failedSave(state, phase);
+  }
 }
 
 // Speaker messages never bind a listener target. New optional metadata may not
