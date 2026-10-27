@@ -47,11 +47,37 @@ const context=${JSON.stringify(context)};
 const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
 assert.ok(${JSON.stringify(phases)}.includes(phase));
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-let running=false,allowQuit=false,closeObserved=false;
+let running=false,allowQuit=false,closeObserved=false,activeWindow=null,failureStarted=false,stage='initializing';
 const events=[],screenshots=[];
-const deadline=setTimeout(()=>{console.error('Native reset timed out: '+phase);app.exit(1);},180000);
+const deadline=setTimeout(()=>{void failNative(new Error('Native reset timed out: '+phase+' at '+stage));},180000);
 app.on('will-quit',event=>{if(!allowQuit){event.preventDefault();return;}assert.ok(closeObserved);console.log('RESET_NATIVE_WILL_QUIT '+phase);});
-const evaluate=(win,code)=>win.webContents.executeJavaScript(code);
+const evaluate=(win,code)=>{stage='renderer: '+code.slice(0,160);return win.webContents.executeJavaScript(code);};
+async function failNative(error){
+  if(failureStarted)return;failureStarted=true;clearTimeout(deadline);
+  console.error(error);
+  const failure={phase,stage,error:String(error.stack||error),events};
+  // Preserve diagnostics even if a renderer has stalled. Never retry the reset.
+  const finalDeadline=setTimeout(()=>app.exit(1),10000);
+  try{
+    await fs.writeFile(path.join(context.output,phase+'-failure.json'),JSON.stringify(failure,null,2));
+    if(activeWindow&&!activeWindow.isDestroyed()){
+      failure.url=activeWindow.webContents.getURL();
+      try{failure.renderer=await Promise.race([activeWindow.webContents.executeJavaScript("({resetStatus:document.getElementById('reset-status')?.textContent,dialogOpen:document.getElementById('reset-dialog')?.open,reloadVisible:!document.getElementById('reset-reload')?.hidden,confirmDisabled:document.getElementById('reset-confirm')?.disabled,world:window.__ozarkWorld?.snapshot(),stored:(()=>{try{const r=localStorage.getItem('aincrad.world.v2');return {length:r?.length,elapsed:JSON.parse(r)?.elapsed};}catch(e){return {error:String(e)};}})()})"),delay(2500).then(()=>{throw new Error('Failure-state renderer probe timed out');})]);}
+      catch(probeError){failure.probeError=String(probeError);}
+      try{const image=await Promise.race([activeWindow.webContents.capturePage(),delay(2500).then(()=>{throw new Error('Failure screenshot timed out');})]);await fs.writeFile(path.join(context.output,phase+'-failure.png'),image.toPNG());}
+      catch(captureError){failure.captureError=String(captureError);}
+    }
+    await fs.writeFile(path.join(context.output,phase+'-failure.json'),JSON.stringify(failure,null,2));
+  }finally{clearTimeout(finalDeadline);app.exit(1);}
+}
+async function expectReload(win,action){
+  let listener,timer;
+  const loaded=new Promise(resolve=>{listener=resolve;win.webContents.once('did-finish-load',listener);});
+  try{
+    await Promise.race([(async()=>{await action();stage='waiting for confirmed reset did-finish-load';await loaded;})(),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Confirmed reset did not finish reloading; inspect navigation events and failure-state UI')),60000);})]);
+  }finally{clearTimeout(timer);win.webContents.removeListener('did-finish-load',listener);}
+}
 async function waitFor(win,expression){
   for(let i=0;i<900;i++){try{if(await evaluate(win,expression))return;}catch{}await delay(50);}
   throw new Error('Native condition missing: '+expression);
@@ -102,10 +128,9 @@ async function confirmedReset(win,protectedSave){
   await openReset(win,protectedSave);
   assert.equal(await evaluate(win,"document.getElementById('reset-confirm').disabled"),true,'No-backup path requires explicit acknowledgement');
   await evaluate(win,"document.getElementById('reset-acknowledge').click()");
-  const reloaded=new Promise(resolve=>win.webContents.once('did-finish-load',resolve));
   // Two same-turn clicks exercise the pending guard, not two destructive operations.
-  await evaluate(win,"document.getElementById('reset-confirm').click();document.getElementById('reset-confirm').click()").catch(error=>{if(!/context|destroyed|navigation/i.test(error.message))throw error;});
-  await reloaded;await waitFor(win,'Boolean(window.__ozarkWorld)');
+  await expectReload(win,()=>evaluate(win,"document.getElementById('reset-confirm').click();document.getElementById('reset-confirm').click()").catch(error=>{if(!/context|destroyed|navigation/i.test(error.message))throw error;}));
+  await waitFor(win,'Boolean(window.__ozarkWorld)');
   assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().blocked'),false);
   const state=await fresh(win);
   assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Disposable route remains inert after guarded reload');
@@ -134,10 +159,12 @@ async function nativeBackupChecks(win){
   await assert.rejects(fs.access(forbidden));
   await capture(win,'backup-failed-app.png');
   const destination=path.join(context.output,'current-world-backup.json');
-  const reloaded=new Promise(resolve=>win.webContents.once('did-finish-load',resolve));
-  await evaluate(win,"document.getElementById('reset-backup-confirm').click()");
-  const saved=await driveNativeSaveDialog({pid:process.pid,action:'save',destination,screenshot:path.join(context.output,'backup-native-success.png')});
-  await reloaded;await waitFor(win,'Boolean(window.__ozarkWorld)');
+  let saved;
+  await expectReload(win,async()=>{
+    await evaluate(win,"document.getElementById('reset-backup-confirm').click()");
+    saved=await driveNativeSaveDialog({pid:process.pid,action:'save',destination,screenshot:path.join(context.output,'backup-native-success.png')});
+  });
+  await waitFor(win,'Boolean(window.__ozarkWorld)');
   const record=JSON.parse(await fs.readFile(destination,'utf8'));
   const {decodeCurrentWorldBackup}=require(path.join(context.application,'desktop/raw-save-backup.cjs'));
   assert.equal(record.saveKey,'aincrad.world.v2');
@@ -185,6 +212,12 @@ async function run(win){
   }
 }
 app.on('browser-window-created',(_event,win)=>{
+  activeWindow=win;
+  win.webContents.on('will-navigate',(event,url)=>queueMicrotask(()=>events.push({kind:'will-navigate',url:typeof url==='string'?url:url?.url,prevented:event.defaultPrevented})));
+  win.webContents.on('did-start-navigation',(_event,url,isInPlace,isMainFrame)=>events.push({kind:'did-start-navigation',url,isInPlace,isMainFrame}));
+  win.webContents.on('did-finish-load',()=>events.push({kind:'did-finish-load',url:win.webContents.getURL()}));
+  win.webContents.on('did-fail-load',(_event,errorCode,errorDescription,url)=>events.push({kind:'did-fail-load',errorCode,errorDescription,url}));
+  win.webContents.on('console-message',(_event,...details)=>events.push({kind:'console-message',details}));
   win.webContents.on('render-process-gone',(_event,details)=>events.push({rendererGone:details}));
   win.webContents.once('did-finish-load',async()=>{
     if(running)return;running=true;
@@ -199,7 +232,7 @@ app.on('browser-window-created',(_event,win)=>{
       win.once('close',()=>events.push('close'));win.close();await closing;assert.equal(win.isDestroyed(),true);
       await fs.writeFile(path.join(context.output,phase+'-result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:true,events,screenshots},null,2));
       console.log('RESET_NATIVE_CLOSED '+phase);clearTimeout(deadline);allowQuit=true;app.quit();
-    }catch(error){console.error(error);await fs.writeFile(path.join(context.output,phase+'-failure.json'),JSON.stringify({error:String(error.stack||error),events},null,2));clearTimeout(deadline);app.exit(1);}
+    }catch(error){await failNative(error);}
   });
 });
 // Real application owns protocol registration, profile routing, preload and reset UI.

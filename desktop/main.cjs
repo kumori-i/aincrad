@@ -76,6 +76,14 @@ app.whenReady().then(async()=>{
   handle('aincrad:model-cancel',agentId=>modelService.cancel(agentId));
   const rawSaveBackup=createRawSaveBackupBridge({dialog,getWindow:()=>win,userDataPath:app.getPath('userData'),documentsPath:app.getPath('documents'),testMode:profileRoute.isTest});
   handle('aincrad:current-world-export',raw=>rawSaveBackup.exportCurrentWorld(raw));
+  // Only main can reload the fixed application window. Renderer navigation
+  // remains denied; no URL, path or storage value is accepted by this route.
+  handle('aincrad:current-world-reload',()=>{
+    modelService.cancel();
+    session.defaultSession.flushStorageData();
+    win.webContents.reload();
+    return {ok:true};
+  });
   handle('aincrad:save-export-raw',(raw,sha)=>rawSaveBackup.exportRaw(raw,sha));
   handle('aincrad:save-restore-raw',()=>rawSaveBackup.restoreRaw());
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));

@@ -122,3 +122,34 @@ test('Escape and Cancel during pending export preserve cancel intent through suc
     assert.equal(f.$('reset-world').focused, true);
   }
 });
+
+
+test('async native reload rejection or refused result keeps retired session quarantined', async () => {
+  for (const reload of [async () => { throw new Error('private native exception'); }, async () => ({ ok: false }), async () => false]) {
+    const f = setup({ reload }); await f.open(); await f.acknowledge();
+    await f.$('reset-confirm').fire('click'); await settled();
+    assert.match(f.$('reset-status').textContent, /was replaced, but reopening failed/);
+    assert.doesNotMatch(f.$('reset-status').textContent, /private native/);
+    await f.$('reset-cancel').fire('click');
+    await f.$('reset-confirm').fire('click');
+    assert.equal(f.writes(), 1); assert.equal(f.events.includes('release'), false);
+    await f.$('reset-reload').fire('click'); await settled();
+    assert.match(f.$('reset-status').textContent, /old session remains stopped/);
+  }
+});
+
+
+test('initial and retry native reload calls are serialized while promises are pending', async () => {
+  let finish, calls = 0;
+  const f = setup({ reload: () => { calls++; return new Promise(resolve => { finish = resolve; }); } });
+  await f.open(); await f.acknowledge(); await f.$('reset-confirm').fire('click');
+  assert.equal(calls, 1); assert.equal(f.$('reset-reload').disabled, true);
+  await f.$('reset-reload').fire('click'); await f.$('reset-confirm').fire('click');
+  assert.equal(calls, 1); assert.equal(f.writes(), 1);
+  finish({ok:false}); await settled();
+  assert.equal(f.$('reset-reload').disabled, false);
+  await f.$('reset-reload').fire('click'); await f.$('reset-reload').fire('click');
+  assert.equal(calls, 2); assert.equal(f.$('reset-reload').disabled, true);
+  finish({ok:false}); await settled();
+  assert.equal(f.events.includes('release'), false); assert.equal(f.writes(), 1);
+});

@@ -58,7 +58,7 @@ The desktop enforces one instance per profile and one application window.
 is not a cross-process atomic compare-and-swap. Arbitrary external processes
 that bypass the supported profile lock are outside that concurrency guarantee.
 
-A guarded page reload starts a new session rather than reusing old controllers.
+A guarded main-process reload starts a new session rather than reusing old controllers. Its fixed-window IPC accepts no URL, path or storage value; renderer-initiated navigation remains denied. Pending provider calls are canceled and the storage cache is flushed before main reloads the existing app window.
 The existing fail-closed current-save validation and ordinary exact-byte save
 expectations are not relaxed by the reset path.
 

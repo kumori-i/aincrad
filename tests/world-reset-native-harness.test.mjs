@@ -44,6 +44,11 @@ test('reset native preparation produces a syntax-valid isolated five-process run
       'captureWithReadiness({',
       'win.webContents.sendInputEvent',
       'prefs.sandbox,true',
+      'Confirmed reset did not finish reloading',
+      'resetStatus:document.getElementById',
+      "phase+'-failure.png'",
+      "kind:'will-navigate'",
+      'prevented:event.defaultPrevented',
     ])assert.ok(source.includes(contract),contract);
     assert.match(source,/passed:true,nativeExecutionPerformed:true/);
     assert.doesNotMatch(source,/showSaveDialog\s*=/,'Native dialogs are not stubbed');

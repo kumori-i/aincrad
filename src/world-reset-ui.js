@@ -12,6 +12,7 @@ export function installWorldReset({ document, storage, geometry, previous, freez
     $('reset-cancel').disabled = terminal || cancelRequested;
     $('reset-acknowledge').disabled = busy || terminal;
     $('reset-reload').hidden = !terminal;
+    $('reset-reload').disabled = busy;
   }
   function open(event) {
     if (active) return;
@@ -71,21 +72,26 @@ export function installWorldReset({ document, storage, geometry, previous, freez
     const result = replaceActiveWorld(storage, expected, prepared);
     $('reset-status').textContent = resetOutcomeMessage(result);
     busy = false; controls();
-    if (result.ok) {
-      try { reload(); }
-      catch { $('reset-status').textContent = 'The active world was replaced, but reopening failed. Use Reload world to continue; the old session remains stopped.'; }
-    }
+    if (result.ok) await reopen(true);
+  }
+  async function reopen(initial = false) {
+    if (busy) return;
+    busy = true; controls();
+    try {
+      const result = await reload();
+      if (result === false || result?.ok === false) throw new Error('Reload refused');
+    } catch {
+      $('reset-status').textContent = initial ?
+        'The active world was replaced, but reopening failed. Use Reload world to continue; the old session remains stopped.' :
+        'Reopening failed. The old session remains stopped. Close and reopen the app to inspect the stored world.';
+    } finally { busy = false; controls(); }
   }
   for (const id of ['reset-world', 'recovery-reset-world']) $(id).addEventListener('click', open);
   $('reset-cancel').addEventListener('click', cancel);
   $('reset-confirm').addEventListener('click', () => confirm(false));
   $('reset-backup-confirm').addEventListener('click', () => confirm(true));
   $('reset-acknowledge').addEventListener('change', controls);
-  $('reset-reload').addEventListener('click', () => {
-    if (!terminal || busy) return;
-    try { reload(); }
-    catch { $('reset-status').textContent = 'Reopening failed. The old session remains stopped. Close and reopen the app to inspect the stored world.'; }
-  });
+  $('reset-reload').addEventListener('click', () => { if (terminal) reopen(); });
   dialog.addEventListener('cancel', event => { event.preventDefault(); cancel(); });
   // Capture before game shortcuts, including Escape and Ctrl/Cmd+S. Native
   // dialog focus containment supplies safe Tab/Shift+Tab navigation.

@@ -307,7 +307,8 @@ installWorldReset({
     resetRetired = true; started = false; paused = true; keys.clear();
     clearInterval(simulationTimer); population?.dispose();
   },
-  reload: () => location.reload(),
+  reload: () => window.aincradWorldSave?.reloadCurrentWorld
+    ? window.aincradWorldSave.reloadCurrentWorld() : location.reload(),
   exportCurrentWorld: window.aincradWorldSave?.exportCurrentWorld,
 });
 

@@ -18,4 +18,5 @@ contextBridge.exposeInMainWorld('aincradSave',Object.freeze({
 // Current-world backup has its own fixed contract; legacy formats are not used.
 contextBridge.exposeInMainWorld('aincradWorldSave',Object.freeze({
   exportCurrentWorld:raw=>ipcRenderer.invoke('aincrad:current-world-export',raw),
+  reloadCurrentWorld:()=>ipcRenderer.invoke('aincrad:current-world-reload'),
 }));

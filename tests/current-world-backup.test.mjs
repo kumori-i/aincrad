@@ -90,15 +90,16 @@ test('decoder rejects altered and foreign manifests; restoration never implies v
     assert.throws(()=>decodeCurrentWorldBackup({...record,...patch}),/manifest|bytes/);
 });
 
-test('current preload exposes only a fixed one-argument export, no generic IPC, path, reset or restore',async()=>{
+test('current preload exposes only fixed export and reload methods, no generic IPC, path, reset or restore',async()=>{
   const exposed={},calls=[];
   runInNewContext(await fs.readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),{
     require:name=>{assert.equal(name,'electron');return {contextBridge:{exposeInMainWorld:(name,api)=>{exposed[name]=api;}},ipcRenderer:{invoke:(...args)=>{calls.push(args);return Promise.resolve();},on:()=>{}}};},
   });
   assert(Object.isFrozen(exposed.aincradWorldSave));
-  assert.deepEqual(Object.keys(exposed.aincradWorldSave),['exportCurrentWorld']);
+  assert.deepEqual(Object.keys(exposed.aincradWorldSave),['exportCurrentWorld','reloadCurrentWorld']);
   await exposed.aincradWorldSave.exportCurrentWorld('raw','/ignored/path');
-  assert.deepEqual(calls,[['aincrad:current-world-export','raw']]);
+  await exposed.aincradWorldSave.reloadCurrentWorld('https://untrusted.invalid');
+  assert.deepEqual(calls,[['aincrad:current-world-export','raw'],['aincrad:current-world-reload']]);
 });
 
 test('trusted IPC sender must be the live application window main frame at the exact application origin',async()=>{
