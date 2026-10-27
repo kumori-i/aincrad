@@ -177,18 +177,32 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   }else if(action==='cancel'){
     await linuxInput(['key','--clearmodifiers','Escape']);
   }else{
+    // GTK3 location_toggle_popup_handler in SAVE mode only focuses the existing
+    // Name entry; it does not clear/select its text. Select the whole value,
+    // including any unselected .json suffix, before typing the absolute path.
+    // https://github.com/GNOME/gtk/blob/gtk-3-24/gtk/gtkfilechooserwidget.c
     await linuxInput(['key','--clearmodifiers','ctrl+l']);
+    await linuxInput(['key','--clearmodifiers','ctrl+a']);
     await linuxInput(['type','--clearmodifiers','--delay','1','--',destination]);
+    diagnostics.pathEnteredScreenshot=screenshot+'.path-entered.png';
+    await command('import',['-window','root',diagnostics.pathEnteredScreenshot]);
     await linuxInput(['key','--clearmodifiers','Return']);
-    await wait(500);
-    // GTK may first resolve the typed location, leaving the Save dialog open.
-    const names=await command('xdotool',['search','--all','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']).catch(error=>{if(error.commandCode===1&&!error.commandStderr.trim())return {stdout:''};throw error;});
-    const remaining=names.stdout.trim().split(/\s+/).filter(Boolean);
-    if(remaining.length>1)throw new Error('Multiple matching native Save dialogs; no further input was sent');
-    if(remaining.length===1){
+    // Observe completion only. Never send an ungrounded second Return into a
+    // still-open chooser, completion popup or newly opened error dialog.
+    let dismissed=false;
+    for(let attempt=0;attempt<50;attempt++){
+      const names=await command('xdotool',['search','--all','--onlyvisible','--pid',String(pid),'--name','^'+title+'$']).catch(error=>{if(error.commandCode===1&&!error.commandStderr.trim())return {stdout:''};throw error;});
+      const remaining=names.stdout.trim().split(/\s+/).filter(Boolean);
+      if(remaining.length>1)throw new Error('Multiple matching native Save dialogs; no further input was sent');
+      if(remaining.length===0){dismissed=true;break;}
       if(remaining[0]!==windowId)throw new Error('Native Save target changed; no further input was sent');
-      await linuxInput(['key','--clearmodifiers','Return']);
+      await wait(100);
     }
+    diagnostics.postInputScreenshot=screenshot+'.after-submit.png';
+    await command('import',['-window','root',diagnostics.postInputScreenshot]);
+    diagnostics.saveDialogDismissed=dismissed;
+    if(!dismissed)throw new Error('Native Save chooser remained open after one submission; inspect path-entered and after-submit OS screenshots');
+
   }
   diagnostics.status='input-completed';
   await write(screenshot+'.dialog.json',JSON.stringify(diagnostics,null,2));
