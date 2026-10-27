@@ -211,3 +211,53 @@ test('command contract only: one direct Save mnemonic follows measured550ms read
   assert.equal(calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
   assert.ok(!calls.some(c=>c.args.includes('Return')));
 });
+
+const queryTreeBadWindow='X Error of failed request:  BadWindow (invalid Window parameter)\n  Major opcode of failed request:  15 (X_QueryTree)\n  Resource id in failed request:  0x2003b5\n  Serial number of failed request:  661\n  Current serial number in output stream:  661\n';
+function dismissalHarness(observe){
+  const fixture=harness(),successful=fixture.options.run;let activated=false,probes=0,record;
+  fixture.options.run=async(file,args,settings)=>{
+    if(args.at(-1)==='alt+s')activated=true;
+    if(activated&&file==='xdotool'&&args[0]==='search'){
+      fixture.calls.push({file,args});return observe(++probes);
+    }
+    return successful(file,args,settings);
+  };
+  fixture.options.write=async(_path,data)=>{record=JSON.parse(data);};
+  return {...fixture,record:()=>record,probes:()=>probes};
+}
+const badWindow=extra=>Object.assign(new Error('X_QueryTree'),{code:1,stderr:queryTreeBadWindow,stdout:'77\n88\n',signal:null,killed:false,...extra});
+test('command contract only: post-submit BadWindow is inconclusive until clean no-match, never partial stdout or another input',async()=>{
+  const fixture=dismissalHarness(n=>{if(n===1)throw badWindow();throw Object.assign(new Error('no match'),{code:1,stderr:''});});
+  await driveNativeSaveDialog(fixture.options);
+  assert.equal(fixture.probes(),2);assert.equal(fixture.record().inconclusiveDisappearanceProbes,1);
+  assert.equal(fixture.record().saveDialogDismissed,true);
+  assert.ok(fixture.record().commands.some(c=>c.error?.stderr===queryTreeBadWindow));
+  assert.equal(fixture.calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
+});
+test('command contract only: persistent post-submit BadWindow fails bounded and honestly uncertain',async()=>{
+  const fixture=dismissalHarness(()=>{throw badWindow();});
+  await assert.rejects(driveNativeSaveDialog(fixture.options),/dismissal could not be established/);
+  assert.equal(fixture.probes(),50);assert.equal(fixture.record().saveDialogDismissed,false);
+  assert.equal(fixture.record().inconclusiveDisappearanceProbes,50);
+  assert.equal(fixture.calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
+  assert.ok(fixture.calls.some(c=>c.file==='import'&&c.args.at(-1).endsWith('.after-submit.png')));
+});
+test('command contract only: changed or multiple targets after inconclusive observation remain fatal',async()=>{
+  for(const stdout of ['88\n','77\n88\n']){
+    const fixture=dismissalHarness(n=>{if(n===1)throw badWindow();return {stdout};});
+    await assert.rejects(driveNativeSaveDialog(fixture.options),/target changed|Multiple matching/);
+    assert.equal(fixture.probes(),2);assert.equal(fixture.calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
+  }
+});
+test('command contract only: arbitrary or mixed X errors and killed/signaled commands fail without retry',async()=>{
+  for(const extra of [{code:2},{stderr:queryTreeBadWindow+'permission denied\n'},{stderr:queryTreeBadWindow.replace('15 (X_QueryTree)','20 (X_GetProperty)')},{stderr:'Cannot open display'},{killed:true},{signal:'SIGTERM'}]){
+    const fixture=dismissalHarness(()=>{throw badWindow(extra);});
+    await assert.rejects(driveNativeSaveDialog(fixture.options),/Native dialog command/);
+    assert.equal(fixture.probes(),1);assert.equal(fixture.record().inconclusiveDisappearanceProbes,undefined);
+  }
+});
+test('command contract only: BadWindow during initial recognition is never retried',async()=>{
+  const {options}=harness();let calls=0;
+  await assert.rejects(driveNativeSaveDialog({...options,run:async()=>{calls++;throw badWindow();}}),/Native dialog command/);
+  assert.equal(calls,1);
+});
