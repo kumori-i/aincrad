@@ -48,6 +48,11 @@ active. The two displayed symbols encode one category, not grammar. See the
 and the bounded native comparison plan. The separate Python labs above remain
 unchanged; their trained networks are not loaded into this runtime.
 
+The [first six-trial results](docs/communication-bridge/RESULTS.md) found no
+demonstrated survival benefit: two seed pairs had no exchanges, and the third
+had identical recorded outcome ledgers and terminal body aggregates with
+messages enabled or erased. Online weight updates are not proof of shared words.
+
 ## One physical world
 
 - Ozark terrain, river/pond water and differentiated habitats are the common geometry for the player, people, animals and resources.
