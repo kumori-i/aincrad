@@ -1,0 +1,96 @@
+name: Communication experiment native acceptance
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/communication-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'index.html'
+      - 'style.css'
+      - 'scripts/verify-communication-desktop.mjs'
+      - 'scripts/compare-communication-native.mjs'
+      - 'docs/communication-bridge/PROTOCOL.md'
+      - 'scripts/build.mjs'
+      - 'scripts/native-capture-readiness.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'scripts/record-native-host.mjs'
+      - 'tests/communication-*.test.mjs'
+      - 'package*.json'
+  push:
+    branches: [main]
+  create:
+permissions:
+  contents: read
+jobs:
+  isolated-communication-ui:
+    if: github.event_name != 'create'
+    strategy:
+      fail-fast: false
+      # Same sandbox-preserving Linux image as existing native acceptance.
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - name: Native macOS experiment UI and independent reopen
+        if: runner.os == 'macOS'
+        run: node scripts/verify-communication-desktop.mjs
+      - name: Install Linux test display
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Native Linux experiment UI and independent reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-communication-openbox.log" 2>&1 & node scripts/verify-communication-desktop.mjs'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: communication-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/communication-native
+          if-no-files-found: warn
+          retention-days: 7
+
+  preregistered-canvas-comparison:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'experiments/communication-bridge-v1-once' && github.ref == 'refs/heads/experiments/communication-bridge-v1-once' && github.run_attempt == 1
+    concurrency:
+      group: communication-bridge-v1-once
+      cancel-in-progress: false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - name: Install sandbox-preserving test display
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Fixed six-trial Canvas comparison (no warm start)
+        env:
+          AINCRAD_COMPARISON_EXPECTED_SHA: ${{ github.sha }}
+          AINCRAD_COMPARISON_REF_TYPE: ${{ github.event.ref_type }}
+          AINCRAD_COMPARISON_EVENT_REF: ${{ github.event.ref }}
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-comparison-openbox.log" 2>&1 & node scripts/compare-communication-native.mjs'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: communication-comparison-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/communication-comparison
+          if-no-files-found: warn
+          retention-days: 7

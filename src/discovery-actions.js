@@ -20,11 +20,16 @@ export function primitiveDuration(npc,type){
 const ticking = new WeakSet(), settled = new WeakSet();
 const actionActors = new WeakMap();
 const paidWork = new WeakMap();
+const completedWork = new WeakMap();
+// Read-only private witness; weak keys retain no completed actors or actions.
+export function discoveryActionCompletion(npc,active){
+  return active&&actionActors.get(active)===npc?completedWork.get(active)||null:null;
+}
 const sharedGrasps = new WeakMap();
 // The action's public counters and elapsed clock are not proof of paid work.
 // Cancellation can consume this witness while a new hook slice is unreturned.
 export function discoveryActionPaidSeconds(npc,active){
-  return active&&actionActors.get(active)===npc?paidWork.get(active)?.worked||0:0;
+  return active&&actionActors.get(active)===npc?paidWork.get(active)?.worked||completedWork.get(active)?.worked||0:0;
 }
 export function retireDiscoveryAction(npc,active){
   if(active&&actionActors.get(active)===npc)settled.add(active);
@@ -53,7 +58,10 @@ export function takeDiscoveryActionFeedback(npc,active){
 const done=(complete,npc,request,result,active)=>{
   const handling=takeDiscoveryActionFeedback(npc,active);
   if(handling)result={...result,handling};
-  return complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;
+  const work=active&&actionActors.get(active)===npc?paidWork.get(active):null;
+  const completion=complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;
+  if(work&&Number.isInteger(completion?.eventId))completedWork.set(active,Object.freeze({eventId:completion.eventId,worked:work.worked,type:work.request.type,targetId:work.request.targetId}));
+  return completion;
 };
 function allowed(npc,id,environment,inspection=false){
   if(!objectId(id)||!npc.discovery?.observations?.[id]&&!npc.inventory?.items?.includes(id))return {ok:false,code:'UNKNOWN_OBJECT'};

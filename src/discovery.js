@@ -428,7 +428,7 @@ export function contactEscape(npc){
   return null;
 }
 /** A generic novelty/outcome learner. It never looks up an object's species or nutrients. */
-export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true}={}){
+export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,chooseOptional=null}={}){
   processDiscoveryFeedback(npc,{foodLearning});availabilityScans.set(npc,new Map());const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
   const trialHunger=['hungry','ravenous','faint with hunger'].includes(body.hunger);
@@ -565,6 +565,10 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true}
     const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);
     for(const {c} of candidate.slice(0,8)){const move=routeTarget(npc,c);if(move){choices.push({action:move,score:2.5/(1+(c.visits||0))+random(npc),reason:'I can investigate another locally observed patch of terrain.'});break;}}
   }
+  // Runtime-only opt-in experiment may choose an already eligible optional
+  // operation. Every bodily-care/procedure/safety gate above remains prior.
+  // This callback is never stored in actor data or reconstructed from a save.
+  if(typeof chooseOptional==='function'&&choices.length){const index=chooseOptional(choices);if(Number.isInteger(index)&&index>=0&&index<choices.length)return wrap(choices[index].action,'An experimental learned signal influenced this optional physical trial; its outcome remains untested.');}
   if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
 }

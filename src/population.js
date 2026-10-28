@@ -18,7 +18,7 @@ import { BUILD_SOURCE_FINGERPRINT } from './build-info.js';
 
 /** Owns the two characters and the single shared simulation clock. */
 export class PopulationRuntime {
-  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true}={}) {
+  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true,experimentalDiscovery=null}={}) {
     this.state=state;
     this.providerFactory=providerFactory;
     this.controllers=new Map();
@@ -29,7 +29,7 @@ export class PopulationRuntime {
     this.social=new SocialCoordinator({getAgents:()=>this.state.agents,getCommunity:()=>this.state.community,getEnvironment:()=>this.state.environment});
     const deferInitialObservation=state.geometryIdentity===OZARK_WORLD_PROFILE.identity;
     for(const npc of state.agents){
-      this.controllers.set(npc.id,new NpcController(npc,{provider:providerFactory?.(npc),environment:state.environment,social:this.social,discoveryFoodLearning,deferInitialObservation}));
+      this.controllers.set(npc.id,new NpcController(npc,{provider:providerFactory?.(npc),environment:state.environment,social:this.social,discoveryFoodLearning,deferInitialObservation,experimentalDiscovery}));
       if(!deferInitialObservation)this.social.observe(npc);
       this.observedAt.set(npc.id,npc.elapsed);
     }

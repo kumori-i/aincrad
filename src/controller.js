@@ -144,7 +144,7 @@ export class DesktopModelProvider {
   cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false}={}){this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false,experimentalDiscovery=null}={}){this.experimentalDiscovery=experimentalDiscovery;this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;if(this.namingPending)this.namingStatus={state:'cancelled',at:this.npc.elapsed};this.namingPending=null;this.readyDecision=null;this.provider.cancel?.();}
   setDiscoveryCandidateCapture(enabled){setDiscoveryCandidateCapture(this,enabled);}
@@ -279,6 +279,6 @@ export class NpcController {
       }
     }
     captureDiscoveryCandidates(this,n);
-    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.perform(decision.action);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
+    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?choices=>this.experimentalDiscovery.choose(n,choices):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});const performed=this.perform(decision.action);this.experimentalDiscovery?.performed(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }

@@ -55,7 +55,26 @@
         <div class="atlas-note">Select a name to find each person in the watershed. Right-click clears your waypoint; the map does not pause the world.</div>
       </div>
     </section>
-    <section id="pause-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title"><div class="menu-card"><div class="eyebrow">TAKE YOUR TIME</div><h2 id="pause-title">The watershed is paused.</h2><p>Press Escape to pause or resume. Saving problems also pause play to protect your world. Leaving this window, opening the journal, or inspecting a map does not pause time.</p><p id="pause-save-failure" role="status" aria-live="polite"></p><button id="resume" class="primary">Return to the watershed <span>↗</span></button><button id="save-button" class="secondary">Save expedition</button><button id="reset-world" class="secondary">Reset world…</button><p class="small">Bodies, the ecosystem, discoveries, and world time save locally. Closing the application stops simulation.</p></div></section>
+    <dialog id="communication-dialog" aria-labelledby="communication-title">
+      <header class="communication-heading"><div><div class="eyebrow">EXPERIMENTAL · UNSAVED</div><h2 id="communication-title">Learning to communicate</h2></div><button id="communication-close" class="secondary">Close experiment</button></header>
+      <p>Fresh Aster and Mira learn while surviving in a separate Ozark session. Your ordinary world stays paused and its save is untouched. Closing discards this session.</p>
+      <div class="communication-controls">
+        <label>Seed <input id="communication-seed" type="number" min="1" max="4294967295" step="1" value="1"></label>
+        <label><input id="communication-enabled" type="checkbox" checked> Learned symbols enabled</label>
+        <button id="communication-start" class="primary">Start fresh</button><button id="communication-stop" class="secondary">Stop</button>
+        <label>Speed <select id="communication-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
+        <label>Follow <select id="communication-follow"><option value="aster">Aster</option><option value="mira">Mira</option></select></label>
+      </div>
+      <p class="small">Seed and symbols apply on Start fresh. Uncheck symbols for a constant-message control with the same fresh seed. Escape pauses only this experiment.</p>
+      <p id="communication-status" role="status" aria-live="polite">Ready.</p>
+      <div class="communication-layout"><div><canvas id="communication-world" width="800" height="450" aria-label="Experimental Ozark observer view"></canvas><p class="small">Observer view. Policies receive only their own local crops, not this overview.</p></div><aside>
+        <h3>Physical outcomes</h3><p id="communication-elapsed">0 / 1800 simulation seconds</p><p id="communication-counts"></p><p id="communication-bodies"></p>
+        <h3>Latest exchange</h3><p id="communication-message"></p><p id="communication-outcome"></p>
+        <div class="communication-crops"><figure><canvas id="communication-sender-pixels" width="16" height="16" aria-label="Sender remembered crop"></canvas><figcaption>Sender’s earlier sight</figcaption></figure><figure><canvas id="communication-receiver-pixels" width="16" height="16" aria-label="Receiver local crop"></canvas><figcaption>Receiver’s own sight</figcaption></figure></div>
+      </aside></div>
+      <p class="small">New online learner; no saved memories, pretrained weights or English vocabulary. Crop segmentation and communication opportunities are supplied scaffolding. Token pairs are categorical symbols, not demonstrated grammar. A positive reward alone is not evidence of improved survival. Sessions stop at 1800 simulation seconds.</p>
+    </dialog>
+    <section id="pause-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title"><div class="menu-card"><div class="eyebrow">TAKE YOUR TIME</div><h2 id="pause-title">The watershed is paused.</h2><p>Press Escape to pause or resume. Saving problems also pause play to protect your world. Leaving this window, opening the journal, or inspecting a map does not pause time.</p><p id="pause-save-failure" role="status" aria-live="polite"></p><button id="resume" class="primary">Return to the watershed <span>↗</span></button><button id="save-button" class="secondary">Save expedition</button><button id="open-communication" class="secondary">Communication experiment…</button><button id="reset-world" class="secondary">Reset world…</button><p class="small">Bodies, the ecosystem, discoveries, and world time save locally. Closing the application stops simulation.</p></div></section>
     <section id="help-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="menu-card guide"><div class="eyebrow">ONE LIVING WATERSHED</div><h2 id="help-title">Explore Ozark.</h2><dl>
       <dt><kbd>W A S D</kbd> / arrow keys</dt><dd>Walk through the watershed; trees, rocks and steep ground affect movement.</dd>
       <dt><kbd>Shift</kbd></dt><dd>Hold while moving to run.</dd>
