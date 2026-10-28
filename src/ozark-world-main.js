@@ -12,7 +12,9 @@ import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
 import { installWorldReset } from './world-reset-ui.js';
-import { installCommunicationExperiment } from './communication-experiment-ui.js';
+import { installCommunicationInspector } from './communication-inspector.js';
+import { attachCommunicationLearning } from './communication-attachment.js';
+import { createCommunicationPixelSensor } from './communication-pixels.js';
 import { saveFailureMessage } from './save-failure-message.js';
 
 const $ = id => document.getElementById(id);
@@ -37,7 +39,24 @@ let state = loaded.state;
 let population = null;
 let renderer = null;
 let npcPanel = null;
-let communicationExperiment = null;
+let communicationInspector = null;
+let communicationLearning = null;
+let communicationError = '';
+// Learning failures retire only this optional channel. Survival and its save
+// remain authoritative; do not recreate actors or retry with old source claims.
+function stopCommunication() {
+  const previous = communicationLearning;
+  communicationLearning = null;
+  communicationError = 'Symbol learning stopped after an error. Survival continues; reopen the app to start fresh communication learners.';
+  try { previous?.dispose(); } catch { /* channel is already detached */ }
+  notify(communicationError, 12);
+}
+function communicate(method, ...args) {
+  try { return ['choose', 'performed'].includes(method)
+    ? communicationLearning?.hooks[method](...args)
+    : communicationLearning?.[method](...args); }
+  catch { stopCommunication(); return null; }
+}
 let started = false;
 let resetHeld = false;
 let resetRetired = false;
@@ -74,7 +93,7 @@ function selectedAgent() {
   return population?.getAgent(state.selectedAgentId) || state.agents?.[0] || null;
 }
 function save(explicit = false) {
-  if (communicationExperiment?.active() || resetHeld || resetRetired || loaded.blocked || !state) return false;
+  if (resetHeld || resetRetired || loaded.blocked || !state) return false;
   const ok = writeOzarkSave(storage, state, geometry);
   const failure = ok ? '' : saveFailureMessage(getOzarkSaveFailure(state));
   text('save-status', ok ? 'Ozark world saved locally' : failure);
@@ -118,7 +137,17 @@ if (loaded.blocked) {
   text('save-status', 'Ozark save protected');
 } else {
   for (const npc of state.agents) bindOzarkWorldAgent(npc, geometry, state);
-  population = new PopulationRuntime(state, { cardinal: false });
+  let sensor = null;
+  try {
+    sensor = createCommunicationPixelSensor(document);
+    communicationLearning = attachCommunicationLearning({ state, pixelSensor: sensor });
+  } catch {
+    sensor?.dispose(); stopCommunication();
+  }
+  population = new PopulationRuntime(state, { cardinal: false, experimentalDiscovery: {
+    choose: (...args) => communicate('choose', ...args),
+    performed: (...args) => communicate('performed', ...args),
+  } });
 }
 renderer = new OzarkWorldRenderer($('world'), geometry);
 try {
@@ -169,7 +198,6 @@ function openPanel(name) {
 }
 function togglePanel(name) { if (panel === name) closePanel(); else openPanel(name); }
 function setPause(value) {
-  if (communicationExperiment?.active()) return;
   if (!started || resetHeld || resetRetired) return;
   paused = value; keys.clear(); anim.moving = false;
   clock.reset(performance.now() / 1000);
@@ -196,9 +224,11 @@ function advancePlayer(dt, dx, dy, mode, sprint = false) {
     motion.fallRiskSeconds * 8, 0, 100);
   if (motion.swimSeconds > 0 && body.stamina < 1)
     body.health = clamp(body.health - motion.swimSeconds * 2, 0, 100);
+  communicate('beforeTick');
   state.elapsed += dt;
   state.distance += motion.distance;
   population.tick(dt);
+  communicate('afterTick');
   anim.moving = motion.distance > .01;
   if (acting) {
     const length = Math.hypot(dx, dy);
@@ -298,11 +328,13 @@ const simulationTimer = setInterval(() => {
   }
 }, 1000 / 60);
 
-communicationExperiment = installCommunicationExperiment({
-  document, window, geometry,
+communicationInspector = installCommunicationInspector({
+  document, window, geometry, state,
+  getLearning: () => communicationLearning, getError: () => communicationError,
+  setPaused: setPause, isPaused: () => paused,
   canOpen: () => started && paused && !loaded.blocked && !resetHeld && !resetRetired,
   onEnter: () => { keys.clear(); npcPanel?.close(); anim.moving = false; },
-  onExit: () => { keys.clear(); clock.reset(performance.now() / 1000); },
+  onExit: () => { keys.clear(); },
 });
 
 installWorldReset({
@@ -315,7 +347,7 @@ installWorldReset({
   release: () => { resetHeld = false; },
   retire: () => {
     resetRetired = true; started = false; paused = true; keys.clear();
-    clearInterval(simulationTimer); communicationExperiment?.dispose(); population?.dispose();
+    clearInterval(simulationTimer); communicationInspector?.dispose(); communicationLearning?.dispose(); population?.dispose();
   },
   reload: () => window.aincradWorldSave?.reloadCurrentWorld
     ? window.aincradWorldSave.reloadCurrentWorld() : location.reload(),
@@ -447,6 +479,8 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     },
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
+    communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
+    communicationError: () => communicationError,
     snapshot: () => ({ version:state.version,features:structuredClone(state.features),geometryIdentity: state.geometryIdentity,
       player: { ...state.player }, playerBody: { ...state.playerBody },
       agents: state.agents.map(npc => ({ id: npc.id, position: { ...npc.position },
