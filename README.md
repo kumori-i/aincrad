@@ -22,6 +22,8 @@ randomly initialized neural networks to communicate about synthetic RGB object
 crops using arbitrary discrete symbols. It does not run in the game or change
 Aster, Mira, live vision, settings or saves. Results include failed attempts and
 held-out message-ablation controls; harness delivery is not a language claim.
+The [v2 follow-up](docs/pixel-language-v2/README.md) adds contrastive color/shape
+episodes, broader appearances and a predeclared multi-seed replication test.
 
 ## One physical world
 

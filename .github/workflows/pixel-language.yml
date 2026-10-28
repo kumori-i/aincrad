@@ -21,4 +21,4 @@ jobs:
         env:
           OMP_NUM_THREADS: '2'
           MKL_NUM_THREADS: '2'
-        run: python -m unittest scripts.pixel_language_lab.test_lab -v
+        run: python -m unittest scripts.pixel_language_lab.test_lab scripts.pixel_language_v2.test_lab -v

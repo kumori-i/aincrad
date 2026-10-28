@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "main_seeds": [
+    113,
+    127,
+    139,
+    151,
+    163
+  ],
+  "pilot_seed": 107,
+  "pilot_steps": 3000,
+  "pilot_coefficients": [
+    0.02,
+    0.1
+  ],
+  "steps": 7500,
+  "batch_size": 128,
+  "lr": 0.001,
+  "entropy_start": 0.02,
+  "entropy_end": 0.002,
+  "baseline_decay": 0.95,
+  "threads": 1,
+  "max_seconds": 300,
+  "evaluation_seed": 2026102802,
+  "evaluation_episodes": 2048,
+  "validation_episodes": 1024,
+  "bootstrap_samples": 1000,
+  "training_namespace": 2802100,
+  "validation_namespace": 2802200,
+  "final_namespace": 2802300
+}
