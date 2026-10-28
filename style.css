@@ -60,3 +60,23 @@
 #reset-dialog .danger { padding: 13px 19px; border-radius: 10px; font: inherit; font-weight: 700; line-height: 1.4; background: #8e342e; border: 1px solid #cf7e70; color: #fff8ed; }
 #reset-dialog button:disabled { opacity: .5; cursor: not-allowed; }
 #reset-dialog [hidden] { display: none; }
+
+/* Deliberately separate, disposable research view; never a world chooser. */
+#communication-dialog { width: min(1200px, 94vw); max-height: 94vh; overflow: auto; padding: 24px; border: 1px solid #a18b68; border-radius: 14px; background: #f0e8d7; color: #302e25; box-shadow: 0 24px 90px #0009; }
+#communication-dialog::backdrop { background: #111a18cc; }
+#communication-dialog h2 { margin: 6px 0; }
+#communication-dialog h3 { margin: 12px 0 8px; }
+.communication-heading, .communication-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.communication-heading { justify-content: space-between; }
+.communication-controls label { display: flex; align-items: center; gap: 7px; }
+.communication-controls input[type=number] { width: 115px; }
+.communication-controls input, .communication-controls select { padding: 7px; }
+#communication-status { padding: 10px 12px; border: 1px solid #a18b68; border-radius: 6px; background: #fff8; }
+.communication-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 20px; }
+#communication-world { display: block; width: 100%; height: clamp(240px, 47vh, 520px); border-radius: 8px; background: #283b32; }
+#communication-bodies { white-space: pre-line; line-height: 1.6; }
+.communication-crops { display: flex; gap: 15px; flex-wrap: wrap; }
+.communication-crops figure { margin: 0; }
+.communication-crops canvas { width: 96px; height: 96px; image-rendering: pixelated; background: #29352e; border: 1px solid #a18b68; }
+.communication-crops figcaption { font-size: 12px; }
+@media (max-width: 850px) { .communication-layout { grid-template-columns: 1fr; } #communication-dialog { padding: 16px; } }

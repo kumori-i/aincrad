@@ -30,13 +30,21 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // those changes. Prior normalized pin:
 // 6177a5daff69fe65d614542ad4bb4d1a5780a338f53f6338102461af51bf7a1a.
 // This is current capture-on/off parity, not a rerun/relabel of historical trials.
-// Retain the exact new pin: unrelated controller edits still require review.
+// Preserve the old controller pin by removing only the exact reviewed opt-in
+// communication seam. The baseline below therefore executes pre-bridge code,
+// not two copies of a potentially defective new default path. The null runtime
+// property is excluded only from controller-container comparisons; actors,
+// ecology, actions, events and RNG remain compared in full.
 const baselineSource = source
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
   .replace(/^  setDiscoveryCandidateCapture\(enabled\)\{setDiscoveryCandidateCapture\(this,enabled\);\}\n/m, '')
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')
   .replace('dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}', 'dispose(){this.disposed=true;this.cancel();}')
-  .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '');
+  .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '')
+  .replace(',experimentalDiscovery=null', '')
+  .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
+  .replace(',chooseOptional:this.experimentalDiscovery?choices=>this.experimentalDiscovery.choose(n,choices):null', '')
+  .replace('const performed=this.perform(decision.action);this.experimentalDiscovery?.performed(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
 assert.equal(sha(baselineSource), '7946d27ceaaf13075f3ac29a5f059da1bf48af4e66bf774d7ced073e188d876b', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
@@ -61,7 +69,7 @@ function controller(n = createNpc({ mode: 'discovery', seed: 74193 }), Controlle
   const c = new Controller(n, { deferInitialObservation: true, ...options });
   c.senseAt = n.elapsed; return c;
 }
-function plainController(c) { return Object.fromEntries(Object.entries(c).filter(([key]) => !['npc', 'provider', 'fallback', 'environment', 'social'].includes(key))); }
+function plainController(c) { assert.equal(c.experimentalDiscovery ?? null, null, 'default communication hook remains inert'); return Object.fromEntries(Object.entries(c).filter(([key]) => !['npc', 'provider', 'fallback', 'environment', 'social', 'experimentalDiscovery'].includes(key))); }
 
 // Pure projection contract. These inputs are deliberately constructed, not runs.
 test('collector emits only copied, frozen qualitative observations and unranked retained descriptions', () => {

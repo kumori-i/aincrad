@@ -12,6 +12,7 @@ import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
 import { installWorldReset } from './world-reset-ui.js';
+import { installCommunicationExperiment } from './communication-experiment-ui.js';
 import { saveFailureMessage } from './save-failure-message.js';
 
 const $ = id => document.getElementById(id);
@@ -36,6 +37,7 @@ let state = loaded.state;
 let population = null;
 let renderer = null;
 let npcPanel = null;
+let communicationExperiment = null;
 let started = false;
 let resetHeld = false;
 let resetRetired = false;
@@ -72,7 +74,7 @@ function selectedAgent() {
   return population?.getAgent(state.selectedAgentId) || state.agents?.[0] || null;
 }
 function save(explicit = false) {
-  if (resetHeld || resetRetired || loaded.blocked || !state) return false;
+  if (communicationExperiment?.active() || resetHeld || resetRetired || loaded.blocked || !state) return false;
   const ok = writeOzarkSave(storage, state, geometry);
   const failure = ok ? '' : saveFailureMessage(getOzarkSaveFailure(state));
   text('save-status', ok ? 'Ozark world saved locally' : failure);
@@ -167,6 +169,7 @@ function openPanel(name) {
 }
 function togglePanel(name) { if (panel === name) closePanel(); else openPanel(name); }
 function setPause(value) {
+  if (communicationExperiment?.active()) return;
   if (!started || resetHeld || resetRetired) return;
   paused = value; keys.clear(); anim.moving = false;
   clock.reset(performance.now() / 1000);
@@ -295,6 +298,13 @@ const simulationTimer = setInterval(() => {
   }
 }, 1000 / 60);
 
+communicationExperiment = installCommunicationExperiment({
+  document, window, geometry,
+  canOpen: () => started && paused && !loaded.blocked && !resetHeld && !resetRetired,
+  onEnter: () => { keys.clear(); npcPanel?.close(); anim.moving = false; },
+  onExit: () => { keys.clear(); clock.reset(performance.now() / 1000); },
+});
+
 installWorldReset({
   document, storage, geometry, previous: () => loaded.blocked ? null : state,
   freeze: () => {
@@ -305,7 +315,7 @@ installWorldReset({
   release: () => { resetHeld = false; },
   retire: () => {
     resetRetired = true; started = false; paused = true; keys.clear();
-    clearInterval(simulationTimer); population?.dispose();
+    clearInterval(simulationTimer); communicationExperiment?.dispose(); population?.dispose();
   },
   reload: () => window.aincradWorldSave?.reloadCurrentWorld
     ? window.aincradWorldSave.reloadCurrentWorld() : location.reload(),

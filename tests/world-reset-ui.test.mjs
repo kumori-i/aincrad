@@ -94,9 +94,10 @@ test('retirement failure never writes or enables old-session cancellation', asyn
 
 test('runtime central guard covers saves, simulation and terminal disposal', async () => {
   const source = await readFile(new URL('../src/ozark-world-main.js', import.meta.url), 'utf8');
-  assert.match(source, /function save\(explicit = false\)\s*\{\s*if \(resetHeld \|\| resetRetired/);
+  // The opt-in experiment adds another save hold; reset holds remain required.
+  assert.match(source, /function save\(explicit = false\)\s*\{\s*if \(communicationExperiment\?\.active\(\) \|\| resetHeld \|\| resetRetired \|\| loaded.blocked \|\| !state\) return false;/);
   assert.match(source, /running: started && !paused && !loaded.blocked && !resetHeld && !resetRetired/);
-  assert.match(source, /clearInterval\(simulationTimer\); population\?\.dispose\(\)/);
+  assert.match(source, /clearInterval\(simulationTimer\); communicationExperiment\?\.dispose\(\); population\?\.dispose\(\)/);
   assert.match(source, /pagehide[^\n]*save\(\)/); assert.match(source, /beforeunload[^\n]*save\(\)/);
 });
 
