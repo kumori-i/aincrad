@@ -1,6 +1,6 @@
 // Private visual associations grounded only in canonical observed demonstrations.
 // One main-world optional channel; never owns the clock, population or bodily credit.
-import { createIndicationPermit, discoveryActionCompletion, successfulDiscoveryActionCompletion, referenceGeometry } from './discovery-actions.js';
+import { createIndicationPermit, createListenerResponsePermit, retireIndicationPermit, discoveryActionCompletion, successfulDiscoveryActionCompletion, referenceGeometry } from './discovery-actions.js';
 import { requestNpcIndication, cancelNpcAction } from './npc.js';
 import { senseReferenceObjects, resolveIndication, visibleIndicationGeometry, observeIndication } from './visual-reference-perception.js';
 import { actorLineOfSight } from './perception.js';
@@ -13,6 +13,7 @@ import { validateReferencePersistence } from './visual-reference-save.js';
 import { markVisualReferenceAttached } from './visual-reference-save-registration.js';
 
 export const REFERENCE_LIMITS=Object.freeze({timeout:12,cooldown:12,featureDistance:.08,observationSeconds:.5,maxObservationStep:CONFIG.fixedStep,segmentLength:24,maxEvents:256});
+export const SENDER_FEEDBACK_LIMITS=Object.freeze({match:.04,mismatch:.08,maxPending:16});
 // Observation occurs at the real step endpoint. Never backdate sight into a
 // funded prefix: materially partial-funded steps cannot certify an interval.
 function fullReferenceSample(at,paidSeconds,stepSeconds){return Number.isFinite(at)&&Number.isFinite(paidSeconds)&&Number.isFinite(stepSeconds)&&stepSeconds>0&&stepSeconds<=REFERENCE_LIMITS.maxObservationStep+1e-8&&Math.abs(stepSeconds-paidSeconds)<=1e-8;}
@@ -43,8 +44,8 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   const choiceRandom=savedRandom.choice===initialReferenceRandomStates(seed).choice?
     createReferenceRandomStream({seed,purpose:'choice'}):
     createReferenceRandomStream({seed,purpose:'choice',state:savedRandom.choice});
-  const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet();
-  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0};
+  const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet(),feedbackByActor=new Map();
+  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0,feedbackMatched:0,feedbackMismatched:0,feedbackCensored:0};
   let disposed=false,nextId=1,nextIdentity=restored.worldLineage.nextSerial,
     auditReaderIssued=false,auditEnabled=false,auditRecord=null;
   const bump=(key)=>{gates[key]=Math.min(Number.MAX_SAFE_INTEGER,(gates[key]||0)+1);};
@@ -74,11 +75,12 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     const retiredIds=new Set();
     for(const [actor,entry]of identities)if(!present.has(actor)||entry.agentId!==actor.id||
         entry.discovery!==actor.discovery||entry.physiology!==actor.physiology){
-      retiredIds.add(entry.agentId);identities.delete(actor);
+      retiredIds.add(entry.agentId);identities.delete(actor);feedbackByActor.delete(actor);
     }
     // Session rows carry names, not durable incarnation keys. Do not show a
     // retired person's events as the replacement person's conversation.
     if(retiredIds.size){
+      feedbackByActor.clear();
       for(let index=events.length-1;index>=0;index--)
         if(retiredIds.has(events[index].senderId)||retiredIds.has(events[index].receiverId))events.splice(index,1);
       auditRecord=null;
@@ -87,8 +89,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       if(nextIdentity>0xffffffff)throw new RangeError('Reference actor serials are exhausted');
       const serial=nextIdentity++;
       identities.set(actor,{token:Object.freeze({}),agentId:actor.id,serial,discovery:actor.discovery,physiology:actor.physiology,
-        memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial})});
+        epoch:actor.epoch,memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial})});
     }
+    // Completed response samples are session evidence. Bodily interruption
+    // erases them without erasing personally acquired associations.
+    for(const [actor,entry]of identities)if(entry.epoch!==actor.epoch){feedbackByActor.clear();entry.epoch=actor.epoch;}
     for(const [actor,entry]of identities)entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
   }
   const originalActors=new Map(state.agents.map(actor=>[actor.id,actor]));
@@ -97,7 +102,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   for(const saved of restored.worldLineage.agents){
     const actor=originalActors.get(saved.agentId);
     identities.set(actor,{token:Object.freeze({}),agentId:saved.agentId,serial:saved.serial,
-      discovery:actor.discovery,physiology:actor.physiology,
+      discovery:actor.discovery,physiology:actor.physiology,epoch:actor.epoch,
       memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:saved.serial})});
   }
   for(const [actor,entry]of identities)
@@ -115,6 +120,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;t.demonstration=null;
     delete t.event.demonstrationPixels;delete t.event.demonstrationObservedAt;
   }
+  function clearResponse(t){t.responseContiguous=0;t.responseObservedId=null;t.responseCrop=null;}
   function correct(t){
     if(!correctionRights.delete(t))return;
     metrics.correctionAttempts++;
@@ -127,14 +133,47 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     else if(outcome.outcome==='capacity-conflict')metrics.conflicts++;
     else metrics.correctionAbstentions++;
   }
+  function finishResponse(t,status,reason,crop=null){
+    if(t.terminal)return;
+    retireIndicationPermit(t.responsePermit);
+    t.terminal=true;sessions.delete(t);busy.delete(t.sender);busy.delete(t.receiver);
+    t.event.feedbackStatus=status;t.event.feedbackReason=reason;t.event.endedAt=state.elapsed;
+    if(crop){
+      const signal=status==='matched'?'match':'mismatch';
+      const row=Object.freeze({eventId:t.event.id,symbol:t.symbol,signal,
+        features:Object.freeze(crop.features.slice()),at:crop.at});
+      const queue=feedbackByActor.get(t.sender)||[];
+      queue.push(row);if(queue.length>SENDER_FEEDBACK_LIMITS.maxPending)queue.shift();
+      feedbackByActor.set(t.sender,queue);
+      metrics[status==='matched'?'feedbackMatched':'feedbackMismatched']++;
+    }else{feedbackByActor.clear();metrics.feedbackCensored++;bump(`response:${reason}`);}
+    clearResponse(t);t.responsePermit=null;
+    if(t.responseActive&&t.receiver.active===t.responseActive)
+      cancelNpcAction(t.receiver,'REFERENCE_INTERRUPTED');
+  }
   function finish(t,status,reason){
     if(t.terminal)return;
+    if(t.demonstrationCompleted){finishResponse(t,'censored',reason);return;}
+    retireIndicationPermit(t.permit);
     t.terminal=true;sessions.delete(t);busy.delete(t.sender);busy.delete(t.receiver);
     t.event.status=status;t.event.reason=reason;t.event.endedAt=state.elapsed;
     if(status==='observed'){metrics.completed++;metrics.observed++;if(t.selectedId===t.targetId)metrics.correct++;t.event.referenceCorrect=t.selectedId===t.targetId;t.event.demonstratedObjectId=t.observedId;correct(t);if(auditEnabled&&!auditRecord)auditRecord=t;}
-    else{metrics.censored++;bump(`${t.stage}:${reason}`);}
+    else{feedbackByActor.clear();clearDemonstration(t);metrics.censored++;bump(`${t.stage}:${reason}`);}
     // Only this transaction's own authentic active commands can be cancelled.
-    for(const [n,active]of [[t.receiver,t.choiceActive],[t.sender,t.indicationActive]])if(active&&n.active===active)cancelNpcAction(n,'REFERENCE_INTERRUPTED');
+    for(const [n,active]of [[t.receiver,t.choiceActive],[t.sender,t.indicationActive],[t.receiver,t.responseActive]])if(active&&n.active===active)cancelNpcAction(n,'REFERENCE_INTERRUPTED');
+  }
+  function completeDemonstration(t){
+    if(t.demonstrationCompleted||t.terminal)return;
+    t.demonstrationCompleted=true;metrics.completed++;metrics.observed++;
+    // Only the observer's diagnostics can see this critic comparison.
+    if(t.selectedId===t.targetId)metrics.correct++;
+    t.event.referenceCorrect=t.selectedId===t.targetId;
+    t.event.demonstratedObjectId=t.observedId;t.event.status='observed';t.event.reason='visible-post-choice-demonstration';
+    correct(t);
+    if(auditEnabled&&!auditRecord)auditRecord=t;
+    t.responsePermit=createListenerResponsePermit(t.receiver,t.sender,t.indicationActive);
+    if(!t.responsePermit){finishResponse(t,'censored','response-not-authorized');return;}
+    t.stage='awaiting-response';t.event.feedbackStatus='awaiting-response';
   }
   function current(t){
     if(!state.agents.includes(t.sender)||!state.agents.includes(t.receiver)||!unchanged(t.sender,t.senderIdentity)||!unchanged(t.receiver,t.receiverIdentity))return 'identity-or-position-changed';
@@ -154,7 +193,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       const invalid=current(t);if(invalid){finish(t,'censored',invalid);continue;}
       if(t.stage==='choice'&&t.choiceActive&&t.receiver.active!==t.choiceActive){
         const proof=discoveryActionCompletion(t.receiver,t.choiceActive);
-        if(!proof){finish(t,'censored','choice-interrupted');continue;}
+        if(!proof||proof.type!=='inspect_object'||proof.targetId!==t.selectedId){finish(t,'censored','choice-interrupted');continue;}
         const permit=createIndicationPermit(t.sender,t.receiver,t.choiceActive,t.targetId);
         if(!permit){finish(t,'censored','choice-not-canonical-success');continue;}
         t.permit=permit;t.stage='awaiting-indication';t.event.status=t.stage;t.event.selectedActionId=proof.eventId;
@@ -166,7 +205,21 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         if(t.contiguous+1e-8<REFERENCE_LIMITS.observationSeconds){finish(t,'censored','demonstration-not-observed');continue;}
         if(!t.demonstration||t.demonstration.epoch!==t.receiver.epoch||Math.abs(t.demonstration.at-t.receiver.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){finish(t,'censored','stale-demonstration');continue;}
         correctionRights.add(t);
-        finish(t,'observed','visible-post-choice-demonstration');
+        completeDemonstration(t);
+      }
+      if(t.stage==='responding'&&t.responseActive&&t.receiver.active!==t.responseActive){
+        const proof=successfulDiscoveryActionCompletion(t.receiver,t.responseActive);
+        if(!proof||proof.type!=='indicate_object'||Math.abs(proof.worked-1.8)>1e-8){finish(t,'censored','response-interrupted');continue;}
+        t.event.responseActionId=proof.eventId;
+        if(t.responseContiguous+1e-8<REFERENCE_LIMITS.observationSeconds){finish(t,'censored','response-not-observed');continue;}
+        const crop=t.responseCrop;
+        if(!crop||crop.epoch!==t.sender.epoch||Math.abs(crop.at-t.sender.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){finish(t,'censored','stale-response');continue;}
+        const distance=rms(t.intendedFeatures,crop.features);
+        if(distance<=SENDER_FEEDBACK_LIMITS.match)
+          finishResponse(t,'matched','sender-local-visual-match',crop);
+        else if(distance>=SENDER_FEEDBACK_LIMITS.mismatch)
+          finishResponse(t,'mismatched','sender-local-visual-mismatch',crop);
+        else finish(t,'censored','response-visual-gray-zone');
       }
     }
   }
@@ -189,6 +242,26 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     t.observedId=id;t.event.observedSeconds=t.contiguous;
     t.demonstration=Object.freeze({features:Object.freeze(crop.features.slice()),at:crop.at,epoch:crop.epoch});
     t.event.demonstrationPixels=crop.pixels.slice();t.event.demonstrationObservedAt=crop.at;
+  }
+  function observeResponsePaid(t,{paidSeconds,stepSeconds,at}){
+    if(t.terminal||t.stage!=='responding'||!Number.isFinite(paidSeconds)||paidSeconds<=0)return;
+    const previousAt=t.lastResponsePaidAt;
+    const continuous=previousAt===undefined?fullReferenceSample(at,paidSeconds,stepSeconds):continuousReferenceStep(previousAt,at,paidSeconds,stepSeconds);
+    t.lastResponsePaidAt=at;
+    if(!continuous){clearResponse(t);bump('response:noncontiguous-step');return;}
+    const invalid=current(t);if(invalid){clearResponse(t);finish(t,'censored',invalid);return;}
+    // The chosen inspection target is actuator-only. The original sender gets
+    // only the listener's visible pose and a fresh crop from its own sensor.
+    const seen=observeIndication(t.sender,t.receiver,state);
+    const id=seen?.objectId;
+    const crop=id?pixelSensor.capture(t.sender,state).get(id):null;
+    if(!id||!cropValid(crop,t.sender)||Math.abs(crop.at-t.sender.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){
+      clearResponse(t);bump(`response:${seen?.reason||'no-fresh-crop'}`);return;
+    }
+    if(t.responseObservedId!==id||previousAt===undefined)clearResponse(t);
+    else t.responseContiguous+=paidSeconds;
+    t.responseObservedId=id;
+    t.responseCrop=Object.freeze({features:Object.freeze(crop.features.slice()),at:crop.at,epoch:crop.epoch});
   }
   // Trusted fresh-profile engineering installer only. This cannot make a
   // decision, train memory, select a favorable event or alter any random stream.
@@ -226,6 +299,9 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         if(existing.sender===receiver&&existing.stage==='awaiting-indication'){
           const action=Object.freeze({type:'indicate_object'});actions.set(action,existing);existing.indicationRequest=action;return action;
         }
+        if(existing.receiver===receiver&&existing.stage==='awaiting-response'){
+          const action=Object.freeze({type:'indicate_object'});actions.set(action,existing);existing.responseRequest=action;return action;
+        }
         bump('busy');return null;
       }
       if(!awake(receiver)||urgent(receiver)||receiver.active)return null;
@@ -242,6 +318,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         if(!geometry||!visibleIndicationGeometry(receiver,geometry))continue;
         const resolution=resolveIndication(geometry,own.objects);
         if(resolution.index!==i)continue;
+        // Either candidate may be the listener's original choice. Check the
+        // reverse public gesture against the sender's full visible set before
+        // creating an optional exchange; never infer its referent from an ID.
+        const reply=referenceGeometry(receiver.position,own.objects[i].position,receiver.scene,1);
+        if(!reply||!visibleIndicationGeometry(sender,reply)||resolveIndication(reply,other.objects).index!==j)continue;
         candidates.push({id,position:{...own.objects[i].position},own:a,other:b});
       }
       const senderMemory=identities.get(sender),receiverMemory=identities.get(receiver),pairs=[];
@@ -267,17 +348,26 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       bump(`choice:${choice.reason}`);
       const action=Object.freeze({type:'inspect_object',targetId:selected.id});
       const event={id:nextId++,emittedAt:state.elapsed,senderId:sender.id,receiverId:receiver.id,tokens:[Math.floor(symbol/8),symbol%8],status:'choice',action:'inspect_object',reward:null,senderPixels:target.other.pixels.slice(),receiverPixels:selected.own.pixels.slice(),senderObservedAt:target.other.at,receiverObservedAt:selected.own.at,phase:'private-visual-association',choiceMode:confident?'association-match':'uniform-exploration',choiceReason:choice.reason};
-      const t={sender,receiver,senderMemory,receiverMemory,symbol,senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,choiceRequest:action,stage:'choice',startedAt:state.elapsed,event,terminal:false,contiguous:0,observedId:null};
+      const t={sender,receiver,senderMemory,receiverMemory,symbol,senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,intendedFeatures:Object.freeze(target.other.features.slice()),choiceRequest:action,stage:'choice',startedAt:state.elapsed,event,terminal:false,contiguous:0,observedId:null,responseContiguous:0,responseObservedId:null};
       sessions.add(t);busy.set(sender,t);busy.set(receiver,t);actions.set(action,t);cooldowns.set(receiver,receiver.elapsed);metrics.exchanges++;
       events.push(event);if(events.length>REFERENCE_LIMITS.maxEvents)events.shift();return action;
     },
     decision(n,decision){const t=busy.get(n);if(t&&decision.need!=='understanding')finish(t,'censored','priority-decision');},
     performOptional(n,action){
-      const t=actions.get(action);if(!t||t.terminal||n!==t.sender||action!==t.indicationRequest)return null;
-      t.stage='indicating';t.event.status=t.stage;
-      const result=requestNpcIndication(n,t.permit,state.environment,{onPaid:work=>{try{observePaid(t,work);}catch{finish(t,'censored','observer-error');}}});
-      if(result?.code!=='ACTION_STARTED'){finish(t,'censored','indication-start-rejected');return result;}
-      t.indicationActive=n.active;return result;
+      const t=actions.get(action);if(!t||t.terminal)return null;
+      if(n===t.sender&&action===t.indicationRequest&&t.stage==='awaiting-indication'){
+        t.stage='indicating';t.event.status=t.stage;
+        const result=requestNpcIndication(n,t.permit,state.environment,{onPaid:work=>{try{observePaid(t,work);}catch{finish(t,'censored','observer-error');}}});
+        if(result?.code!=='ACTION_STARTED'){finish(t,'censored','indication-start-rejected');return result;}
+        t.indicationActive=n.active;return result;
+      }
+      if(n===t.receiver&&action===t.responseRequest&&t.stage==='awaiting-response'){
+        t.stage='responding';t.event.feedbackStatus=t.stage;
+        const result=requestNpcIndication(n,t.responsePermit,state.environment,{onPaid:work=>{try{observeResponsePaid(t,work);}catch{finish(t,'censored','response-observer-error');}}});
+        if(result?.code!=='ACTION_STARTED'){finish(t,'censored','response-start-rejected');return result;}
+        t.responseActive=n.active;return result;
+      }
+      return null;
     },
     performed(n,action,result,active){
       const t=actions.get(action);if(!t||t.terminal||n!==t.receiver||action!==t.choiceRequest)return;
@@ -313,9 +403,19 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     if(!listener||!sender)return null;
     return listener.memory.choose(sender.token,symbol,candidateFeatures);
   }
-  return {hooks,createNativeAssociationAuditReader,exportPersistence,inspectPersistedAssociation,
+  // A future sender policy can consume only its own bounded visual feedback.
+  // No critic result, listener crop, object identity or bodily reward is here.
+  function takeSenderFeedback(sender){
+    if(disposed||!currentIdentities()||[...identities].some(([actor,entry])=>entry.epoch!==actor.epoch)){
+      feedbackByActor.clear();return [];
+    }
+    if(!identities.has(sender))return [];
+    const pending=feedbackByActor.get(sender)||[];feedbackByActor.delete(sender);
+    return pending.map(({symbol,signal,features,at})=>({symbol,signal,features:features.slice(),at}));
+  }
+  return {hooks,createNativeAssociationAuditReader,exportPersistence,inspectPersistedAssociation,takeSenderFeedback,
     beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},
-    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');},
-    snapshot(){const stale=!currentIdentities();return {phase:'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:stale?0:sessions.size,gates:{...gates},learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Retained by individual across reopen. No autonomous language, abstraction or survival-benefit claim.'}};},
-    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');disposed=true;pixelSensor.dispose?.();}};
+    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');feedbackByActor.clear();},
+    snapshot(){const stale=!currentIdentities(),feedbackCurrent=!stale&&[...identities].every(([actor,entry])=>entry.epoch===actor.epoch);return {phase:'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:stale?0:sessions.size,gates:{...gates},senderFeedback:feedbackCurrent?structuredClone([...feedbackByActor.values()].flat().map(({eventId,signal,features,at})=>({eventId,signal,features,at}))):[],learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Sender feedback is transient local visual similarity, not critic correctness. Retained examples are not autonomous language, abstraction or survival-benefit evidence.'}};},
+    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');feedbackByActor.clear();disposed=true;pixelSensor.dispose?.();}};
 }

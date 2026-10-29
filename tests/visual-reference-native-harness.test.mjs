@@ -7,6 +7,7 @@ import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 import vm from 'node:vm';
+import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
 
 test('private-association native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
   const output=await mkdtemp(join(tmpdir(),'visual-reference-harness-contract-'));let passed=false;
@@ -56,6 +57,7 @@ test('private-association native preparation is isolated, sandbox-preserving and
       {agentId:'mira',identity:2,anchors:[],partners:[{slot:0,entries:[{symbol:3,examples:[[.2]],support:1,conflicted:false}]}],counts:{anchors:0,examples:1}},
     ];
     const emptyMetrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,
+      feedbackMatched:0,feedbackMismatched:0,feedbackCensored:0,senderFeedback:[],
       correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,pending:0,observationEvents:[],learners,latest:null};
     const original={learners,latest:{receiverId:'mira'}};
     const runRetained=(reference,saved)=>vm.runInNewContext(
@@ -68,7 +70,7 @@ test('private-association native preparation is isolated, sandbox-preserving and
     assert.throws(()=>runRetained(lost,{report:{reference:original}}),{code:'ERR_ASSERTION'},
       'A lost example fails the generated native assertion');
     for(const contract of ['Install fixture on actual fresh main population','Fixture owns the sole manual clock','Fresh fixture installer is one-use',
-      'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-indication bytes',
+      'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-action bytes',
       'Repeated reopen cannot duplicate interruption or revive authority','Loaded profile cannot obtain fresh fixture authority',
       'Application uses exact isolated disposable test profile','retains the learned private associations',
       "assertRetainedLearning(reference,saved,'First independent reopen')",
@@ -87,16 +89,49 @@ test('private-association native preparation is isolated, sandbox-preserving and
   }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed preparation retained at '+output);}
 });
 
+test('response lifecycle native preparation keeps a separate profile and three-process CI plan without launching Electron',async()=>{
+  const output=await mkdtemp(join(tmpdir(),'visual-response-harness-contract-'));let passed=false;
+  try{
+    const result=spawnSync(process.execPath,['scripts/verify-visual-reference-desktop.mjs','--prepare-only','--response-scenario'],
+      {encoding:'utf8',timeout:120000,env:{...process.env,AINCRAD_VISUAL_REFERENCE_QA_OUTPUT:output}});
+    assert.equal(result.status,0,result.stderr);
+    const prepared=JSON.parse(result.stdout.trim());
+    assert.equal(prepared.responseScenario,true);assert.equal(prepared.nativeExecutionPerformed,false);
+    assert.deepEqual(prepared.phases,['response-exercise','response-reopen','response-verify']);
+    assert.deepEqual(prepared.sandboxBypassFlags,[]);
+    const location=relative(await realpath(output),prepared.application);
+    assert(location&&!isAbsolute(location)&&location!=='..'&&!location.startsWith('../'));
+    await assert.rejects(access(join(prepared.output,'result.json')));
+    const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});
+    assert.equal(syntax.status,0,syntax.stderr);
+    const source=await readFile(prepared.harness,'utf8');
+    for(const contract of ['negativeControlSeed:212','pendingResponseForSave',
+      'Original paid choice must be wrong','The paid reply points to the original choice',
+      '05-second-paid-listener-response-before-save.png','listener-response',
+      'Independent reopen reads exact saved mid-action bytes','Repeated reopen cannot duplicate interruption or revive authority',
+      'assertRetainedLearning(reference,saved','no resurrected sender feedback'])
+      assert(source.includes(contract),contract);
+    const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
+    assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
+    passed=true;
+  }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed response preparation retained at '+output);}
+});
+
 async function fixtureHook(overrides={}){
   const source=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
-  const start=source.indexOf('referenceFixture: async install => {');
+  const start=source.indexOf('referenceFixture: async (install, options={}) => {');
   assert(start>=0);const end=source.indexOf('    referenceFixtureState:',start);assert(end>start);
   const installer=source.slice(start+'referenceFixture: '.length,end).trim().replace(/,$/,'');
-  const state={elapsed:0},context={location:{search:'?test=1'},started:false,loaded:{exists:false,blocked:false},state,
-    population:{state},communicationLearning:{censorPending(){context.censored++;},createNativeAssociationAuditReader(){let read=false;return()=>{if(read)return null;read=true;context.audited++;return {copied:true};};}},storage:{getItem(){return null;}},
+  const state={elapsed:0,agents:[{id:'aster',epoch:1},{id:'mira',epoch:1}],worldLineage:{instanceId:'fresh-lineage'},
+    visualReference:{seed:211,random:initialReferenceRandomStates(211),learners:[{anchors:[],partners:[]},{anchors:[],partners:[]}]}};
+  const context={location:{search:'?test=1'},started:false,loaded:{exists:false,blocked:false},state,
+    population:{state},communicationLearning:{dispose(){context.disposed++;},censorPending(){context.censored++;},createNativeAssociationAuditReader(){let read=false;return()=>{if(read)return null;read=true;context.audited++;return {copied:true};};}},storage:{getItem(){return null;}},
     OZARK_SAVE_KEY:'aincrad.world.v2',CONFIG:{fixedStep:1/60},geometry:{},renderer:{},keys:{clear(){context.cleared++;}},
-    advancePlayer(dt){assert.equal(dt,1/60);state.elapsed+=dt;},save(explicit,bypass){assert.equal(explicit,false);assert.equal(bypass,true);context.saved++;return true;},cleared:0,censored:0,saved:0,audited:0,...overrides};
-  const hook=Function('context',`let {location,started,loaded,state,population,communicationLearning,storage,OZARK_SAVE_KEY,CONFIG,geometry,renderer,keys,advancePlayer,save}=context;let referenceFixtureOwner=null;return {install:${installer},owner:()=>referenceFixtureOwner};`)(context);
+    initialReferenceRandomStates,document:{},createCommunicationPixelSensor(){context.sensors++;return {capture(){return new Map();}};},
+    attachVisualReferenceLearning({state:attachedState,pixelSensor,seed}){context.reattached++;assert.equal(attachedState,context.state);assert(pixelSensor);assert.equal(seed,212);return context.replacementReference;},
+    advancePlayer(dt){assert.equal(dt,1/60);state.elapsed+=dt;},save(explicit,bypass){assert.equal(explicit,false);assert.equal(bypass,true);context.saved++;return true;},cleared:0,censored:0,saved:0,audited:0,disposed:0,sensors:0,reattached:0,...overrides};
+  context.replacementReference={censorPending(){context.censored++;},createNativeAssociationAuditReader(){let read=false;return()=>{if(read)return null;read=true;return {seed:212};};}};
+  const hook=Function('context',`let {location,started,loaded,state,population,communicationLearning,storage,OZARK_SAVE_KEY,CONFIG,geometry,renderer,keys,advancePlayer,save,initialReferenceRandomStates,attachVisualReferenceLearning,createCommunicationPixelSensor,document}=context;let referenceFixtureOwner=null;return {install:${installer},owner:()=>referenceFixtureOwner};`)(context);
   return {hook,context,source};
 }
 
@@ -119,6 +154,39 @@ test('actual fresh-main fixture installer rejects other routes, existing profile
   assert.match(source,/step: \(seconds[^]*?if \(referenceFixtureOwner \|\| !started/);
   assert.match(source,/running: [^\n]*!referenceFixtureOwner/);
   assert.match(source,/function fixedStep\(dt\)\s*\{\s*if\(referenceFixtureOwner\)return/);
+});
+
+test('negative-control seed is confined to a blank disposable fixture and preserves body and lineage',async()=>{
+  const malformed=[null,[],{negativeControlSeed:211},{negativeControlSeed:'212'},
+    {negativeControlSeed:212,extra:true},{other:212},12];
+  for(const options of malformed){
+    const {hook,context}=await fixtureHook();let called=false;
+    assert.equal(await hook.install(()=>{called=true;},options),null);
+    assert.equal(called,false);assert.equal(hook.owner(),null);
+    assert.equal(context.state.visualReference.seed,211);assert.equal(context.disposed,0);
+  }
+  for(const override of [{location:{search:'?test=1&smoke=1'}},{loaded:{exists:true}},
+    {storage:{getItem(){return 'occupied';}}}]){
+    const {hook,context}=await fixtureHook(override);
+    assert.equal(await hook.install(()=>true,{negativeControlSeed:212}),null);
+    assert.equal(context.state.visualReference.seed,211);assert.equal(context.disposed,0);
+  }
+  const {hook,context}=await fixtureHook(),originalLineage=structuredClone(context.state.worldLineage),
+    originalAgents=structuredClone(context.state.agents);
+  let controls;
+  assert.equal(await hook.install(value=>{controls=value;return true;},{negativeControlSeed:212}),true);
+  assert.equal(context.disposed,1);assert.equal(context.sensors,1);assert.equal(context.reattached,1);
+  assert.equal(context.state.visualReference.seed,212);
+  assert.deepEqual(context.state.visualReference.random,initialReferenceRandomStates(212));
+  assert.deepEqual(context.state.worldLineage,originalLineage);
+  assert.deepEqual(context.state.agents,originalAgents);
+  assert.equal(controls.reference,context.replacementReference);
+  assert.deepEqual(controls.auditAssociation(),{seed:212});assert.equal(controls.auditAssociation(),null);
+  assert.equal(await hook.install(()=>true,{negativeControlSeed:212}),null);
+  const occupied=await fixtureHook();occupied.context.state.visualReference.learners[0].anchors.push({symbol:1});
+  await assert.rejects(occupied.hook.install(()=>true,{negativeControlSeed:212}),/fresh blank reference learner/);
+  assert.equal(occupied.context.disposed,0);assert.equal(occupied.context.state.visualReference.seed,211);
+  assert.equal(occupied.hook.owner().failed,true);
 });
 
 test('actual fixture clock fails closed after installer/step errors and rejects reentrant stepping',async()=>{

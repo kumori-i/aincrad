@@ -24,13 +24,13 @@ permissions:
   contents: read
 jobs:
   native-reference:
-    name: Own-demo association, actual main pixels and reopen (${{ matrix.os }})
+    name: Own-demo association, paid response, actual main pixels and reopen (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +41,7 @@ jobs:
           cache: npm
       - run: node scripts/record-native-host.mjs
       - run: npm ci
-      - name: Causal action, local parser, private memory and transaction contracts
+      - name: Causal action, sender-visible response, local parser, private memory and transaction contracts
         id: focused
         shell: bash
         run: |
@@ -51,15 +51,17 @@ jobs:
       - name: Install sandbox-preserving Linux display and window manager
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb openbox
-      - name: Linux deliberate paid main-world reference and independent reopen
+      - name: Linux paid sender cue and listener response close/reopen fixtures
         id: native_linux
         if: runner.os == 'Linux'
-        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs'
-      - name: macOS deliberate paid main-world reference and independent reopen
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs && node scripts/verify-visual-reference-desktop.mjs --response-scenario'
+      - name: macOS paid sender cue and listener response close/reopen fixtures
         id: native_macos
         if: runner.os == 'macOS'
-        run: node scripts/verify-visual-reference-desktop.mjs
-      - name: Record own-demo and diagnostic scope without claiming generalization
+        run: |
+          node scripts/verify-visual-reference-desktop.mjs
+          node scripts/verify-visual-reference-desktop.mjs --response-scenario
+      - name: Record own-demo, response and diagnostic scope without claiming generalization
         if: always()
         shell: bash
         env:
@@ -68,8 +70,8 @@ jobs:
           MACOS_OUTCOME: ${{ steps.native_macos.outcome }}
         run: |
           echo "Causal contracts: $FOCUSED_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-          echo "Native private-association fixture: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-          echo "Deliberate paid listener inspect, then paid sender indication in the actual fresh main population at 1/60-second steps; actual Canvas crops and a supplied geometry parser. One actual own-view association after canonical paid demonstration, then a read-only same-scene fresh-view message-dependence query on actual memory. Independent close/reopen must retain that private association, retire an unfinished second cue, and permit read-only retrieval using genuine preclose listener views. This is not a sampled later policy action or fresh post-reopen visual capture. No vocabulary discrimination, generalization, autonomous cohort, reserved-seed sweep or survival-benefit claim. Inspect retained screenshots and private canonical/parser audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
+          echo "Native private-association and sender-response fixture: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Two independent disposable profiles are configured to run three native processes each. The default profile checks interruption of a paid sender cue across close/reopen. A fixed seed-212 engineering negative control checks a wrong original paid listener choice, subsequent corrective learning, and the sender's actual-Canvas visual mismatch after the listener replies with its ORIGINAL choice. Its second full optional exchange is configured to save and close during the genuinely paid listener response; reopen must retain the association and discard response authority and all session feedback. Both fixtures use actual main-population bodies/ecology at 1/60-second steps and supplied pixel pooling/geometry, with bounded decision scheduling when they run. These are engineering checks, not autonomous rates, language composition, generalization or survival benefit. Inspect screenshots and parser/permit audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

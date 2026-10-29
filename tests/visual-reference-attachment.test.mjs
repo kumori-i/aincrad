@@ -9,10 +9,13 @@ import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction,collapseNpc,rescueNp
 import {tickDiscoveryAction} from '../src/discovery-actions.js';
 import {discoveryDecision} from '../src/discovery.js';
 import {attachVisualReferenceLearning,continuousReferenceStep} from '../src/visual-reference-attachment.js';
-import {senseReferenceObjects} from '../src/visual-reference-perception.js';
+import {senseReferenceObjects,visibleIndicationGeometry,resolveIndication} from '../src/visual-reference-perception.js';
+import {referenceGeometry} from '../src/discovery-actions.js';
+import {createReferenceRandomStream,initialReferenceRandomStates} from '../src/visual-reference-random.js';
 const geometry=createOzarkWorldGeometry();
 function fixture(seed=211,{reverseTicks=false,differentViews=false,attach=attachVisualReferenceLearning}={}){
   const state=createOzarkState(geometry);
+  if(seed!==state.visualReference.seed)state.visualReference={...state.visualReference,seed,random:initialReferenceRandomStates(seed)};
   for(const n of state.agents){bindOzarkWorldAgent(n,geometry,state);observeNpc(n,state.environment);}
   // Deliberately synthetic crops test transaction authority, not visual learning.
   const syntheticCategories=new Map(senseReferenceObjects(state.agents[0],state).bindings.map((id,i)=>[id,i%2]));
@@ -24,12 +27,45 @@ function fixture(seed=211,{reverseTicks=false,differentViews=false,attach=attach
   const indicate=sender=>{const action=attachment.hooks.optionalAction(sender);assert.equal(action?.type,'indicate_object');const result=attachment.hooks.performOptional(sender,action);assert.equal(result.code,'ACTION_STARTED');return action;};
   return {state,attachment,pixelSensor,step,advance,begin,indicate};
 }
+test('reciprocal preflight admits both alternatives before an independent wrong seed-212 choice',()=>{
+  const seed=212,f=fixture(seed),sender=f.state.agents[0],receiver=f.state.agents[1];
+  try{
+    const senderSight=senseReferenceObjects(sender,f.state),receiverSight=senseReferenceObjects(receiver,f.state);
+    assert.equal(senderSight.complete,true);assert.equal(receiverSight.complete,true);
+    const before=f.attachment.exportPersistence().visualReference.random;
+    assert.deepEqual(before,initialReferenceRandomStates(seed));
+    const choice=f.begin();
+    const after=f.attachment.exportPersistence().visualReference.random;
+    const firstDraws=Object.fromEntries(['pair','target','order','choice'].map(purpose=>{
+      const stream=createReferenceRandomStream({seed,purpose,state:before[purpose]});stream();return [purpose,stream.state()];
+    }));
+    assert.deepEqual(after,firstDraws,'Pair, target, order, and choice each draw once; no favorable redraw');
+    assert.equal(f.attachment.snapshot().latest.choiceMode,'uniform-exploration');
+    f.advance(2);f.indicate(choice.sender);f.advance(2);
+    const result=f.attachment.snapshot().latest;
+    const pair=[choice.action.targetId,result.demonstratedObjectId];
+    assert.equal(new Set(pair).size,2,'The original paid choice is wrong despite the reciprocal preflight');
+    assert.equal(result.referenceCorrect,false);
+    for(const id of pair){
+      const listenerIndex=receiverSight.bindings.indexOf(id),senderIndex=senderSight.bindings.indexOf(id);
+      assert(listenerIndex>=0&&senderIndex>=0);
+      const position=receiverSight.objects[listenerIndex].position;
+      const forward=referenceGeometry(sender.position,position,sender.scene,1);
+      const reverse=referenceGeometry(receiver.position,position,receiver.scene,1);
+      assert(visibleIndicationGeometry(receiver,forward),`Sender cue visible for ${id}`);
+      assert.equal(resolveIndication(forward,receiverSight.objects).index,listenerIndex);
+      assert(visibleIndicationGeometry(sender,reverse),`Listener reply visible for ${id}`);
+      assert.equal(resolveIndication(reverse,senderSight.objects).index,senderIndex,
+        `The sender resolves either possible original choice independently of target selection: ${id}`);
+    }
+  }finally{f.attachment.dispose();}
+});
 test('paid post-choice indication adds one own-view association and never bodily reward',()=>{
   const f=fixture(),{sender}=f.begin();
   assert.equal(f.attachment.snapshot().observationEvents[0].status,'choice');
   f.advance(2);assert.equal(f.attachment.snapshot().observationEvents[0].status,'awaiting-indication');
   f.indicate(sender);f.advance(2);
-  const s=f.attachment.snapshot();assert.equal(s.observed,1);assert.equal(s.pending,0);assert.equal(s.updates,1);assert.equal(s.correctionAttempts,1);assert.equal(s.evidenceAdditions,1);assert.equal(s.learners.find(l=>l.agentId==='mira').counts.examples,1);assert.equal(s.positive,0);assert.equal(s.negative,0);assert.equal(s.observationEvents[0].reward,null);assert.ok(s.observationEvents[0].observedSeconds>=.5);
+  const s=f.attachment.snapshot();assert.equal(s.observed,1);assert.equal(s.pending,1,'The paid listener response remains optional and pending');assert.equal(s.updates,1);assert.equal(s.correctionAttempts,1);assert.equal(s.evidenceAdditions,1);assert.equal(s.learners.find(l=>l.agentId==='mira').counts.examples,1);assert.equal(s.positive,0);assert.equal(s.negative,0);assert.equal(s.observationEvents[0].reward,null);assert.ok(s.observationEvents[0].observedSeconds>=.5);
   assert.ok(Number.isInteger(s.observationEvents[0].selectedActionId));assert.ok(Number.isInteger(s.observationEvents[0].indicationActionId));
   assert.equal(typeof s.observationEvents[0].referenceCorrect,'boolean');
   f.advance(1);assert.equal(f.attachment.snapshot().observed,1,'terminal callbacks cannot duplicate observation');f.attachment.dispose();

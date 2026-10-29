@@ -35,6 +35,12 @@ indications. Unknown or ambiguous meanings still lead to uniform exploratory cho
 This is an engineered associative baseline, not a demonstrated autonomous language,
 abstract visual concepts, grammar, creativity or improved survival.
 
+The [sender-visible response slice](docs/visual-reference/SENDER-FEEDBACK.md)
+lets the listener optionally indicate its original paid inspection choice after
+the sender's demonstration. A completed reply can give the sender a temporary
+own-view visual similarity signal. Agents still do not generate learned letter
+sequences, and this signal does not establish understanding.
+
 Open a character's **Learning** tab, or pause with Escape and use **Learning
 inspector** as a shortcut to that same tab. It shows copied crops, actual paid
 actions, observed/censored reference attempts, association evidence and separate

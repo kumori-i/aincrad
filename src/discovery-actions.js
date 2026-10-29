@@ -22,8 +22,15 @@ const actionActors = new WeakMap();
 const paidWork = new WeakMap();
 const completedWork = new WeakMap(), successfulActions = new WeakMap();
 const completedInspections = new WeakMap(), issuedInspections = new WeakSet();
+const completedDemonstrations = new WeakMap(), issuedDemonstrations = new WeakSet();
 const indicationPermits = new WeakMap(), indications = new WeakMap();
-const INDICATION_SECONDS=1.8, INDICATION_EFFORT=.25, INDICATION_LENGTH=24;
+const INDICATION_SECONDS=1.8, INDICATION_EFFORT=.25, INDICATION_LENGTH=24, INDICATION_PEER_RANGE=250;
+const responsePeerVisible=(listener,sender)=>listener?.lifecycle==='AWAKE'&&sender?.lifecycle==='AWAKE'&&
+  !isSleeping(listener)&&!isSleeping(sender)&&listener.scene===sender.scene&&
+  distance(listener.position,sender.position)<=INDICATION_PEER_RANGE&&
+  actorLineOfSight(listener,listener.position,sender.position);
+/** Cancelling a channel must revoke even a permit that was never exercised. */
+export function retireIndicationPermit(permit){if(permit)indicationPermits.delete(permit);}
 /** Pure geometric construction for private actuator preflight; no visibility
  * or target-identity authority is implied by constructing a segment. */
 export function referenceGeometry(origin,targetPosition,scene,progress=0){
@@ -42,15 +49,44 @@ export function createIndicationPermit(sender,receiver,active,targetId){
     proof.physiology!==receiver.physiology||receiver.elapsed<proof.at||receiver.elapsed-proof.at>12)return null;
   issuedInspections.add(active);
   const permit=Object.freeze({});
-  indicationPermits.set(permit,{sender,receiver,targetId,senderEpoch:sender.epoch,receiverEpoch:receiver.epoch,
+  indicationPermits.set(permit,{kind:'demonstration',sourceInspection:active,sender,receiver,targetId,senderEpoch:sender.epoch,receiverEpoch:receiver.epoch,
     senderDiscovery:sender.discovery,senderPhysiology:sender.physiology,receiverDiscovery:receiver.discovery,
     receiverPhysiology:receiver.physiology,at:sender.elapsed});
+  return permit;
+}
+/** A separate, one-use reply right follows this exact inspection and its
+ * successful paid demonstration. The reply points to the listener's inspected
+ * choice; neither a caller-supplied target nor a copied receipt can choose it. */
+export function createListenerResponsePermit(listener,sender,demonstrationActive){
+  const proof=demonstrationActive&&completedDemonstrations.get(demonstrationActive);
+  const demonstration=proof&&successfulDiscoveryActionCompletion(sender,demonstrationActive);
+  const inspection=proof&&successfulDiscoveryActionCompletion(listener,proof.sourceInspection);
+  const inspectedAt=proof&&completedInspections.get(proof.sourceInspection);
+  if(!proof||!demonstration||!inspection||issuedDemonstrations.has(demonstrationActive)||
+    proof.sender!==sender||proof.listener!==listener||sender===listener||
+    demonstration.type!=='indicate_object'||inspection.type!=='inspect_object'||
+    inspectedAt?.actor!==listener||inspectedAt.epoch!==listener.epoch||
+    inspectedAt.discovery!==listener.discovery||inspectedAt.physiology!==listener.physiology||
+    !objectId(inspection.targetId)||proof.senderEpoch!==sender.epoch||proof.listenerEpoch!==listener.epoch||
+    proof.senderDiscovery!==sender.discovery||proof.senderPhysiology!==sender.physiology||
+    proof.listenerDiscovery!==listener.discovery||proof.listenerPhysiology!==listener.physiology||
+    listener.elapsed<proof.at||listener.elapsed-proof.at>12||
+    listener.elapsed<inspectedAt.at||listener.elapsed-inspectedAt.at>12||
+    !responsePeerVisible(listener,sender))return null;
+  issuedDemonstrations.add(demonstrationActive);
+  const permit=Object.freeze({});
+  indicationPermits.set(permit,{kind:'response',sender:listener,receiver:sender,targetId:inspection.targetId,
+    senderEpoch:listener.epoch,receiverEpoch:sender.epoch,senderDiscovery:listener.discovery,
+    senderPhysiology:listener.physiology,receiverDiscovery:sender.discovery,
+    receiverPhysiology:sender.physiology,at:listener.elapsed,expiresAt:inspectedAt.at+12});
   return permit;
 }
 function indicationValid(npc,active,w,environment){
   if(!w||w.actor!==npc||npc.epoch!==w.epoch||npc.discovery!==w.discovery||npc.physiology!==w.physiology||
     npc.lifecycle!=='AWAKE'||isSleeping(npc)||w.receiver.epoch!==w.receiverEpoch||w.receiver.discovery!==w.receiverDiscovery||w.receiver.physiology!==w.receiverPhysiology||npc.scene!==w.scene||distance(npc.position,w.origin)>1e-8||
-    active.request.type!=='indicate_object'||active.request.targetId!==w.targetId||active.seconds!==INDICATION_SECONDS)return false;
+    active.request.type!=='indicate_object'||active.request.targetId!==w.targetId||active.seconds!==INDICATION_SECONDS||
+    w.kind==='response'&&npc.elapsed>w.expiresAt+1e-8||
+    w.kind==='response'&&!responsePeerVisible(npc,w.receiver))return false;
   const target=lookupEcologyObject(environment.ecology,w.targetId);
   return !!target&&!target.heldBy&&target.scene===w.scene&&distance(target.position,w.targetPosition)<1e-8&&
     distance(npc.position,target.position)<=400&&actorLineOfSight(npc,npc.position,target.position);
@@ -68,12 +104,13 @@ export function requestDiscoveryIndication(npc,permit,environment,options={}){
   indicationPermits.delete(permit);
   if(npc.epoch!==p.senderEpoch||npc.discovery!==p.senderDiscovery||npc.physiology!==p.senderPhysiology||
     p.receiver.epoch!==p.receiverEpoch||p.receiver.discovery!==p.receiverDiscovery||p.receiver.physiology!==p.receiverPhysiology||
-    npc.elapsed<p.at||npc.elapsed-p.at>12)return {ok:false,code:'INDICATION_INTERRUPTED'};
+    npc.elapsed<p.at||npc.elapsed-p.at>12||p.kind==='response'&&(npc.elapsed>p.expiresAt+1e-8||!responsePeerVisible(npc,p.receiver)))return {ok:false,code:'INDICATION_INTERRUPTED'};
   const target=lookupEcologyObject(environment.ecology,p.targetId),length=target&&distance(npc.position,target.position);
   if(!target||target.heldBy||!length)return {ok:false,code:'INDICATION_TARGET_UNAVAILABLE'};
   const {origin,tip}=referenceGeometry(npc.position,target.position,npc.scene);
   const indication={actor:npc,epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,
-    environment,receiver:p.receiver,receiverEpoch:p.receiverEpoch,receiverDiscovery:p.receiverDiscovery,receiverPhysiology:p.receiverPhysiology,targetId:p.targetId,targetPosition:{...target.position},scene:npc.scene,origin,tip,onPaid:options.onPaid};
+    environment,receiver:p.receiver,receiverEpoch:p.receiverEpoch,receiverDiscovery:p.receiverDiscovery,receiverPhysiology:p.receiverPhysiology,targetId:p.targetId,targetPosition:{...target.position},scene:npc.scene,origin,tip,onPaid:options.onPaid,
+    kind:p.kind,sourceInspection:p.sourceInspection,expiresAt:p.expiresAt};
   return requestDiscoveryAction(npc,{type:'indicate_object',targetId:p.targetId},environment,{...options,indication,indicationAuthority:indicationAuthority});
 }
 const indicationAuthority=Symbol('runtime indication');
@@ -124,6 +161,17 @@ const done=(complete,npc,request,result,active)=>{
   const sameOwner=identityIntact&&work.epoch===npc.epoch&&work.discovery===npc.discovery&&work.physiology===npc.physiology&&npc.elapsed===completedAt;
   if(sameOwner&&Number.isInteger(completion?.eventId)&&work.request.type==='inspect_object'&&result.ok===true&&work.worked+1e-8>=work.seconds)
     completedInspections.set(active,{actor:npc,epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,at:npc.elapsed});
+  const indication=active&&indications.get(active);
+  if(sameOwner&&Number.isInteger(completion?.eventId)&&indication?.kind==='demonstration'&&
+      result.ok===true&&work.worked+1e-8>=work.seconds&&indication.actor===npc&&
+      indication.receiver.epoch===indication.receiverEpoch&&
+      indication.receiver.discovery===indication.receiverDiscovery&&
+      indication.receiver.physiology===indication.receiverPhysiology&&
+      indication.sourceInspection&&successfulDiscoveryActionCompletion(indication.receiver,indication.sourceInspection))
+    completedDemonstrations.set(active,{sourceInspection:indication.sourceInspection,sender:npc,
+      listener:indication.receiver,senderEpoch:npc.epoch,listenerEpoch:indication.receiver.epoch,
+      senderDiscovery:npc.discovery,senderPhysiology:npc.physiology,
+      listenerDiscovery:indication.receiver.discovery,listenerPhysiology:indication.receiver.physiology,at:npc.elapsed});
   if(work&&Number.isInteger(completion?.eventId)){
     completedWork.set(active,Object.freeze({eventId:completion.eventId,worked:work.worked,type:work.request.type,targetId:work.request.targetId}));
     if(sameOwner&&result.ok===true&&work.worked+1e-8>=work.seconds)successfulActions.set(active,{epoch:work.epoch,discovery:work.discovery,physiology:work.physiology});

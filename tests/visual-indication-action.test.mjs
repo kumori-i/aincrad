@@ -4,10 +4,11 @@ import {createOzarkState,writeOzarkSave,loadOzarkSave} from '../src/ozark-save.j
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {requestNpcAction,requestNpcIndication,tickNpc,observeNpc,cancelNpcAction} from '../src/npc.js';
-import {createIndicationPermit,publicIndicationGeometry,discoveryActionCompletion,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,tickDiscoveryAction} from '../src/discovery-actions.js';
+import {createIndicationPermit,createListenerResponsePermit,retireIndicationPermit,publicIndicationGeometry,discoveryActionCompletion,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,tickDiscoveryAction} from '../src/discovery-actions.js';
 import {npcEffortCost} from '../src/npc-effort-funding.js';
 import {exertPhysiology} from '../src/biology.js';
 import {lookupEcologyObject} from '../src/ecology.js';
+import {senseReferenceObjects} from '../src/visual-reference-perception.js';
 const geometry=createOzarkWorldGeometry();
 function fixture(){
   const state=createOzarkState(geometry),[sender,receiver]=state.agents,environment=state.environment;
@@ -163,4 +164,165 @@ test('paid observations use current step endpoints and expose partial funding wi
   for(let i=0;i<108;i++)tickNpc(h.sender,1/60,h.environment);
   assert.equal(h.sender.lastResult.code,'OBJECT_INDICATED');assert.equal(fixed.length,108);
   for(const e of fixed){assert.ok(Math.abs(e.paidSeconds-e.stepSeconds)<1e-8);assert.equal(e.stepSeconds,1/60);}
+});
+
+function completedDemonstration(f,demonstratedId=f.targetId){
+  assert.equal(requestNpcAction(f.receiver,{type:'inspect_object',targetId:f.targetId},f.environment).code,'ACTION_STARTED');
+  const inspection=f.receiver.active;
+  f.advance(f.receiver,2);
+  assert.ok(successfulDiscoveryActionCompletion(f.receiver,inspection));
+  const permit=createIndicationPermit(f.sender,f.receiver,inspection,demonstratedId);
+  assert.ok(permit);
+  assert.equal(requestNpcIndication(f.sender,permit,f.environment).code,'ACTION_STARTED');
+  const demonstration=f.sender.active;
+  f.advance(f.sender,2);
+  assert.ok(successfulDiscoveryActionCompletion(f.sender,demonstration));
+  return {inspection,demonstration};
+}
+
+test('listener response needs the linked, completed paid demonstration and its own one-use permit',()=>{
+  const f=fixture();
+  assert.equal(createListenerResponsePermit(f.receiver,f.sender,{}),null);
+  assert.equal(requestNpcAction(f.receiver,{type:'inspect_object',targetId:f.targetId},f.environment).code,'ACTION_STARTED');
+  const inspection=f.receiver.active;
+  f.advance(f.receiver,2);
+  const correction=createIndicationPermit(f.sender,f.receiver,inspection,f.targetId);
+  assert.ok(correction);
+  assert.equal(requestNpcIndication(f.sender,correction,f.environment).code,'ACTION_STARTED');
+  const demonstration=f.sender.active;
+  assert.equal(createListenerResponsePermit(f.receiver,f.sender,demonstration),null,'Unfinished demonstration has no response authority');
+  f.advance(f.sender,2);
+  const response=createListenerResponsePermit(f.receiver,f.sender,demonstration);
+  assert.ok(response);
+  assert.equal(createListenerResponsePermit(f.receiver,f.sender,demonstration),null,'One demonstration issues one response permit');
+  assert.equal(requestNpcIndication(f.sender,response,f.environment).code,'INVALID_INDICATION_PERMIT','The speaker cannot use the listener permit');
+  assert.equal(requestNpcIndication(f.receiver,{...response},f.environment).code,'INVALID_INDICATION_PERMIT','Copied authority is inert');
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'ACTION_STARTED');
+  const active=f.receiver.active;
+  assert.equal(active.request.type,'indicate_object');
+  assert.equal(active.request.targetId,f.targetId,'The response points to the listener inspected object');
+  assert.equal(active.seconds,1.8);
+  assert.equal(publicIndicationGeometry(f.receiver),null,'Unpaid response has no public pose');
+  f.advance(f.receiver,2);
+  assert.equal(f.receiver.lastResult.code,'OBJECT_INDICATED');
+  assert.ok(Math.abs(successfulDiscoveryActionCompletion(f.receiver,active).worked-1.8)<1e-8);
+  assert.equal(publicIndicationGeometry(f.receiver),null);
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'INVALID_INDICATION_PERMIT');
+});
+
+test('listener response uses its inspected referent even when the sender demonstrated another object',()=>{
+  const f=fixture();
+  const common=senseReferenceObjects(f.receiver,f.state).bindings;
+  const other=common.find(id=>id!==f.targetId&&f.sender.discovery.observations[id]&&
+    Math.hypot(lookupEcologyObject(f.environment.ecology,id).position.x-f.sender.position.x,
+      lookupEcologyObject(f.environment.ecology,id).position.y-f.sender.position.y)<=400);
+  assert.ok(other,'Expected a second mutually observed local object');
+  const {demonstration}=completedDemonstration(f,other);
+  const response=createListenerResponsePermit(f.receiver,f.sender,demonstration);
+  assert.ok(response);
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'ACTION_STARTED');
+  assert.equal(f.receiver.active.request.targetId,f.targetId,'The listener response follows its own canonical inspection');
+  cancelNpcAction(f.receiver,'TEST_END');
+});
+
+test('interrupted, stale or reopened demonstrations cannot issue a listener response',()=>{
+  for(const change of ['cancel','epoch','discovery','physiology','reopen']){
+    const f=fixture();
+    assert.equal(requestNpcAction(f.receiver,{type:'inspect_object',targetId:f.targetId},f.environment).code,'ACTION_STARTED');
+    const inspection=f.receiver.active;f.advance(f.receiver,2);
+    const correction=createIndicationPermit(f.sender,f.receiver,inspection,f.targetId);
+    assert.equal(requestNpcIndication(f.sender,correction,f.environment).code,'ACTION_STARTED');
+    const demonstration=f.sender.active;
+    if(change==='cancel'){
+      f.advance(f.sender,.3);cancelNpcAction(f.sender,'TEST_INTERRUPTION');
+      assert.equal(createListenerResponsePermit(f.receiver,f.sender,demonstration),null);
+      continue;
+    }
+    f.advance(f.sender,2);
+    if(change==='epoch')f.receiver.epoch++;
+    if(change==='discovery')f.receiver.discovery=structuredClone(f.receiver.discovery);
+    if(change==='physiology')f.receiver.physiology=structuredClone(f.receiver.physiology);
+    if(change==='reopen'){
+      const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+      f.state.elapsed=Math.max(...f.state.agents.map(n=>n.elapsed));
+      f.environment.elapsed=f.state.elapsed;f.environment.ecology.elapsed=f.state.elapsed;
+      assert.equal(writeOzarkSave(storage,f.state,geometry),true);
+      const loaded=loadOzarkSave(storage,geometry);
+      assert.equal(loaded.blocked,false);
+      const [sender,listener]=loaded.state.agents;
+      assert.equal(createListenerResponsePermit(listener,sender,demonstration),null);
+      continue;
+    }
+    assert.equal(createListenerResponsePermit(f.receiver,f.sender,demonstration),null,change+' must retire the original actor provenance');
+  }
+});
+
+test('listener response pays normal indication effort and partial work cannot complete it',()=>{
+  const f=fixture(),{demonstration}=completedDemonstration(f);
+  const response=createListenerResponsePermit(f.receiver,f.sender,demonstration);
+  assert.ok(response);
+  let charged=0,observed=0;
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment,{onPaid(){observed++;}}).code,'ACTION_STARTED');
+  const active=f.receiver.active;
+  tickDiscoveryAction(f.receiver,.1,f.environment,{exert(n,seconds,effort){charged++;assert.equal(effort,.25);exertPhysiology(n,seconds,effort);}});
+  assert.equal(charged,1);assert.equal(observed,1);
+  assert.ok(publicIndicationGeometry(f.receiver));
+  assert.ok(discoveryActionPaidSeconds(f.receiver,active)>0);
+  cancelNpcAction(f.receiver,'TEST_INTERRUPTION');
+  assert.equal(successfulDiscoveryActionCompletion(f.receiver,active),null);
+  assert.equal(publicIndicationGeometry(f.receiver),null);
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'INVALID_INDICATION_PERMIT');
+});
+
+test('listener response permit requires peer visibility at issuance and request',()=>{
+  const f=fixture(),{demonstration}=completedDemonstration(f);
+  const original={...f.receiver.position};
+  f.receiver.position.x+=300;
+  assert.equal(createListenerResponsePermit(f.receiver,f.sender,demonstration),null,
+    'An out-of-range listener cannot mint response authority');
+  Object.assign(f.receiver.position,original);
+  const response=createListenerResponsePermit(f.receiver,f.sender,demonstration);
+  assert.ok(response,'Visibility restoration permits the still-live completed chain');
+  f.sender.position.x+=300;
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'INDICATION_INTERRUPTED',
+    'Peer visibility is checked again when the physical gesture starts');
+  f.sender.position.x-=300;
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'INVALID_INDICATION_PERMIT',
+    'A rejected response permit cannot revive after the peer returns');
+});
+
+test('paid response pose disappears if its peer leaves sight, and revocation retires unused authority',()=>{
+  const f=fixture(),{demonstration}=completedDemonstration(f);
+  const response=createListenerResponsePermit(f.receiver,f.sender,demonstration);
+  assert.ok(response);
+  assert.equal(requestNpcIndication(f.receiver,response,f.environment).code,'ACTION_STARTED');
+  const active=f.receiver.active;
+  f.advance(f.receiver,.2);
+  assert.ok(publicIndicationGeometry(f.receiver));
+  f.sender.position.x+=300;
+  assert.equal(publicIndicationGeometry(f.receiver),null);
+  f.advance(f.receiver,.1);
+  assert.equal(f.receiver.lastResult.code,'INDICATION_INTERRUPTED');
+  assert.equal(successfulDiscoveryActionCompletion(f.receiver,active),null);
+  f.sender.position.x-=300;
+  assert.equal(publicIndicationGeometry(f.receiver),null);
+  const g=fixture(),proof=completedDemonstration(g),unused=createListenerResponsePermit(g.receiver,g.sender,proof.demonstration);
+  assert.ok(unused);
+  retireIndicationPermit(unused);
+  assert.equal(requestNpcIndication(g.receiver,unused,g.environment).code,'INVALID_INDICATION_PERMIT',
+    'Cancelling a session retires even its never-started reply permit');
+});
+
+test('a fresh demonstration cannot revive an inspection after its original choice deadline',()=>{
+  const f=fixture(),{permit}=f.permit();
+  // Direct action-unit clocks place a genuine later demonstration near the
+  // original inspection deadline. The demonstration itself remains fresh.
+  f.advance(f.sender,10);
+  assert.equal(requestNpcIndication(f.sender,permit,f.environment).code,'ACTION_STARTED');
+  const demonstration=f.sender.active;
+  f.advance(f.sender,2);
+  assert.ok(successfulDiscoveryActionCompletion(f.sender,demonstration));
+  f.advance(f.receiver,13);
+  assert.equal(createListenerResponsePermit(f.receiver,f.sender,demonstration),null,
+    'The old inspected choice cannot gain a fresh reply right from a later paid cue');
 });
