@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createOzarkState,writeOzarkSave,OZARK_SAVE_KEY} from '../src/ozark-save.js';
+import {createOzarkState,loadOzarkSave,writeOzarkSave,OZARK_SAVE_KEY} from '../src/ozark-save.js';
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {PopulationRuntime} from '../src/population.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
 import {senseReferenceObjects} from '../src/visual-reference-perception.js';
 import {installVisualReferenceFixture,visualReferenceEvidence,probeVisualReferenceReopen} from '../scripts/visual-reference-native-fixture.mjs';
+import {assertStructuralRestoredHistory} from '../scripts/structural-movement-native-contract.mjs';
 const serialized=fn=>Function('return ('+fn.toString()+')')();
 
 test('serialized native fixture exercises real population/action/time lifecycle (synthetic sensor; not native or pixel evidence)',{timeout:180000},async()=>{
@@ -29,8 +30,20 @@ test('serialized native fixture exercises real population/action/time lifecycle 
     assert.equal(checkpoint.raw,storage.getItem(OZARK_SAVE_KEY));assert.equal(checkpoint.expectedRestored.agents[0].active,null);
     const interrupted=fixture.interrupt();assert.equal(interrupted.checks.interruption.poseCleared,true);
     const original=fixture.project();
-    const {loadOzarkSave}=await import('../src/ozark-save.js');const reopened=loadOzarkSave(storage,geometry).state;
-    const replay=await serialized(probeVisualReferenceReopen)(new URL('../',import.meta.url),reopened,checkpoint.serializedActive,checkpoint.serializedPermit);
-    assert.equal(replay.noRevivedAuthority,true);assert.deepEqual(fixture.project(),original);
+    const reopened=loadOzarkSave(storage,geometry).state,reopenedBefore=structuredClone(reopened);
+    // Native fullSnapshot plus IPC produces detached data, not loadOzarkSave's
+    // runtime-bound ecology. Exercise that exact boundary, including both reopens.
+    const probe=serialized(probeVisualReferenceReopen);
+    const replay=await probe(new URL('../',import.meta.url),structuredClone(reopened),structuredClone(checkpoint.serializedActive),structuredClone(checkpoint.serializedPermit));
+    assert.equal(replay.noRevivedAuthority,true);assert.deepEqual(reopened,reopenedBefore,'Copy-only diagnostic cannot mutate restored main state');
+    assertStructuralRestoredHistory(JSON.parse(checkpoint.raw),visualReferenceEvidence(reopened));
+    assert.equal(writeOzarkSave(storage,reopened,geometry),true,'Actual restored state remains strictly saveable after diagnostic');
+    const twice=loadOzarkSave(storage,geometry).state;
+    assert.deepEqual(visualReferenceEvidence(twice),visualReferenceEvidence(reopened),'Second reopen cannot duplicate interruption or change history');
+    assertStructuralRestoredHistory(JSON.parse(storage.getItem(OZARK_SAVE_KEY)),visualReferenceEvidence(twice));
+    assert.equal((await probe(new URL('../',import.meta.url),structuredClone(twice),structuredClone(checkpoint.serializedActive),structuredClone(checkpoint.serializedPermit))).noRevivedAuthority,true);
+    const wrongWorld=structuredClone(reopened);wrongWorld.environment.ecology.geometryIdentity='wrong-world';
+    await assert.rejects(probe(new URL('../',import.meta.url),wrongWorld,checkpoint.serializedActive,checkpoint.serializedPermit),/ecology identity does not match/);
+    assert.deepEqual(fixture.project(),original);
   }finally{fixture.dispose();reference.dispose();population.dispose();}
 });

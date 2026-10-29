@@ -187,8 +187,13 @@ export async function probeVisualReferenceReopen(moduleBase,state,serializedActi
   const {requestNpcIndication,observeNpc}=await use('npc');
   const {createOzarkWorldGeometry}=await use('ozark-world-geometry');
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
+  const {bindOzarkEcology}=await use('ozark-ecology');
   const geometry=createOzarkWorldGeometry(),[sender,listener]=state.agents;
   if(state.agents.some(n=>n.active))throw new Error('Actual reopened snapshot retained an active command');
+  // fullSnapshot/IPC cloning intentionally drops runtime-only WeakMap bindings.
+  // Restore only physical geometry on this diagnostic copy before fresh sight;
+  // action receipts, permits and actual-main authority remain untouched.
+  bindOzarkEcology(state.environment.ecology,geometry);
   for(const n of state.agents){bindOzarkWorldAgent(n,geometry,state);observeNpc(n,state.environment);}
   sender.active=structuredClone(serializedActive);const copiedActivePose=publicIndicationGeometry(sender);sender.active=null;
   const result={copiedActivePose,pose:publicIndicationGeometry(sender),completion:successfulDiscoveryActionCompletion(sender,serializedActive),
