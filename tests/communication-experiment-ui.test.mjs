@@ -81,12 +81,13 @@ test('pixel display accepts only RGB crops and preserves channel values', () => 
   assert(paintCommunicationPixels(canvas, pixels)); assert.deepEqual([...canvas.image.data.slice(0, 4)], [17, 81, 233, 255]);
   assert(!paintCommunicationPixels(canvas, [1, 2, 3])); assert(!paintCommunicationPixels(canvas, Array(768).fill(NaN)));
 });
-test('main save guard and modal markup preserve single ordinary world', () => {
+test('isolated UI stays available to tests while main world uses a non-owning inspector', () => {
   const main = readFileSync(new URL('../src/ozark-world-main.js', import.meta.url), 'utf8');
-  assert.match(main, /if \(communicationExperiment\?\.active\(\) \|\| resetHeld/);
+  assert.doesNotMatch(main, /if \(communicationExperiment\?\.active\(\) \|\| resetHeld/);
+  assert.match(main, /installCommunicationInspector/);
   assert.match(main, /canOpen: \(\) => started && paused/);
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /<dialog id="communication-dialog"/); assert.match(html, /EXPERIMENTAL · UNSAVED/);
+  assert.match(html, /<dialog id="communication-dialog"/); assert.match(html, /ONE WORLD · LEARNING INSPECTOR/);
   const ui = readFileSync(new URL('../src/communication-experiment-ui.js', import.meta.url), 'utf8');
   assert.doesNotMatch(ui, /localStorage|writeOzarkSave|loadOzarkSave/);
 });

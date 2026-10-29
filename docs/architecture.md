@@ -36,6 +36,32 @@ Expiry, unavailable source and a failed physical attempt do not by themselves pr
 
 `npc-panel.js` exposes qualitative sensations, nearby messages, teaching provenance and actual action outcomes. Exact physiology stays in developer inspection. Optional local language models serve conversation and narrow vocabulary proposals rather than generating trusted physical results.
 
+## Main-world pixel communication
+
+`communication-attachment.js` attaches fresh sender/receiver policies and a
+separate RNG to existing actors. `ozark-world-main.js` owns the sole clock and
+`PopulationRuntime`: it calls `beforeTick`, advances world/population once,
+then calls `afterTick`. The attachment never reseeds survival actors, advances
+time, or applies the isolated protocol's 1800-second limit.
+
+Only post-attachment samples with an earlier local pixel crop and canonical
+personal effects can originate signals. Loaded history cursors are primed,
+not replayed. Actor, discovery, physiology or epoch changes censor linked
+pending offers/credit and clear source/crop provenance. Scene and recovery
+epoch changes preserve the same individual's learned weights; replacing the
+actor object creates fresh communication weights. Reward and optional-action
+rules are unchanged. Bounded gate diagnostics do not consume RNG or alter
+policies. Communication errors detach that channel, visibly report failure,
+and leave ordinary survival/save authority intact.
+
+`communication-inspector.js` observes these same actors. Open/close/follow
+selection never creates actors, clears learning, ticks time or suppresses
+saving. Reset retires inspector, communication and population before reload.
+Schema 12 is unchanged: bodies/memories resume from saves, while communication
+weights, RNG and unfinished credits restart on app reopen. This interim limit
+is visible in the inspector. The isolated factory remains an automated
+protocol harness with frozen-source parity coverage, not a playable destination.
+
 ## Observation-driven inquiry
 
 A runtime-only consumption transport admits actual accepted bites/samples, not feeding activity labels or post-hoc reconstruction. Event-time perception gates a bounded separate inquiry ledger. A sequential generic experiment scaffold can influence ordinary action selection, while outcomes and delayed feedback remain linked to the observer's own canonical receipts. Rendering only projects that state. This is an initial observation-to-experiment cycle, not learned pursuit, broad causal reasoning, parallel deliberation or human cognition. See [the scope and evidence boundaries](OBSERVATIONAL-LEARNING.md).

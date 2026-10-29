@@ -25,28 +25,39 @@ held-out message-ablation controls; harness delivery is not a language claim.
 The [v2 follow-up](docs/pixel-language-v2/README.md) adds contrastive color/shape
 episodes, broader appearances and a predeclared multi-seed replication test.
 
-## In-game survival/communication experiment
+## One world: survival and symbol learning
 
-Pause with Escape, then choose **Communication experiment**. **Start fresh**
-creates an isolated, unsaved Ozark session with new Aster/Mira bodies, memories
-and randomly initialized symbol policies. Your ordinary world stays paused;
-closing the experiment returns to its pause menu. Restarting discards all
-experimental learning. No Ollama or trained lab weights are required.
+Aster and Mira now learn pixel-grounded symbols **in the main Ozark world**,
+alongside their existing survival learning. There is one population and one
+clock. No Ollama, trained lab weights or separate session is required.
+Pause with Escape and open **Learning inspector** to see these same agents'
+bodies, messages, selected actions, outcomes and gate counters. Closing the
+inspector does not discard learning; its pause control uses the main clock.
+The main world has no 1800-second experimental cutoff.
 
-This new JavaScript bridge uses actual game-art pixel crops and allows learned
-symbols to influence already-permitted optional physical trials. Hunger,
-thirst, effort, rest and safety still run through the existing survival engine.
-Only the listener's own linked action/ingestion receipts can earn delayed
-reinforcement. Uncheck **Learned symbols enabled** for a fresh constant-message comparison;
-watch crops, symbols, paid actions, outcomes and body gauges in the panel.
+**Persistence is deliberately partial in this increment:** the existing world,
+bodies and memories save as before, but communication weights and pending
+communication credit restart when the app reopens. Loaded old samples/effects
+cannot originate fresh messages. A new personal sample with a pre-consumption
+crop and a canonical bodily effect is required. **Reset world** starts fresh
+bodies, memories and policies through the existing confirmed reset flow.
 
-This is an experimental mechanism, **not a claim of learned language or better
-survival**. Whole-object cropping, communication opportunities, motor channels
-and reward mapping are supplied. Existing English/social channels remain
-active. The two displayed symbols encode one category, not grammar. See the
-[preregistered protocol](docs/communication-bridge/PROTOCOL.md) for limitations
-and the bounded native comparison plan. The separate Python labs above remain
-unchanged; their trained networks are not loaded into this runtime.
+Symbols can influence already-permitted optional physical trials; urgent
+survival actions remain upstream. Only the listener's own linked action and
+ingestion receipts earn reinforcement. Diagnostics distinguish relief,
+discomfort, effort-only expiry and censored attempts. A negative reward can
+mean effort with no attributed outcome, not necessarily sickness. Gate counts
+show where opportunities stop; they do not change policies or reward rules.
+
+This is an experimental mechanism, **not demonstrated language or improved
+survival**. Whole-object crops, motor channels, opportunities and reward mapping
+are supplied scaffolding. Existing English/social channels remain active.
+The displayed token pair encodes one category, not grammar. The isolated
+protocol factory remains for automated reproducibility, not a second playable
+world. The [frozen protocol](docs/communication-bridge/PROTOCOL.md) and its
+recorded comparison are historical evidence; this integration does not rerun
+or reinterpret that experiment. The Python labs remain separate research;
+their trained networks are never loaded into this runtime.
 
 The [first six-trial results](docs/communication-bridge/RESULTS.md) found no
 demonstrated survival benefit: two seed pairs had no exchanges, and the third

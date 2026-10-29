@@ -29,7 +29,7 @@ const application = await canonicalApplicationRoot(output);
 const built = await buildApplication(application);
 const context = { output, profile, application, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
 const harness = join(output, 'runner.cjs');
-const phases = ['exercise', 'reopen'];
+const phases = ['exercise', 'reopen', 'reset'];
 
 // Runs in Electron main. Real application owns protocol, profile and security.
 function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames) {
@@ -37,7 +37,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
   const assert = require('node:assert/strict');
   const fs = require('node:fs/promises'), path = require('node:path');
   const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
-  assert(['exercise', 'reopen'].includes(phase));
+  assert(['exercise', 'reopen', 'reset'].includes(phase));
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
   let activeWindow, running = false, allowQuit = false, closed = false, stage = 'initializing';
   const screenshots = [], events = [];
@@ -63,48 +63,92 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     await waitFor(win, 'Boolean(window.__ozarkWorld)');
     assert.equal(await evaluate(win, 'location.href'), 'aincrad://app/index.html?test=1');
     assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false);
+    const learning = () => evaluate(win, 'window.__ozarkWorld.communicationSnapshot()');
+    const disclosure = () => evaluate(win, "document.getElementById('communication-persistence').textContent");
+    assert.match(await disclosure(), /Bodies and memories save locally.*Communication weights restart on app reopen/);
+    if (phase === 'reset') {
+      assert((await learning()).elapsed > 0, 'Reset starts from a real saved running world');
+      await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
+      await click(win, 'reset-world'); await waitFor(win, "document.getElementById('reset-dialog').open");
+      await capture(win, 'reset-confirmation.png');
+      await evaluate(win, "document.getElementById('reset-acknowledge').checked=true;document.getElementById('reset-acknowledge').dispatchEvent(new Event('change'))");
+      let timer, listener;
+      const reloaded = new Promise(resolve => { listener = resolve; win.webContents.once('did-finish-load', listener); });
+      try {
+        await click(win, 'reset-confirm').catch(error => {
+          // A successful reset can destroy this evaluation context before it resolves.
+          // Still require the independently observed did-finish-load below.
+          if (!/context|destroyed|navigation/i.test(error.message)) throw error;
+        });
+        await Promise.race([reloaded, new Promise((_, reject) => { timer = setTimeout(() => reject(Error('Reset reload timed out')), 60000); })]);
+      } finally { clearTimeout(timer); win.webContents.removeListener('did-finish-load', listener); }
+      await waitFor(win, 'Boolean(window.__ozarkWorld)');
+      const world = await evaluate(win, 'window.__ozarkWorld.fullSnapshot()');
+      assert.equal(world.elapsed, 0, 'Explicit reset creates fresh ordinary world');
+      for (const agent of world.agents) { assert.equal(agent.elapsed, 0); assert.equal(agent.discovery.experiments.length, 0); assert.equal(agent.discovery.effects.length, 0); }
+      const fresh = await learning(); assert(fresh);
+      assert.equal(fresh.elapsed, 0); assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0, 'Reset clears communication pending credit');
+      for (const learner of fresh.learners) assert.deepEqual(learner.current, learner.initial, 'Reset creates fresh communication model fingerprints');
+      await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
+      await click(win, 'open-communication');
+      await capture(win, 'reset-fresh-inspector.png');
+      await fs.writeFile(path.join(context.output, 'reset-checkpoint.json'), JSON.stringify({ world, learning: fresh }, null, 2));
+      return;
+    }
     if (phase === 'reopen') {
       const previous = JSON.parse(await fs.readFile(path.join(context.output, 'ordinary-checkpoint.json'), 'utf8'));
       assert.equal(await raw(win), previous.raw, 'Independent reopen preserves exact ordinary bytes');
       assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().started'), false);
+      const fresh = await learning(); assert(fresh, 'Main-world learner attaches before start');
+      assert.equal(fresh.elapsed, previous.learning.elapsed, 'Main clock resumes saved time, not experiment time');
+      assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0);
+      for (const learner of fresh.learners) assert.deepEqual(learner.current, learner.initial, 'Communication weights restart without old traces');
+      await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
+      await click(win, 'open-communication'); await waitFor(win, "document.getElementById('communication-dialog').open");
+      assert.match(await disclosure(), /Communication weights restart on app reopen/);
       await capture(win, 'independent-reopen.png'); return;
     }
     assert.equal(await raw(win), null, 'Disposable profile starts empty');
     await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause();window.__ozarkWorld.save()');
     const before = await raw(win); assert(before && JSON.parse(before));
     const ordinary = await evaluate(win, 'window.__ozarkWorld.snapshot()'); assert(ordinary.paused);
+    const beforeLearning = await learning(); assert(beforeLearning);
     await click(win, 'open-communication'); await waitFor(win, "document.getElementById('communication-dialog').open");
+    assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves pending credit, RNG and models');
     await capture(win, 'ready.png');
-    await click(win, 'communication-start');
-    await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('Running')");
+    await click(win, 'communication-pause');
+    await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('World running')");
     await waitFor(win, "parseInt(document.getElementById('communication-elapsed').textContent,10)>=2");
     await capture(win, 'running.png');
-    // Cross the ordinary autosave interval while a real experiment advances.
+    // Cross the normal autosave interval while the one real world advances.
     await delay(10500);
-    assert.equal(await raw(win), before, 'Active experiment prevents ordinary autosave writes');
-    assert.equal((await evaluate(win, 'window.__ozarkWorld.snapshot()')).elapsed, ordinary.elapsed, 'Ordinary world stays frozen');
-    escape(win); await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('Experiment paused')");
-    await delay(350); const frozen = await evaluate(win, "document.getElementById('communication-elapsed').textContent");
-    await delay(1000); assert.equal(await evaluate(win, "document.getElementById('communication-elapsed').textContent"), frozen);
-    assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().paused'), true, 'Native Escape never resumes ordinary world');
-    await click(win, 'communication-stop');
-    await evaluate(win, "document.getElementById('communication-enabled').checked=false;document.getElementById('communication-seed').value='2';document.getElementById('communication-start').click();document.getElementById('communication-start').click()");
-    await waitFor(win, "document.getElementById('communication-status').textContent.includes('constant-message control')");
-    await waitFor(win, "parseInt(document.getElementById('communication-elapsed').textContent,10)>=1");
-    assert(Number.parseInt(await evaluate(win, "document.getElementById('communication-elapsed').textContent"), 10) < 10, 'Restart starts fresh time');
-    await capture(win, 'constant-control.png');
+    assert.notEqual(await raw(win), before, 'Inspector does not suppress ordinary autosave writes');
+    const running = await evaluate(win, 'window.__ozarkWorld.snapshot()');
+    assert(running.elapsed > ordinary.elapsed, 'Main world advances while inspector is open');
+    assert(await evaluate(win, 'window.__ozarkWorld.communicationSnapshot().elapsed === window.__ozarkWorld.snapshot().elapsed'), 'Inspector and world report the same clock');
+    escape(win); await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('World paused')");
+    await delay(350); const frozen = await evaluate(win, 'window.__ozarkWorld.snapshot().elapsed');
+    await delay(1000); assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().elapsed'), frozen);
+    assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().paused'), true, 'Native Escape pauses the one main world');
+    const retained = await learning();
+    await evaluate(win, "document.getElementById('communication-follow').value='mira';document.getElementById('communication-follow').dispatchEvent(new Event('change'))");
+    assert.deepEqual(await learning(), retained, 'Follow selection cannot change learning');
+    assert.equal(await evaluate(win, 'window.__ozarkWorld.save()'), true, 'Normal save works while inspector is open');
+    const checkpoint = await raw(win);
     await click(win, 'communication-close');
     assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false);
     assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().paused'), true);
-    assert.equal(await raw(win), before, 'Closing experiment preserves ordinary bytes');
-    await capture(win, 'closed-to-ordinary-pause.png');
+    assert.deepEqual(await learning(), retained, 'Closing inspector preserves main learners');
+    await capture(win, 'closed-to-world-pause.png');
+    for (let i = 0; i < 2; i++) {
+      await click(win, 'open-communication');
+      assert.deepEqual(await learning(), retained, 'Inspector reopen retains learning rather than creating agents');
+      await click(win, 'communication-close');
+    }
     await click(win, 'open-communication');
-    assert.match(await evaluate(win, "document.getElementById('communication-status').textContent"), /^Ready/);
-    assert.equal(await evaluate(win, "parseInt(document.getElementById('communication-elapsed').textContent,10)"), 0, 'Modal reopen does not restore experiment');
-    await click(win, 'communication-start');
-    await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('Running')");
-    await fs.writeFile(path.join(context.output, 'ordinary-checkpoint.json'), JSON.stringify({ raw: before, ordinary }, null, 2));
-    assert.equal(await raw(win), before, 'Native app closes while experiment active without replacing ordinary save');
+    assert.equal(await raw(win), checkpoint, 'Paused inspector leaves the ordinary save unchanged');
+    await fs.writeFile(path.join(context.output, 'ordinary-checkpoint.json'), JSON.stringify({ raw: checkpoint, learning: retained, ordinary: await evaluate(win, 'window.__ozarkWorld.snapshot()') }, null, 2));
+    await capture(win, 'paused-inspector-before-close.png');
   }
   app.on('browser-window-created', (_event, win) => {
     activeWindow = win;
@@ -137,7 +181,7 @@ let closed = true, nativeProcessesStarted = 0;
 try {
   await writeFile(harness, '(' + installNativeRunner.toString() + ')(' + JSON.stringify(context) + ',' + captureWithReadiness.toString() + ',' + waitForCaptureFrames.toString() + ');\n');
   const harnessSha256 = createHash('sha256').update(await readFile(harness)).digest('hex');
-  const prepared = { ...context, harness, harnessSha256, phases, nativeExecutionPerformed: false, sandboxBypassFlags: [], excludedCoverage: ['Screenshots require visual inspection.', 'This validates UI/isolation, not learned survival benefit.'] };
+  const prepared = { ...context, harness, harnessSha256, phases, nativeExecutionPerformed: false, sandboxBypassFlags: [], excludedCoverage: ['Screenshots require visual inspection.', 'This validates main-world inspector integration and save behavior, not learned survival benefit.'] };
   await writeFile(join(output, 'prepared.json'), JSON.stringify(prepared, null, 2));
   if (prepareOnly) console.log(JSON.stringify(prepared));
   else {
@@ -157,7 +201,7 @@ try {
     }
     const processIds = await Promise.all(phases.map(async phase => JSON.parse(await readFile(join(output, phase + '-host.json'), 'utf8')).pid));
     assert.equal(new Set(processIds).size, phases.length);
-    const result = { passed: true, nativeExecutionPerformed: true, ...context, harnessSha256, processIds, phases, exactOrdinaryBytesPreservedAfterIndependentReopen: true, visualInspection: 'required', excludedCoverage: prepared.excludedCoverage };
+    const result = { passed: true, nativeExecutionPerformed: true, ...context, harnessSha256, processIds, phases, exactOrdinaryBytesPreservedAfterIndependentReopen: true, explicitResetVerified: true, visualInspection: 'required', excludedCoverage: prepared.excludedCoverage };
     await writeFile(join(output, 'result.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
   }
 } finally {

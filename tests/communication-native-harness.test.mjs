@@ -16,7 +16,7 @@ test('communication native preparation stays isolated and never claims native ex
     assert.equal(result.status, 0, result.stderr);
     const prepared = JSON.parse(result.stdout.trim());
     assert.equal(prepared.nativeExecutionPerformed, false); assert.deepEqual(prepared.sandboxBypassFlags, []);
-    assert.deepEqual(prepared.phases, ['exercise', 'reopen']); assert.match(prepared.harnessSha256, /^[a-f0-9]{64}$/);
+    assert.deepEqual(prepared.phases, ['exercise', 'reopen', 'reset']); assert.match(prepared.harnessSha256, /^[a-f0-9]{64}$/);
     const applicationRelative = relative(await realpath(output), prepared.application);
     assert(applicationRelative && !isAbsolute(applicationRelative) && applicationRelative !== '..' && !applicationRelative.startsWith('../'));
     await assert.rejects(access(join(prepared.output, 'result.json')));
@@ -27,10 +27,13 @@ test('communication native preparation stays isolated and never claims native ex
     vm.runInNewContext(source, { require: stub, process: { argv: ['runner', '--phase=exercise'] }, console, setTimeout: () => 1, clearTimeout() {} });
     assert.equal(loaded.length, 1, 'Actual application scheme registration remains synchronous');
     for (const contract of [
-      'Independent reopen preserves exact ordinary bytes', 'Active experiment prevents ordinary autosave writes',
-      'Ordinary world stays frozen', 'Native Escape never resumes ordinary world', 'Restart starts fresh time',
-      'Closing experiment preserves ordinary bytes', 'Modal reopen does not restore experiment',
-      'Native app closes while experiment active without replacing ordinary save',
+      'Independent reopen preserves exact ordinary bytes', 'Inspector does not suppress ordinary autosave writes',
+      'Main world advances while inspector is open', 'Native Escape pauses the one main world',
+      'Normal save works while inspector is open', 'Closing inspector preserves main learners',
+      'Inspector reopen retains learning rather than creating agents',
+      'Communication weights restart without old traces', 'Main clock resumes saved time, not experiment time',
+      'Explicit reset creates fresh ordinary world', 'Reset clears communication pending credit',
+      'Reset creates fresh communication model fingerprints',
       'captureWithReadiness({', 'win.webContents.sendInputEvent', 'prefs.sandbox, true',
     ]) assert(source.includes(contract), contract);
     const archive = JSON.parse(await readFile(join(prepared.output, 'profile-evidence.json'), 'utf8'));
@@ -82,4 +85,17 @@ test('real comparison metadata rejects missing, mismatched or repeated execution
   assert.throws(()=>validate(valid,'b'.repeat(40)));
   assert.match(source,/if\(!prepareOnly\)assert.equal\(built.sourceFingerprint,EXPECTED_SOURCE_FINGERPRINT/);
   assert.match(source,/0797f513343ab4e3d86134ffa7eb768d5a3d2a39c2246303320fcdfc46a8d25f/);
+});
+
+
+test('reset navigation catch tolerates only context-loss errors and still awaits native reload', async () => {
+  const source = await readFile(new URL('../scripts/verify-communication-desktop.mjs', import.meta.url), 'utf8');
+  const match = source.match(/await click\(win, 'reset-confirm'\)\.catch\((error => \{[\s\S]*?\})\);/);
+  assert(match, 'Explicit reset evaluation has a narrow navigation-error catch');
+  const handler = vm.runInNewContext('(' + match[1] + ')');
+  for (const message of ['Execution context was destroyed', 'Navigation interrupted evaluation']) assert.doesNotThrow(() => handler(new Error(message)));
+  const ordinary = new Error('Reset write failed');
+  assert.throws(() => handler(ordinary), error => error === ordinary);
+  const afterClick = source.slice(source.indexOf(match[0]) + match[0].length);
+  assert.match(afterClick, /^\s*await Promise\.race\(\[reloaded,/);
 });

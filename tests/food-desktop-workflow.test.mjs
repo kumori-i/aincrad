@@ -19,9 +19,9 @@ test('desktop runs the complete native chains before its still-required aggregat
 });
 test('aquatic native has a finite aggregate-plus-native budget without changing diagnostic budget',async()=>{
   const workflow=await readFile(new URL('../.github/workflows/finite-aquatic-native.yml',import.meta.url),'utf8');
-  assert.equal((workflow.match(/timeout-minutes: 45/g)||[]).length,1);
+  assert.equal((workflow.match(/timeout-minutes: 60/g)||[]).length,1);
   assert.equal((workflow.match(/timeout-minutes: 20/g)||[]).length,1);
-  assert.match(workflow,/runs-on: \$\{\{ matrix\.os \}\}\n    timeout-minutes: 45/);
+  assert.match(workflow,/runs-on: \$\{\{ matrix\.os \}\}\n    timeout-minutes: 60/);
   assert.match(workflow,/- run: npm run check/);
   assert.match(workflow,/verify-aquatic-desktop\.mjs/);
 });
