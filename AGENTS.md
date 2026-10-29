@@ -25,6 +25,17 @@ No new reference task or reward change is part of this transition. Removing sema
 channels changes complete agent behavior, so historical studies are not evidence
 for this new configuration; future experiments need a new reviewed frozen protocol.
 
+## Shared visual reference — current branch verification stage
+
+Phase A adds a paid, post-choice schematic direction cue and listener-local
+geometry parsing to the same main world. No association updates are present yet.
+See docs/visual-reference/PHASE-A.md. Do not merge this intermediate default as a
+completed learning release: exact native affordance proof and source review must
+precede Phase B. Preserve historical protocol fixtures. The cue/parser, segmented
+pixels and thresholds are supplied biases, not learned concepts. Fresh-only
+engineering fixture ownership and checkpoint authority are runtime-only; normal
+UI saves/timers cannot interfere with that isolated verification process.
+
 ## Authority and boundaries
 
 - ozark-world-geometry.js and its structural helpers own authoritative movement, collision and sight. Player and NPC adapters share that geometry.

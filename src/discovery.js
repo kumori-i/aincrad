@@ -430,7 +430,7 @@ export function contactEscape(npc){
   return null;
 }
 /** A generic novelty/outcome learner. It never looks up an object's species or nutrients. */
-export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,chooseOptional=null}={}){
+export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,chooseOptional=null,optionalAction=null}={}){
   processDiscoveryFeedback(npc,{foodLearning});availabilityScans.set(npc,new Map());const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
   const trialHunger=['hungry','ravenous','faint with hunger'].includes(body.hunger);
@@ -567,6 +567,9 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
     const cells=Object.values(rememberedCells(npc)),candidate=cells.filter(c=>c.walkable&&distance(c,npc.position)>150&&distance(c,npc.position)<900).map(c=>({c,score:(c.visits||0)*-3+random(npc)*8})).sort((a,b)=>b.score-a.score);
     for(const {c} of candidate.slice(0,8)){const move=routeTarget(npc,c);if(move){choices.push({action:move,score:2.5/(1+(c.visits||0))+random(npc),reason:'I can investigate another locally observed patch of terrain.'});break;}}
   }
+  // A trusted runtime may request a paid reference operation only after all
+  // ordinary safety, bodily-care and learned-procedure returns above.
+  if(typeof optionalAction==='function'){const action=optionalAction();if(action)return wrap(action,'A supplied visual-reference interaction is being attempted; no learned meaning is established.');}
   // Runtime-only opt-in experiment may choose an already eligible optional
   // operation. Every bodily-care/procedure/safety gate above remains prior.
   // This callback is never stored in actor data or reconstructed from a save.

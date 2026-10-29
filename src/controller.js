@@ -282,6 +282,6 @@ export class NpcController {
       }
     }
     captureDiscoveryCandidates(this,n);
-    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?choices=>this.experimentalDiscovery.choose(n,choices):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});const performed=this.perform(decision.action);this.experimentalDiscovery?.performed(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
+    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }

@@ -34,39 +34,51 @@ The recipient may attempt taught steps without random rediscovery, using only a 
 
 Expiry, unavailable source and a failed physical attempt do not by themselves prove a food claim false. Own adverse or beneficial feedback supplies the relevant evidence. Restore must not reset ambiguous completed acquisitions into runnable advice. Human hints use the same reported-versus-experienced distinction and cannot resolve unknown animals through a private species table.
 
-`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology stays in developer inspection. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. This changes the total agent behavior; the numeric symbol learner architecture/reward rule is unchanged. Future studies need a new frozen protocol.
+`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology stays in developer inspection. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. English deprecation changed total agent behavior. The subsequent visual-reference branch replaces the main optional channel; historical studies do not establish results for it. Future studies need a new frozen protocol.
 
-## Main-world pixel communication
+## Main-world visual reference — Phase A only
 
-`communication-attachment.js` attaches fresh sender/receiver policies and a
-separate RNG to existing actors. `ozark-world-main.js` owns the sole clock and
-`PopulationRuntime`: it calls `beforeTick`, advances world/population once,
-then calls `afterTick`. The attachment never reseeds survival actors, advances
-time, or applies the isolated protocol's 1800-second limit.
+`visual-reference-attachment.js` owns one bounded reference transaction per actor,
+not a clock or population. `ozark-world-main.js` still calls `beforeTick`, advances
+the sole population/environment/body clock once, then calls `afterTick`. A new
+optional-action callback occurs only after ordinary bodily/safety/procedure gates.
+There are no association updates in this intermediate verification stage. The
+historical `communication-attachment.js` delayed bodily-credit learner remains
+in historical automated fixtures only, never alongside the new main attachment.
 
-Only post-attachment samples with an earlier local pixel crop and canonical
-personal effects can originate signals. Loaded history cursors are primed,
-not replayed. Actor, discovery, physiology or epoch changes censor linked
-pending offers/credit and clear source/crop provenance. Scene and recovery
-epoch changes preserve the same individual's learned weights; replacing the
-actor object creates fresh communication weights. Reward and optional-action
-rules are unchanged. Bounded gate diagnostics do not consume RNG or alter
-policies. Communication errors detach that channel, visibly report failure,
-and leave ordinary survival/save authority intact.
+Two distinguishable, mutually visible alternatives must both be geometrically
+resolvable before uniform referent selection. Separate RNGs govern pair, referent,
+order, arbitrary symbol and arbitrary listener choice. The listener's paid
+inspection completion issues a one-use private indication permit. A subsequent
+sender optional slot executes fixed 1.8-second / .25-effort indication. Canonical
+runtime funding/success witnesses cannot be recreated from saved action-shaped
+objects. The public projection contains only a scene, numeric origin/tip and paid
+progress; its 24-unit schematic ground-plane segment is used identically by art
+and the listener-local geometry adapter.
 
-`communication-inspector.js` is a shortcut to the same NPC Learning tab in the
-main world; the historical modal implementation is not the production route.
-`learning-view.js` renders copied observer events only. Each emission gets a
-session-local ID, emission-time copied crops and selected action; terminal
-updates retain that ID. Retention is 256 events (32 shown per agent), never
-persisted or consumed by policies. English labels are not agent speech or
-translations. Supplied nonverbal coordination is listed separately. Open/close/follow
-selection never creates actors, clears learning, ticks time or suppresses
-saving. Reset retires inspector, communication and population before reload.
-Schema 12 is unchanged: bodies/memories resume from saves, while communication
-weights, RNG and unfinished credits restart on app reopen. This interim limit
-is visible in the inspector. The isolated factory remains an automated
-protocol harness with frozen-source parity coverage, not a playable destination.
+`visual-reference-perception.js` uses ordinary local object sensing/LOS and rejects
+an exact 96-object raw cap as incomplete. Every visible projected distractor is
+considered. A supplied ±6-degree parser extrapolates at most 400 units without
+expanding sight or drawing a long target ray. The final .5 seconds must comprise
+consecutive actually sampled full 1/60-second funded intervals; first sight is a
+baseline, and missing/partial/ambiguous samples reset the measure. No sight is
+backdated into an assumed funded prefix. Reference correctness remains an observer
+critic, separate from perceived demonstration, learning and bodily benefit.
+
+`communication-inspector.js` opens the same NPC Learning tab. `learning-view.js`
+labels this phase explicitly as physical verification, not learned meaning. At
+most 256 copied observer events are retained, with 32 per selected actor shown.
+English annotations are never agent speech or translations. Normal saves remain
+schema 12 and pending authority never restores. Scene/identity/position or urgent
+body changes censor sessions rather than inventing negative learning.
+
+A fresh-profile, exact `?test=1` engineering installer can temporarily own bounded
+manual 1/60 steps for actual native proof. It cannot mix normal timers, begin, QA
+steps or ordinary saves; only its authenticated closure has a one-attempt explicit
+checkpoint exception for isolated mid-gesture reopen testing. No authority is
+persisted. See [Phase A boundaries](visual-reference/PHASE-A.md). Do not merge this
+intermediate branch as a completed learning release; native physical proof and
+source review precede Phase B association wiring and new frozen evaluation.
 
 ## Observation-driven inquiry
 

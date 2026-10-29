@@ -34,6 +34,8 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // runtime capability binding and naming/dialogue guards to BOTH arms.
 // Previous normalized controller pin (before this intentional behavior change):
 // 7946d27ceaaf13075f3ac29a5f059da1bf48af4e66bf774d7ced073e188d876b.
+// Phase A adds optional paid-reference hooks. Strip their exact new spellings
+// too; the normalized controller remains pinned to the SAME grounded bytes.
 // Remove only the exact capture and optional communication seams below. Thus
 // the baseline executes the current grounded controller without these seams,
 // not two copies of a potentially defective instrumentation path. The null
@@ -47,8 +49,8 @@ const baselineSource = source
   .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '')
   .replace(',experimentalDiscovery=null', '')
   .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
-  .replace(',chooseOptional:this.experimentalDiscovery?choices=>this.experimentalDiscovery.choose(n,choices):null', '')
-  .replace('const performed=this.perform(decision.action);this.experimentalDiscovery?.performed(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
+  .replace(',chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null', '')
+  .replace('this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
 assert.equal(sha(baselineSource), '0007bae4d9e16a10999db52ff3df4213ced5d7ca6b497c5d98af0616120fde5b', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
