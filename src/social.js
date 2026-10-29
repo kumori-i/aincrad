@@ -1,3 +1,4 @@
+import { bindCommunicationMode, defineCommunicationMode } from './communication-mode.js';
 import { CategoryNameRuntime } from './category-name-runtime.js';
 import { namedObject } from './category-names.js';
 import { canonicalAdverseWarning, cleanFoodWarning, foodWarningText, validFoodWarningMessage, retireUnheardFoodWarnings } from './food-warning.js';
@@ -184,8 +185,10 @@ function matchingClaims(npc, text) {
 
 /** Local speech and an asynchronous journal are separate delivery channels. */
 export class SocialCoordinator {
-  constructor({getAgents, getCommunity, getEnvironment}) {
+  constructor({getAgents, getCommunity, getEnvironment, communicationMode='grounded'}) {
+    defineCommunicationMode(this,communicationMode);
     this.getAgents = getAgents; this.getCommunity = getCommunity; this.getEnvironment = getEnvironment;
+    for(const npc of this.agents()) bindCommunicationMode(npc,this.communicationMode);
     this.foodSharing = new FoodSharing(this);
     this.naming = new NamingRuntime(this);
     this.categoryNaming = new CategoryNameRuntime(this);
@@ -212,6 +215,7 @@ export class SocialCoordinator {
   }
 
   receive(npc, message) {
+    if(this.communicationMode!=='legacy') return false;
     const memory = this.ensure(npc);
     if (message.channel === 'journal') {
       if (memory.journalSeen.includes(message.id)) return false;
@@ -236,6 +240,7 @@ export class SocialCoordinator {
   }
 
   append({senderId, recipientId, channel, text, kind = 'speech', replyTo, offline = false,model=false,teaching=null,warning=null}, at) {
+    if(this.communicationMode!=='legacy') return null;
     const community = this.community();
     const message = {id: `message:${community.nextId++}`, at, senderId, recipientId, channel, text, kind, ...(replyTo ? {replyTo} : {}), ...(offline ? {offline: true} : {}),...(model&&senderId!=='human'?{model:true}:{}),...(channel==='peer'&&cleanPeerTeaching(teaching)?{teaching:cleanPeerTeaching(teaching)}:{}),...(channel==='peer'&&cleanFoodWarning(warning)?{warning:cleanFoodWarning(warning)}:{})};
     community.messages.push(message); community.messages = bounded(community.messages, SOCIAL_RULES.maxMessages);
@@ -245,8 +250,7 @@ export class SocialCoordinator {
   tick(dt) {
     if (!Number.isFinite(dt) || dt <= 0) return;
     const environment = this.getEnvironment?.();
-    this.naming.tick();
-    this.categoryNaming.tick();
+    if(this.communicationMode==='legacy'){this.naming.tick();this.categoryNaming.tick();}
     for (const npc of this.agents()) {
       const social = this.ensure(npc), now = nowFor(npc, environment);
       const elapsed = social.lastUpdateAt === null ? Math.min(dt, now) : Math.max(0, now - social.lastUpdateAt);
@@ -256,6 +260,7 @@ export class SocialCoordinator {
   }
 
   deliverHuman(npc, message) {
+    if(this.communicationMode!=='legacy') return undefined;
     if (!aliveAndAwake(npc) || !this.receive(npc, message)) return;
     this.contact(npc, 'human', message.at, true);
     if(npc.mode==='discovery')recordTechniqueReport(npc,message.text,{sourceId:'human',messageId:message.id,at:message.at});
@@ -284,6 +289,7 @@ export class SocialCoordinator {
   }
 
   observe(npc) {
+    if(this.communicationMode!=='legacy') return {peers:aliveAndAwake(npc)?this.nearby(npc).map(peer=>({id:peer.id,scene:peer.scene,position:{...peer.position},appearance:appearance(peer)})):[],foodSharing:aliveAndAwake(npc)?this.foodSharing.observe(npc):{requests:[],offers:[]},journal:[],nearbyMessages:[],notes:[],pendingHumanTurn:null,pendingQuestion:null};
     const community = this.community(), memory = this.ensure(npc);
     const awake=aliveAndAwake(npc);
     const availableJournal = community.messages.filter(message => message.channel === 'journal' && (message.recipientId === 'all' || message.recipientId === npc.id || message.senderId === npc.id));
@@ -316,6 +322,7 @@ export class SocialCoordinator {
   }
 
   say(npc, action) {
+    if(this.communicationMode!=='legacy') return {ok:false,code:'LEGACY_LANGUAGE_DISABLED'};
     let text = textValue(action.text);const target = this.agents().find(peer => peer.id === action.targetId);
     if (!text || typeof action.text !== 'string' || action.text.length > SOCIAL_RULES.maxText) return {ok: false, code: 'INVALID_TEXT'};
     if (!target || target.id === npc.id) return {ok: false, code: 'UNKNOWN_PEER'};
@@ -366,6 +373,7 @@ export class SocialCoordinator {
   }
 
   ask(npc, action) {
+    if(this.communicationMode!=='legacy') return {ok:false,code:'LEGACY_LANGUAGE_DISABLED'};
     const text = textValue(action.text), topic = token(action.topic) || 'world';
     if (!text || typeof action.text !== 'string' || action.text.length > SOCIAL_RULES.maxText) return {ok: false, code: 'INVALID_TEXT'};
     const community = this.community(), memory = this.ensure(npc), at = nowFor(npc, this.getEnvironment?.());
@@ -388,6 +396,7 @@ export class SocialCoordinator {
   }
 
   journalReply(npc, action) {
+    if(this.communicationMode!=='legacy') return {ok:false,code:'LEGACY_LANGUAGE_DISABLED'};
     const text = textValue(action.text), memory = this.ensure(npc), at = nowFor(npc, this.getEnvironment?.());
     if (!text || typeof action.text !== 'string' || action.text.length > SOCIAL_RULES.maxText) return {ok: false, code: 'INVALID_TEXT'};
     const turn = action.replyTo ? memory.heard.find(message => message.id === action.replyTo && message.senderId === 'human' && message.channel === 'journal') : memory.heard.filter(message => message.senderId === 'human' && message.channel === 'journal' && !memory.repliedTo.includes(message.id)).slice(-1)[0];
@@ -405,6 +414,7 @@ export class SocialCoordinator {
   }
 
   postHuman(rawText, to = 'all', replyTo = null) {
+    if(this.communicationMode!=='legacy') return {ok:false,code:'LEGACY_LANGUAGE_DISABLED'};
     const text = textValue(rawText), community = this.community();
     if (!text || typeof rawText !== 'string' || rawText.length > SOCIAL_RULES.maxText) return {ok: false, code: 'INVALID_TEXT'};
     if (!RECIPIENTS.has(to)) return {ok: false, code: 'UNKNOWN_RECIPIENT'};
@@ -430,6 +440,7 @@ export class SocialCoordinator {
   }
 
   writeNote(npc, action) {
+    if(this.communicationMode!=='legacy') return {ok:false,code:'LEGACY_LANGUAGE_DISABLED'};
     const title = textValue(action.title, SOCIAL_RULES.maxTitle), text = textValue(action.text);
     if (!title || !text || typeof action.title !== 'string' || typeof action.text !== 'string' || action.title.length > SOCIAL_RULES.maxTitle || action.text.length > SOCIAL_RULES.maxText) return {ok: false, code: 'INVALID_NOTE'};
     const beliefIds = Array.isArray(action.beliefIds) ? [...new Set(action.beliefIds)] : [];
@@ -451,6 +462,7 @@ export class SocialCoordinator {
   }
 
   readNote(npc, action) {
+    if(this.communicationMode!=='legacy') return {ok:false,code:'LEGACY_LANGUAGE_DISABLED'};
     const note = this.community().notes.find(note => note.id === action.noteId);
     if (!note) return {ok: false, code: 'UNKNOWN_NOTE'};
     if (note.scene !== npc.scene || distance(note.position, npc.position) > SOCIAL_RULES.noteRange || !actorLineOfSight(npc,npc.position,note.position)) return {ok: false, code: 'NOTE_OUT_OF_REACH'};
@@ -465,6 +477,7 @@ export class SocialCoordinator {
    * It cannot turn animal metadata, a model's prose, or a human report into an
    * independently verified technique. */
   adverseDialogue(npc){
+    if(this.communicationMode!=='legacy') return null;
     if(npc.mode!=='discovery'||!aliveAndAwake(npc)||['urgent','unconscious','recovering'].includes(bodySignals(npc).overall))return null;
     const at=nowFor(npc,this.getEnvironment?.()),memory=this.ensure(npc);
     if(memory.lastSpokeAt!==null&&at-memory.lastSpokeAt<SOCIAL_RULES.speechCooldown)return null;
@@ -481,6 +494,7 @@ export class SocialCoordinator {
   }
 
   discoveryDialogue(npc){
+    if(this.communicationMode!=='legacy') return null;
     const warning=this.adverseDialogue(npc);if(warning)return warning;
     if(!aliveAndAwake(npc))return null;
     const body=bodySignals(npc);
@@ -535,6 +549,7 @@ export class SocialCoordinator {
 
   /** Evidence-derived offline language. The optional model can use the same validated actions. */
   maybeDialogue(npc) {
+    if(this.communicationMode!=='legacy') return null;
     if(npc.mode==='discovery')return this.adverseDialogue(npc)||this.foodSharing.choose(npc)||this.discoveryDialogue(npc);
     if (!aliveAndAwake(npc) || npc.hydration < 45 || npc.nourishment < 45 || npc.health < 70 || Math.max(npc.thermal?.hot ?? 0, npc.thermal?.cold ?? 0) > 40) return null;
     const at = nowFor(npc, this.getEnvironment?.()), memory = this.ensure(npc), observation = this.observe(npc);

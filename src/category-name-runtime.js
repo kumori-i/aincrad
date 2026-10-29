@@ -30,6 +30,7 @@ export class CategoryNameRuntime {
   }
 
   tick() {
+    if(this.social.communicationMode!=='legacy')return;
     const helpers = this.social.naming;
     if (!this.environment || this.environment !== this.social.getEnvironment?.() || !helpers) {
       this.#pending.clear();

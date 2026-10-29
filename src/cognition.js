@@ -1,3 +1,4 @@
+import { legacyCommunication } from './communication-mode.js';
 import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
 import { CONFIG, NPC_RULES, BODY_RULES, CAVES } from './config.js';
 import { distance, canStand } from './world.js';
@@ -22,6 +23,7 @@ function addBelief(npc,values){const c=cognition(npc),belief={id:`belief:${npc.i
 
 /** A report is useful testimony, not a discovered coordinate or verified fact. */
 export function recordClaim(npc,claim,{sourceId='human',at=npc.elapsed,channel='journal',messageId=null}={}){
+  if(!legacyCommunication(npc))return null;
   if(!claim||typeof claim!=='object')return null;
   const c=cognition(npc),subject=text(claim.subject||claim.resourceId||'A reported idea',100),content=text(claim.text||claim.claim,300);
   if(!content)return null;
@@ -38,7 +40,7 @@ function observeBelief(npc,table,item){
     if(table==='foods'&&item.stock===0&&old.stock!==0)old.emptyAt=item.observedAt;
     Object.assign(old,{text:content,available,stock:table==='foods'?number(item.stock,0,10):undefined,observedAt:item.observedAt,updatedAt:npc.elapsed});retainEvidence(old,evidence('observed',item.observedAt,{resourceId:item.id}));
   }
-  for(const report of c.beliefs.filter(b=>b.source==='reported'&&b.resourceId===item.id&&b.status==='unverified'&&item.observedAt>b.updatedAt)){
+  for(const report of c.beliefs.filter(b=>legacyCommunication(npc)&&b.source==='reported'&&b.resourceId===item.id&&b.status==='unverified'&&item.observedAt>b.updatedAt)){
     if(typeof report.available!=='boolean')continue;
     const agrees=report.available===available;report.status=agrees?'corroborated':'contradicted';report.confidence=agrees?'supported':'revised';report.updatedAt=npc.elapsed;retainEvidence(report,evidence('observed',item.observedAt,{resourceId:item.id,agrees}));
   }
@@ -66,7 +68,7 @@ export function updateCognition(npc){
     if(result?.novelCells>0){c.knowledgeGained+=result.novelCells;c.lastKnowledgeAt=npc.elapsed;}
   }c.lastEventId=Math.max(c.lastEventId,...npc.memory.experience.map(e=>e.id));
   c.predictions=c.predictions.slice(-16);
-  const heard=npc.social?.heard||[];for(const message of heard.filter(m=>m.senderId===npc.id&&m.kind==='question')){let q=c.questions.find(q=>q.messageId===message.id);if(!q){q={messageId:message.id,topic:'world',text:message.text,at:message.at,status:'unanswered'};c.questions.push(q);}if(heard.some(reply=>reply.senderId==='human'&&reply.replyTo===message.id))q.status='answered';}c.questions=c.questions.slice(-8);
+  const heard=legacyCommunication(npc)?npc.social?.heard||[]:[];for(const message of heard.filter(m=>m.senderId===npc.id&&m.kind==='question')){let q=c.questions.find(q=>q.messageId===message.id);if(!q){q={messageId:message.id,topic:'world',text:message.text,at:message.at,status:'unanswered'};c.questions.push(q);}if(heard.some(reply=>reply.senderId==='human'&&reply.replyTo===message.id))q.status='answered';}c.questions=c.questions.slice(-8);
   const priorities=signalUrgencies(npc),maximum=Math.max(...Object.values(priorities)),social=npc.social||{},contact=number(social.lastContactAt,c.bornAt),failures=npc.memory.experience.slice(-12).filter(e=>e.details?.result?.ok===false).length;
   const safe=maximum<4;
   c.drives={survival:{tension:tension(maximum),reason:'My bodily sensations ask for food, water, comfort and rest.'},safety:{tension:tension((npc.mode==='discovery'?(npc.discovery?.techniques?.length?0:2):npc.inventory?.apples.length<2?2:0)+(npc.flask.water<=.00001?2:0)),reason:'Remembered relief and a way home can make a trip safer.'},belonging:{tension:tension(safe?Math.min(5,(npc.elapsed-contact)/55):.4),reason:'Contact is welcome, but nobody is obliged to answer.'},competence:{tension:tension(failures*.8),reason:failures?'Recent unsuccessful actions leave something to improve.':'Useful routines can become more reliable.'},understanding:{tension:tension(safe?Math.min(5,(npc.elapsed-c.lastKnowledgeAt)/20):.3),reason:'Unexplained places and uncertain claims invite investigation.'},creativity:{tension:tension(safe&&c.knowledgeGained>0?Math.min(3,(npc.elapsed-c.lastNoteAt)/90):0),reason:'A field note can preserve a discovery.'},purpose:{tension:c.plan?.status==='active'?'present':'quiet',reason:c.plan?.goal||'A longer intention can connect individual actions.'},contribution:{tension:safe&&c.beliefs.some(b=>b.source==='observed')?'present':'quiet',reason:'Grounded discoveries can be shared without pretending certainty.'}};
@@ -158,7 +160,7 @@ export function searchReturn(npc){
 }
 export function explorationFrontier(npc,{reportedHints=true}={}){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc),c=cognition(npc),bounds=searchBounds(npc);
-  const reports=reportedHints?c.beliefs.filter(b=>b.source==='reported'&&b.status==='unverified'&&b.position&&b.available!==false):[];
+  const reports=reportedHints?c.beliefs.filter(b=>legacyCommunication(npc)&&b.source==='reported'&&b.status==='unverified'&&b.position&&b.available!==false):[];
   const candidates=Object.values(cells).filter(cell=>cell.walkable&&distance(cell,npc.position)>140&&distance(cell,npc.position)<900&&(npc.scene!=='valley'||distance(cell,bounds.home)<bounds.radius)).map(cell=>{let unknown=0;const [x,y]=cell.key.split(',').map(Number);for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)if(dx*dx+dy*dy<=9&&!cells[`${x+dx},${y+dy}`])unknown++;const reportProgress=reports.reduce((value,report)=>Math.max(value,(distance(npc.position,report.position)-distance(cell,report.position))*.02),0);return {cell,unknown,score:unknown+reportProgress+(cell.terrain==='trail'?3:0)-(cell.visits||0)*4-(npc.memory.exploration.recentTargets.includes(`${npc.scene}:${cell.key}`)?15:0)};}).sort((a,b)=>b.score-a.score);
   for(const candidate of candidates.slice(0,24)){if(!candidate.unknown)continue;const out=knownRoute(cells,npc.position,candidate.cell,30,edges,npc.elapsed,npc.navigationAnchor),back=knownRoute(cells,candidate.cell,npc.position,30,edges,npc.elapsed);if(!out||!back)continue;const seconds=routeSeconds(npc,out)+routeSeconds({...npc,position:candidate.cell},back);if(seconds>18)continue;return {target:{x:candidate.cell.x,y:candidate.cell.y},unknown:candidate.unknown,travelSeconds:Math.ceil(seconds),returnRoute:back};}return null;
 }

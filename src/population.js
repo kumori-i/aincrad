@@ -1,3 +1,4 @@
+import { defineCommunicationMode } from './communication-mode.js';
 import { subscribeConsumption } from './consumption-events.js';
 import { witnessConsumption } from './observational-learning.js';
 import { rememberDiscoveryObservation } from './discovery.js';
@@ -18,7 +19,8 @@ import { BUILD_SOURCE_FINGERPRINT } from './build-info.js';
 
 /** Owns the two characters and the single shared simulation clock. */
 export class PopulationRuntime {
-  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true,experimentalDiscovery=null}={}) {
+  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true,experimentalDiscovery=null,communicationMode='grounded'}={}) {
+    defineCommunicationMode(this,communicationMode);
     this.state=state;
     this.providerFactory=providerFactory;
     this.controllers=new Map();
@@ -26,10 +28,10 @@ export class PopulationRuntime {
     this.unsubscribeConsumption=state.environment.ecology?subscribeConsumption(state.environment.ecology,event=>{for(const npc of state.agents)witnessConsumption(npc,event,(actor,object)=>rememberDiscoveryObservation(actor,[object]));}):null;
     this.turn=0;
     this.disposed=false;
-    this.social=new SocialCoordinator({getAgents:()=>this.state.agents,getCommunity:()=>this.state.community,getEnvironment:()=>this.state.environment});
+    this.social=new SocialCoordinator({communicationMode:this.communicationMode,getAgents:()=>this.state.agents,getCommunity:()=>this.state.community,getEnvironment:()=>this.state.environment});
     const deferInitialObservation=state.geometryIdentity===OZARK_WORLD_PROFILE.identity;
     for(const npc of state.agents){
-      this.controllers.set(npc.id,new NpcController(npc,{provider:providerFactory?.(npc),environment:state.environment,social:this.social,discoveryFoodLearning,deferInitialObservation,experimentalDiscovery}));
+      this.controllers.set(npc.id,new NpcController(npc,{communicationMode:this.communicationMode,provider:providerFactory?.(npc),environment:state.environment,social:this.social,discoveryFoodLearning,deferInitialObservation,experimentalDiscovery}));
       if(!deferInitialObservation)this.social.observe(npc);
       this.observedAt.set(npc.id,npc.elapsed);
     }
@@ -38,7 +40,7 @@ export class PopulationRuntime {
     this.cardinal=cardinal&&state.geometryIdentity!==OZARK_WORLD_PROFILE.identity&&state.cardinal?new CardinalRuntime(state,{
       experimentFactory:experimentFactory||(({state:snapshot,proposal,seeds,horizonSeconds})=>createCardinalExperiment(snapshot,proposal,{
         seeds,horizonSeconds,sourceFingerprint:BUILD_SOURCE_FINGERPRINT,
-        runtimeFactory:(shadow,options)=>new PopulationRuntime(shadow,{...options,discoveryFoodLearning,cardinal:false}),
+        runtimeFactory:(shadow,options)=>new PopulationRuntime(shadow,{...options,communicationMode:this.communicationMode,discoveryFoodLearning,cardinal:false}),
       })),
       getRules:getWorldRules,
       applyRules:applyWorldRules,

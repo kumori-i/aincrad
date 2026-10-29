@@ -21,8 +21,10 @@ export class FoodSharing {
   #offers=new Map();
   #lastRequest=new Map();
   #nextId=1;
+  #gestures=[];
+  #nextGestureId=1;
   constructor(social){this.social=social;this.environment=social.getEnvironment?.();}
-  dispose(){this.#requests.clear();this.#offers.clear();this.environment=null;}
+  dispose(){this.#requests.clear();this.#offers.clear();this.#gestures=[];this.environment=null;}
   now(){return this.environment?.elapsed??0;}
   peer(npc,id){return this.social.agents().find(peer=>peer!==npc&&peer.id===id);}
   prune(){
@@ -47,17 +49,27 @@ export class FoodSharing {
   observe(npc){
     this.prune();
     return {
-      requests:[...this.#requests.values()].filter(row=>row.recipient===npc&&this.local(npc,row.sender)).map(row=>({id:row.id,senderId:row.sender.id,text:row.text})),
-      offers:[...this.#offers.values()].filter(row=>row.recipient===npc&&!row.accepted&&this.local(npc,row.sender)).map(row=>({id:row.id,senderId:row.sender.id,objectId:row.objectId,text:row.text,appearance:describeEcologyObject(this.environment.ecology,row.objectId,{actorId:row.sender.id})?.appearance})),
+      requests:[...this.#requests.values()].filter(row=>row.recipient===npc&&this.local(npc,row.sender)).map(row=>({id:row.id,senderId:row.sender.id,...(row.text?{text:row.text}:{gesture:'request'})})),
+      offers:[...this.#offers.values()].filter(row=>row.recipient===npc&&!row.accepted&&this.local(npc,row.sender)&&row.sender.inventory.items.includes(row.objectId)&&lookupEcologyObject(this.environment.ecology,row.objectId)?.heldBy===row.sender.id).map(row=>({id:row.id,senderId:row.sender.id,objectId:row.objectId,...(row.text?{text:row.text}:{gesture:'offer'}),appearance:describeEcologyObject(this.environment.ecology,row.objectId,{actorId:row.sender.id})?.appearance})),
     };
   }
-  speak(npc,peer,text){return this.social.say(npc,{targetId:peer.id,text,offline:true});}
-  consentSpeech(npc,peer,text){
-    // Acceptance/refusal is bounded by an existing one-shot offer. Safety and
-    // revocation cannot be delayed by the ordinary unsolicited-speech cooldown.
-    const message=this.social.append({senderId:npc.id,recipientId:peer.id,channel:'peer',text},this.now());
-    this.social.receive(npc,message);this.social.receive(peer,message);
-    return {ok:true,message};
+  /** Observer-only history of supplied motor coordination, not learned words.
+   * Copies cannot mutate consent, and events cannot recreate a live exchange. */
+  gestures(){return this.#gestures.map(event=>({...event}));}
+  #signal(npc,peer,gesture,{objectId=null,consent=false,text}={}){
+    if(!this.local(npc,peer))return {ok:false,code:'PEER_OUT_OF_REACH'};
+    if(this.social.communicationMode==='legacy'){
+      if(!consent)return this.social.say(npc,{targetId:peer.id,text:text(),offline:true});
+      // Historical fixtures only; default-main never writes conversation.
+      const message=this.social.append({senderId:npc.id,recipientId:peer.id,channel:'peer',text:text()},this.now());
+      this.social.receive(npc,message);this.social.receive(peer,message);
+      return {ok:true,message};
+    }
+    const event=Object.freeze({id:`sharing-gesture:${this.#nextGestureId++}`,at:this.now(),
+      senderId:npc.id,recipientId:peer.id,gesture,...(objectId?{objectId}:{}),
+      provenance:'supplied-nonverbal-motor'});
+    this.#gestures.push(event);if(this.#gestures.length>64)this.#gestures.shift();
+    return {ok:true,gesture:{...event}};
   }
   action(npc,action){
     this.prune();
@@ -67,24 +79,21 @@ export class FoodSharing {
       if(!peer||!this.local(npc,peer))return {ok:false,code:'PEER_OUT_OF_REACH'};
       if(!hungry(npc))return {ok:false,code:'NO_FOOD_NEED'};
       if(this.now()-(this.#lastRequest.get(npc.id)??-Infinity)<120)return {ok:false,code:'REQUEST_COOLDOWN'};
-      const text=`I feel ${bodySignals(npc).hunger}. Do you have something you would choose to share? I do not know whether it will help me.`;
-      const spoken=this.speak(npc,peer,text);if(!spoken.ok)return spoken;
+      const spoken=this.#signal(npc,peer,'request',{text:()=>`I feel ${bodySignals(npc).hunger}. Do you have something you would choose to share? I do not know whether it will help me.`});if(!spoken.ok)return spoken;
       const id=`food-request:${this.#nextId++}`;
-      this.#requests.set(npc.id,{id,sender:npc,recipient:peer,at:this.now(),text});this.#lastRequest.set(npc.id,this.now());
-      return {ok:true,code:'FOOD_REQUESTED',requestId:id,message:spoken.message};
+      this.#requests.set(npc.id,{id,sender:npc,recipient:peer,at:this.now(),...(spoken.message?{text:spoken.message.text}:{})});this.#lastRequest.set(npc.id,this.now());
+      return {ok:true,code:'FOOD_REQUESTED',requestId:id,...(spoken.message?{message:spoken.message}:{gesture:spoken.gesture})};
     }
     if(action.type==='offer_food'){
       const peer=this.peer(npc,action.targetId),item=lookupEcologyObject(this.environment.ecology,action.objectId);
       if(!peer||!this.local(npc,peer))return {ok:false,code:'PEER_OUT_OF_REACH'};
       if(npc.active)return {ok:false,code:'ACTION_BUSY'};
       if(!item||!['material','fish_specimen'].includes(item.kind)||item.heldBy!==npc.id||!npc.inventory.items.includes(item.id))return {ok:false,code:'NOT_HELD'};
-      const appearance=describeEcologyObject(this.environment.ecology,item.id,{actorId:npc.id})?.appearance;
-      const text=`I can offer what I am holding: ${appearance?.shape||'this material'}. You may take it or decline; I cannot promise what you will feel.`;
-      const spoken=this.speak(npc,peer,text);if(!spoken.ok)return spoken;
+      const spoken=this.#signal(npc,peer,'offer',{objectId:item.id,text:()=>`I can offer what I am holding: ${describeEcologyObject(this.environment.ecology,item.id,{actorId:npc.id})?.appearance?.shape||'this material'}. You may take it or decline; I cannot promise what you will feel.`});if(!spoken.ok)return spoken;
       const id=`food-offer:${this.#nextId++}`;
-      this.#offers.set(npc.id,{id,sender:npc,recipient:peer,objectId:item.id,at:this.now(),holdUntil:this.now()+15,text,accepted:false,active:null});
+      this.#offers.set(npc.id,{id,sender:npc,recipient:peer,objectId:item.id,at:this.now(),holdUntil:this.now()+15,...(spoken.message?{text:spoken.message.text}:{}),accepted:false,active:null});
       this.#requests.delete(peer.id);
-      return {ok:true,code:'FOOD_OFFERED',offerId:id,message:spoken.message};
+      return {ok:true,code:'FOOD_OFFERED',offerId:id,...(spoken.message?{message:spoken.message}:{gesture:spoken.gesture})};
     }
     const offer=[...this.#offers.values()].find(row=>row.id===action.offerId);
     if(action.type==='decline_food'){
@@ -93,10 +102,10 @@ export class FoodSharing {
       if(!row)return {ok:false,code:'UNKNOWN_FOOD_EXCHANGE'};
       const peer=row.sender===npc?row.recipient:row.sender;
       if(!this.local(npc,peer))return {ok:false,code:'PEER_OUT_OF_REACH'};
-      const spoken=this.consentSpeech(npc,peer,offer?.sender===npc?'I am withdrawing my offer.':request?'I cannot share anything right now.':'I choose not to take that.');
+      const spoken=this.#signal(npc,peer,offer?.sender===npc?'withdraw':'decline',{consent:true,text:()=>offer?.sender===npc?'I am withdrawing my offer.':request?'I cannot share anything right now.':'I choose not to take that.'});
       if(!spoken.ok)return spoken;
       if(offer)this.#offers.delete(offer.sender.id);else this.#requests.delete(request.sender.id);
-      return {ok:true,code:'FOOD_DECLINED',message:spoken.message};
+      return {ok:true,code:'FOOD_DECLINED',...(spoken.message?{message:spoken.message}:{gesture:spoken.gesture})};
     }
     if(action.type!=='accept_food'||!offer||offer.recipient!==npc||offer.accepted)return {ok:false,code:'UNKNOWN_FOOD_OFFER'};
     if(!this.local(npc,offer.sender)||offer.sender.active)return {ok:false,code:'PEER_UNAVAILABLE'};
@@ -105,7 +114,7 @@ export class FoodSharing {
     const consent=()=>this.#offers.get(offer.sender.id)===offer&&this.now()>=offer.at&&this.now()-offer.at<60&&
       this.now()<offer.holdUntil&&this.local(npc,offer.sender)&&this.safeAttention(npc)&&this.safeAttention(offer.sender)&&!offer.sender.active&&(!offer.active||npc.active===offer.active);
     const result=requestNpcSharedGrasp(npc,offer.sender,offer.objectId,this.environment,consent);
-    if(result.code==='ACTION_STARTED'){offer.accepted=true;offer.active=npc.active;this.consentSpeech(npc,offer.sender,'I choose to take what you offered. I will have to try it myself to know its effects.');}
+    if(result.code==='ACTION_STARTED'){offer.accepted=true;offer.active=npc.active;this.#signal(npc,offer.sender,'accept',{consent:true,text:()=>'I choose to take what you offered. I will have to try it myself to know its effects.'});}
     return result;
   }
   choose(npc){

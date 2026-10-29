@@ -18,7 +18,7 @@ export function attachCommunicationLearning({state,seed=211,enabled=true,pixelSe
   const records=new Map(), pending=new Map(), offers=new Map();
   const gates={optional:0,receiverBusy:0,cooldown:0,noPeer:0,noSource:0,senderBusy:0,staleSource:0,insufficientCrops:0,eligible:0,captures:0,crops:0,samplesWithoutCrop:0,sources:0,identityChanges:0};
   const bump=(key,amount=1)=>{if(diagnostics)gates[key]=Math.min(Number.MAX_SAFE_INTEGER,gates[key]+amount);};
-  const order=stream(seed^0x935ab21), history=[], ledger=[], metrics={exchanges:0,updates:0,positive:0,negative:0,expired:0,censored:0,attributed:0,failedUpdates:0,ledgerDropped:0,relief:0,discomfort:0,effortExpiry:0};
+  const order=stream(seed^0x935ab21), history=[], ledger=[], observationEvents=[], metrics={exchanges:0,updates:0,positive:0,negative:0,expired:0,censored:0,attributed:0,failedUpdates:0,ledgerDropped:0,relief:0,discomfort:0,effortExpiry:0};
   let disposed=false,latest=null,finalDiagnostic=null;
   for(const [i,n]of state.agents.entries()){
     records.set(n.id,{modelSeed:(seed^(i?0x693a31:0x4c78a2))>>>0,model:new CommunicationLearner((seed^(i?0x693a31:0x4c78a2))>>>0),crops:new Map(),samples:new Map(),seenSamples:new Set(n.discovery.experiments.filter(e=>e.primitive==='sample').map(e=>e.actionId)),floor:n.memory.nextId,actor:n,epoch:n.epoch,discovery:n.discovery,physiology:n.physiology,source:null,lastCapture:-Infinity,lastOpportunity:-Infinity,outbound:false,counts:{samples:0,social:0},eventCursor:Math.max(0,...n.memory.experience.map(e=>e.id))});
@@ -47,6 +47,7 @@ export function attachCommunicationLearning({state,seed=211,enabled=true,pixelSe
     }
   }
   function logOutcome(offer,result,credit=null){
+    Object.assign(offer.observation,{status:result.status,reward:result.reward,endedAt:state.elapsed,selectedActionId:credit?.selected?.actionId??null,benefit:result.benefit??null,cost:result.cost??null});
     ledger.push({senderId:offer.senderId,receiverId:offer.receiverId,action:{type:offer.action.type,targetId:offer.action.targetId},tokens:offer.emitted.tokens.slice(),startedAt:credit?.at??null,endedAt:state.agents.find(n=>n.id===offer.receiverId)?.elapsed??null,deadline:credit?.deadline??null,selectedActionId:credit?.selected?.actionId??null,...result,ingestion:result.ingestion?{...result.ingestion}:null});
     if(ledger.length>256){ledger.shift();metrics.ledgerDropped++;}
   }
@@ -89,6 +90,8 @@ export function attachCommunicationLearning({state,seed=211,enabled=true,pixelSe
       history.push({receiverId:n.id,candidates,body:ownBody,message:emitted.messageIndex});if(history.length>32)history.shift();
       latest={senderId:peer.id,receiverId:n.id,tokens:emitted.tokens.slice(),status:'selected',reward:null,senderPixels:source.crop.pixels.slice(),receiverPixels:entry.crop.pixels.slice(),action:entry.choice.action.type};
       offer.display=latest;
+      offer.observation={id:metrics.exchanges,emittedAt:state.elapsed,senderObservedAt:source.crop.at,receiverObservedAt:entry.crop.at,senderEpoch:peer.epoch,receiverEpoch:n.epoch,...structuredClone(latest)};
+      observationEvents.push(offer.observation);if(observationEvents.length>256)observationEvents.shift();
       return entry.index;
     },
     performed(n,action,result,active){
@@ -98,7 +101,7 @@ export function attachCommunicationLearning({state,seed=211,enabled=true,pixelSe
       offers.delete(n.id);
       const credit=action===offer.action&&createCommunicationCredit(n,action,active,offer.eventFloor);
       if(!credit){discard(offer);metrics.censored++;offer.display.status='interrupted';logOutcome(offer,{status:'interrupted',reward:null});return;}
-      pending.set(n.id,{offer,credit});offer.display.status='awaiting own physical outcome';
+      pending.set(n.id,{offer,credit});offer.display.status='awaiting own physical outcome';offer.observation.status='pending';offer.observation.selectedActionId=credit.selected?.actionId??null;
     },
   };
   function settle(id,item,stop=false){
@@ -148,7 +151,7 @@ export function attachCommunicationLearning({state,seed=211,enabled=true,pixelSe
     beforeTick(){if(disposed)return;synchronize();for(const n of state.agents)if(records.get(n.id)?.actor===n)capture(n);},
     afterTick(){if(disposed)return;synchronize();for(const n of state.agents)if(records.get(n.id)?.actor===n)observe(n);for(const[id,item]of pending)settle(id,item);},
     censorPending(){for(const[id,item]of pending)settle(id,item,true);},
-    snapshot(){return {seed,enabled,elapsed:state.elapsed,ledger:structuredClone(ledger),learners:state.agents.map(n=>({id:n.id,initial:structuredClone(records.get(n.id).initialDiagnostics),current:records.get(n.id).model.diagnostics()})),...metrics,gates:{...gates},pending:pending.size,latest:latest?{...latest,tokens:latest.tokens.slice(),senderPixels:latest.senderPixels.slice(),receiverPixels:latest.receiverPixels.slice()}:null,agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks,samples:records.get(n.id).counts.samples,conventionalSocialEvents:records.get(n.id).counts.social})),diagnostic:diagnostic()};},
+    snapshot(){return {seed,enabled,elapsed:state.elapsed,ledger:structuredClone(ledger),observationEvents:structuredClone(observationEvents),learners:state.agents.map(n=>({id:n.id,initial:structuredClone(records.get(n.id).initialDiagnostics),current:records.get(n.id).model.diagnostics()})),...metrics,gates:{...gates},pending:pending.size,latest:latest?{...latest,tokens:latest.tokens.slice(),senderPixels:latest.senderPixels.slice(),receiverPixels:latest.receiverPixels.slice()}:null,agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks,samples:records.get(n.id).counts.samples,conventionalSocialEvents:records.get(n.id).counts.social})),diagnostic:diagnostic()};},
     dispose(){if(disposed)return;for(const[id,item]of pending)settle(id,item,true);for(const offer of offers.values()){discard(offer);metrics.censored++;offer.display.status='interrupted';offer.display.reward=null;logOutcome(offer,{status:'interrupted',reward:null});}offers.clear();finalDiagnostic=diagnostic();for(const r of records.values()){r.model.dispose();r.crops.clear();r.samples.clear();}pixelSensor.dispose?.();disposed=true;},
   };
 }

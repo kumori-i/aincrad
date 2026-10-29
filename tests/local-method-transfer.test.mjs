@@ -1,20 +1,26 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
+const validateNpc=(...args)=>legacyFixture(rawvalidateNpc(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NpcController } from '../src/controller.js';
 import { CONFIG } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { OZARK_SAVE_KEY, createOzarkState, writeOzarkSave, loadOzarkSave } from '../src/ozark-save.js';
+import { OZARK_SAVE_KEY, createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { observeNpc, requestNpcAction, tickNpc } from '../src/npc.js';
 import { tickEnvironment } from '../src/environment.js';
 import { tickOzarkEcology, bindOzarkEcology } from '../src/ozark-ecology.js';
 import { SocialCoordinator } from '../src/social.js';
 import { discoveryDecision, processDiscoveryFeedback, recordPeerTechnique, rememberDirectDiscoveryObject } from '../src/discovery.js';
-import { validateNpc } from '../src/npc-memory.js';
+import { validateNpc as rawvalidateNpc } from '../src/npc-memory.js';
 import { retainedProofIntegrityError } from '../src/proof-retention.js';
 import { METHOD_TRIAL_LIMIT } from '../src/method-transfer-state.js';
 
-const geometry=createOzarkWorldGeometry(),clone=structuredClone;
+const geometry=createOzarkWorldGeometry(),clone=value=>legacyFixture(historicalClone(value));
 // Fixed encounter exposure, not autonomous travel. Both sources are existing,
 // finite ecology objects with distinct locations, not clones or free materials.
 function pair(state){
@@ -33,7 +39,7 @@ function world(raw=null){
   if(!raw){state.elapsed=e.elapsed=e.ecology.elapsed=60;for(const n of [a,b])n.elapsed=60;a.position={x:source.position.x+45,y:source.position.y};b.position={x:target.position.x+45,y:target.position.y};}
   bindOzarkEcology(e.ecology,geometry);
   for(const n of [a,b]){bindOzarkWorldAgent(n,geometry,state);observeNpc(n,e);}
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>e});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>e});
   const advance=seconds=>{for(let left=seconds;left>1e-8;){const dt=Math.min(.1,left);tickEnvironment(e,dt);state.elapsed=e.elapsed;tickOzarkEcology(e.ecology,dt,e,state.agents,{},geometry);for(const n of state.agents){tickNpc(n,dt,e);processDiscoveryFeedback(n);}left-=dt;}};
   const finish=(n,action)=>{const result=requestNpcAction(n,action,e);if(result.code==='ACTION_STARTED')for(let i=0;n.active&&i<400;i++)advance(.1);assert.equal(n.active,null);return result.code==='ACTION_STARTED'?n.lastResult:result;};
   const teach=()=>{observeNpc(a,e);observeNpc(b,e);const t=a.discovery.techniques[0];assert.ok(t);const r=social.action(a,{type:'say',targetId:'mira',text:'Share my retained method.',techniqueId:t.id});assert.equal(r.code,'SAID');return b.discovery.reports.findLast(r=>r.teaching);};
@@ -149,7 +155,7 @@ test('fixed 60-second controller trajectory plus 60-second feedback window repor
     else if(condition==='retained teacher without usable speech')assert.equal(f.social.action(f.a,{type:'say',targetId:'mira',text:'I am here.'}).code,'SAID');
     // Only the initial communication differs. No later conversations introduce
     // extra information; the ordinary recipient controller owns every choice.
-    const controller=new NpcController(f.b,{environment:f.e});
+    const controller=new NpcController(f.b,{communicationMode:'legacy',environment:f.e});
     for(let step=0;step<1200;step++){
       const dt=.1;tickEnvironment(f.e,dt);f.state.elapsed=f.e.elapsed;tickOzarkEcology(f.e.ecology,dt,f.e,f.state.agents,{},geometry);tickNpc(f.a,dt,f.e);processDiscoveryFeedback(f.a);
       if(step<600)controller.tick(dt);else{tickNpc(f.b,dt,f.e);processDiscoveryFeedback(f.b);}

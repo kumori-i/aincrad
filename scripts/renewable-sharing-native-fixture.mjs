@@ -57,13 +57,16 @@ export async function createRenewableSharingFixture(moduleBase) {
     'Sender must earn exact-object delayed feedback before offering');
   const material = ecology.materials.find(row => row.id === acquired.materialId);
   require(material?.heldBy === sender.id && material.massGrams > 0, 'Sender must hold finite remainder');
-  const social = new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>environment});
+  const social = new SocialCoordinator({communicationMode:'grounded',getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>environment});
+  for(const route of ['say','append','receive'])social[route]=()=>{throw new Error('Grounded sharing used legacy language: '+route);};
+  const beforeMessages=JSON.stringify(state.community.messages);
   const before = {at:receiver.elapsed, metabolizedKcal:receiver.physiology.totals.metabolizedKcal,
     material:structuredClone(material), senderProof:structuredClone(sender.discovery),
     receiverEffects:structuredClone(receiver.discovery.effects), receiverTechniques:structuredClone(receiver.discovery.techniques),
     receiverMeals:receiver.stats.independentMeals};
   const offer = social.action(sender, {type:'offer_food',targetId:receiver.id,objectId:material.id});
   require(offer.code === 'FOOD_OFFERED', 'Offer failed: ' + JSON.stringify(offer));
+  require(offer.gesture?.gesture==='offer' && offer.gesture?.provenance==='supplied-nonverbal-motor' && !offer.message,'Offer must be a supplied motor gesture, not speech');
   require(material.heldBy === sender.id && !receiver.inventory.items.includes(material.id), 'An offer cannot transfer ownership');
   const acceptance = social.action(receiver, {type:'accept_food',offerId:offer.offerId});
   require(acceptance.code === 'ACTION_STARTED', 'Consent must start a paid attempt: ' + JSON.stringify(acceptance));
@@ -90,6 +93,9 @@ export async function createRenewableSharingFixture(moduleBase) {
   const pendingOffer = social.action(receiver, {type:'offer_food',targetId:sender.id,objectId:material.id});
   require(pendingOffer.code === 'FOOD_OFFERED', 'Pending-offer restart control failed: ' + JSON.stringify(pendingOffer));
   require(material.heldBy === receiver.id, 'Unaccepted counter-offer cannot change ownership');
+  require(JSON.stringify(state.community.messages)===beforeMessages,'Gestures must not manufacture conversation');
+  const gestures=social.foodSharing.gestures();
+  require(gestures.map(row=>row.gesture).join(',')==='offer,accept,offer','Actual supplied gesture history required');
   const audit = aquaticStockAudit(ecology);
   require(Object.values(audit).every(value => Number.isFinite(value) && Math.abs(value) < 1e-5),
     'Renewable aquatic stocks must conserve mass, calories and water: ' + JSON.stringify(audit));
@@ -99,7 +105,7 @@ export async function createRenewableSharingFixture(moduleBase) {
   require(saved && saved.ok !== false && rows.has(OZARK_SAVE_KEY), 'Fixture failed strict current save validation: ' + JSON.stringify(saved));
   return {saveKey:OZARK_SAVE_KEY,raw:rows.get(OZARK_SAVE_KEY),summary:{
     version:state.version,features:{...state.features},elapsed:state.elapsed,
-    renewalVerified:true,timedHandoffVerified:true,reproductionExercised:false,growthExercised:false,
+    renewalVerified:true,timedHandoffVerified:true,groundedGesturesVerified:true,gestures,reproductionExercised:false,growthExercised:false,
     aquatic:{initial:initialAquatic.ledger,final:structuredClone(ecology.aquatic.ledger),
       initialFish:initialAquatic.fish.length,finalFish:ecology.aquatic.fish.length,audit},
     pendingConsent:{offerId:pendingOffer.offerId,materialId:material.id,senderId:receiver.id,receiverId:sender.id},

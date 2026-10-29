@@ -1,3 +1,5 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 export { namingFollowupEvidence as namingRepairEvidence, checkNamingFollowupReload as checkNamingRepairReload } from './naming-followup-native-fixture.mjs';
 
 /** Controlled repair protocol fixture; no autonomous controller claim. */
@@ -5,7 +7,11 @@ export async function createNamingRepairScene(moduleBase,projectEvidence) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {CONFIG,NPC_RULES}=await use('config');
   const {createOzarkWorldGeometry}=await use('ozark-world-geometry');
-  const {createOzarkState,writeOzarkSave,loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {createOzarkState: rawCreateOzarkState,writeOzarkSave,loadOzarkSave: rawLoadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {bindCommunicationMode}=await use('communication-mode');
+  const historicalState=s=>{for(const n of s.agents)bindCommunicationMode(n,'legacy');return s;};
+  const createOzarkState=(...args)=>historicalState(rawCreateOzarkState(...args));
+  const loadOzarkSave=(...args)=>{const result=rawLoadOzarkSave(...args);if(result.state)historicalState(result.state);return result;};
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
   const {tickEnvironment}=await use('environment');
   const {tickOzarkEcology}=await use('ozark-ecology');
@@ -50,8 +56,8 @@ export async function createNamingRepairScene(moduleBase,projectEvidence) {
     own=lexicalLabels(speaker).find(row=>row.objectId===source.id&&row.status==='owner-chosen');
   }
   require(own,'Bounded fixed encounters produced no name; no favorable seed search');
-  runtime=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>environment,getCommunity:()=>state.community});
-  const summary={fixtureDisclosure:'Controlled first physically eligible source; up to four paid inspections. Listener initially outside source sight but within speaker range. After an actual unresolved request and explicit clarification, fixture externally places listener at a disclosed nearby safe position. No observation override, dictionary injection or chosen-name search. Isolated SocialCoordinator, not PopulationRuntime/controllers, drives protocol; body/ecology/action time continues in 0.25-second integration steps. Not autonomous travel, general language or survival evidence.',
+  runtime=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getEnvironment:()=>environment,getCommunity:()=>state.community});
+  const summary={fixtureDisclosure:'Explicit historical legacy-channel regression, not default-main language. Controlled first physically eligible source; up to four paid inspections. Listener initially outside source sight but within speaker range. After an actual unresolved request and explicit clarification, fixture externally places listener at a disclosed nearby safe position. No observation override, dictionary injection or chosen-name search. Isolated SocialCoordinator, not PopulationRuntime/controllers, drives protocol; body/ecology/action time continues in 0.25-second integration steps. Not autonomous travel, general language or survival evidence.',
     actorId:listener.id,speakerId:speaker.id,sourceObjectId:source.id,token:own.token,inspections,beforeEncounter,afterEncounter:project()};
   const binding=()=>listener.lexicon?.heard.find(row=>row.speakerId===speaker.id&&row.objectId===source.id&&row.token===own.token);
   const receipt=()=>speaker.lexicon?.repairReceipts?.find(r=>r.speakerId===speaker.id&&r.listenerId===listener.id&&r.token===own.token);

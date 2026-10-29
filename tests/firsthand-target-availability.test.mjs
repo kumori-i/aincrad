@@ -1,3 +1,4 @@
+import { bindCommunicationMode } from '../src/communication-mode.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CONFIG} from '../src/config.js';
@@ -152,6 +153,7 @@ test('an absent consumed ID does not recover from a timer, note, or a replacemen
   e.ecology.plants.splice(e.ecology.plants.indexOf(plant),1); // Synthetic removal, never saved.
   assert.equal(finish(n,e,{type:'pull',targetId:plant.id}).code,'OBJECT_GONE');
   advance(n,e,61);hungry(n);observeNpc(n,e);
+  bindCommunicationMode(n,'legacy'); // Historical note cannot replace fresh sight.
   recordDiscoveryClaim(n,{objectId:plant.id,effect:'sustained'},
     {sourceId:'mira',channel:'note',messageId:'note:gone'});
   for(let i=0;i<8;i++)assert.notEqual(discoveryDecision(n).action.targetId,plant.id);
@@ -190,6 +192,7 @@ test('a genuine depletion stays gated through actor normalization, testimony and
   const technique=n.discovery.techniques.find(t=>t.sourceId===plant.id),proof=structuredClone(technique.evidence);
   advance(n,e,61);hungry(n);observeNpc(n,e);
   for(let i=0;i<8;i++)assert.equal(sourcePull(discoveryDecision(n),plant.id),false,'time alone cannot reopen');
+  bindCommunicationMode(n,'legacy'); // Historical report cannot override firsthand depletion.
   const note=recordDiscoveryClaim(n,{objectId:plant.id,effect:'sustained'},
     {sourceId:'mira',channel:'note',messageId:'note:depleted'});
   assert.equal(note?.status,'unverified');assert.deepEqual(note?.proposed,[]);

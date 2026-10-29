@@ -25,6 +25,8 @@ const output = await mkdtemp(join(outputRoot, 'run-'));
 const temporary = await mkdtemp(join(tmpdir(), 'aincrad-communication-'));
 const profile = join(temporary, 'profile');
 for (const name of ['profile', 'home', 'config', 'cache']) await mkdir(join(temporary, name));
+// Stored legacy settings cannot reactivate inference in the grounded main world.
+await writeFile(join(profile,'agent-model.json'),JSON.stringify({enabled:true,endpoint:'http://127.0.0.1:1/v1',model:'native-no-inference-expected'}));
 const application = await canonicalApplicationRoot(output);
 const built = await buildApplication(application);
 const context = { output, profile, application, sourceIdentity: nativeSourceIdentity(root), sourceFingerprint: built.sourceFingerprint };
@@ -33,7 +35,10 @@ const phases = ['exercise', 'reopen', 'reset'];
 
 // Runs in Electron main. Real application owns protocol, profile and security.
 function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames) {
-  const { app, session } = require('electron');
+  const { app, session, ipcMain } = require('electron');
+  const modelRequests={decide:0,name:0};
+  const register=ipcMain.handle.bind(ipcMain);
+  ipcMain.handle=(channel,handler)=>register(channel,(...args)=>{if(channel==='aincrad:model-decide')modelRequests.decide++;if(channel==='aincrad:model-name')modelRequests.name++;return handler(...args);});
   const assert = require('node:assert/strict');
   const fs = require('node:fs/promises'), path = require('node:path');
   const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
@@ -62,10 +67,15 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
   async function run(win) {
     await waitFor(win, 'Boolean(window.__ozarkWorld)');
     assert.equal(await evaluate(win, 'location.href'), 'aincrad://app/index.html?test=1');
-    assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false);
+    assert.equal(await evaluate(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'"), false);
+    const beforeBoundary=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
+    const boundary=await evaluate(win,'window.__ozarkWorld.communicationBoundaryProbe()');
+    assert.equal(boundary.mode,'grounded');
+    for(const attempt of [...boundary.attempts,boundary.human])assert.equal(attempt.code,'LEGACY_LANGUAGE_DISABLED');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),beforeBoundary,'Native main rejects legacy attempts without adopting messages or knowledge');
     const learning = () => evaluate(win, 'window.__ozarkWorld.communicationSnapshot()');
-    const disclosure = () => evaluate(win, "document.getElementById('communication-persistence').textContent");
-    assert.match(await disclosure(), /Bodies and memories save locally.*Communication weights restart on app reopen/);
+    const disclosure = () => evaluate(win, "document.getElementById('journal-messages').textContent");
+
     if (phase === 'reset') {
       assert((await learning()).elapsed > 0, 'Reset starts from a real saved running world');
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
@@ -104,7 +114,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0);
       for (const learner of fresh.learners) assert.deepEqual(learner.current, learner.initial, 'Communication weights restart without old traces');
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
-      await click(win, 'open-communication'); await waitFor(win, "document.getElementById('communication-dialog').open");
+      await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
       assert.match(await disclosure(), /Communication weights restart on app reopen/);
       await capture(win, 'independent-reopen.png'); return;
     }
@@ -113,12 +123,20 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     const before = await raw(win); assert(before && JSON.parse(before));
     const ordinary = await evaluate(win, 'window.__ozarkWorld.snapshot()'); assert(ordinary.paused);
     const beforeLearning = await learning(); assert(beforeLearning);
-    await click(win, 'open-communication'); await waitFor(win, "document.getElementById('communication-dialog').open");
+    await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
     assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves pending credit, RNG and models');
+    assert.match(await disclosure(), /Bodies and memories save locally.*Communication weights restart on app reopen/);
+    assert.equal(await evaluate(win, "document.getElementById('journal-form').classList.contains('hidden')"), true);
+    assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false, 'Shortcut uses the same NPC panel, not a second modal');
+    await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics] summary').click()");
+    assert.equal(await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics]').open"),true);
+    await delay(1200);
+    assert.equal(await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics]').open"),true,'Same-tab diagnostics stays expanded across observer refreshes');
     await capture(win, 'ready.png');
-    await click(win, 'communication-pause');
-    await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('World running')");
-    await waitFor(win, "parseInt(document.getElementById('communication-elapsed').textContent,10)>=2");
+    escape(win);
+    await waitFor(win, "!window.__ozarkWorld.snapshot().paused");
+    await waitFor(win, "window.__ozarkWorld.snapshot().elapsed>=2");
+    assert.equal(await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics]').open"),true,'Running main-world updates preserve expanded diagnostics');
     await capture(win, 'running.png');
     // Cross the normal autosave interval while the one real world advances.
     await delay(10500);
@@ -126,24 +144,25 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     const running = await evaluate(win, 'window.__ozarkWorld.snapshot()');
     assert(running.elapsed > ordinary.elapsed, 'Main world advances while inspector is open');
     assert(await evaluate(win, 'window.__ozarkWorld.communicationSnapshot().elapsed === window.__ozarkWorld.snapshot().elapsed'), 'Inspector and world report the same clock');
-    escape(win); await waitFor(win, "document.getElementById('communication-status').textContent.startsWith('World paused')");
+    escape(win); await waitFor(win, "window.__ozarkWorld.snapshot().paused");
     await delay(350); const frozen = await evaluate(win, 'window.__ozarkWorld.snapshot().elapsed');
     await delay(1000); assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().elapsed'), frozen);
     assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().paused'), true, 'Native Escape pauses the one main world');
+    await click(win, 'open-communication');
     const retained = await learning();
-    await evaluate(win, "document.getElementById('communication-follow').value='mira';document.getElementById('communication-follow').dispatchEvent(new Event('change'))");
+    await evaluate(win, "document.getElementById('npc-select').value='mira';document.getElementById('npc-select').dispatchEvent(new Event('change'))");
     assert.deepEqual(await learning(), retained, 'Follow selection cannot change learning');
     assert.equal(await evaluate(win, 'window.__ozarkWorld.save()'), true, 'Normal save works while inspector is open');
     const checkpoint = await raw(win);
-    await click(win, 'communication-close');
-    assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false);
+    await click(win, 'close-npc');
+    assert.equal(await evaluate(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'"), false);
     assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().paused'), true);
     assert.deepEqual(await learning(), retained, 'Closing inspector preserves main learners');
     await capture(win, 'closed-to-world-pause.png');
     for (let i = 0; i < 2; i++) {
       await click(win, 'open-communication');
       assert.deepEqual(await learning(), retained, 'Inspector reopen retains learning rather than creating agents');
-      await click(win, 'communication-close');
+      await click(win, 'close-npc');
     }
     await click(win, 'open-communication');
     assert.equal(await raw(win), checkpoint, 'Paused inspector leaves the ordinary save unchanged');
@@ -160,10 +179,10 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
         assert.equal(prefs.nodeIntegration, false); assert.equal(prefs.contextIsolation, true); assert.equal(prefs.sandbox, true); assert.equal(prefs.webSecurity, true);
         assert(!process.argv.includes('--no-sandbox')); assert(!process.argv.includes('--disable-setuid-sandbox'));
         await fs.writeFile(path.join(context.output, phase + '-host.json'), JSON.stringify({ platform: process.platform, arch: process.arch, pid: process.pid, electron: process.versions.electron, ...context }, null, 2));
-        await run(win); await session.defaultSession.flushStorageData();
+        await run(win); assert.deepEqual(modelRequests,{decide:0,name:0},'Main never requests legacy model dialogue or naming'); await session.defaultSession.flushStorageData();
         const closing = new Promise(resolve => win.once('closed', () => { closed = true; resolve(); }));
         win.close(); await closing; assert(win.isDestroyed());
-        await fs.writeFile(path.join(context.output, phase + '-result.json'), JSON.stringify({ passed: true, nativeExecutionPerformed: true, screenshots, events }, null, 2));
+        await fs.writeFile(path.join(context.output, phase + '-result.json'), JSON.stringify({ passed: true, nativeExecutionPerformed: true, modelRequests, screenshots, events }, null, 2));
         console.log('COMMUNICATION_NATIVE_CLOSED ' + phase); clearTimeout(deadline); allowQuit = true; app.quit();
       } catch (error) {
         console.error(error); clearTimeout(deadline);

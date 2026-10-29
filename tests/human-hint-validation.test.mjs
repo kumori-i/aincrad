@@ -1,8 +1,14 @@
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+const createNpc=(...args)=>legacyFixture(rawcreateNpc(...args));
+const validateNpc=(...args)=>legacyFixture(rawvalidateNpc(...args));
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
-import { createNpc } from '../src/npc-state.js';
-import { validateNpc } from '../src/npc-memory.js';
+import { createNpc as rawcreateNpc } from '../src/npc-state.js';
+import { validateNpc as rawvalidateNpc } from '../src/npc-memory.js';
 import { observeNpc, requestNpcAction, tickNpc } from '../src/npc.js';
 import { discoveryDecision, processDiscoveryFeedback, recordDiscoveryReport,
   rememberDirectDiscoveryObject } from '../src/discovery.js';
@@ -10,11 +16,11 @@ import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { bindOzarkEcology, tickOzarkEcology } from '../src/ozark-ecology.js';
 import { tickEnvironment } from '../src/environment.js';
-import { OZARK_SAVE_KEY, createOzarkState, loadOzarkSave,
+import { OZARK_SAVE_KEY, createOzarkState as rawcreateOzarkState, loadOzarkSave as rawloadOzarkSave,
   writeOzarkSave } from '../src/ozark-save.js';
 import { retainedProofIntegrityError } from '../src/proof-retention.js';
 
-const clone = structuredClone;
+const clone = historicalClone;
 const geometry = createOzarkWorldGeometry();
 const unsupportedPlan = 'get close to the object, strike it repeatedly then gather the resulting object and eat it';
 

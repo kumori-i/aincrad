@@ -1,3 +1,5 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 /** Pure serializable evidence. Includes naming, sensory samples and exact
  * physical history; a name is never sufficient evidence of a physical effect. */
 export function categoryNamesEvidence(state) {
@@ -15,7 +17,11 @@ export async function createCategoryNamesScene(moduleBase, projectEvidence) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {CONFIG,NPC_RULES}=await use('config');
   const {createOzarkWorldGeometry}=await use('ozark-world-geometry');
-  const {createOzarkState,writeOzarkSave,loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {createOzarkState: rawCreateOzarkState,writeOzarkSave,loadOzarkSave: rawLoadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {bindCommunicationMode}=await use('communication-mode');
+  const historicalState=s=>{for(const n of s.agents)bindCommunicationMode(n,'legacy');return s;};
+  const createOzarkState=(...args)=>historicalState(rawCreateOzarkState(...args));
+  const loadOzarkSave=(...args)=>{const result=rawLoadOzarkSave(...args);if(result.state)historicalState(result.state);return result;};
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
   const {tickEnvironment}=await use('environment');
   const {tickOzarkEcology}=await use('ozark-ecology');
@@ -74,7 +80,7 @@ export async function createCategoryNamesScene(moduleBase, projectEvidence) {
   const summary={actorId:actor.id,otherActorId:state.agents[1].id,elapsed:state.elapsed,objectIds,cues,token:'velora',
     modelInference:'mocked; real local model never called',model:'mock-native-fixture-only',attempts,checkpoints,
     unchangedPhysicalEvidence:true,currentSamplesBeforeSave:objectIds.map(id=>({objectId:id,current:visualSampleCurrent(actor,id)})),
-    fixtureDisclosure:'Controlled actor placement at (455, 1000); ordinary observeNpc twice, separated by one second of real world/body/ecology integration, for existing objects 675/669/672. Model replies are explicitly mocked (velora for the target cue triple, bounded null abstentions for any earlier eligible cue triple). No species/material cue, physical effect, action history or safety evidence is injected. Not autonomous travel, real inference or independent encounters.'};
+    fixtureDisclosure:'Explicit historical legacy-channel regression, not default-main language. Controlled actor placement at (455, 1000); ordinary observeNpc twice, separated by one second of real world/body/ecology integration, for existing objects 675/669/672. Model replies are explicitly mocked (velora for the target cue triple, bounded null abstentions for any earlier eligible cue triple). No species/material cue, physical effect, action history or safety evidence is injected. Not autonomous travel, real inference or independent encounters.'};
   const save=storage=>{
     const rows=new Map(),disk=storage||{getItem:k=>rows.get(k)??null,setItem:(k,v)=>rows.set(k,v)};
     require(writeOzarkSave(disk,state,geometry),'Strict category save rejected: '+state.saveError);

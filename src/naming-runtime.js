@@ -60,6 +60,7 @@ export class NamingRuntime {
   // One brief continuation of a genuinely grounded introduction. It cannot
   // hold a body, choose/cancel an action, renew itself or retry a consumed name.
   offerFollowup(speaker,listener,own,event){
+    if(this.social.communicationMode!=='legacy')return null;
     if(this.#opportunities.has(speaker.id)||this.#opportunities.has(listener.id))return;
     const row={speaker,listener,token:own.token,intendedId:own.objectId,at:event.at,lastTurn:event.at,
       epochs:[speaker.epoch,listener.epoch],turns:0};
@@ -72,6 +73,7 @@ export class NamingRuntime {
   }
 
   safe(n){
+    if(this.social.communicationMode!=='legacy')return null;
     if(!awake(n))return false;
     const b=bodySignals(n),ground=ozarkAgentWorld(n)?.groundAt(n.position);
     return !['urgent','unconscious','recovering'].includes(b.overall)&&
@@ -85,6 +87,7 @@ export class NamingRuntime {
     a.scene===b.scene&&distance(a.position,b.position)<=SOCIAL_RULES.peerRange&&
     actorLineOfSight(a,a.position,b.position)&&actorLineOfSight(b,b.position,a.position);}
   ready(n,context=null){
+    if(this.social.communicationMode!=='legacy')return null;
     const at=this.environment?.elapsed;if(!Number.isFinite(at)||n.elapsed!==at)return false;
     const row=this.opportunityFor(context);
     if(row)
@@ -92,6 +95,7 @@ export class NamingRuntime {
     return n.social.lastSpokeAt===null||at-n.social.lastSpokeAt>=SOCIAL_RULES.speechCooldown;
   }
   visible(n){
+    if(this.social.communicationMode!=='legacy')return [];
     if(!awake(n)||!this.environment?.ecology)return[];
     // Event-time ordinary sensing, not remembered coordinates, including moving
     // referents. This cannot insert an unseen transmitted ID into observation.
@@ -101,6 +105,7 @@ export class NamingRuntime {
     return objects;
   }
   emit(sender,receiver,text,opportunity=null){
+    if(this.social.communicationMode!=='legacy')return null;
     const at=this.environment.elapsed;
     const message=this.social.append({senderId:sender.id,recipientId:receiver.id,channel:'peer',text,offline:true},at);
     sender.social.lastSpokeAt=at;
@@ -114,6 +119,7 @@ export class NamingRuntime {
   // This phase exists only because the listener actually failed to resolve a
   // received word request. Saved receipts consume budgets but never create it.
   repairStep(p,phase,event){
+    if(this.social.communicationMode!=='legacy')return null;
     return recordRepairStep(p.speaker,p.listener,p.token,p.originalRequest??p.request,phase,event);
   }
   proposed(){return {id:`message:${this.social.community().nextId}`,at:this.environment.elapsed};}
@@ -124,6 +130,7 @@ export class NamingRuntime {
       !this.social.foodSharing?.holding(p.speaker)&&!this.social.foodSharing?.holding(p.listener);
   }
   tick(){
+    if(this.social.communicationMode!=='legacy')return null;
     if(!this.environment)return;
     const now=this.environment.elapsed;
     this.pruneOpportunities();

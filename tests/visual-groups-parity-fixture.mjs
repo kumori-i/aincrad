@@ -1,3 +1,6 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
 // Test-only disabled observer, not a product flag or replacement controller.
 import { register } from 'node:module';
 if(process.argv.includes('--disabled')) {
@@ -22,13 +25,13 @@ const {PopulationRuntime}=await import('../src/population.js');
 const {visualGroups}=await import('../src/visual-group-memory.js');
 const g=createOzarkWorldGeometry(),state=createOzarkState(g);
 for(const n of state.agents)bindOzarkWorldAgent(n,g,state);
-const runtime=new PopulationRuntime(state,{cardinal:false});
+const runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false});
 const started=performance.now();
 for(let i=0;i<40;i++)runtime.tick(.25);
 const wallMilliseconds=performance.now()-started;
 const groupCounts=state.agents.map(n=>({actorId:n.id,groups:visualGroups(n).length,individuals:n.discovery.visualSamples?.records.length||0,samples:(n.discovery.visualSamples?.records||[]).reduce((sum,r)=>sum+r.times.length,0)}));
 runtime.dispose();
-const world=structuredClone(state),sampleCount=world.agents.reduce((sum,n)=>sum+(n.discovery.visualSamples?.records.length||0),0);
+const world=historicalClone(state),sampleCount=world.agents.reduce((sum,n)=>sum+(n.discovery.visualSamples?.records.length||0),0);
 for(const n of world.agents)delete n.discovery.visualSamples;
 if(world.npc)delete world.npc.discovery.visualSamples;
 console.log(JSON.stringify({sampleCount,world,diagnostic:{simulatedSeconds:10,wallMilliseconds,groupCounts}}));

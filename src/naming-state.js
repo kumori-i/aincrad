@@ -1,3 +1,4 @@
+import { legacyCommunication } from './communication-mode.js';
 import { CONFIG, NPC_RULES, SOCIAL_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 
@@ -106,6 +107,7 @@ function genuineEncounter(npc,e,sight){
   return encounter;
 }
 export function chooseOwnName(npc,experiment,sight){
+  if(!legacyCommunication(npc))return null;
   const encounter=genuineEncounter(npc,experiment,sight);if(!encounter)return null;
   const lex=npc.lexicon??createLexicon(npc);if(!validLexicon(lex,npc)||lex.own.length>=OWN_NAME_LIMIT||lex.counter>=NAMING_CHOICE_LIMIT||lex.considered.includes(experiment.id)||lex.own.some(r=>r.objectId===encounter.objectId))return null;
   npc.lexicon=lex;const c=choice(lex.rng);lex.rng=c.rng;lex.counter++;lex.considered.push(experiment.id);
@@ -113,6 +115,7 @@ export function chooseOwnName(npc,experiment,sight){
   const row={token:c.token,objectId:encounter.objectId,choice:lex.counter,encounter,announcedTo:[],checkedWith:[]};lex.own.push(row);if(!validLexicon(lex,npc)){lex.own.pop();return null;}return row;
 }
 export function recordGrounding(npc,speakerId,token,objectId,evidence){
+  if(!legacyCommunication(npc))return null;
   const lex=npc.lexicon??createLexicon(npc);
   if(!validLexicon(lex,npc)||!agents.includes(speakerId)||speakerId===npc.id||!validNameToken(token)||!id(objectId)||!validEvent(evidence,npc))return null;
   const existing=lex.heard.find(r=>r.speakerId===speakerId&&r.token===token&&r.objectId===objectId);if(existing)return existing;
@@ -122,6 +125,7 @@ export function recordGrounding(npc,speakerId,token,objectId,evidence){
   const row={speakerId,token,objectId,grounding:clone(evidence),confirmation:null};lex.heard.push(row);if(!validLexicon(lex,npc)){lex.heard.pop();return null;}return row;
 }
 export function resolveName(npc,token,speakerId,visibleIds){
+  if(!legacyCommunication(npc))return null;
   const lex=npc.lexicon;if(!lex||!validLexicon(lex,npc)||lex.saturated||!validNameToken(token)||speakerId!==undefined&&speakerId!==null&&!agents.includes(speakerId))return null;
   const rows=[...lex.own.map(r=>({...r,speakerId:npc.id})),...lex.heard].filter(r=>r.token===token&&(speakerId==null||r.speakerId===speakerId));
   // Resolve conflict BEFORE visibility filtering. An occluded homonym is still a conflict.
@@ -129,6 +133,7 @@ export function resolveName(npc,token,speakerId,visibleIds){
   const result=[...ids][0];return new Set(visibleIds||[]).has(result)?result:null;
 }
 export function confirmReference(npc,binding,evidence){
+  if(!legacyCommunication(npc))return null;
   const lex=npc.lexicon;if(!lex||!validLexicon(lex,npc)||lex.saturated||!lex.heard.includes(binding)||binding.confirmation!==null||!validConfirmation(evidence,binding.grounding,npc))return false;
   const used=new Set(lex.heard.flatMap(r=>[r.grounding.messageId,...(r.confirmation?Object.values(r.confirmation).map(e=>e.messageId):[])]));
   if(Object.values(evidence).some(e=>used.has(e.messageId))||resolveName(npc,binding.token,binding.speakerId,[binding.objectId])!==binding.objectId)return false;
@@ -141,11 +146,13 @@ export function lexicalLabels(npc){
 }
 
 export function markNameAnnounced(npc,row,peerId,event){
+  if(!legacyCommunication(npc))return null;
   const lex=npc.lexicon;
   if(!lex||!validLexicon(lex,npc)||!lex.own.includes(row)||!agents.includes(peerId)||peerId===npc.id||row.announcedTo.length||!validEvent(event,npc,undefined,false)||event.at<row.encounter.at)return false;
   row.announcedTo.push({peerId,event:clone(event)});if(!validLexicon(lex,npc)){row.announcedTo.pop();return false;}return true;
 }
 export function markReferenceRequested(npc,row,peerId,event){
+  if(!legacyCommunication(npc))return null;
   const lex=npc.lexicon,announcement=row?.announcedTo?.find(a=>a.peerId===peerId);
   if(!lex||!validLexicon(lex,npc)||!lex.own.includes(row)||!announcement||row.checkedWith.length||!validEvent(event,npc,undefined,false)||event.at<=announcement.event.at||ordinal(event.messageId)<=ordinal(announcement.event.messageId))return false;
   row.checkedWith.push({peerId,event:clone(event)});if(!validLexicon(lex,npc)){row.checkedWith.pop();return false;}return true;
@@ -219,6 +226,7 @@ export function validRepairCorrespondence(actors){
 /** Preflight and consume one emitted repair turn atomically. Runtime supplies
  * actual local reception/sensing; persisted data is not runnable authority. */
 export function recordRepairStep(speaker,listener,token,request,phase,event){
+  if(!legacyCommunication(speaker)||!legacyCommunication(listener))return false;
   if(!speaker||!listener||!event||!['clarification','repoint','retry'].includes(phase)||speaker.id===listener.id)return false;
   const a=speaker.lexicon,b=listener.lexicon??createLexicon(listener);
   if(!a||!validLexicon(a,speaker)||!validLexicon(b,listener))return false;

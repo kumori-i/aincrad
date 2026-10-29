@@ -1,9 +1,15 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
+const validateNpc=(...args)=>legacyFixture(rawvalidateNpc(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CONFIG, SOCIAL_RULES } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { OZARK_SAVE_KEY, createOzarkState, writeOzarkSave, loadOzarkSave } from '../src/ozark-save.js';
+import { OZARK_SAVE_KEY, createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { observeNpc, requestNpcAction, tickNpc } from '../src/npc.js';
 import { tickEnvironment } from '../src/environment.js';
@@ -11,12 +17,12 @@ import { tickOzarkEcology } from '../src/ozark-ecology.js';
 import { SocialCoordinator, validateCommunity } from '../src/social.js';
 import { NpcController } from '../src/controller.js';
 import { discoveryDecision, processDiscoveryFeedback, recordDiscoveryReport } from '../src/discovery.js';
-import { validateNpc, recordEvent } from '../src/npc-memory.js';
+import { validateNpc as rawvalidateNpc, recordEvent } from '../src/npc-memory.js';
 import { retainedProofIntegrityError } from '../src/proof-retention.js';
 import { PEER_TEACHING_WINDOW_SECONDS, peerTeachingLabel } from '../src/peer-teaching.js';
 
 const geometry=createOzarkWorldGeometry();
-const clone=structuredClone;
+const clone=value=>legacyFixture(historicalClone(value));
 // Static, explicit encounter exposure, not a claim about autonomous survival or
 // travel. Both bodies and action durations are real; ecology is not advanced.
 function fixture({nativeEcology=false}={}){
@@ -24,8 +30,8 @@ function fixture({nativeEcology=false}={}){
   const source=[...e.ecology.plants].filter(p=>p.kind==='apple_tree'&&p.quantity>2).sort((x,y)=>Math.hypot(x.position.x-geometry.spawn.x,x.position.y-geometry.spawn.y)-Math.hypot(y.position.x-geometry.spawn.x,y.position.y-geometry.spawn.y)).find(p=>geometry.canOccupy(p.position.x+45,p.position.y,CONFIG.playerRadius));
   assert.ok(source);state.elapsed=e.elapsed=60;if(nativeEcology)e.ecology.elapsed=60;
   for(const n of [a,b]){n.elapsed=60;n.position={x:source.position.x+45,y:source.position.y};bindOzarkWorldAgent(n,geometry,state);observeNpc(n,e);}
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>e});
-  const ca=new NpcController(a,{environment:e,social}),cb=new NpcController(b,{environment:e,social});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>e});
+  const ca=new NpcController(a,{communicationMode:'legacy',environment:e,social}),cb=new NpcController(b,{communicationMode:'legacy',environment:e,social});
   function advance(seconds){for(let remaining=seconds;remaining>1e-8;){const dt=Math.min(.1,remaining);tickEnvironment(e,dt);state.elapsed=e.elapsed;if(nativeEcology)tickOzarkEcology(e.ecology,dt,e,state.agents,{},geometry);for(const n of state.agents)tickNpc(n,dt,e);for(const n of state.agents)processDiscoveryFeedback(n);remaining-=dt;}}
   function finish(n,action){const result=requestNpcAction(n,action,e);if(result.code==='ACTION_STARTED')for(let i=0;n.active&&i<400;i++)advance(.1);assert.equal(n.active,null);return n.lastResult||result;}
   function learn(){assert.equal(finish(a,{type:'pull',targetId:source.id}).ok,true);assert.equal(finish(a,{type:'sample',targetId:a.inventory.items[0]}).ok,true);advance(90);assert.equal(a.discovery.techniques.length,1);observeNpc(a,e);observeNpc(b,e);return a.discovery.techniques[0];}

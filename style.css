@@ -80,3 +80,6 @@
 .communication-crops canvas { width: 96px; height: 96px; image-rendering: pixelated; background: #29352e; border: 1px solid #a18b68; }
 .communication-crops figcaption { font-size: 12px; }
 @media (max-width: 850px) { .communication-layout { grid-template-columns: 1fr; } #communication-dialog { padding: 16px; } }
+
+/* Learning is an observer stream within the existing character panel. */
+.learning-symbols{font-size:22px;letter-spacing:5px;font-weight:bold}.journal-entry .communication-crops{display:flex;gap:10px}.journal-entry .communication-crops figure{margin:3px 0;flex:1}.journal-entry .communication-crops canvas{width:96px;height:96px;image-rendering:pixelated}.journal-entry figcaption{font-size:9px}.npc-panel[data-journal-tab=conversation]{width:min(470px,calc(100vw - 36px))}

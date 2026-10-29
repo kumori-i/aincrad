@@ -8,7 +8,7 @@ import { createEnvironment, tickEnvironment } from '../src/environment.js';
 import { PopulationRuntime } from '../src/population.js';
 import { SocialCoordinator, validateCommunity } from '../src/social.js';
 const storage=()=>{const m=new Map();return {getItem:key=>m.get(key)??null,setItem:(key,v)=>m.set(key,v)};};
-const socialFor=state=>new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>state.environment});
+const socialFor=state=>new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>state.environment});
 
 test('new expeditions use discovery actors and one authoritative ecosystem, while historical fixtures are explicit',()=>{
   const state=freshState();assert.equal(state.version,8);assert.equal(state.simulationMode,'discovery');assert.equal(state.environment.mode,'discovery');assert.ok(state.environment.ecology);assert.equal('ecology' in state,false);

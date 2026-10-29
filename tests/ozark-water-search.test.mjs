@@ -1,3 +1,4 @@
+import { bindCommunicationMode } from '../src/communication-mode.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
@@ -62,6 +63,7 @@ test('an unverified position report does not steer Ozark water survey', () => {
   const before = discoveryDecision(actor).action;
   const frontierBefore = explorationFrontier(actor, { reportedHints: false });
   assert.deepEqual(before, { type: 'move', target: frontierBefore.target });
+  bindCommunicationMode(actor,'legacy'); // Historical testimony must not become a water coordinate.
   recordClaim(actor, { kind: 'route', text: 'Water may be far beyond the valley.',
     position: { x: 18000, y: 13000 }, available: true }, { sourceId: 'human' });
   assert.equal(actor.cognition.beliefs.at(-1).status, 'unverified');

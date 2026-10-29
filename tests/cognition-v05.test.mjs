@@ -1,3 +1,6 @@
+import { bindCommunicationMode } from '../src/communication-mode.js';
+// Explicit historical testimony tests; physical-only cases retain grounded defaults.
+const recordClaim=(npc,...args)=>{bindCommunicationMode(npc,'legacy');return legacyrecordClaim(npc,...args);};
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNpc } from '../src/npc-state.js';
@@ -7,7 +10,7 @@ import { NpcController, LocalLearnerProvider, DesktopModelProvider, decisionObse
 import { createEnvironment } from '../src/environment.js';
 import { foodSource, shelterSource } from '../src/resources.js';
 import { canStand, distance } from '../src/world.js';
-import { createCognition, updateCognition, recordClaim, cognitiveObservation, localPlan, adoptPlan, progressPlan, cancelPlan, explorationFrontier, searchBounds, estimatedWalkingSpeed } from '../src/cognition.js';
+import { createCognition, updateCognition, recordClaim as legacyrecordClaim, cognitiveObservation, localPlan, adoptPlan, progressPlan, cancelPlan, explorationFrontier, searchBounds, estimatedWalkingSpeed } from '../src/cognition.js';
 
 function byFood(n,env){const f=foodSource('apple:trail-orchard',env);for(const [dx,dy] of [[0,0],[8,0],[-8,0],[0,8]])if(canStand(f.x+dx,f.y+dy)){n.position={x:f.x+dx,y:f.y+dy};break;}observeNpc(n,env);return f;}
 function threeObservations(){return {goal:'Check my surroundings before deciding what they mean.',need:'understanding',steps:[{type:'observe'},{type:'observe'},{type:'observe'}],completion:'Consider the new evidence.'};}
@@ -58,7 +61,7 @@ test('pretending to finish preparation or exploration does not satisfy physical 
 test('unanswered human questions do not pause bodily care or lock the controller',()=>{
  const n=createNpc(),env=createEnvironment();byFood(n,env);requestNpcAction(n,{type:'gather_food',foodId:'apple:trail-orchard'},env);let asks=0;
  const social={observe:()=>({peers:[],journal:[],notes:[],pendingQuestion:{status:'pending'}}),maybeDialogue:()=>asks===0?{type:'ask_human',topic:'world',text:'Where else could I look?'}:null,action:()=>{asks++;return {ok:true,code:'ASKED_HUMAN',waitingRequired:false};}};
- const controller=new NpcController(n,{environment:env,social});n.nextDecisionAt=0;controller.tick(.1);assert.equal(asks,1);n.nourishment=10;for(let i=0;i<70;i++)controller.tick(1/60);assert.equal(n.stats.independentMeals,1);assert.equal(n.lifecycle,'AWAKE');assert.ok(n.elapsed>1);controller.dispose();
+ const controller=new NpcController(n,{communicationMode:'legacy',environment:env,social});n.nextDecisionAt=0;controller.tick(.1);assert.equal(asks,1);n.nourishment=10;for(let i=0;i<70;i++)controller.tick(1/60);assert.equal(n.stats.independentMeals,1);assert.equal(n.lifecycle,'AWAKE');assert.ok(n.elapsed>1);controller.dispose();
 });
 test('two identities and their body and cognitive state survive bounded save validation',()=>{
  const a=createNpc(),m=createNpc({id:'mira'});m.energy=36;m.stamina=49;m.fatigue=32;m.sleepPressure=61;recordClaim(m,{text:'This is Mira’s own question.',subject:'My journey'},{sourceId:'human'});
@@ -89,7 +92,7 @@ test('resting yields to sensed hunger and each model client cancels only its own
 test('model budget fallback retains grounded conversation rather than disabling social cognition',()=>{
  const n=createNpc();n.modelBudget.calls=60;let offered=0,delivered=0,modelCalls=0;
  const social={observe:()=>({peers:[],journal:[],notes:[],pendingQuestion:null}),maybeDialogue:()=>{offered++;return {type:'journal_reply',text:'I can keep exploring while you are away.'};},action:()=>{delivered++;return {ok:true,code:'REPLIED_JOURNAL'};}};
- const controller=new NpcController(n,{social,provider:{kind:'local-model',decide(){modelCalls++;return {action:{type:'observe'}};},cancel(){}}});controller.tick(.1);
+ const controller=new NpcController(n,{communicationMode:'legacy',social,provider:{kind:'local-model',decide(){modelCalls++;return {action:{type:'observe'}};},cancel(){}}});controller.tick(.1);
  assert.equal(modelCalls,0);assert.equal(offered,1);assert.equal(delivered,1);assert.equal(n.lastResult.code,'REPLIED_JOURNAL');assert.equal(n.memory.experience.find(e=>e.type==='decision').details.provider,'local-learner');controller.dispose();
 });
 test('unknown-food fallback search has a home radius and return deadline without an explicit plan',()=>{

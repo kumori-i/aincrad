@@ -12,7 +12,7 @@ export function createCommunicationExperiment({geometry,seed=211,enabled=true,pi
     bindOzarkWorldAgent(n,geometry,state);
   }
   const learning=attachCommunicationLearning({state,seed,enabled,pixelSensor});
-  const runtime=new PopulationRuntime(state,{cardinal:false,experimentalDiscovery:learning.hooks});
+  const runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false,experimentalDiscovery:learning.hooks});
   let disposed=false;
   return {
     state,runtime,

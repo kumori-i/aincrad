@@ -1,9 +1,13 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createNpc=(...args)=>legacyFixture(rawcreateNpc(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderCategoryNames, renderObjectName, renderMessageNames, modelNamingStatus, namingRequestStatus, vocabularyDisplaySignature } from '../src/npc-panel.js';
 import { namingProposal, beginNamingProposal, acceptNamingProposal, recordCategoryGrounding, objectName } from '../src/category-names.js';
 import { ingestVisualSamples } from '../src/visual-group-memory.js';
-import { createNpc } from '../src/npc-state.js';
+import { createNpc as rawcreateNpc } from '../src/npc-state.js';
 import { createCommunity, SocialCoordinator } from '../src/social.js';
 class TextNode {
   constructor(){this.textContent='';this.children=[];this.dataset={};}
@@ -22,7 +26,7 @@ function actor(id='aster'){
 function named(){const n=actor(),request=namingProposal(n);assert.ok(request);assert.equal(beginNamingProposal(n,request),true);assert.equal(acceptNamingProposal(n,request,{token:'velora',model:'mock-ui-only'}),true);return n;}
 function render(fn,n,...args){const old=globalThis.document;globalThis.document={createElement:()=>new TextNode()};try{const out=new TextNode();fn(out,n,...args);return out;}finally{if(old===undefined)delete globalThis.document;else globalThis.document=old;}}
 test('category UI shows one tentative model word with exact local members and supplied-rule limits',()=>{
-  const n=named(),before=structuredClone(n),out=render(renderCategoryNames,freeze(n));
+  const n=named(),before=historicalClone(n),out=render(renderCategoryNames,freeze(n));
   assert.deepEqual(n,before);assert.match(out.text,/“velora”/);assert.match(out.text,/Model-proposed for my own observations · mock-ui-only/);
   assert.match(out.text,/supplied exact shape, color and texture rule, not discovered species/);
   assert.match(out.text,/never transfers food benefit, safety or actions/);
@@ -31,19 +35,19 @@ test('category UI shows one tentative model word with exact local members and su
   assert.equal(entry.children.filter(row=>row.dataset.categoryMember).length,3);
   for(const id of ['object:675','object:669','object:672'])assert.match(out.text,new RegExp(id));
   assert.equal(entry.children.filter(row=>row.dataset.categoryVisibility==='current').length,3);
-  const restored=render(renderCategoryNames,freeze(structuredClone(n)));
+  const restored=render(renderCategoryNames,freeze(historicalClone(n)));
   assert.doesNotMatch(restored.text,/current ordinary visual sample/);assert.match(restored.text,/remembered only/);
 });
 test('listener vocabulary presentation attributes its own grounded example without copying speaker extension',()=>{
   const a=named(),b=actor('mira');b.discovery.visualSamples.records=b.discovery.visualSamples.records.filter(r=>r.objectId==='object:669');
   const event={messageId:'message:1',at:1,scene:'valley',speakerPosition:{...a.position},listenerPosition:{...b.position},objectPosition:{...b.position}};
   assert.equal(recordCategoryGrounding(a,b,a.categoryNames.own[0],'object:669',event),true);
-  const before=structuredClone(b),out=render(renderCategoryNames,freeze(b),[{id:'aster',name:'Aster'}]);
+  const before=historicalClone(b),out=render(renderCategoryNames,freeze(b),[{id:'aster',name:'Aster'}]);
   assert.deepEqual(b,before);assert.match(out.text,/Heard from Aster · grounded in my own local example/);
   assert.match(out.text,/Grounding example: object:669/);assert.doesNotMatch(out.text,/object:675|object:672|mock-ui-only/);
 });
 test('old text stays unchanged and annotation is explicitly current, exact, bounded and actor-local',()=>{
-  const n=named(),historical='I sampled object:675 before any naming proposal.',before=structuredClone(n);
+  const n=named(),historical='I sampled object:675 before any naming proposal.',before=historicalClone(n);
   const out=render(renderMessageNames,freeze(n),historical);
   assert.equal(historical,'I sampled object:675 before any naming proposal.');assert.deepEqual(n,before);
   assert.match(out.text,/Current label: “velora”/);assert.match(out.text,/Exact individual: object:675/);
@@ -67,8 +71,8 @@ test('malformed vocabulary has no labels and status does not imply a successful 
 });
 test('new experience notes and ordinary conversation use names while their exact effect stays unchanged',()=>{
   const n=named();n.elapsed=130;n.discovery.effects.push({id:'effect:test',objectId:'object:675',effect:'sustained'});
-  const community=createCommunity(),environment={elapsed:n.elapsed},social=new SocialCoordinator({getAgents:()=>[n],getCommunity:()=>community,getEnvironment:()=>environment});
-  const before=structuredClone(n.discovery.effects);
+  const community=createCommunity(),environment={elapsed:n.elapsed},social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>[n],getCommunity:()=>community,getEnvironment:()=>environment});
+  const before=historicalClone(n.discovery.effects);
   // Isolate prose selection; this is not a physical-effect proof fixture.
   social.observe=()=>({peers:[],notes:[],pendingHumanTurn:null});
   const note=social.discoveryDialogue(n);assert.equal(note.type,'write_note');assert.match(note.title,/“velora” \(object:675\)/);

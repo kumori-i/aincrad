@@ -1,3 +1,4 @@
+import { legacyCommunication } from './communication-mode.js';
 import { receivedMaterialCaution } from './food-warning.js';
 import { markNpcRunTravel } from './npc-effort-funding.js';
 import { experiencedFoodSourceCaution } from './food-source-caution.js';
@@ -87,7 +88,7 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;
   d.lastAttemptAt=npc.elapsed;
   if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}
-  for(const report of d.reports.filter(r=>r.status==='unverified'&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
+  for(const report of (legacyCommunication(npc)?d.reports:[]).filter(r=>r.status==='unverified'&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
     const expected=report.proposed[report.cursor];if(expected?.type===action.type&&expected.targetId===action.targetId){report.evidence.push(experiment.id);report.cursor++;if(result.materialId)for(const step of report.proposed.slice(report.cursor))if(['sample','release'].includes(step.type)&&step.targetId===action.targetId)step.targetId=result.materialId;if(!result.ok){if(isPeerTeaching(report)){report.teaching.state='unavailable';report.teaching.lastCode=experiment.code;}else report.status='contradicted';report.cursor=report.proposed.length;}else if(isPeerTeaching(report)&&action.type==='sample')report.teaching.state='waiting';}
   }
   return experiment;
@@ -127,9 +128,9 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
       for(const t of d.techniques.filter(t=>t.evidence.includes(sample.id)||acquired&&t.sourceId===acquired.targetId&&t.steps[0].type===acquired.primitive)){
         t.confidence='revised';t.evidence=[...new Set([...t.evidence,...(acquired?[acquired.id]:[]),sample.id])].slice(-16);
       }
-      for(const r of d.reports.filter(r=>r.evidence.includes(sample.id))){r.status='contradicted';if(isPeerTeaching(r))r.teaching.state='complete';}return;
+      for(const r of (legacyCommunication(npc)?d.reports:[]).filter(r=>r.evidence.includes(sample.id))){r.status='contradicted';if(isPeerTeaching(r))r.teaching.state='complete';}return;
     }
-    if(event.effect!=='sustained'){for(const r of d.reports.filter(r=>r.teaching?.transfer&&r.evidence.includes(sample.id)))r.teaching.state='complete';return;}
+    if(event.effect!=='sustained'){for(const r of (legacyCommunication(npc)?d.reports:[]).filter(r=>r.teaching?.transfer&&r.evidence.includes(sample.id)))r.teaching.state='complete';return;}
     if(!foodLearning)return;
     const grasp=sampleAcquisition(d,sample);if(!grasp)return;
     const sourceId=grasp.targetId,evidence=[grasp.id,sample.id],steps=[{type:grasp.primitive,targetId:'$source'},{type:'sample',targetId:'$material'}];
@@ -137,12 +138,13 @@ export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=tru
     if(!technique){technique={id:`technique:${npc.id}:${d.nextId++}`,sourceId,steps,evidence,at:npc.elapsed,effect:'sustained',confidence:'tentative',successes:0,failures:0};d.techniques.push(technique);d.foodDiscoveries++;if(npc.cognition){npc.cognition.knowledgeGained++;npc.cognition.lastKnowledgeAt=npc.elapsed;}}
     technique.successes++;technique.evidence=[...new Set([...technique.evidence,...evidence])].slice(-16);if(technique.confidence!=='revised')technique.confidence=technique.successes>=2?'supported':'tentative';d.techniques=d.techniques.slice(-DISCOVERY_RULES.maxTechniques);
     npc.stats.independentMeals++;npc.stats.firstFoodAt??=npc.elapsed;
-    for(const r of d.reports.filter(r=>r.evidence.includes(sample.id))){r.status='supported';if(isPeerTeaching(r))r.teaching.state='complete';}
+    for(const r of (legacyCommunication(npc)?d.reports:[]).filter(r=>r.evidence.includes(sample.id))){r.status='supported';if(isPeerTeaching(r))r.teaching.state='complete';}
     });
   }}finally{processingFeedback.delete(npc);}
 }
 /** Explicit human testimony proposes operations; words alone prove no affordance. */
 function recordDiscoveryReportLinked(npc,content,{sourceId='human',channel='journal',messageId='',at=npc.elapsed}={}){
+  if(!legacyCommunication(npc))return null;
   if(npc.mode!=='discovery'||!['human','aster','mira'].includes(sourceId)||typeof content!=='string')return null;
   const d=memory(npc),text=content.slice(0,600);if(d.reports.some(r=>r.messageId===messageId&&r.sourceId===sourceId&&messageId))return null;
   const report={id:`report:${npc.id}:${d.nextId++}`,text,sourceId,channel:String(channel).slice(0,20),messageId:String(messageId||'').slice(0,80),at,status:'unverified',proposed:[],cursor:0,evidence:[]};
@@ -195,7 +197,7 @@ export function recordPeerTechnique(npc,content,teaching,options={}){
   });
 }
 export function discoveryObservation(npc){
-  const d=memory(npc);return {handlingInquiries:handlingInquiries(npc),inquiries:observationalInquiries(npc),observations:Object.values(d.observations).slice(-40),experiments:d.experiments.slice(-24),effects:d.effects.slice(-24),techniques:d.techniques.slice(-16).map(t=>({...t,proficiency:(d.practice[t.steps[0].type]?.successes||0)>=25?'efficient':(d.practice[t.steps[0].type]?.successes||0)>=7?'practiced':'novice'})),reports:d.reports.slice(-16)};
+  const d=memory(npc);return {handlingInquiries:handlingInquiries(npc),inquiries:observationalInquiries(npc),observations:Object.values(d.observations).slice(-40),experiments:d.experiments.slice(-24),effects:d.effects.slice(-24),techniques:d.techniques.slice(-16).map(t=>({...t,proficiency:(d.practice[t.steps[0].type]?.successes||0)>=25?'efficient':(d.practice[t.steps[0].type]?.successes||0)>=7?'practiced':'novice'})),reports:legacyCommunication(npc)?d.reports.slice(-16):[]};
 }
 function routeTarget(npc,point){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc);
@@ -514,7 +516,7 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   }
   const traversal=waterEscape||terrainTraversalDecision(npc);
   if(traversal&&(!ozarkFiniteAquaticAgent(npc)||traversal.need!=='understanding'))return wrap(traversal.action,traversal.reason,traversal.need);
-  for(const report of d.reports.filter(r=>r.status==='unverified'&&r.cursor<r.proposed.length&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
+  for(const report of (legacyCommunication(npc)?d.reports:[]).filter(r=>r.status==='unverified'&&r.cursor<r.proposed.length&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
     const step=report.proposed[report.cursor],object=d.observations[step.targetId],held=npc.inventory.items.includes(object?.id),peer=isPeerTeaching(report);
     if(peer&&report.teaching.transfer){
       const source=report.teaching.transfer.targetObjectId;

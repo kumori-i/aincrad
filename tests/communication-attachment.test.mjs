@@ -33,7 +33,7 @@ function helpers(exp){
   function choices(){act(receiver,{type:'pull',targetId:plant.id});const target=receiver.inventory.items[0];exp.tick(.01);return [{action:{type:'sample',targetId:target}},{action:{type:'inspect_object',targetId:target}}];}
   return {sender,receiver,env,advance,act,source,choices};
 }
-function legacyShape(snapshot){const {gates,relief,discomfort,effortExpiry,limitReached,...rest}=snapshot;return rest;}
+function legacyShape(snapshot){const {gates,relief,discomfort,effortExpiry,limitReached,observationEvents,...rest}=snapshot;return rest;}
 function scenario(factory,options={}){
   const pixelSensor=numeric(),exp=factory({geometry,pixelSensor,...options});exp.pixelSensor??=pixelSensor;
   try{
@@ -116,7 +116,7 @@ test('main has one tick owner, guarded optional attachment and unrestricted ordi
 });
 
 test('frozen protocol fixture is exactly PR60 source except import relocation',async()=>{
-  const source=(await readFile(new URL('./fixtures/communication-experiment-v1.js',import.meta.url),'utf8')).replaceAll("from '../../src/","from './");
+  const source=(await readFile(new URL('./fixtures/communication-experiment-v1.js',import.meta.url),'utf8')).replaceAll("from '../../src/","from './").replace("from './legacy-population.js'", "from './population.js'");
   assert.equal(createHash('sha256').update(source).digest('hex'),'3bf1086a32361291371771d8561cc5bb20eb738375cda210b9b16a8bbcbeab2a');
 });
 
@@ -156,5 +156,17 @@ test('disposing an unperformed selection reports a censored outcome without trai
   const exp=attached();try{
     const h=helpers(exp);h.source();assert.ok(Number.isInteger(exp.learning.hooks.choose(h.receiver,h.choices())));
     exp.dispose();const snapshot=exp.snapshot();assert.equal(snapshot.latest.status,'interrupted');assert.equal(snapshot.latest.reward,null);assert.equal(snapshot.censored,1);assert.equal(snapshot.updates,0);assert.equal(snapshot.ledger.at(-1).reward,null);
+  }finally{exp.dispose();}
+});
+test('observer emission keeps copied crops and one identity through interruption without changing policies',()=>{
+  const exp=attached();try{
+    const h=helpers(exp);h.source();const choices=h.choices(),bridge=exp.runtime.controller(h.receiver.id).experimentalDiscovery;
+    const selected=bridge.choose(h.receiver,choices);assert.ok(Number.isInteger(selected));
+    const initial=exp.snapshot(),row=initial.observationEvents.at(-1);assert.equal(row.status,'selected');assert.equal(row.id,initial.exchanges);assert.equal(row.senderPixels.length,768);
+    const pristine=structuredClone(row);row.senderPixels[0]=999;row.tokens[0]=999;
+    assert.deepEqual(exp.snapshot().observationEvents.at(-1),pristine,'Snapshot cannot edit retained emission');
+    for(let i=0;i<4;i++)exp.snapshot();assert.deepEqual(exp.snapshot().learners,initial.learners,'Observer refresh cannot train policies');
+    bridge.performed(h.receiver,{type:'rest'},null,null);
+    const ended=exp.snapshot().observationEvents.at(-1);assert.equal(ended.id,pristine.id);assert.equal(ended.status,'interrupted');assert.deepEqual(ended.senderPixels,pristine.senderPixels);assert.deepEqual(ended.receiverPixels,pristine.receiverPixels);assert.equal(ended.reward,null);
   }finally{exp.dispose();}
 });

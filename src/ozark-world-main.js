@@ -167,6 +167,8 @@ if (population) {
     getNpc: selectedAgent, getAgents: () => state.agents,
     getController: () => population.controller(selectedAgent().id),
     getRuntime: () => population, getCommunity: () => state.community,
+    getLearning: () => communicationLearning, getLearningError: () => communicationError,
+    onClose: () => { if(paused && !resetHeld && !resetRetired) show('pause-panel'); },
     selectAgent: id => {
       if (!population.getAgent(id)) return;
       state.selectedAgentId = id; renderer.followId = id;
@@ -333,7 +335,9 @@ communicationInspector = installCommunicationInspector({
   getLearning: () => communicationLearning, getError: () => communicationError,
   setPaused: setPause, isPaused: () => paused,
   canOpen: () => started && paused && !loaded.blocked && !resetHeld && !resetRetired,
-  onEnter: () => { keys.clear(); npcPanel?.close(); anim.moving = false; },
+  openLearning: () => { hide('pause-panel'); npcPanel?.openLearning(); },
+  closeLearning: () => npcPanel?.close(), learningVisible: () => !!npcPanel?.isVisible(),
+  onEnter: () => { keys.clear(); anim.moving = false; },
   onExit: () => { keys.clear(); },
 });
 
@@ -481,6 +485,13 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     fullSnapshot: () => structuredClone(state),
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
     communicationError: () => communicationError,
+    communicationBoundaryProbe: () => {
+      if(!population || started&&!paused) return null;
+      const actor=state.agents[0];
+      return {mode:population.communicationMode,
+        attempts:['say','ask','journalReply','writeNote','readNote'].map(method=>population.social[method](actor,{text:'native boundary probe',targetId:state.agents[1]?.id})),
+        human:population.social.postUserMessage('native boundary probe')};
+    },
     snapshot: () => ({ version:state.version,features:structuredClone(state.features),geometryIdentity: state.geometryIdentity,
       player: { ...state.player }, playerBody: { ...state.playerBody },
       agents: state.agents.map(npc => ({ id: npc.id, position: { ...npc.position },
