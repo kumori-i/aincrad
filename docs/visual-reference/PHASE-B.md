@@ -19,7 +19,7 @@ referent draw. A match requires exactly one anchor at RMS distance ≤ .04 and a
 runner-up margin ≥ .02. Only distances all > .08 allow a new anchor. Gray-zone,
 ambiguous or saturated plans abstain. Both alternatives must receive distinct
 symbols, including prospective additions. The chosen pair commits atomically;
-then independent streams choose a uniform referent and candidate order. There
+then separately owned domain-separated streams choose a uniform referent and candidate order. There
 is no redraw after seeing the referent or outcome.
 
 A listener stores at most four immutable own-view demonstration examples per
@@ -78,3 +78,30 @@ No new autonomous cohort or outcome-tuned parameter search is authorized by this
 implementation. Future evaluation requires its own reviewed frozen protocol,
 fresh seeds, bounded training/freeze and intact/shuffled/erased/fresh controls on
 the same own observations. Historical protocol fixtures remain unchanged.
+
+## Deterministic randomness correction
+
+The initial Phase B implementation used XOR-related seeds for linear xorshift32
+streams. This made target-bit XOR candidate-order-bit seed-independent at each
+exchange round: individually balanced bits were not enough. That source's native
+proof remains engineering evidence for its own fingerprint, not this revision.
+
+The reference channel now uses the fixed `weyl-fmix32-v1` noncryptographic
+counter/avalanche generator in `visual-reference-random.js`. Pair, target, order,
+exploration and symbol inventories have fixed purpose domains; actor identity is
+a separate numeric input for inventories. The uint32 Weyl increment is
+`0x9e3779b9`; both seed derivation and each output use the documented
+[MurmurHash3 fmix32](https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp)
+finalizer. There is no exceptional zero fallback or shared mutable root stream.
+
+Before executing regression diagnostics, the formula and bounds were fixed:
+seeds 0..4095 plus five explicit boundary/high-bit cases, 64 rounds, each
+per-round target/order joint cell fraction .15–.35 and each marginal/ordered-target
+fraction .35–.65. Inventories use seeds 0..4095 and identities 1/2: every result
+is a 64-label permutation, each first-position label count must be 8..192, and
+cross-identity first-position equality must be .001..08 (denominator 4096).
+These broad structural guards, the retired-generator negative control and
+independent BigInt arithmetic checks are not proofs of statistical independence
+or cryptographic quality. No generator, bounds or native default seed 211 was
+selected from favorable behavioral outcomes. Revised runtime requires new native
+proof; no autonomous acquisition or survival result is implied.

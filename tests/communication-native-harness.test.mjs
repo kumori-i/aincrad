@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
+import {renderLearningView} from '../src/learning-view.js';
+import {createVisualReferenceMemory} from '../src/visual-reference-memory.js';
 
 test('communication native preparation stays isolated and never claims native execution', async () => {
   const output = await mkdtemp(join(tmpdir(), 'communication-harness-contract-'));
@@ -24,16 +26,47 @@ test('communication native preparation stays isolated and never claims native ex
     const source = await readFile(prepared.harness, 'utf8');
     const app = new EventEmitter(), loaded = [], require = createRequire(import.meta.url);
     const stub = name => name === 'electron' ? { app, session: {}, ipcMain: {handle(){}} } : name.endsWith('main.cjs') ? loaded.push(name) : require(name);
-    vm.runInNewContext(source, { require: stub, process: { argv: ['runner', '--phase=exercise'] }, console, setTimeout: () => 1, clearTimeout() {} });
+    const sandbox={require:stub,process:{argv:['runner','--phase=exercise']},console,setTimeout:()=>1,clearTimeout(){}};
+    const registration="require(path.join(context.application, 'desktop/main.cjs'));";
+    assert(source.includes(registration));
+    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateAssociationDisclosure;globalThis.emptyMemoryAssert=assertEmptyPrivateAssociations;'+registration),sandbox);
+    // Execute the actual generated helper against current rendered observer text.
+    // This small DOM contract is not native rendering evidence.
+    class Node {
+      constructor(tag,doc){this.tag=tag;this.ownerDocument=doc;this.children=[];this.dataset={};this.textContent='';}
+      append(node){this.children.push(node);} replaceChildren(){this.children=[];} setAttribute(){}
+      get text(){return this.textContent+' '+this.children.map(child=>child.text).join(' ');}
+    }
+    const document={createElement(tag){return new Node(tag,this);}},root=new Node('div',document);
+    const fresh={phase:'private-visual-association',elapsed:0,exchanges:0,updates:0,pending:0,observed:0,evidenceAdditions:0,correctionAttempts:0,supportUpdates:0,conflicts:0,latest:null,observationEvents:[],
+      learners:['aster','mira'].map(agentId=>({agentId,...createVisualReferenceMemory().snapshot()}))};
+    renderLearningView(root,fresh,'aster');
+    assert.doesNotThrow(()=>sandbox.disclosureAssert(root.text));
+    assert.throws(()=>sandbox.disclosureAssert('Bodies and memories save locally. Communication weights restart on app reopen.'),{code:'ERR_ASSERTION'});
+    const checkMemory=value=>vm.runInNewContext('emptyMemoryAssert('+JSON.stringify(value)+')',sandbox);
+    assert.doesNotThrow(()=>checkMemory(fresh));
+    for(const corrupt of [
+      value=>{value.phase='physical-reference-no-learning';},
+      value=>{value.learners[0].counts.examples=1;},
+      value=>{value.learners[0].anchors.push({symbol:1,features:[]});},
+      value=>{value.learners[0].partners.push({slot:0,entries:[]});},
+      value=>{delete value.learners[0].anchors;},
+      value=>{delete value.learners[0].partners;},
+      value=>{delete value.learners;},
+      value=>{value.learners.pop();},
+      value=>{value.observationEvents.push({status:'observed'});},
+      value=>{value.pending=1;},
+    ]){const changed=structuredClone(fresh);corrupt(changed);assert.throws(()=>checkMemory(changed),{code:'ERR_ASSERTION'});}
+
     assert.equal(loaded.length, 1, 'Actual application scheme registration remains synchronous');
     for (const contract of [
       'Independent reopen preserves exact ordinary bytes', 'Inspector does not suppress ordinary autosave writes',
       'Main world advances while inspector is open', 'Native Escape pauses the one main world',
       'Normal save works while inspector is open', 'Closing inspector preserves main learners',
       'Inspector reopen retains learning rather than creating agents',
-      'Communication weights restart without old traces', 'Main clock resumes saved time, not experiment time',
-      'Explicit reset creates fresh ordinary world', 'Reset clears communication pending credit',
-      'Reset creates fresh communication model fingerprints',
+      'Private association counts restart empty', 'Main clock resumes saved time, not experiment time',
+      'Explicit reset creates fresh ordinary world', 'Reset clears pending reference transactions',
+      'Fresh private anchors are concretely empty','Fresh private partner examples are concretely empty',
       'captureWithReadiness({', 'win.webContents.sendInputEvent', 'prefs.sandbox, true',
     ]) assert(source.includes(contract), contract);
     const archive = JSON.parse(await readFile(join(prepared.output, 'profile-evidence.json'), 'utf8'));

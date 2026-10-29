@@ -64,6 +64,25 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
   const raw = win => evaluate(win, "localStorage.getItem('aincrad.world.v2')");
   const click = (win, id) => evaluate(win, 'document.getElementById(' + JSON.stringify(id) + ').click()');
   function escape(win) { win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'ESC' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'ESC' }); }
+  // Current main-world contracts, not the archived experimental weight learner.
+  function assertPrivateAssociationDisclosure(text) {
+    assert.match(text, /Observer annotations, not agent speech/);
+    assert.match(text, /Bodies and survival memories save locally\. Private visual associations restart empty on app reopen or world reset\./);
+    assert.match(text, /Reference matching is not bodily relief or sickness/);
+    assert.doesNotMatch(text, /Communication weights restart/);
+  }
+  function assertEmptyPrivateAssociations(snapshot) {
+    assert.equal(snapshot.phase, 'private-visual-association', 'Current main uses private exemplar associations');
+    for (const key of ['exchanges','updates','pending','observed','evidenceAdditions','correctionAttempts','supportUpdates','conflicts']) assert.equal(snapshot[key], 0, 'Fresh private association metric: ' + key);
+    assert.equal(snapshot.latest, null); assert.deepEqual(snapshot.observationEvents, []);
+    assert(Array.isArray(snapshot.learners)); assert.equal(snapshot.learners.length, 2);
+    assert.equal(new Set(snapshot.learners.map(learner => learner.agentId)).size, 2);
+    for (const learner of snapshot.learners) {
+      assert.deepEqual(learner.counts, {anchors:0,partners:0,entries:0,examples:0,conflicts:0}, 'Private association counts restart empty');
+      assert.deepEqual(learner.anchors, [], 'Fresh private anchors are concretely empty');
+      assert.deepEqual(learner.partners, [], 'Fresh private partner examples are concretely empty');
+    }
+  }
   async function run(win) {
     await waitFor(win, 'Boolean(window.__ozarkWorld)');
     assert.equal(await evaluate(win, 'location.href'), 'aincrad://app/index.html?test=1');
@@ -97,8 +116,8 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       assert.equal(world.elapsed, 0, 'Explicit reset creates fresh ordinary world');
       for (const agent of world.agents) { assert.equal(agent.elapsed, 0); assert.equal(agent.discovery.experiments.length, 0); assert.equal(agent.discovery.effects.length, 0); }
       const fresh = await learning(); assert(fresh);
-      assert.equal(fresh.elapsed, 0); assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0, 'Reset clears communication pending credit');
-      for (const learner of fresh.learners) assert.deepEqual(learner.current, learner.initial, 'Reset creates fresh communication model fingerprints');
+      assert.equal(fresh.elapsed, 0); assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0, 'Reset clears pending reference transactions');
+      assertEmptyPrivateAssociations(fresh);
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication');
       await capture(win, 'reset-fresh-inspector.png');
@@ -112,10 +131,10 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       const fresh = await learning(); assert(fresh, 'Main-world learner attaches before start');
       assert.equal(fresh.elapsed, previous.learning.elapsed, 'Main clock resumes saved time, not experiment time');
       assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0);
-      for (const learner of fresh.learners) assert.deepEqual(learner.current, learner.initial, 'Communication weights restart without old traces');
+      assertEmptyPrivateAssociations(fresh);
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
-      assert.match(await disclosure(), /Communication weights restart on app reopen/);
+      assertPrivateAssociationDisclosure(await disclosure());
       await capture(win, 'independent-reopen.png'); return;
     }
     assert.equal(await raw(win), null, 'Disposable profile starts empty');
@@ -124,8 +143,8 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     const ordinary = await evaluate(win, 'window.__ozarkWorld.snapshot()'); assert(ordinary.paused);
     const beforeLearning = await learning(); assert(beforeLearning);
     await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
-    assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves pending credit, RNG and models');
-    assert.match(await disclosure(), /Bodies and memories save locally.*Communication weights restart on app reopen/);
+    assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves reference transactions, RNG and private memory');
+    assertPrivateAssociationDisclosure(await disclosure());
     assert.equal(await evaluate(win, "document.getElementById('journal-form').classList.contains('hidden')"), true);
     assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false, 'Shortcut uses the same NPC panel, not a second modal');
     await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics] summary').click()");

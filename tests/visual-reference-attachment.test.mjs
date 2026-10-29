@@ -11,13 +11,13 @@ import {discoveryDecision} from '../src/discovery.js';
 import {attachVisualReferenceLearning,continuousReferenceStep} from '../src/visual-reference-attachment.js';
 import {senseReferenceObjects} from '../src/visual-reference-perception.js';
 const geometry=createOzarkWorldGeometry();
-function fixture(seed=211,{reverseTicks=false,differentViews=false}={}){
+function fixture(seed=211,{reverseTicks=false,differentViews=false,attach=attachVisualReferenceLearning}={}){
   const state=createOzarkState(geometry);
   for(const n of state.agents){bindOzarkWorldAgent(n,geometry,state);observeNpc(n,state.environment);}
   // Deliberately synthetic crops test transaction authority, not visual learning.
   const syntheticCategories=new Map(senseReferenceObjects(state.agents[0],state).bindings.map((id,i)=>[id,i%2]));
   const pixelSensor={suppressed:false,listenerOffset:0,capture(n){if(this.suppressed)return new Map();const s=senseReferenceObjects(n,state);return new Map(s.bindings.map((id,i)=>{const category=syntheticCategories.get(id)??i%2;const v=differentViews?(n===state.agents[0]?(category?.9:.1):(category?.7:.2)+this.listenerOffset):(i%2?.8:.1);return [id,{features:Array(48).fill(v),pixels:Array(768).fill(Math.round(v*255)),at:n.elapsed,epoch:n.epoch}];}));},dispose(){}};
-  const attachment=attachVisualReferenceLearning({state,pixelSensor,seed});
+  const attachment=attach({state,pixelSensor,seed});
   const step=()=>{attachment.beforeTick();state.elapsed+=CONFIG.fixedStep;for(const n of reverseTicks?state.agents.slice().reverse():state.agents)tickNpc(n,CONFIG.fixedStep,state.environment);attachment.afterTick();};
   const advance=seconds=>{for(let i=0;i<Math.round(seconds/CONFIG.fixedStep);i++)step();};
   const begin=()=>{const receiver=state.agents[1],action=attachment.hooks.optionalAction(receiver);assert.equal(action?.type,'inspect_object');const result=requestNpcAction(receiver,action,state.environment);attachment.hooks.performed(receiver,action,result,receiver.active);assert.equal(result.code,'ACTION_STARTED');return {receiver,sender:state.agents[0],action};};
@@ -130,15 +130,22 @@ test('copied inspector state cannot alter exemplars; new attachment begins with 
 });
 
 
-test('wrong initial choice learns only listener demonstration features, retrieves later, and consumes no-op corrections once',()=>{
-  // This declared seed exercises the incorrect-choice unit-test branch, not a
-  // selected autonomous outcome or a learning-performance measurement.
-  const f=fixture(8192,{differentViews:true}),first=f.begin(),oldChoice=first.receiver.active;
+test('forced correct and wrong exploration branches learn only own demonstration features and consume corrections once',async()=>{
+  // Unit-only exact source seam: exercise BOTH exploration branches at unchanged
+  // seed 211, not seed-search, real native behavior or outcome selection.
+  const source=await readFile(new URL('../src/visual-reference-attachment.js',import.meta.url),'utf8');
+  const seam="createReferenceRandomStream({seed,purpose:'choice'})";
+  assert.equal(source.split(seam).length-1,1,'Only the declared exploration seam may be replaced');
+  const outcomes=[];
+  for(const forced of [.25,.75]){
+  const isolated=source.replace(seam,`(()=>${forced})`).replace(/from '(\.\/[^']+)'/g,(_all,path)=>`from '${new URL(path,new URL('../src/visual-reference-attachment.js',import.meta.url)).href}'`);
+  const {attachVisualReferenceLearning:attach}=await import(`data:text/javascript;base64,${Buffer.from(isolated).toString('base64')}`);
+  const f=fixture(211,{differentViews:true,attach}),first=f.begin(),oldChoice=first.receiver.active;
   const selectedCrop=f.pixelSensor.capture(first.receiver).get(first.action.targetId).features.slice();
   f.advance(2);f.pixelSensor.listenerOffset=.01;
   const oldIndication=f.indicate(first.sender);f.advance(2);
   let s=f.attachment.snapshot(),event=s.observationEvents[0];
-  assert.equal(event.referenceCorrect,false,'Fixture must test corrective rather than selected-object association');
+  outcomes.push(event.referenceCorrect);
   const demonstrated=f.pixelSensor.capture(first.receiver).get(event.demonstratedObjectId).features;
   const senderFeatures=f.pixelSensor.capture(first.sender).get(event.demonstratedObjectId).features;
   const entry=s.learners.find(l=>l.agentId===first.receiver.id).partners[0].entries[0];
@@ -159,6 +166,8 @@ test('wrong initial choice learns only listener demonstration features, retrieve
   assert.equal(matchedSeen,true,'Existing learned own-view symbol must drive a later actual action');
   assert.equal(supportSeen,true,'Repeated own demonstration adds support without another exemplar');
   assert.equal(f.attachment.snapshot().evidenceAdditions<=2,true);f.attachment.dispose();
+  }
+  assert.deepEqual(outcomes.slice().sort(),[false,true],'Both correct and wrong canonical branches must be covered');
 });
 
 for(const replacement of ['actor','physiology'])test(`${replacement} replacement retires private anchors and partner bindings despite same text ID`,()=>{

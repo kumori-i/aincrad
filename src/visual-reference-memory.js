@@ -1,6 +1,7 @@
 // Supplied retained-exemplar association rules, not learned visual abstractions.
 // The owner supplies ONLY its own observed features. Canonical demonstration
 // authority belongs to the attachment; this module knows no object IDs or critic.
+import {createReferenceSymbolInventory} from './visual-reference-random.js';
 export const VISUAL_REFERENCE_MEMORY_LIMITS=Object.freeze({features:48,anchors:16,symbols:64,examples:4,match:.04,margin:.02,novel:.08});
 const L=VISUAL_REFERENCE_MEMORY_LIMITS;
 function features(value){
@@ -16,20 +17,13 @@ function unique(distances){
   const index=matching[0],runner=Math.min(...distances.filter((_,i)=>i!==index));
   return runner>=distances[index]+L.margin?index:null;
 }
-function symbols(seed){
-  let value=seed>>>0||1;
-  const random=()=>{value^=value<<13;value^=value>>>17;value^=value<<5;return(value>>>0)/4294967296;};
-  const result=Array.from({length:L.symbols},(_,i)=>i);
-  for(let i=result.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}
-  return Object.freeze(result);
-}
 function token(value){return !!value&&typeof value==='object';}
 function symbol(value){return Number.isInteger(value)&&value>=0&&value<L.symbols;}
 const increment=value=>Math.min(Number.MAX_SAFE_INTEGER,value+1);
 
-export function createVisualReferenceMemory({symbolSeed=1}={}){
+export function createVisualReferenceMemory({symbolSeed=1,symbolIdentity=0}={}){
   if(!Number.isInteger(symbolSeed)||symbolSeed<0||symbolSeed>0xffffffff)throw new TypeError('Expected uint32 symbol seed');
-  const inventory=symbols(symbolSeed),anchors=[],plans=new WeakMap(),partners=new Map();
+  const inventory=createReferenceSymbolInventory({seed:symbolSeed,identity:symbolIdentity}),anchors=[],plans=new WeakMap(),partners=new Map();
   let allowed=new Set(),revision=0;
   function planPair(input){
     const own=pair(input);if(!own)return {ok:false,reason:'invalid-features'};

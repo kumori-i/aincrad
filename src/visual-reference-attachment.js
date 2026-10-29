@@ -8,6 +8,7 @@ import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
 import { CONFIG } from './config.js';
 import { createVisualReferenceMemory } from './visual-reference-memory.js';
+import { createReferenceRandomStream } from './visual-reference-random.js';
 
 export const REFERENCE_LIMITS=Object.freeze({timeout:12,cooldown:12,featureDistance:.08,observationSeconds:.5,maxObservationStep:CONFIG.fixedStep,segmentLength:24,maxEvents:256});
 // Observation occurs at the real step endpoint. Never backdate sight into a
@@ -17,7 +18,6 @@ export function continuousReferenceStep(previousAt,at,paidSeconds,stepSeconds){
   const gap=at-previousAt;
   return fullReferenceSample(at,paidSeconds,stepSeconds)&&gap>0&&Math.abs(gap-stepSeconds)<=1e-8;
 }
-function stream(seed){let value=seed>>>0||1;return()=>{value^=value<<13;value^=value>>>17;value^=value<<5;return(value>>>0)/4294967296;};}
 function rms(a,b){return Math.sqrt(a.reduce((s,x,i)=>s+(x-b[i])**2,0)/a.length);}
 function awake(n){return n?.lifecycle==='AWAKE'&&!isSleeping(n);}
 function urgent(n){const b=bodySignals(n);return ['ravenous','faint with hunger'].includes(b.hunger)||['parched','desperate thirst'].includes(b.thirst)||b.energy==='depleted'||b.pain==='severe';}
@@ -28,7 +28,7 @@ function cropValid(c,n){return c&&c.epoch===n.epoch&&Number.isFinite(c.at)&&c.at
 export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
   if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
-  const pairRandom=stream(seed^0x526e5),targetRandom=stream(seed^0x156a9),orderRandom=stream(seed^0x77112),choiceRandom=stream(seed^0x3986a);
+  const pairRandom=createReferenceRandomStream({seed,purpose:'pair'}),targetRandom=createReferenceRandomStream({seed,purpose:'target'}),orderRandom=createReferenceRandomStream({seed,purpose:'order'}),choiceRandom=createReferenceRandomStream({seed,purpose:'choice'});
   const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet();
   const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0};
   let disposed=false,nextId=1,nextIdentity=1,auditReaderIssued=false,auditEnabled=false,auditRecord=null;
@@ -41,7 +41,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
     for(const actor of state.agents)if(!identities.has(actor)){
       const serial=nextIdentity++;
       identities.set(actor,{token:Object.freeze({}),serial,discovery:actor.discovery,physiology:actor.physiology,
-        memory:createVisualReferenceMemory({symbolSeed:(seed^Math.imul(serial,0x9e3779b9))>>>0})});
+        memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial})});
     }
     for(const [actor,entry]of identities)entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
   }
