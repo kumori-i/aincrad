@@ -1,10 +1,15 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 /** Staged native encounter, not autonomous discovery or travel evidence. */
 export async function createNamingUiFixture(moduleBase) {
   const use = name => import(new URL(`src/${name}.js`, moduleBase).href);
   const { CONFIG, NPC_RULES } = await use('config');
   const { senseEcology } = await use('ecology');
   const { createOzarkWorldGeometry } = await use('ozark-world-geometry');
-  const { createOzarkState, writeOzarkSave, OZARK_SAVE_KEY } = await use('ozark-save');
+  const { createOzarkState: rawCreateOzarkState, writeOzarkSave, OZARK_SAVE_KEY } = await use('ozark-save');
+  const {bindCommunicationMode}=await use('communication-mode');
+  const historicalState=s=>{for(const n of s.agents)bindCommunicationMode(n,'legacy');return s;};
+  const createOzarkState=(...args)=>historicalState(rawCreateOzarkState(...args));
   const { bindOzarkWorldAgent } = await use('ozark-agent-world');
   const { tickEnvironment } = await use('environment');
   const { tickOzarkEcology } = await use('ozark-ecology');
@@ -47,7 +52,7 @@ export async function createNamingUiFixture(moduleBase) {
     own = lexicalLabels(speaker).find(row => row.objectId === source.id && row.status === 'owner-chosen');
   }
   if (!own) throw new Error('Bounded fixed-target encounters did not produce a name; no favorable-outcome search performed');
-  const social = new SocialCoordinator({ getAgents: () => state.agents, getCommunity: () => state.community, getEnvironment: () => environment });
+  const social = new SocialCoordinator({communicationMode:'legacy', getAgents: () => state.agents, getCommunity: () => state.community, getEnvironment: () => environment });
   social.tick(.1);
   const heard = lexicalLabels(listener).find(row => row.objectId === source.id && row.speakerId === speaker.id);
   if (heard?.status !== 'heard-grounded') throw new Error('First local pointing did not ground a name: ' + JSON.stringify({safe:state.agents.map(n=>social.naming.safe(n)),ready:state.agents.map(n=>social.naming.ready(n)),source:source.id,own:speaker.lexicon,heard:listener.lexicon,messages:state.community.messages,clocks:[state.elapsed,...state.agents.map(n=>n.elapsed)]}));
@@ -79,7 +84,7 @@ export async function continueNamingUiFixture(moduleBase, storage, mode = 'compl
   for (const npc of state.agents) { bindOzarkWorldAgent(npc, geometry, state); observeNpc(npc, environment); }
   const heard = lexicalLabels(listener).find(row => row.status === 'heard-grounded');
   if (!heard) throw new Error('Missing grounded association');
-  const social = new SocialCoordinator({ getAgents: () => state.agents, getCommunity: () => state.community, getEnvironment: () => environment });
+  const social = new SocialCoordinator({communicationMode:'legacy', getAgents: () => state.agents, getCommunity: () => state.community, getEnvironment: () => environment });
   let observedPending = false;
   for (let i = 0; i < 400; i++) {
     tickEnvironment(environment, .25); tickOzarkEcology(environment.ecology, .25, environment, state.agents, {}, geometry);
@@ -131,7 +136,7 @@ export async function verifyInterruptedNamingUiFixture(moduleBase, storage) {
   if (loaded.blocked || !loaded.state) throw new Error(loaded.error || 'Missing interrupted naming save');
   const state = loaded.state, environment = state.environment;
   for (const n of state.agents) { bindOzarkWorldAgent(n, geometry, state); observeNpc(n, environment); }
-  const social = new SocialCoordinator({ getAgents: () => state.agents, getCommunity: () => state.community, getEnvironment: () => environment });
+  const social = new SocialCoordinator({communicationMode:'legacy', getAgents: () => state.agents, getCommunity: () => state.community, getEnvironment: () => environment });
   if (social.naming.pendingCount() !== 0) throw new Error('Pending check restored');
   const before = JSON.stringify(state.agents.map(n => n.lexicon)), messages = state.community.messages.length;
   for (let i = 0; i < 400; i++) {

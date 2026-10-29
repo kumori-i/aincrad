@@ -12,6 +12,19 @@ The owner explicitly does not require short autonomous learning trials to succee
 
 Desktop targets are Linux and macOS only. Do not add Windows compatibility or CI rows. Other Unix systems are unverified. Use host-architecture builds and report the architecture actually tested; do not imply signed/notarized macOS distribution. Preserve historical platform evidence as history.
 
+## Grounded communication transition
+
+The main population now uses immutable runtime-only grounded communication authority.
+Legacy English speech, journal/human instructions, semantic teaching/warnings, notes
+and model naming are archival/inert, including restored reports and late results.
+Historical fixtures explicitly opt into legacy behavior for reproducibility; do not
+expose that option in the app. Retain personally earned techniques, adverse outcomes
+and actual physical observation. Sharing uses supplied nonverbal consent gestures,
+not learned language. The Learning tab's English annotations are observer narration.
+No new reference task or reward change is part of this transition. Removing semantic
+channels changes complete agent behavior, so historical studies are not evidence
+for this new configuration; future experiments need a new reviewed frozen protocol.
+
 ## Authority and boundaries
 
 - ozark-world-geometry.js and its structural helpers own authoritative movement, collision and sight. Player and NPC adapters share that geometry.

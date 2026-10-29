@@ -1,6 +1,10 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createNpc=(...args)=>legacyFixture(rawcreateNpc(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createNpc } from '../src/npc-state.js';
+import { createNpc as rawcreateNpc } from '../src/npc-state.js';
 import { NpcController, DesktopModelProvider, LocalLearnerProvider, decisionObservation } from '../src/controller.js';
 import { ingestVisualSamples } from '../src/visual-group-memory.js';
 import { namingProposal } from '../src/category-names.js';
@@ -16,12 +20,12 @@ const cues={shape:'tuft with narrow blades',color:'green',texture:'fibrous'};
 function fixture(){
   const n=createNpc({mode:'discovery'}),calls=[];let cancelled=0;
   const provider={kind:'local-model',label:'Scripted naming fixture, not live inference',proposeName(request){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});calls.push({request,resolve,reject});return promise;},cancel(){cancelled++;}};
-  const c=new NpcController(n,{provider,deferInitialObservation:true});
+  const c=new NpcController(n,{communicationMode:'legacy',provider,deferInitialObservation:true});
   const sample=(at=2,id=675,appearance=cues)=>{n.elapsed=at;ingestVisualSamples(n,[{id:`object:${id}`,appearance,scene:n.scene,position:{...n.position}}]);};
   sample(1);sample(2);
   return {n,c,calls,sample,provider,cancelled:()=>cancelled};
 }
-const physical=n=>structuredClone({physiology:n.physiology,inventory:n.inventory,effects:n.discovery.effects,techniques:n.discovery.techniques,experiments:n.discovery.experiments,practice:n.discovery.practice});
+const physical=n=>historicalClone({physiology:n.physiology,inventory:n.inventory,effects:n.discovery.effects,techniques:n.discovery.techniques,experiments:n.discovery.experiments,practice:n.discovery.practice});
 
 test('desktop provider forwards only the naming evidence through the dedicated bridge',async()=>{
   let received,cancelled;const bridge={proposeName:request=>{received=request;return reply;},cancel:id=>cancelled=id};
@@ -45,7 +49,7 @@ test('ordinary controller perception applies a mid-sense reply on the next sense
   e.ecology.plants=[plant];e.ecology.animals=[];e.ecology.materials=[];
   n.position=[{x:plant.position.x+45,y:plant.position.y},{x:plant.position.x-45,y:plant.position.y}].find(p=>canStand(p.x,p.y,'valley'));assert.ok(n.position);n.nextDecisionAt=1e8;
   let resolve,calls=0;const provider={kind:'local-model',proposeName:()=>{calls++;return new Promise(r=>resolve=r);},cancel(){}};
-  const c=new NpcController(n,{provider,environment:e});
+  const c=new NpcController(n,{communicationMode:'legacy',provider,environment:e});
   for(let i=0;i<30&&!c.namingPending;i++)c.tick(.05);
   assert.equal(calls,1);const sense=c.senseAt,metabolic=n.physiology.totals.metabolizedKcal;
   for(let i=0;i<5;i++)c.tick(.05);assert.ok(n.elapsed>sense);assert.equal(c.senseAt,sense);

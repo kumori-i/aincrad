@@ -17,6 +17,10 @@ test('native fixture exercises real renewal and paid transfer, roundtrips their 
   assert.equal(stored.features.finiteAquatic, 2);
   assert.equal(summary.renewalVerified, true);
   assert.equal(summary.timedHandoffVerified, true);
+  assert.equal(summary.groundedGesturesVerified, true);
+  assert.deepEqual(summary.gestures.map(row=>row.gesture),['offer','accept','offer']);
+  assert.equal(summary.transfer.offer.message, undefined);
+  assert.equal(stored.community.messages.length,0);
   assert.equal(summary.reproductionExercised, false);
   assert.equal(summary.growthExercised, false);
   assert.ok(summary.aquatic.final.primaryProducedKcal > summary.aquatic.initial.primaryProducedKcal);
@@ -48,6 +52,7 @@ test('native fixture exercises real renewal and paid transfer, roundtrips their 
   const social = new SocialCoordinator({getAgents:()=>loaded.state.agents,getCommunity:()=>loaded.state.community,
     getEnvironment:()=>loaded.state.environment});
   const pendingReceiver = loaded.state.agents.find(row => row.id === pending.receiverId);
+  assert.deepEqual(social.foodSharing.gestures(),[],'Observer history does not persist or recreate consent');
   assert.deepEqual(social.observe(pendingReceiver).foodSharing, {requests:[],offers:[]});
   assert.equal(social.action(pendingReceiver, {type:'accept_food',offerId:pending.offerId}).ok, false);
 });

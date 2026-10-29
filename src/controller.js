@@ -1,3 +1,4 @@
+import { bindCommunicationMode, defineCommunicationMode, legacyCommunication } from './communication-mode.js';
 import { namingProposal, beginNamingProposal, acceptNamingProposal, objectName } from './category-names.js';
 import { forwardNpcRunTravel } from './npc-effort-funding.js';
 import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
@@ -144,7 +145,7 @@ export class DesktopModelProvider {
   cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false,experimentalDiscovery=null}={}){this.experimentalDiscovery=experimentalDiscovery;this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false,experimentalDiscovery=null,communicationMode=social?.communicationMode||'grounded'}={}){defineCommunicationMode(this,communicationMode);bindCommunicationMode(npc,this.communicationMode);this.experimentalDiscovery=experimentalDiscovery;this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;if(this.namingPending)this.namingStatus={state:'cancelled',at:this.npc.elapsed};this.namingPending=null;this.readyDecision=null;this.provider.cancel?.();}
   setDiscoveryCandidateCapture(enabled){setDiscoveryCandidateCapture(this,enabled);}
@@ -220,6 +221,7 @@ export class NpcController {
   // Naming is an optional inert side channel. Bodily life and the physical
   // decision loop never wait for it, and no proposal is a runnable action.
   maybeName(){
+    if(!legacyCommunication(this.npc))return;
     const n=this.npc,provider=this.provider;
     if(this.disposed||n.mode!=='discovery'||n.learning!==true||!namingAwake(n)||provider.kind!=='local-model'||
       typeof provider.proposeName!=='function'||this.pending||this.namingPending||n.elapsed-this.namingLastAttemptAt<60)return;
@@ -229,7 +231,7 @@ export class NpcController {
     const pending={request,generation:this.generation,epoch:n.epoch,provider,npc:n};
     this.namingPending=pending;this.namingStatus={state:'pending',at:n.elapsed};n.stats.modelCalls++;
     let call;try{call=provider.proposeName(request);}catch(error){call=Promise.reject(error);}
-    const current=()=>!this.disposed&&this.namingPending===pending&&this.npc===n&&this.provider===provider&&
+    const current=()=>legacyCommunication(n)&&!this.disposed&&this.namingPending===pending&&this.npc===n&&this.provider===provider&&
       this.generation===pending.generation&&n.epoch===pending.epoch&&n.learning===true&&namingAwake(n)&&
       n.elapsed>=request.observedAt&&n.elapsed-request.observedAt<=60;
     pending.current=current;
@@ -245,6 +247,7 @@ export class NpcController {
     }).finally(()=>{if(this.namingPending===pending&&!pending.received){this.namingPending=null;if(this.namingStatus.state==='pending')this.namingStatus={state:'discarded',at:n.elapsed};}});
   }
   finishNaming(){
+    if(!legacyCommunication(this.npc)){this.namingPending=null;return;}
     const pending=this.namingPending;
     if(!pending?.received)return;
     const current=pending.current();this.namingPending=null;
@@ -261,20 +264,20 @@ export class NpcController {
     if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.social?.observe?.(n);this.senseAt=n.elapsed;this.finishNaming();this.maybeName();}
     const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}
     // Dialogue inference runs alongside bodily life; it cannot select an experiment.
-    if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;const action=ready.decision?.action;if(ready.generation===this.generation&&ready.epoch===n.epoch&&['ask_human','journal_reply'].includes(action?.type))this.perform({...action,model:true});else recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});}
+    if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;const action=ready.decision?.action;if(legacyCommunication(n)&&ready.generation===this.generation&&ready.epoch===n.epoch&&['ask_human','journal_reply'].includes(action?.type))this.perform({...action,model:true});else recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});}
     if(n.active||n.elapsed<n.nextDecisionAt)return;
     // A volunteered handover briefly keeps the donor's hands available. Body,
     // contact and water safety still run; consent and this pause are not saved.
     if(this.social?.foodSharing?.holding(n))return;
     const exchange=this.social?.foodSharing?.choose(n);
     if(exchange){this.perform({...exchange,offline:true});return;}
-    if(n.elapsed-n.discovery.lastDialogueAt>=12){
+    if(legacyCommunication(n)&&n.elapsed-n.discovery.lastDialogueAt>=12){
       const dialogue=this.social?.maybeDialogue?.(n);
       if(dialogue){
         n.discovery.lastDialogueAt=n.elapsed;
         if(this.provider.kind==='local-model'&&['journal_reply','ask_human'].includes(dialogue.type)&&!this.pending&&!this.namingPending&&n.elapsed>=this.cooldownUntil){
           const generation=this.generation,epoch=n.epoch;n.stats.modelCalls++;this.pending={at:n.elapsed};
-          Promise.resolve().then(()=>this.provider.decide(n,{social:this.social})).then(decision=>{if(!this.disposed&&generation===this.generation&&epoch===n.epoch)this.readyDecision={decision,generation,epoch};}).catch(error=>{if(generation===this.generation){n.stats.modelFailures++;this.cooldownUntil=n.elapsed+30;recordEvent(n,'provider',{code:'MODEL_SERVICE_FAILURE',message:String(error.message||error).slice(0,200)});}}).finally(()=>{if(generation===this.generation)this.pending=null;});
+          Promise.resolve().then(()=>this.provider.decide(n,{social:this.social})).then(decision=>{if(legacyCommunication(n)&&!this.disposed&&generation===this.generation&&epoch===n.epoch)this.readyDecision={decision,generation,epoch};}).catch(error=>{if(generation===this.generation){n.stats.modelFailures++;this.cooldownUntil=n.elapsed+30;recordEvent(n,'provider',{code:'MODEL_SERVICE_FAILURE',message:String(error.message||error).slice(0,200)});}}).finally(()=>{if(generation===this.generation)this.pending=null;});
         }else {this.perform({...dialogue,offline:true});return;}
       }
     }

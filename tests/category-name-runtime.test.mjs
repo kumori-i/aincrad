@@ -1,8 +1,13 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, SOCIAL_RULES } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, writeOzarkSave, loadOzarkSave } from '../src/ozark-save.js';
+import { createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { bindOzarkEcology } from '../src/ozark-ecology.js';
 import { observeNpc } from '../src/npc.js';
@@ -12,7 +17,7 @@ import { namingProposal, beginNamingProposal, acceptNamingProposal, categoryLabe
 import { visualSampleCurrent } from '../src/visual-group-memory.js';
 
 const geometry = createOzarkWorldGeometry();
-const clone = structuredClone;
+const clone = value=>legacyFixture(historicalClone(value));
 const equalPoint = (a, b) => a.x === b.x && a.y === b.y;
 const baseline = createOzarkState(geometry);
 
@@ -47,7 +52,7 @@ function fixture({fresh = false} = {}) {
   const time = at => { state.elapsed = e.elapsed = e.ecology.elapsed = at; for (const n of state.agents) n.elapsed = at; };
   time(60);
   for (const n of state.agents) bindOzarkWorldAgent(n, g, state);
-  const social = new SocialCoordinator({getAgents:() => state.agents, getEnvironment:() => e, getCommunity:() => state.community});
+  const social = new SocialCoordinator({communicationMode:'legacy',getAgents:() => state.agents, getEnvironment:() => e, getCommunity:() => state.community});
   const runtime = new CategoryNameRuntime(social);
   const sample = (n = null) => { for (const actor of n ? [n] : state.agents) observeNpc(actor, e); };
   const name = () => {
@@ -155,7 +160,7 @@ test('strict save roundtrip keeps own/heard examples but cannot replay pending a
   const state = loaded.state, [a, b] = state.agents;
   assert.deepEqual(a.categoryNames, f.a.categoryNames); assert.deepEqual(b.categoryNames, f.b.categoryNames);
   assert.equal(visualSampleCurrent(b, b.categoryNames.heard[0].example.objectId), false);
-  const social = new SocialCoordinator({getAgents:() => state.agents, getEnvironment:() => state.environment, getCommunity:() => state.community});
+  const social = new SocialCoordinator({communicationMode:'legacy',getAgents:() => state.agents, getEnvironment:() => state.environment, getCommunity:() => state.community});
   const runtime = new CategoryNameRuntime(social), before = state.community.messages.length;
   assert.equal(runtime.pendingCount(), 0); runtime.tick();
   assert.equal(state.community.messages.length, before);

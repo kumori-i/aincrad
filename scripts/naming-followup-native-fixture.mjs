@@ -1,3 +1,5 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 /** Pure projection serialized into the native runner. Lexical/social evidence,
  * all clocks and physical action history are retained, not only a status flag. */
 export function namingFollowupEvidence(state) {
@@ -14,7 +16,11 @@ export async function createNamingFollowupScene(moduleBase,projectEvidence) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {CONFIG,NPC_RULES}=await use('config');
   const {createOzarkWorldGeometry}=await use('ozark-world-geometry');
-  const {createOzarkState,writeOzarkSave,loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {createOzarkState: rawCreateOzarkState,writeOzarkSave,loadOzarkSave: rawLoadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {bindCommunicationMode}=await use('communication-mode');
+  const historicalState=s=>{for(const n of s.agents)bindCommunicationMode(n,'legacy');return s;};
+  const createOzarkState=(...args)=>historicalState(rawCreateOzarkState(...args));
+  const loadOzarkSave=(...args)=>{const result=rawLoadOzarkSave(...args);if(result.state)historicalState(result.state);return result;};
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
   const {tickEnvironment}=await use('environment');
   const {tickOzarkEcology}=await use('ozark-ecology');
@@ -58,8 +64,8 @@ export async function createNamingFollowupScene(moduleBase,projectEvidence) {
     own=lexicalLabels(speaker).find(row=>row.objectId===source.id&&row.status==='owner-chosen');
   }
   require(own,'Bounded fixed encounters produced no name; no favorable seed search');
-  runtime=new PopulationRuntime(state,{cardinal:false});
-  const summary={fixtureDisclosure:'Controlled initial placement at the first physically eligible local source and up to four real paid inspections. Legacy seeded-name fixture explicitly invoked after the paid encounter; no supplied confirmation or experience. Not current model inference. Ordinary PopulationRuntime drives all subsequent introduction and follow-up turns with world, ecology and body time continuing. This is not spontaneous travel, general language or survival evidence.',
+  runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false});
+  const summary={fixtureDisclosure:'Explicit historical legacy-channel regression, not default-main language. Controlled initial placement at the first physically eligible local source and up to four real paid inspections. Legacy seeded-name fixture explicitly invoked after the paid encounter; no supplied confirmation or experience. Not current model inference. Ordinary PopulationRuntime drives all subsequent introduction and follow-up turns with world, ecology and body time continuing. This is not spontaneous travel, general language or survival evidence.',
     actorId:listener.id,speakerId:speaker.id,sourceObjectId:source.id,token:own.token,inspections,beforeEncounter,afterEncounter:project()};
   const binding=()=>listener.lexicon?.heard.find(row=>row.speakerId===speaker.id&&row.objectId===source.id&&row.token===own.token);
   const ground=()=>{
@@ -135,7 +141,7 @@ export async function checkNamingFollowupReload(moduleBase,raw){
   if(loaded.blocked)throw new Error(loaded.error);
   const state=loaded.state,environment=state.environment;
   for(const n of state.agents){bindOzarkWorldAgent(n,geometry,state);observeNpc(n,environment);}
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>environment,getCommunity:()=>state.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getEnvironment:()=>environment,getCommunity:()=>state.community});
   if(social.naming.opportunityCount()||social.naming.pendingCount())throw new Error('Runtime naming authority restored');
   const before=JSON.stringify(state.agents.map(n=>n.lexicon)),messages=JSON.stringify(state.community.messages);
   for(let i=0;i<160;i++){

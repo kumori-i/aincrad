@@ -84,11 +84,12 @@
       <p class="small">Fish stocks are finite; aquatic feeding and reproduction are not implemented. No time passes while the app is closed. Opening a map, journal, or another desktop window does not pause the world.</p>
       <button id="close-help" class="primary">Back to exploring ↗</button></div></section>
 
-    <aside id="npc-panel" class="npc-panel hidden" aria-label="Characters and conversation journal">
+    <aside id="npc-panel" class="npc-panel hidden" aria-label="Characters and learning">
       <header><div><div class="eyebrow">TWO PERSISTENT LIVES</div><h2><span id="npc-name" class="character-name">Aster</span> <span id="npc-lifecycle">AWAKE</span></h2></div><button id="close-npc" class="close">Close <kbd>N</kbd></button></header>
-      <div class="journal-controls"><label for="npc-select">Character</label><select id="npc-select"><option value="aster">Aster</option><option value="mira">Mira</option></select><nav class="journal-tabs" aria-label="Journal sections"><button id="npc-tab-character" data-tab="character" aria-pressed="true">Her day</button><button id="npc-tab-conversation" data-tab="conversation" aria-pressed="false">Conversation <span id="journal-unread"></span></button><button id="npc-tab-notes" data-tab="notes" aria-pressed="false">Field notes</button></nav></div>
+      <div class="journal-controls"><label for="npc-select">Character</label><select id="npc-select"><option value="aster">Aster</option><option value="mira">Mira</option></select><nav class="journal-tabs" aria-label="Journal sections"><button id="npc-tab-character" data-tab="character" aria-pressed="true">Her day</button><button id="npc-tab-conversation" data-tab="conversation" aria-pressed="false">Learning <span id="journal-unread"></span></button><button id="npc-tab-notes" data-tab="notes" aria-pressed="false">Archive</button></nav></div>
       <div class="npc-panel-body">
         <section id="journal-character">
+          <p id="npc-observer-disclosure" class="small">Observer/debug narration: English descriptions of needs, actions, plans and memory below are supplied interface labels, not agent speech or learned words.</p>
           <div class="npc-feelings"><div class="eyebrow">HOW SHE FEELS</div><p id="npc-feelings"></p><div id="npc-body-list" class="subjective-body"></div><p id="npc-environment" class="small"></p></div>
           <p id="npc-expedition-mode" class="small expedition-mode"></p><div class="npc-inventory"><span>Flask <b id="npc-flask"></b></span><div id="npc-carried-items" class="hidden"></div></div>
           <button id="follow-npc" class="secondary">Follow Aster</button>

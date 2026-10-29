@@ -81,3 +81,9 @@ test('losing an attached learner clears previous successful diagnostic values', 
   for (const id of ['communication-message', 'communication-counts', 'communication-elapsed']) assert.match(f.$(id).textContent, /Unavailable/);
   f.api.dispose();
 });
+test('production shortcut opens the existing NPC Learning tab without a modal, renderer or new timer',()=>{
+  let opened=0,visible=false;
+  const f=fixture({openLearning(){opened++;visible=true;},closeLearning(){visible=false;},learningVisible:()=>visible,createRenderer(){throw Error('No duplicate renderer');}});
+  const before=structuredClone(f.state);assert(f.api.open());assert.equal(opened,1);assert(f.api.active());assert.equal(f.frames.size,0);assert.equal(f.$('communication-dialog').open,undefined);assert.equal(f.api.status().paused,true);
+  f.api.close();assert(!f.api.active());assert.deepEqual(f.state,before);f.api.dispose();assert(!f.api.open());
+});

@@ -1,9 +1,14 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import { chooseOwnName } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG,SOCIAL_RULES } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState,writeOzarkSave,loadOzarkSave,OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { createOzarkState as rawcreateOzarkState,writeOzarkSave,loadOzarkSave as rawloadOzarkSave,OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { observeNpc,requestNpcAction,tickNpc } from '../src/npc.js';
 import { SocialCoordinator } from '../src/social.js';
@@ -22,7 +27,7 @@ function fixture({unique=true,legacyGround=false}={}){
     [45,65].every(dx=>geometry.canOccupy(p.position.x+dx,p.position.y,CONFIG.playerRadius)&&geometry.lineOfSight({x:p.position.x+dx,y:p.position.y},p.position)));
   assert.ok(source);
   for(const [n,dx] of [[a,45],[b,65]]){n.elapsed=60;n.position={x:source.position.x+dx,y:source.position.y};bindOzarkWorldAgent(n,g,state);observeNpc(n,e);}
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>e,getCommunity:()=>state.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getEnvironment:()=>e,getCommunity:()=>state.community});
   const advance=seconds=>{for(let t=0;t<seconds-1e-8;t+=.1){e.elapsed+=.1;state.elapsed=e.elapsed;e.ecology.elapsed=e.elapsed;for(const n of state.agents)tickNpc(n,.1,e);}};
   const inspect=n=>{assert.equal(requestNpcAction(n,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');for(let i=0;n.active&&i<50;i++)advance(.1);assert.equal(n.lastResult.code,'OBJECT_OBSERVED');
     // Explicit legacy-save fixture only; production no longer seeds names.
@@ -32,7 +37,7 @@ function fixture({unique=true,legacyGround=false}={}){
   return {state,a,b,e,source,social,advance,inspect,name,step,g,setVisible:v=>visible=v};
 }
 const storage=()=>{const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};};
-function physical(f){return structuredClone(f.state.agents.map(n=>({rng:n.rng,inventory:n.inventory,physiology:n.physiology,experiments:n.discovery.experiments,practice:n.discovery.practice,effects:n.discovery.effects,techniques:n.discovery.techniques})));}
+function physical(f){return historicalClone(f.state.agents.map(n=>({rng:n.rng,inventory:n.inventory,physiology:n.physiology,experiments:n.discovery.experiments,practice:n.discovery.practice,effects:n.discovery.effects,techniques:n.discovery.techniques})));}
 function confirm(f){f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();assert.equal(f.social.naming.pendingCount(),1);f.advance(.1);f.step();f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();}
 
 test('legacy paid-encounter fixture preserves individual naming compatibility and physical RNG',()=>{
@@ -81,7 +86,7 @@ test('pending reference restart clears handshake, retains labels, and never comp
   const s=loaded.state,[a,b]=s.agents;
   assert.equal(b.lexicon.heard[0].confirmation,null);assert.equal(a.lexicon.own[0].checkedWith.length,1);
   assert.equal(resolveName(b,own.token,a.id,[]),null);
-  const social=new SocialCoordinator({getAgents:()=>s.agents,getEnvironment:()=>s.environment,getCommunity:()=>s.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>s.agents,getEnvironment:()=>s.environment,getCommunity:()=>s.community});
   assert.equal(social.naming.pendingCount(),0);social.naming.tick();assert.equal(b.lexicon.heard[0].confirmation,null);
   f.social.dispose();assert.equal(f.social.naming.pendingCount(),0);
 });
@@ -103,7 +108,7 @@ test('speaker must independently resolve the returned gesture, not trust listene
 });
 test('confirmed names survive observation eviction without rebuilding sight or action authority',()=>{
   const f=fixture(),own=f.name(f.a);f.step();confirm(f);
-  const binding=structuredClone(f.b.lexicon);f.b.discovery.observations={};f.b.social.heard=[];
+  const binding=historicalClone(f.b.lexicon);f.b.discovery.observations={};f.b.social.heard=[];
   assert.deepEqual(f.b.lexicon,binding);assert.equal(validLexicon(f.b.lexicon,f.b),true);
   assert.equal(resolveName(f.b,own.token,f.a.id,[]),null);
   const disk=storage();assert.equal(writeOzarkSave(disk,f.state,f.g),true);
@@ -139,7 +144,7 @@ test('ambiguous pointing and clarified unresolved word retain consumed opportuni
   const loaded=loadOzarkSave(disk,f.g);assert.equal(loaded.blocked,false,loaded.error);f.social.dispose();
   const state=loaded.state;for(const n of state.agents){bindOzarkWorldAgent(n,f.g,state);observeNpc(n,state.environment);}
   const before=JSON.stringify(state.agents.map(n=>n.lexicon)),messages=state.community.messages.length;
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>state.environment,getCommunity:()=>state.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getEnvironment:()=>state.environment,getCommunity:()=>state.community});
   for(let i=0;i<400;i++){state.environment.elapsed+=.1;state.environment.ecology.elapsed=state.environment.elapsed;state.elapsed=state.environment.elapsed;for(const n of state.agents)tickNpc(n,.1,state.environment);social.tick(.1);}
   assert.equal(JSON.stringify(state.agents.map(n=>n.lexicon)),before);assert.equal(state.community.messages.length,messages);assert.equal(social.naming.pendingCount(),0);
 });
@@ -174,7 +179,7 @@ test('ground-only safety preserves full state and pending cancellation before co
         assert.equal(f.social.naming.pendingCount(), reason === 'none' ? 1 : 0, `${phase}: ${reason}`);
         assert.equal(f.state.community.messages.length, messages);
         assert.equal(f.b.lexicon.heard[0].confirmation, null);
-        const result = structuredClone(f.state);
+        const result = historicalClone(f.state);
         f.social.dispose();
         return result;
       };
@@ -187,7 +192,7 @@ test('ground-only safety leaves the complete successful lexical protocol state u
   const run = legacyGround => {
     const f = fixture({legacyGround}); f.name(f.a); f.step(); confirm(f);
     assert.ok(f.b.lexicon.heard[0].confirmation);
-    const state = structuredClone(f.state); f.social.dispose(); return state;
+    const state = historicalClone(f.state); f.social.dispose(); return state;
   };
   assert.deepEqual(run(false), run(true));
 });

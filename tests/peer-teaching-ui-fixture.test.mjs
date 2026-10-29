@@ -35,3 +35,14 @@ test('native teaching UI fixture contains earned sender proof and reloadable nai
   assert.deepEqual(fixture.summary.report.evidence, []);
   assert.deepEqual(fixture.summary.report.proposed.map(step => step.type), ['pull', 'sample']);
 });
+
+
+test('native main acceptance inspects learned stream and archival provenance, never reenables English', () => {
+  const source=presentPeerTeachingUi.toString();
+  assert.match(source,/stage === 'learning'/);
+  assert.match(source,/Observer annotations, not agent speech/);
+  assert.match(source,/Archived teaching leaked into live learned communication/);
+  assert.match(source,/English communication disabled/);
+  assert.match(source,/archival and inert/);
+  assert.doesNotMatch(source,/Missing actual sender message/);
+});

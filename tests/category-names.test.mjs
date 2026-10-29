@@ -1,13 +1,16 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ingestVisualSamples } from '../src/visual-group-memory.js';
 import { namingProposal, beginNamingProposal, acceptNamingProposal, categoryLabels, objectName, namedObject, resolveCategoryName, validCategoryNames, recordCategoryGrounding, validCategoryCorrespondence, CATEGORY_ATTEMPT_LIMIT } from '../src/category-names.js';
 const cues = {shape:'tuft · narrow blades', color:'green', texture:'fibrous'};
-const make = (id='aster') => ({id, seed:42, rng:99, mode:'discovery', learning:true, lifecycle:'AWAKE', elapsed:0, scene:'valley',position:{x:0,y:0},discovery:{observations:{},effects:[],experiments:[],techniques:[]},memory:{experience:[]},social:{heard:[]},inventory:{items:[]}});
+const make = (id='aster') => legacyFixture({id, seed:42, rng:99, mode:'discovery', learning:true, lifecycle:'AWAKE', elapsed:0, scene:'valley',position:{x:0,y:0},discovery:{observations:{},effects:[],experiments:[],techniques:[]},memory:{experience:[]},social:{heard:[]},inventory:{items:[]}});
 const object = (id=675, appearance=cues) => ({id:`object:${id}`,scene:'valley',position:{x:20,y:0},appearance});
 const sample = (n,at,objects=[object()]) => {n.elapsed=at;ingestVisualSamples(n,objects);};
 function propose(n, token='velora') {const request=namingProposal(n);assert.ok(request);assert.equal(beginNamingProposal(n,request),true);assert.equal(acceptNamingProposal(n,request,{token,model:'mock-only:not-real-inference'}),true);return request;}
-const effectState = n => structuredClone({effects:n.discovery.effects,experiments:n.discovery.experiments,techniques:n.discovery.techniques,inventory:n.inventory,rng:n.rng,memory:n.memory});
+const effectState = n => historicalClone({effects:n.discovery.effects,experiments:n.discovery.experiments,techniques:n.discovery.techniques,inventory:n.inventory,rng:n.rng,memory:n.memory});
 const event = (num=1,at=1) => ({messageId:`message:${num}`,at,scene:'valley',speakerPosition:{x:0,y:0},listenerPosition:{x:0,y:0},objectPosition:{x:20,y:0}});
 
 test('mock model token is reused for three separately observed tufts without changing safety or exact identities',()=>{
@@ -20,7 +23,7 @@ test('mock model token is reused for three separately observed tufts without cha
  assert.equal(resolveCategoryName(n,'velora','aster',[objects[0]]),'object:675');
 });
 test('appearance change, missing cues and one-sighting replacement withdraw membership, not historical evidence',()=>{
- const n=make();sample(n,0);sample(n,1);propose(n);const historical=structuredClone(n.categoryNames);
+ const n=make();sample(n,0);sample(n,1);propose(n);const historical=historicalClone(n.categoryNames);
  sample(n,2,[object(675,{...cues,color:'brown'}),object(900)]);assert.equal(objectName(n,'object:675'),null);assert.equal(objectName(n,'object:900'),null);
  assert.deepEqual(n.categoryNames,historical);sample(n,3,[object(675,{...cues,color:'brown'}),object(900)]);
  assert.equal(objectName(n,'object:900').token,'velora');assert.notEqual(namingProposal(n)?.example.cues.color,'green');
@@ -39,8 +42,8 @@ test('only live admitted requests can apply; changed-away-and-back, copied reque
   const n=make();sample(n,0);sample(n,1);const request=namingProposal(n);beginNamingProposal(n,request);
   let target=n,r=request;
   if(alteration==='changed'){sample(n,2,[object(675,{...cues,color:'brown'})]);sample(n,3);sample(n,4);}
-  if(alteration==='copy')r=structuredClone(request);
-  if(alteration==='reload'){target=structuredClone(n);sample(target,2);}
+  if(alteration==='copy')r=historicalClone(request);
+  if(alteration==='reload'){target=historicalClone(n);sample(target,2);}
   if(alteration==='duplicate')assert.equal(acceptNamingProposal(n,request,{token:'velora',model:'mock'}),true);
   if(alteration==='age')sample(n,62);
   assert.equal(acceptNamingProposal(target,r,{token:'velora',model:'mock'}),false,alteration);
@@ -49,7 +52,7 @@ test('only live admitted requests can apply; changed-away-and-back, copied reque
 test('invalid/abstaining model proposals cannot mutate labels; admissions prevent repeat requests even after restore',()=>{
  for(const response of [{token:null,model:'mock'},{token:'safe',model:'mock'},{token:'fish',model:'mock'},{token:'velora',model:'mock',action:'eat'},{token:'velora',model:''},{token:'velora',model:'a\nb'}]){
   const n=make();sample(n,0);sample(n,1);const r=namingProposal(n);beginNamingProposal(n,r);assert.equal(acceptNamingProposal(n,r,response),false);assert.equal(n.categoryNames.own.length,0);assert.equal(namingProposal(n),null);
-  const reopened=structuredClone(n);sample(reopened,2);assert.equal(namingProposal(reopened),null);
+  const reopened=historicalClone(n);sample(reopened,2);assert.equal(namingProposal(reopened),null);
  }
 });
 test('existing attributed private vocabulary is supplied, not another agent dictionary or engine metadata',()=>{
@@ -73,9 +76,9 @@ test('same text, stale samples, wrong speaker and ambiguous meaning cannot groun
  sample(b,0);sample(b,1);b.elapsed=2;a.elapsed=2;assert.equal(recordCategoryGrounding(a,b,a.categoryNames.own[0],'object:675',event(1,2)),false);
 });
 test('strict optional vocabulary rejects extra fields, inconsistent admissions, tampered examples and chronology',()=>{
- const n=make();sample(n,0);sample(n,1);propose(n);const good=structuredClone(n.categoryNames);assert.equal(validCategoryNames(good,n),true);
- for(const change of [s=>s.version=2,s=>s.ownerId='mira',s=>s.extra=true,s=>s.own[0].action='eat',s=>s.own[0].token='safe',s=>s.own[0].model='\n',s=>s.own[0].example.times=[1,1],s=>s.own[0].example.objectId='object:99',s=>s.own[0].cues.material='hidden',s=>s.own[0].requestAt=2,s=>s.admissions=[],s=>s.admissions.push(structuredClone(s.admissions[0])),s=>s.own.push(structuredClone(s.own[0]))]){
-  const bad=structuredClone(good);change(bad);assert.equal(validCategoryNames(bad,n),false);
+ const n=make();sample(n,0);sample(n,1);propose(n);const good=historicalClone(n.categoryNames);assert.equal(validCategoryNames(good,n),true);
+ for(const change of [s=>s.version=2,s=>s.ownerId='mira',s=>s.extra=true,s=>s.own[0].action='eat',s=>s.own[0].token='safe',s=>s.own[0].model='\n',s=>s.own[0].example.times=[1,1],s=>s.own[0].example.objectId='object:99',s=>s.own[0].cues.material='hidden',s=>s.own[0].requestAt=2,s=>s.admissions=[],s=>s.admissions.push(historicalClone(s.admissions[0])),s=>s.own.push(historicalClone(s.own[0]))]){
+  const bad=historicalClone(good);change(bad);assert.equal(validCategoryNames(bad,n),false);
  }
 });
 test('bounded attempts saturate without evicting old nonretry admissions',()=>{
@@ -108,13 +111,13 @@ test('legacy same-cue individual names are preserved, not reinterpreted as categ
   n.memory.experience.push({id:i,type:'action',at:n.elapsed,details:{action:{type:'inspect_object',targetId:e.targetId},result:{ok:true,code:e.code,durationSeconds:1.8,handling:{source:'experienced',activeActionSeconds:1.8,effort:'steady'}}}});
   own=chooseOwnName(n,e,{objectId:e.targetId,at:n.elapsed,scene:'valley',actorPosition:{...n.position},objectPosition:{x:20,y:0}});
  }
- assert.ok(own);const legacy=structuredClone(n.lexicon);assert.equal(objectName(n,'object:675').source,'individual');assert.equal(objectName(n,'object:669'),null);
+ assert.ok(own);const legacy=historicalClone(n.lexicon);assert.equal(objectName(n,'object:675').source,'individual');assert.equal(objectName(n,'object:669'),null);
  const r=namingProposal(n);assert.deepEqual(r.individualNames,[{token:own.token,objectId:'object:675',speakerId:'aster'}]);assert.equal(beginNamingProposal(n,r),true);
  assert.equal(acceptNamingProposal(n,r,{token:own.token,model:'mock'}),false);assert.deepEqual(n.lexicon,legacy);assert.deepEqual(categoryLabels(n),[]);
 });
 
  test('public category projections cannot mutate retained examples, cues or admissions',()=>{
- const n=make();sample(n,0);sample(n,1);propose(n);const before=structuredClone(n.categoryNames),rows=categoryLabels(n);
+ const n=make();sample(n,0);sample(n,1);propose(n);const before=historicalClone(n.categoryNames),rows=categoryLabels(n);
  rows[0].cues.color='red';rows[0].examples[0].times[0]=500;rows[0].members[0].objectId='object:8';
  assert.deepEqual(n.categoryNames,before);assert.equal(rows[0].announcedTo,undefined);
  });
@@ -130,8 +133,8 @@ test('legacy same-cue individual names are preserved, not reinterpreted as categ
  test('overlapping retained sensory times cannot contradict own or heard category examples',()=>{
  const a=make(),b=make('mira');sample(a,0);sample(a,1);propose(a);sample(b,0);sample(b,1);
  assert.equal(recordCategoryGrounding(a,b,a.categoryNames.own[0],'object:675',event()),true);
- const bad=structuredClone(a.categoryNames);bad.admissions[0].cues.color='red';bad.own[0].cues.color='red';
- assert.equal(validCategoryNames(bad,a),false);const badHeard=structuredClone(b.categoryNames);badHeard.heard[0].cues.color='red';assert.equal(validCategoryNames(badHeard,b),false);
+ const bad=historicalClone(a.categoryNames);bad.admissions[0].cues.color='red';bad.own[0].cues.color='red';
+ assert.equal(validCategoryNames(bad,a),false);const badHeard=historicalClone(b.categoryNames);badHeard.heard[0].cues.color='red';assert.equal(validCategoryNames(badHeard,b),false);
  sample(a,2,[object(675,{...cues,color:'brown'})]);sample(b,2,[object(675,{...cues,color:'brown'})]);
  assert.equal(validCategoryNames(a.categoryNames,a),true,'nonoverlapping later observations preserve truthful old evidence');
  assert.equal(validCategoryNames(b.categoryNames,b),true);

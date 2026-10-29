@@ -16,13 +16,13 @@ import { tickDiscoveryAction } from '../src/discovery-actions.js';
 const geometry=createOzarkWorldGeometry();
 // Static stock/encounter fixture: only actor bodies/actions advance. Align the
 // save envelope clock explicitly; native ecology evidence is tested separately.
-function fixture({lineOfSightGate=null}={}){
+function fixture({lineOfSightGate=null,communicationMode='legacy'}={}){
  const physicalGeometry=lineOfSightGate?Object.freeze({...geometry,lineOfSight:(...args)=>lineOfSightGate()&&geometry.lineOfSight(...args)}):geometry;
  const state=createOzarkState(physicalGeometry),[a,b]=state.agents,e=state.environment;
  const source=e.ecology.plants.find(p=>p.kind==='apple_tree'&&p.quantity>2&&geometry.canOccupy(p.position.x+45,p.position.y,CONFIG.playerRadius));
  assert.ok(source);state.elapsed=e.elapsed=e.ecology.elapsed=60;
  for(const n of [a,b]){n.elapsed=60;n.position={x:source.position.x+45,y:source.position.y};bindOzarkWorldAgent(n,physicalGeometry,state);observeNpc(n,e);}
- const social=new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>e});
+ const social=new SocialCoordinator({communicationMode,getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>e});
  const controllers=state.agents.map(n=>new NpcController(n,{environment:e,social}));
  function advance(seconds){for(let t=0;t<seconds-1e-8;t+=.1){e.elapsed+=.1;state.elapsed=e.elapsed;e.ecology.elapsed=e.elapsed;for(const n of state.agents)tickNpc(n,.1,e);}}
  function finish(n,action){const result=requestNpcAction(n,action,e);if(result.code==='ACTION_STARTED')for(let i=0;n.active&&i<100;i++)advance(.1);return n.lastResult||result;}
@@ -163,4 +163,43 @@ test('voluntary donor attention is bounded and yields to urgent needs, contact a
   assert.equal(social.observe(b).foodSharing.offers.length,0,reason);
   assert.equal(social.action(b,{type:'accept_food',offerId:id}).ok,false,reason);
  }
+});
+
+
+test('grounded sharing uses supplied local motor gestures, never words or donor knowledge',()=>{
+ const f=fixture({communicationMode:'grounded'}),{a,b,social,controllers,item,e}=f;
+ for(const method of ['say','append','receive'])social[method]=()=>{throw Error(`forbidden language route ${method}`);};
+ const beforeMessages=structuredClone(f.state.community.messages),beforeMemory=structuredClone(b.discovery);
+ b.physiology.hoursSinceMeal=8;b.physiology.satietyHours=0;
+ const request=controllers[1].perform({type:'request_food',targetId:a.id});assert.equal(request.code,'FOOD_REQUESTED');
+ assert.deepEqual(Object.keys(social.foodSharing.observe(a).requests[0]).sort(),['gesture','id','senderId']);
+ assert.equal(request.gesture.gesture,'request');assert.equal('text' in request.gesture,false);
+ const id=f.offer(),observed=social.foodSharing.observe(b).offers[0];
+ assert.equal(observed.gesture,'offer');assert.equal(observed.objectId,item);assert.ok(observed.appearance);
+ assert.equal('text' in observed,false);assert.equal('effect' in observed,false);
+ assert.deepEqual(b.discovery,beforeMemory,'gestures do not deliver semantic claims or personal evidence');
+ assert.equal(controllers[1].perform({type:'accept_food',offerId:id}).code,'ACTION_STARTED');
+ assert.equal(lookupEcologyObject(e.ecology,item).heldBy,a.id);f.advance(3);
+ assert.equal(lookupEcologyObject(e.ecology,item).heldBy,b.id);
+ assert.deepEqual(f.state.community.messages,beforeMessages);
+ assert.deepEqual(social.foodSharing.gestures().map(row=>row.gesture),['request','offer','accept']);
+ assert.ok(social.foodSharing.gestures().every(row=>row.provenance==='supplied-nonverbal-motor'));
+ assert.equal(b.discovery.effects.length,0);assert.equal(b.discovery.techniques.length,0);
+});
+
+test('grounded withdrawal revokes consent and bounded observer gestures cannot recreate it',()=>{
+ const f=fixture({communicationMode:'grounded'}),{a,b,social,e,item}=f;
+ for(let i=0;i<40;i++){
+   const id=f.offer();assert.equal(social.action(a,{type:'decline_food',offerId:id}).ok,true);
+   assert.equal(social.action(b,{type:'accept_food',offerId:id}).ok,false);
+ }
+ const history=social.foodSharing.gestures();assert.equal(history.length,64);
+ history[0].gesture='accept';history.length=0;
+ assert.equal(social.foodSharing.gestures().length,64);
+ assert.notEqual(social.foodSharing.gestures()[0].gesture,'accept');
+ const id=f.offer();assert.equal(social.action(b,{type:'accept_food',offerId:id}).code,'ACTION_STARTED');
+ assert.equal(social.action(a,{type:'decline_food',offerId:id}).ok,true);f.advance(3);
+ assert.equal(lookupEcologyObject(e.ecology,item).heldBy,a.id);
+ assert.equal(social.foodSharing.gestures().at(-1).gesture,'withdraw');
+ social.dispose();assert.deepEqual(social.foodSharing.gestures(),[]);
 });

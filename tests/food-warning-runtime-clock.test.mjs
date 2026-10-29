@@ -1,3 +1,8 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFoodWarningScene, foodWarningEvidence } from '../scripts/food-warning-native-fixture.mjs';
@@ -5,16 +10,16 @@ import { PopulationRuntime } from '../src/population.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { bindOzarkEcology } from '../src/ozark-ecology.js';
 import { cancelNpcAction } from '../src/npc.js';
-import { createOzarkState, writeOzarkSave, loadOzarkSave } from '../src/ozark-save.js';
+import { createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave } from '../src/ozark-save.js';
 import { receivedMaterialCaution, validFoodWarningReport } from '../src/food-warning.js';
 
 // Controlled real-physics fixture supplies only the prior adverse encounter.
 // Delivery below is selected/executed by ordinary alternating controllers.
 test('ordinary population speech uses shared event time in both controller orders and remains saveable', {timeout:300000}, async()=>{
   const fixture=await createFoodWarningScene(new URL('../',import.meta.url),foodWarningEvidence);
-  const input=structuredClone(fixture.state);
+  const input=historicalClone(fixture.state);
   for(const turn of [0,1]){
-    const state=createOzarkState(fixture.geometry);Object.assign(state,structuredClone(input));
+    const state=createOzarkState(fixture.geometry);Object.assign(state,historicalClone(input));
     const [speaker,listener]=state.agents;
     bindOzarkEcology(state.environment.ecology,fixture.geometry);
     for(const npc of state.agents){
@@ -29,7 +34,7 @@ test('ordinary population speech uses shared event time in both controller order
     // Listener remains awake and physically present, but cannot start another
     // action during this single controlled delivery opportunity.
     listener.nextDecisionAt=listener.elapsed+10;
-    const runtime=new PopulationRuntime(state,{cardinal:false});runtime.turn=turn;
+    const runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false});runtime.turn=turn;
     const originalSay=runtime.social.say.bind(runtime.social);let duringDelivery=null;
     runtime.social.say=(npc,action)=>{
       const result=originalSay(npc,action);

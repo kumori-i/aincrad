@@ -1,3 +1,6 @@
+import { bindCommunicationMode } from '../src/communication-mode.js';
+// Explicit historical testimony tests; physical-only cases retain grounded defaults.
+const recordDiscoveryReport=(npc,...args)=>{bindCommunicationMode(npc,'legacy');return legacyrecordDiscoveryReport(npc,...args);};
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +9,7 @@ import { requestNpcAction,tickNpc,observeNpc } from '../src/npc.js';
 import { createEcology } from '../src/ecology.js';
 import { createEnvironment } from '../src/environment.js';
 import { canStand } from '../src/world.js';
-import { discoveryDecision,recordDiscoveryReport,processDiscoveryFeedback } from '../src/discovery.js';
+import { discoveryDecision,recordDiscoveryReport as legacyrecordDiscoveryReport,processDiscoveryFeedback } from '../src/discovery.js';
 import { validateDiscoveryMemory,createDiscoveryMemory } from '../src/discovery-state.js';
 import { primitiveDuration } from '../src/discovery-actions.js';
 import { NpcController,decisionObservation } from '../src/controller.js';

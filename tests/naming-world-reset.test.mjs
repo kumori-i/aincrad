@@ -1,7 +1,12 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, writeOzarkSave, loadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { observeNpc } from '../src/npc.js';
 import { PopulationRuntime } from '../src/population.js';
@@ -26,7 +31,7 @@ function fixture(){
   let failWrite=false,held=false,retired=false,freshState=null,freshRuntime=null;
   const storage={getItem:key=>values.get(key)??null,setItem(key,value){events.push('write');writes.push([key,value]);if(failWrite)throw new DOMException('Scripted quota failure','QuotaExceededError');values.set(key,value);}};
   const providerFactory=n=>({kind:'local-model',label:'Explicit naming/reset test mock',proposeName(request){let resolve;const promise=new Promise(done=>resolve=done);calls.push({agentId:n.id,request,resolve});return promise;},cancel(){cancels.push(n.id);}});
-  const runtime=new PopulationRuntime(state,{cardinal:false,providerFactory});
+  const runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false,providerFactory});
   actor.position={x:450,y:1000};for(const n of state.agents)bindOzarkWorldAgent(n,geometry,state);
   // Controlled sample chronology, with the actual world's ordinary sensory
   // adapter. No fabricated cues or hidden species enter the naming request.
@@ -40,7 +45,7 @@ function fixture(){
   const ui=installWorldReset({document,storage,geometry,previous:()=>state,
     freeze(){events.push('freeze');held=true;},release(){events.push('release');held=false;},
     retire(){events.push('retire');retired=true;runtime.dispose();},
-    reload(){events.push('reload');const loaded=loadOzarkSave(storage,geometry);assert.equal(loaded.blocked,false,loaded.error);freshState=loaded.state;freshRuntime=new PopulationRuntime(freshState,{cardinal:false,providerFactory});return {ok:true};},
+    reload(){events.push('reload');const loaded=loadOzarkSave(storage,geometry);assert.equal(loaded.blocked,false,loaded.error);freshState=loaded.state;freshRuntime=new PopulationRuntime(freshState,{communicationMode:'legacy',cardinal:false,providerFactory});return {ok:true};},
   });
   const checkpoint=()=>{assert.equal(save(),true,state.saveError);events.length=0;writes.length=0;return storage.getItem(OZARK_SAVE_KEY);};
   const open=()=>$('reset-world').fire('click');
@@ -80,7 +85,7 @@ async function retainedNameWithAnotherPendingRequest(){
 
 test('canceling reset preserves saved vocabulary and keeps the live population without applying a queued name while frozen',async()=>{
   const f=await retainedNameWithAnotherPendingRequest();try{
-    const retained=structuredClone(f.actor.categoryNames);await f.open();f.pending.resolve({...reply,token:'seluni'});await settled();
+    const retained=historicalClone(f.actor.categoryNames);await f.open();f.pending.resolve({...reply,token:'seluni'});await settled();
     assert.equal(f.controller.namingPending.received,true);assert.deepEqual(f.actor.categoryNames,retained);assert.equal(f.storage.getItem(OZARK_SAVE_KEY),f.raw);
     await f.$('reset-cancel').fire('click');assert.deepEqual(f.events,['freeze','release']);assert.equal(f.runtime.disposed,false);assert.equal(f.retired(),false);assert.equal(f.ui.active(),false);assert.equal(f.cancels.length,0);
     const restored=loadOzarkSave(f.storage,geometry);assert.equal(restored.blocked,false,restored.error);assert.deepEqual(restored.state.agents[0].categoryNames,retained);assert.equal(f.writes.length,0);
@@ -92,7 +97,7 @@ test('canceling reset preserves saved vocabulary and keeps the live population w
 
 test('verified reset write failure retires pending inference but preserves previously saved names and bytes',async()=>{
   const f=await retainedNameWithAnotherPendingRequest();try{
-    const retained=structuredClone(f.actor.categoryNames);await f.open();f.failWrites();await f.confirm();
+    const retained=historicalClone(f.actor.categoryNames);await f.open();f.failWrites();await f.confirm();
     assert.deepEqual(f.events,['freeze','retire','write']);assert.equal(f.runtime.disposed,true);assert.equal(f.controller.namingPending,null);assert.deepEqual(f.cancels,['aster','mira']);
     assert.match(f.$('reset-status').textContent,/Readback confirms the original stored world/);assert.equal(f.$('reset-cancel').disabled,true);assert.equal(f.freshState(),null);
     const snapshot=JSON.stringify(f.state);f.pending.resolve({...reply,token:'seluni'});await settled();f.controller.finishNaming();f.runtime.tick(.25);

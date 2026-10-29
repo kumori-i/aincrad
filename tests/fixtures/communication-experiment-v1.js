@@ -2,7 +2,7 @@
 // pretrained weights, target-match reward, or model-service client is used.
 import { createOzarkState } from '../../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../../src/ozark-agent-world.js';
-import { PopulationRuntime } from '../../src/population.js';
+import { PopulationRuntime } from './legacy-population.js';
 import { CommunicationLearner } from '../../src/communication-learning.js';
 import { canonicalCommunicationEffect, createCommunicationCredit, pollCommunicationCredit } from '../../src/communication-credit.js';
 import { actorLineOfSight } from '../../src/perception.js';

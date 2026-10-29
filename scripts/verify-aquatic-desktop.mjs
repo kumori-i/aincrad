@@ -384,8 +384,9 @@ async function socialReopenPhase(win) {
    await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
    return evidence;
  };
- const journal=await present('conversation');
- const screenshots=[await capture(win,'social-journal.png')];
+ const journal=await present('learning');
+ assert.equal(journal.liveEnglishDisabled,true);assert.equal(journal.archivalReportsInert,true);
+ const screenshots=[await capture(win,'social-learning-no-legacy-speech.png')];
  const knowledge=await present('knowledge');
  screenshots.push(await capture(win,'social-taught-knowledge.png'));
  const humanHint=await present('human-hint');
@@ -401,7 +402,7 @@ async function socialReopenPhase(win) {
  await fs.writeFile(path.join(context.output,'social-result.json'),JSON.stringify({passed:true,
    sourceFingerprint:context.sourceFingerprint,version:snapshot.version,screenshots,journal,knowledge,humanHint,
    currentFormatCloseReopen:true,ownProofNotInvented:true,summary:expected.summary,
-   fixtureDisclosure:'Manual local encounter. Sender earned a procedure through paid actions and delayed bodily feedback, then actual controller speech delivered an attributed untried report. This is not autonomous survival or travel evidence.'},null,2));
+   fixtureDisclosure:'Explicit historical legacy-channel synthetic encounter: sender earned a procedure through paid actions and delayed feedback, then historical speech delivered an attributed untried report. Default grounded main only reopens this as inert archive; Learning excludes that English speech. Not current main communication, autonomous survival or travel evidence.'},null,2));
 }
 async function methodWritePhase(win) {
  await assertCurrentBoot(win);
@@ -438,7 +439,7 @@ async function methodTestedReopenPhase(win) {
    summary:expected.fixture.summary,threeIndependentElectronProcesses:true,
    exactDiskBytesAcrossClosedProcesses:true,noClosedTimeProgression:true,
    ownProofNotInventedBySpeech:true,receiverPaidPhysicalActions:true,
-   fixtureDisclosure:'Scripted encounter placement only. Teacher paid for a method and received own feedback; actual nearby speech transferred uncertain appearance cues. Recipient freshly observed a different local source after restart and paid for own pull/sample and delayed feedback. Not autonomous travel, invented action grammar, reliable survival or a measured learning advantage.'},null,2));
+   fixtureDisclosure:'Explicit historical legacy-channel synthetic module regression, not default-main adoption. Teacher paid for a method and received own feedback; historical speech transferred uncertain cues. A separate historical fixture state executed recipient pull/sample and delayed feedback. Grounded main only displays the saved reports as inert archive. Not current communication, autonomous travel, reliable survival or a measured learning advantage.'},null,2));
 }
 async function handlingWritePhase(win) {
  await assertCurrentBoot(win);

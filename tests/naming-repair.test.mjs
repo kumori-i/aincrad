@@ -1,9 +1,14 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import { chooseOwnName } from '../src/naming-state.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, SOCIAL_RULES } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, writeOzarkSave, loadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { observeNpc, requestNpcAction, tickNpc } from '../src/npc.js';
 import { SocialCoordinator } from '../src/social.js';
@@ -21,7 +26,7 @@ function fixture(){
     [45,65].every(dx=>geometry.canOccupy(p.position.x+dx,p.position.y,CONFIG.playerRadius)&&geometry.lineOfSight({x:p.position.x+dx,y:p.position.y},p.position)));
   assert.ok(source);
   for(const [n,dx] of [[a,45],[b,65]]){n.elapsed=60;n.position={x:source.position.x+dx,y:source.position.y};bindOzarkWorldAgent(n,g,state);observeNpc(n,e);}
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>e,getCommunity:()=>state.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getEnvironment:()=>e,getCommunity:()=>state.community});
   const advance=seconds=>{for(let t=0;t<seconds-1e-8;t+=.1){e.elapsed+=.1;state.elapsed=e.elapsed;e.ecology.elapsed=e.elapsed;for(const n of state.agents)tickNpc(n,.1,e);}};
   for(let i=0;i<4&&!a.lexicon?.own.length;i++){
     assert.equal(requestNpcAction(a,{type:'inspect_object',targetId:source.id},e).code,'ACTION_STARTED');
@@ -48,7 +53,7 @@ function fixture(){
 }
 const receipt=f=>f.a.lexicon.repairReceipts?.[0];
 const binding=f=>f.b.lexicon?.heard.find(r=>r.speakerId===f.a.id&&r.token===f.own.token&&r.objectId===f.source.id);
-function physical(f){return structuredClone(f.state.agents.map(n=>({rng:n.rng,inventory:n.inventory,physiology:n.physiology,
+function physical(f){return historicalClone(f.state.agents.map(n=>({rng:n.rng,inventory:n.inventory,physiology:n.physiology,
   active:n.active,experiments:n.discovery.experiments,practice:n.discovery.practice,effects:n.discovery.effects,techniques:n.discovery.techniques,
   actions:n.memory.experience.filter(e=>e.type==='action')})));}
 function originalRequest(f){
@@ -76,7 +81,7 @@ function complete(f){f.pump(8,()=>!!binding(f)?.confirmation);assert.ok(binding(
 
 for(const initial of ['ambiguous','none'])test(`actual unresolved ${initial} listener observation requests one bounded repair`,()=>{
   const f=fixture();f.view(initial);clarify(f);
-  const clarification=structuredClone(receipt(f).clarification);
+  const clarification=historicalClone(receipt(f).clarification);
   for(let i=0;i<4;i++)f.step();
   assert.deepEqual(receipt(f).clarification,clarification,'same-time duplicate processing cannot emit again');
   f.view('unique');repoint(f);
@@ -96,7 +101,7 @@ test('persistently ambiguous re-point consumes repair but does not bind or retry
   const f=fixture();clarify(f);repoint(f);
   assert.equal(binding(f),undefined);assert.equal(receipt(f).retry,null);
   assert.equal(f.social.naming.opportunityCount(),0);assert.equal(f.social.naming.pendingCount(),0);
-  const receipts=structuredClone(f.a.lexicon.repairReceipts),count=f.state.community.nextId;
+  const receipts=historicalClone(f.a.lexicon.repairReceipts),count=f.state.community.nextId;
   f.view('unique');f.advance(130);f.step();
   assert.deepEqual(f.a.lexicon.repairReceipts,receipts);assert.equal(f.state.community.nextId,count);
 });
@@ -147,9 +152,9 @@ for(const phase of ['request','clarification','repoint','retry','selection','con
   const loaded=loadOzarkSave(disk,f.g);assert.equal(loaded.blocked,false,loaded.error);
   const state=loaded.state;
   assert.deepEqual(state.agents.map(n=>n.lexicon),saved.agents.map(n=>n.lexicon));
-  const expected=structuredClone(state.agents.map(n=>n.lexicon));
+  const expected=historicalClone(state.agents.map(n=>n.lexicon));
   for(const n of state.agents){bindOzarkWorldAgent(n,f.g,state);observeNpc(n,state.environment);}
-  const social=new SocialCoordinator({getAgents:()=>state.agents,getEnvironment:()=>state.environment,getCommunity:()=>state.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>state.agents,getEnvironment:()=>state.environment,getCommunity:()=>state.community});
   assert.equal(social.naming.pendingCount(),0);assert.equal(social.naming.opportunityCount(),0);
   const count=state.community.nextId;
   // No runtime phase exists to advance. Sample fresh speech eligibility and
@@ -187,7 +192,7 @@ test('repair receipts survive speech compaction and reject altered cross-agent c
     s=>delete s.agents[1].lexicon.repairReceipts,
     s=>s.agents[0].lexicon.repairReceipts[0].clarification.objectId=f.source.id,
     s=>s.agents[0].lexicon.repairReceipts[0].requestId='message:999999',
-    s=>s.agents[0].lexicon.repairReceipts.push(structuredClone(s.agents[0].lexicon.repairReceipts[0])),
+    s=>s.agents[0].lexicon.repairReceipts.push(historicalClone(s.agents[0].lexicon.repairReceipts[0])),
     s=>s.agents[0].lexicon.repairReceipts[0].retry.at=s.agents[0].lexicon.repairReceipts[0].clarification.at,
   ];
   for(const mutate of mutations){const raw=JSON.parse(original);mutate(raw);const bytes=JSON.stringify(raw);disk.setItem(OZARK_SAVE_KEY,bytes);assert.equal(loadOzarkSave(disk,f.g).blocked,true);assert.equal(disk.getItem(OZARK_SAVE_KEY),bytes);}
@@ -204,7 +209,7 @@ test('the 120-second repair horizon stays anchored to the original request',()=>
 test('a fresh retry that loses its referent cannot open a second clarification budget',()=>{
   const f=fixture();clarify(f);f.view('unique');repoint(f);
   f.pump(3,()=>!!receipt(f).retry);assert.ok(receipt(f).retry);
-  const before=structuredClone(f.a.lexicon.repairReceipts),count=f.state.community.nextId;
+  const before=historicalClone(f.a.lexicon.repairReceipts),count=f.state.community.nextId;
   f.view('none');f.advance(1.1);f.step();
   assert.equal(binding(f).confirmation,null);assert.equal(f.social.naming.pendingCount(),0);
   f.view('unique');f.pump(40);

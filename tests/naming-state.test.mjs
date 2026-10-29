@@ -1,8 +1,11 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createLexicon, validLexicon, chooseOwnName, recordGrounding, resolveName, confirmReference, lexicalLabels, markNameAnnounced, markReferenceRequested, validNameToken, OWN_NAME_LIMIT, HEARD_NAME_LIMIT } from '../src/naming-state.js';
-const clone=structuredClone;
-function npc(id='aster',seed=42){return {id,seed,rng:123,elapsed:100,scene:'valley',position:{x:0,y:0},discovery:{experiments:[]},memory:{experience:[]}};}
+const clone=value=>legacyFixture(historicalClone(value));
+function npc(id='aster',seed=42){return legacyFixture({id,seed,rng:123,elapsed:100,scene:'valley',position:{x:0,y:0},discovery:{experiments:[]},memory:{experience:[]}});}
 function encounter(n,objectId='object:1',experimentId=1){
   const e={id:experimentId,actionId:experimentId,primitive:'inspect_object',targetId:objectId,ok:true,code:'OBJECT_OBSERVED',at:n.elapsed,durationSeconds:1.8};
   n.discovery.experiments.push(e);

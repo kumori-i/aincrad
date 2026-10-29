@@ -28,13 +28,13 @@ The physical layer is available even when short ordinary-controller trials do no
 
 Discovery experiments and delayed effects are recorded against actual actions and material identities. Retained techniques are supported by personal evidence. `proof-retention.js` and related helpers validate exact ownership and effect chains under bounded retention.
 
-`social.js` delivers nearby, visible, awake speech under cooldowns. A verified sender technique can become a bounded attributed teaching report. `cognition.js` preserves the explicit identity fields needed by that real controller path. A separate runtime-only food-sharing handshake permits a recipient to perform a real timed grasp of one voluntarily offered held material. Consent expires and does not survive reload; ownership changes atomically, and the recipient receives ordinary personal grasp evidence, not the donor’s experience.
+**Historical mechanisms (inert in the default main world):** `social.js` can deliver nearby, visible, awake speech under cooldowns in explicitly opted-in legacy fixtures. A verified sender technique can become a bounded attributed teaching report. `cognition.js` preserves the explicit identity fields needed by that real controller path. A separate runtime-only food-sharing handshake permits a recipient to perform a real timed grasp of one voluntarily offered held material. Consent expires and does not survive reload; ownership changes atomically, and the recipient receives ordinary personal grasp evidence, not the donor’s experience.
 
 The recipient may attempt taught steps without random rediscovery, using only a recognized exact source and its own newly acquired material. Reports never grant personal food proof or proficiency.
 
 Expiry, unavailable source and a failed physical attempt do not by themselves prove a food claim false. Own adverse or beneficial feedback supplies the relevant evidence. Restore must not reset ambiguous completed acquisitions into runnable advice. Human hints use the same reported-versus-experienced distinction and cannot resolve unknown animals through a private species table.
 
-`npc-panel.js` exposes qualitative sensations, nearby messages, teaching provenance and actual action outcomes. Exact physiology stays in developer inspection. Optional local language models serve conversation and narrow vocabulary proposals rather than generating trusted physical results.
+`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology stays in developer inspection. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. This changes the total agent behavior; the numeric symbol learner architecture/reward rule is unchanged. Future studies need a new frozen protocol.
 
 ## Main-world pixel communication
 
@@ -54,7 +54,13 @@ rules are unchanged. Bounded gate diagnostics do not consume RNG or alter
 policies. Communication errors detach that channel, visibly report failure,
 and leave ordinary survival/save authority intact.
 
-`communication-inspector.js` observes these same actors. Open/close/follow
+`communication-inspector.js` is a shortcut to the same NPC Learning tab in the
+main world; the historical modal implementation is not the production route.
+`learning-view.js` renders copied observer events only. Each emission gets a
+session-local ID, emission-time copied crops and selected action; terminal
+updates retain that ID. Retention is 256 events (32 shown per agent), never
+persisted or consumed by policies. English labels are not agent speech or
+translations. Supplied nonverbal coordination is listed separately. Open/close/follow
 selection never creates actors, clears learning, ticks time or suppresses
 saving. Reset retires inspector, communication and population before reload.
 Schema 12 is unchanged: bodies/memories resume from saves, while communication
@@ -72,9 +78,9 @@ A runtime-only consumption transport admits actual accepted bites/samples, not f
 
 ## Grounded individual names and tentative appearance vocabulary
 
-Separate naming state and runtime modules retain bounded personal lexical evidence and coordinate local pointing and later reference checks. Event-time personal sensing, speech access and bodily priorities gate the protocol. Pending exchanges are not saved; retained names cannot recreate sensory observations. The selected-agent panel only projects chosen, heard-grounded and confirmed labels, without global renaming or model authority. See [scope and evidence boundaries](GROUNDED-NAMES.md).
+Historical, explicitly legacy-only naming state and runtime modules retain bounded personal lexical evidence and coordinate local pointing and later reference checks. Event-time personal sensing, speech access and bodily priorities gate the protocol. Pending exchanges are not saved; retained names cannot recreate sensory observations. The selected-agent panel only projects chosen, heard-grounded and confirmed labels, without global renaming or model authority. See [scope and evidence boundaries](GROUNDED-NAMES.md).
 
-`category-names.js` adds an optional actor-owned appearance vocabulary without reinterpreting legacy individual bindings. A narrow local-model proposal returns only a token or abstention against personally sampled cues and existing vocabulary; the model does not choose actions. Conservative membership is derived from the supplied exact-cue rule, and listener grounding retains a local example rather than copying all speaker members. Changed or missing observations suspend membership without rewriting historical evidence. UI annotations distinguish present vocabulary from old event text, while bodily outcomes remain exact-instance evidence. Pending model work is bounded, cancellable and excluded after reset/disposal. See [model naming scope](MODEL-CATEGORY-NAMES.md).
+In historical legacy-only fixtures, `category-names.js` adds an optional actor-owned appearance vocabulary without reinterpreting legacy individual bindings. A narrow local-model proposal returns only a token or abstention against personally sampled cues and existing vocabulary; the model does not choose actions. Conservative membership is derived from the supplied exact-cue rule, and listener grounding retains a local example rather than copying all speaker members. Changed or missing observations suspend membership without rewriting historical evidence. UI annotations distinguish present vocabulary from old event text, while bodily outcomes remain exact-instance evidence. Pending model work is bounded, cancellable and excluded after reset/disposal. See [model naming scope](MODEL-CATEGORY-NAMES.md).
 
 ## Presentation and remaining work
 

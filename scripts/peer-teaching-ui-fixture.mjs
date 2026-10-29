@@ -1,3 +1,5 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 /** Explicit encounter exposure for native UI QA, not autonomous travel or
  * survival evidence. These functions are self-contained so a native harness
  * may serialize them into the sandboxed current-world renderer. No Node APIs,
@@ -6,7 +8,10 @@ export async function createPeerTeachingUiFixture(moduleBase) {
   const use = name => import(new URL(`src/${name}.js`, moduleBase).href);
   const { CONFIG } = await use('config');
   const { createOzarkWorldGeometry } = await use('ozark-world-geometry');
-  const { createOzarkState, writeOzarkSave, OZARK_SAVE_KEY } = await use('ozark-save');
+  const { createOzarkState: rawCreateOzarkState, writeOzarkSave, OZARK_SAVE_KEY } = await use('ozark-save');
+  const {bindCommunicationMode}=await use('communication-mode');
+  const historicalState=s=>{for(const n of s.agents)bindCommunicationMode(n,'legacy');return s;};
+  const createOzarkState=(...args)=>historicalState(rawCreateOzarkState(...args));
   const { bindOzarkWorldAgent } = await use('ozark-agent-world');
   const { tickEnvironment } = await use('environment');
   const { tickOzarkEcology } = await use('ozark-ecology');
@@ -63,7 +68,7 @@ export async function createPeerTeachingUiFixture(moduleBase) {
   advance(90);
   if (!sender.discovery.techniques.length) throw new Error('No earned sender technique');
   observeNpc(sender, environment); observeNpc(receiver, environment);
-  const social = new SocialCoordinator({ getAgents: () => state.agents,
+  const social = new SocialCoordinator({communicationMode:'legacy', getAgents: () => state.agents,
     getCommunity: () => state.community, getEnvironment: () => environment });
   const controller = new NpcController(sender, { environment, social });
   let delivered;
@@ -81,7 +86,7 @@ export async function createPeerTeachingUiFixture(moduleBase) {
     throw new Error('Unsupported whole hint must remain an inert attributed report');
   const humanReply=social.discoveryDialogue(receiver);
   if(!humanReply?.text.includes('No physical steps proposed'))throw new Error('Missing bounded hint explanation');
-  const receiverController=new NpcController(receiver,{environment,social});
+  const receiverController=new NpcController(receiver,{communicationMode:'legacy',environment,social});
   try { receiverController.perform(humanReply); } finally { receiverController.dispose(); }
   state.selectedAgentId = receiver.id; state.player = { ...point };
   const rows = new Map(), storage = { getItem: key => rows.get(key) ?? null,
@@ -108,7 +113,7 @@ export function presentPeerTeachingUi(stage, expected) {
     const element = document.querySelector(selector);
     require(element, `Missing UI element: ${selector}`); return element;
   };
-  require(stage === 'conversation' || stage === 'knowledge' || stage === 'human-hint', 'Unknown teaching UI stage');
+  require(stage === 'learning' || stage === 'knowledge' || stage === 'human-hint', 'Unknown teaching UI stage');
   require(window.__ozarkWorld, 'Use the isolated current ?test=1 route');
   const state = window.__ozarkWorld.fullSnapshot(), route = window.__ozarkWorld.snapshot();
   require(!route.blocked && !route.started, 'Inspect restored teaching before simulation starts');
@@ -122,18 +127,22 @@ export function presentPeerTeachingUi(stage, expected) {
   select.dispatchEvent(new Event('change', { bubbles: true }));
   require(get('#npc-name').textContent === 'Mira', 'Wrong journal character');
   let evidence;
-  if (stage === 'conversation') {
+  if (stage === 'learning') {
     get('#npc-tab-conversation').click();
-    const entry = [...document.querySelectorAll('#journal-messages .journal-entry[data-sender="aster"]')]
-      .find(node => node.querySelector('p')?.textContent === expected.message.text);
-    require(entry, 'Missing actual sender message');
-    require(entry.querySelector('.message-meta')?.textContent.includes('Aster → Mira · nearby · taught procedure'),
-      'Missing local sender and teaching attribution');
-    require(!get('#journal-conversation').classList.contains('hidden'), 'Conversation is hidden');
-    evidence = entry;
+    const stream = get('#journal-messages');
+    require(get('#npc-tab-conversation').textContent.trim() === 'Learning', 'Main tab must be Learning');
+    require(stream.textContent.includes('Observer annotations, not agent speech'), 'Missing observer-only boundary');
+    require(!stream.textContent.includes(expected.message.text), 'Archived teaching leaked into live learned communication');
+    require(!stream.querySelector('[data-sender]') && !stream.querySelector('[data-learning-event]'),
+      'Reopened unstarted world fabricated a speech or symbol event');
+    require(get('#journal-form').classList.contains('hidden'), 'Human instruction form remains live');
+    require(get('#npc-controller').textContent.includes('English communication disabled'), 'Wrong main capability');
+    require(!get('#journal-conversation').classList.contains('hidden'), 'Learning tab is hidden');
+    evidence = stream;
   } else {
     get('#npc-tab-character').click();
     get('#npc-discovery-details').open = true;
+    require(get('#npc-object-knowledge').textContent.includes('archival and inert'), 'Missing archival report boundary');
     const entry = [...document.querySelectorAll('#npc-object-knowledge .knowledge-entry')]
       .find(node => node.querySelector('p')?.textContent === (stage==='human-hint'?expected.humanReport.text:expected.report.text));
     require(entry, 'Missing receiver teaching report');
@@ -154,5 +163,6 @@ export function presentPeerTeachingUi(stage, expected) {
     sourceObjectId: expected.sourceObjectId, reportId: report.id, status: report.status,
     cursor: report.cursor, ownEffects: receiver.discovery.effects.length,
     ownTechniques: receiver.discovery.techniques.length,
+    archivalReportsInert: true, liveEnglishDisabled: true,
     bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } };
 }

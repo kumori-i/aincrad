@@ -1,6 +1,6 @@
 # Aincrad
 
-A local-first, original pixel-art desktop simulation with **one world: the Ozark watershed**. Explore its structured habitats while Aster and Mira perceive nearby objects, act, experience consequences and talk. The application opens directly into this world, without an original-world selector or a separate fishing map.
+A local-first, original pixel-art desktop simulation with **one world: the Ozark watershed**. Explore its structured habitats while Aster and Mira perceive nearby objects, act, experience consequences and exchange experimental numeric symbols. The application opens directly into this world, without an original-world selector or a separate fishing map.
 
 ## Run locally
 
@@ -30,9 +30,12 @@ episodes, broader appearances and a predeclared multi-seed replication test.
 Aster and Mira now learn pixel-grounded symbols **in the main Ozark world**,
 alongside their existing survival learning. There is one population and one
 clock. No Ollama, trained lab weights or separate session is required.
-Pause with Escape and open **Learning inspector** to see these same agents'
-bodies, messages, selected actions, outcomes and gate counters. Closing the
-inspector does not discard learning; its pause control uses the main clock.
+Open a character’s **Learning** tab (formerly Conversation), or pause with
+Escape and use **Learning inspector** as a shortcut to that same tab. It shows
+actual symbol emissions, copied local crops, selected actions, pending/interrupted
+outcomes and gate counters. English annotations are observer labels, not speech
+or translations. Closing the panel does not discard learning or change pause;
+Escape still controls the one main clock.
 The main world has no 1800-second experimental cutoff.
 
 **Persistence is deliberately partial in this increment:** the existing world,
@@ -51,7 +54,22 @@ show where opportunities stop; they do not change policies or reward rules.
 
 This is an experimental mechanism, **not demonstrated language or improved
 survival**. Whole-object crops, motor channels, opportunities and reward mapping
-are supplied scaffolding. Existing English/social channels remain active.
+are supplied scaffolding. Prewritten English speech, human journal instructions,
+notes as agent messages, peer teaching/warnings and model naming are disabled
+in the main world. Old saved messages, names and reports remain archival and
+cannot drive new choices. Personal outcomes and physically witnessed actions
+remain available. Food handoffs use supplied nonverbal request/offer/consent
+gestures—not learned words or semantic food claims.
+
+The NPC **Learning** tab shows actual emitted symbols, original observation
+crops, selected actions and pending/settled/interrupted outcomes. English
+annotations are for the human observer, not translations or agent speech.
+The pause-menu Learning inspector shortcut opens this same tab. No shared
+reference/definition game or new reward has been added in this increment.
+Removing the old semantic channels intentionally changes agent behavior;
+future comparisons require a newly reviewed protocol. Existing worlds may
+retain techniques personally earned after old advice, so they are not
+language-naive starts. Only an explicit confirmed reset starts fresh.
 The displayed token pair encodes one category, not grammar. The isolated
 protocol factory remains for automated reproducibility, not a second playable
 world. The [frozen protocol](docs/communication-bridge/PROTOCOL.md) and its
@@ -82,8 +100,9 @@ at six hours. Energy, digestion and expenditure remain separate. See
 
 Human NPC actions and purposeful movement now require
 [paid work](docs/NPC-EFFORT-FUNDING.md) before progress or physical output is
-credited. Strict personal adverse-source evidence and attributed exact-material
-warnings can defer sampling, but do not establish general food safety. Saves
+credited. Strict personal adverse-source evidence can defer sampling, but does not
+establish general food safety. Received warnings are archival and inactive
+in the grounded main world. Saves
 retain physical debits and bounded learning, not unfinished work authority.
 Controlled feeding improvements do not establish reliable autonomous survival;
 [source-bound verification](docs/food-system/VERIFICATION.md) separates historical
@@ -99,31 +118,52 @@ Fishing uses visible, moving, finite fish. Catching is a paid interception that 
 
 These mechanics being available **does not establish reliable autonomous use or self-sustaining survival**. Short policy trials are reported as diagnostics rather than a prerequisite for making the physical abilities available. Long runtime alone does not guarantee discovery. Historical failures remain recorded in [finite fishing](docs/FINITE-FISHING-v1.md) and [carcass processing](docs/WITNESSED-CARCASS-PROCESSING.md).
 
-## Learning, advice and conversation
+## Current learning and communication
 
-Fresh agents receive basic movement, bodily drives, senses and action primitives, not food labels or recipes. Their personal techniques require their own completed actions and experienced feedback.
+Fresh agents receive basic movement, bodily drives, senses and action primitives,
+not food labels or recipes. Personal techniques require their own completed
+actions and experienced feedback. Their own adverse outcomes still protect
+against repeating a harmful exact-material/source trial.
 
-An agent can communicate an actually learned, exact-source procedure through nearby speech. The recipient can try the taught steps without randomly rediscovering the sequence. The advice remains attributed testimony, not copied firsthand experience, proficiency or a free meal. Physical availability, effort, ownership and adverse feedback still matter.
+A genuinely witnessed eating event can motivate an uncertain, exact-source
+experiment. The observer must pay for its own acquisition and sampling, then
+learn from its own delayed feedback. This [observation-driven inquiry](docs/OBSERVATIONAL-LEARNING.md)
+is supplied scaffolding, not an invented recipe or transmitted food knowledge.
+A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can compare
+a failed grasp with a personally successful pull on another currently similar
+source. It does not automatically sample or infer safety.
 
-A real adverse personal sample can now produce a [local exact-material warning](docs/FOOD-WARNINGS.md). An awake listener who actually hears it temporarily defers sampling that same identified material. The warning remains attributed, uncertain testimony—not the listener's own illness, a species-wide food label or a promise that other portions are safe. Dropping/regrasping preserves physical identity; reload does not replay missed warnings.
+[Visual similarity memory](docs/TENTATIVE-VISUAL-GROUPS.md) groups personally
+sensed objects after repeated observations using a supplied shape/color/texture
+rule, not discovered concepts. [Movement recovery](docs/MOVEMENT-RECOVERY.md)
+uses actual failed walking and recent personal travel, without guaranteeing escape.
 
-Human journal advice can suggest actions against something the agent has observed, but only through a [restricted whole-command grammar](docs/HUMAN-HINTS.md). Unsupported procedures produce no partial steps; saved human requests do not resume after reload. A vague phrase such as “kill the animals” does not identify a target or guarantee a hunting sequence. The interface distinguishes unresolved advice from a usable suggestion. Existing qualitative feeling reports describe modeled bodily sensations, not a claim of humanlike consciousness or complete social reasoning. Nearby food requests and voluntary offers can lead to a real timed handoff of an exact held item. The recipient must independently accept and grasp it; ownership, capacity and proximity are rechecked, and learning still requires their own subsequent experience. Broad skill generalization and richer social relationships remain future work.
+Food sharing uses supplied nonverbal requests, offers and consent. A real timed
+handoff still requires a visible held item, locality, capacity, voluntary acceptance
+and a paid grasp. No message grants nutrition or firsthand knowledge. The
+**Learning** tab separates these motor gestures from actual numeric-symbol events
+and English observer/debug narration. There is no English agent conversation or
+active human instruction entry in the main world. Ollama is not needed for the
+current offline survival or symbol learners.
 
-An initial observation-led learning cycle lets a genuinely witnessed eating event motivate an uncertain, exact-source question. When access and bodily priorities permit, the observer can try a paid acquisition-and-sampling experiment and revise its expectation from its own delayed feedback. The knowledge panel keeps witnessed consumption separate from personal evidence. This uses a supplied bounded experiment scaffold, not an invented hunting recipe, species-wide food knowledge, or parallel humanlike reasoning. See [observation-driven inquiry](docs/OBSERVATIONAL-LEARNING.md).
+### Historical communication mechanisms — disabled in the main world
 
-A bounded [local method-transfer trial](docs/METHOD-TRANSFER.md) can use a speaker's earned procedure and fresh appearance report to test one different, uniquely matching source within the listener's reach. Similar appearance is uncertain, not food or safety proof. Only the listener's own actions and bodily feedback establish its outcome. This uses a supplied three-cue matching abstraction and one-shot admission, not broad skill generalization.
+Earlier increments supported [spoken procedure teaching](docs/METHOD-TRANSFER.md),
+[exact-material warnings](docs/FOOD-WARNINGS.md), restricted
+[human journal instructions](docs/HUMAN-HINTS.md), notes,
+[grounded individual names](docs/GROUNDED-NAMES.md) and local-model
+[appearance naming](docs/MODEL-CATEGORY-NAMES.md). Those documents and explicit
+legacy test fixtures retain historical scope and evidence; they do **not** describe
+active main-world channels now. No UI switch restores them.
 
-A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can contrast a failed paid grasp with a retained successful pull on a different, currently similar-looking source. It may select one paid local pull, without automatically sampling or inferring food, safety or cause. This is supplied analogy machinery using personal outcomes, not an invented action grammar.
-
-A bounded [grounded-name exchange](docs/GROUNDED-NAMES.md) preserves existing names for individually encountered objects, grounds a peer’s word through local pointing, and can check a later visible reference. An unresolved word can prompt one listener clarification, one fresh re-point and one independent retry; it cannot retry indefinitely. Chosen, heard and confirmed names stay separate. This is supplied communication machinery, not categories, invented grammar or food knowledge.
-
-A passive [tentative visual similarity memory](docs/TENTATIVE-VISUAL-GROUPS.md) groups individually sensed objects only after two time-separated observations each. Its exact shape/color/texture rule is supplied, not discovered. The private journal distinguishes remembered support from current sight.
-
-An already configured local model can now propose [tentative appearance names](docs/MODEL-CATEGORY-NAMES.md), reusing a personal word for observed matching objects instead of assigning unrelated seeded syllables. Each agent keeps its own vocabulary and locally grounded peer examples, not a shared global dictionary. Changed or missing cues can suspend a membership; names never propagate food benefit or safety. Notes and conversation retain exact instance IDs beneath or alongside names. Offline play stays usable, but new model naming pauses rather than fabricating a model-chosen fallback.
-
-Movement feedback can detect a paid walk making negligible progress and propose one short, physically tested retreat along the actor's own recent trail. This [bounded recovery scaffold](docs/MOVEMENT-RECOVERY.md) does not guarantee escape or replace urgent care; it is distinct from fixing collision geometry.
-
-The optional local model assists conversation and proposes bounded appearance words. It is not required for offline learning, and neither text nor names bypass the physical action engine. The pretrained model's familiar associations are not firsthand knowledge or species truth.
+Old messages, names, beliefs and received reports remain bounded archival data.
+They cannot trigger new teaching, sampling cautions, naming exchanges, model
+conversation or actions. Saved model settings are preserved but are not used by
+the grounded communication channel. Personally earned techniques remain available,
+including ones historically tested after advice; continuing an old save is therefore
+not a language-naive experiment. Explicit confirmed reset is available for a fresh
+start. No current shared meanings, grammar, improved survival or broad skill
+generalization have been established.
 
 ## Controls
 
@@ -134,7 +174,7 @@ The optional local model assists conversation and proposes bounded appearance wo
 | Space / G while moving | Attempt swimming / climbing |
 | Mouse wheel / + / − | World-camera zoom |
 | M | Map; zoom, pan and locate each person |
-| N | Character journal, observations and conversation |
+| N | Character observations, Learning and archive |
 | H | Guide |
 | Escape | Pause / resume |
 | Ctrl+S / ⌘S | Save the current world |

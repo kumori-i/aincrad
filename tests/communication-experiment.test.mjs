@@ -23,10 +23,10 @@ test('ephemeral experiment never reads or writes browser storage; restart is fre
   }finally{if(descriptor)Object.defineProperty(globalThis,'localStorage',descriptor);else delete globalThis.localStorage;}
 });
 
-test('empty sensor preserves equivalent seeded survival runtime without experimental hook',()=>{
+test('historical legacy empty sensor preserves equivalent seeded survival runtime without experimental hook',()=>{
   const seed=411,exp=experiment({seed}),state=createOzarkState(geometry);
   for(const [i,n]of state.agents.entries()){n.seed=n.rng=(seed^(i?0x9e3779b9:0x15a4e35))>>>0;bindOzarkWorldAgent(n,geometry,state);}
-  const baseline=new PopulationRuntime(state,{cardinal:false});
+  const baseline=new PopulationRuntime(state,{cardinal:false,communicationMode:'legacy'});
   try{
     for(let i=0;i<24;i++){exp.tick(.25);state.elapsed+=.25;baseline.tick(.25);}
     assert.deepEqual(exp.state.agents,state.agents);assert.deepEqual(exp.state.environment,state.environment);

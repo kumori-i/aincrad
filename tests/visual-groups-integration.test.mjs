@@ -1,16 +1,21 @@
+const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createOzarkState=(...args)=>legacyFixture(rawcreateOzarkState(...args));
+const loadOzarkSave=(...args)=>legacyFixture(rawloadOzarkSave(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { CONFIG } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, writeOzarkSave, loadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { createOzarkState as rawcreateOzarkState, writeOzarkSave, loadOzarkSave as rawloadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { observeNpc } from '../src/npc.js';
 import { rememberDiscoveryObservation, rememberDirectDiscoveryObject } from '../src/discovery.js';
 import { SocialCoordinator } from '../src/social.js';
 import { visualGroups, ingestVisualSamples } from '../src/visual-group-memory.js';
 
-const geometry=createOzarkWorldGeometry(), clone=structuredClone;
+const geometry=createOzarkWorldGeometry(), clone=value=>legacyFixture(historicalClone(value));
 const storage=()=>{const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};};
 function fixture(){
   let visible=true,selected=[];
@@ -46,7 +51,7 @@ test('two actual perceived individuals need two distinct simulation times; no si
 
 test('ordinary ingress excludes speech, naming refresh and direct action descriptions',()=>{
   const f=fixture(),objects=sample(f).objects,before=clone(rows(f.a));f.time(61);
-  const social=new SocialCoordinator({getAgents:()=>f.state.agents,getEnvironment:()=>f.e,getCommunity:()=>f.state.community});
+  const social=new SocialCoordinator({communicationMode:'legacy',getAgents:()=>f.state.agents,getEnvironment:()=>f.e,getCommunity:()=>f.state.community});
   social.naming.visible(f.a);
   rememberDiscoveryObservation(f.a,objects);
   for(const o of objects)rememberDirectDiscoveryObject(f.a,o);

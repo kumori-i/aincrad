@@ -23,7 +23,7 @@ test('communication native preparation stays isolated and never claims native ex
     const syntax = spawnSync(process.execPath, ['--check', prepared.harness], { encoding: 'utf8' }); assert.equal(syntax.status, 0, syntax.stderr);
     const source = await readFile(prepared.harness, 'utf8');
     const app = new EventEmitter(), loaded = [], require = createRequire(import.meta.url);
-    const stub = name => name === 'electron' ? { app, session: {} } : name.endsWith('main.cjs') ? loaded.push(name) : require(name);
+    const stub = name => name === 'electron' ? { app, session: {}, ipcMain: {handle(){}} } : name.endsWith('main.cjs') ? loaded.push(name) : require(name);
     vm.runInNewContext(source, { require: stub, process: { argv: ['runner', '--phase=exercise'] }, console, setTimeout: () => 1, clearTimeout() {} });
     assert.equal(loaded.length, 1, 'Actual application scheme registration remains synchronous');
     for (const contract of [

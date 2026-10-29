@@ -1,3 +1,5 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 export { namingFollowupEvidence as foodWarningEvidence } from './naming-followup-native-fixture.mjs';
 
 /** Serializable controlled adverse encounter. Never inserts learned proof. */
@@ -5,7 +7,11 @@ export async function createFoodWarningScene(moduleBase, projectEvidence) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {CONFIG}=await use('config');
   const {createOzarkWorldGeometry}=await use('ozark-world-geometry');
-  const {createOzarkState,writeOzarkSave,loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {createOzarkState: rawCreateOzarkState,writeOzarkSave,loadOzarkSave: rawLoadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
+  const {bindCommunicationMode}=await use('communication-mode');
+  const historicalState=s=>{for(const n of s.agents)bindCommunicationMode(n,'legacy');return s;};
+  const createOzarkState=(...args)=>historicalState(rawCreateOzarkState(...args));
+  const loadOzarkSave=(...args)=>{const result=rawLoadOzarkSave(...args);if(result.state)historicalState(result.state);return result;};
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
   const {tickEnvironment}=await use('environment');
   const {tickOzarkEcology,bindOzarkEcology}=await use('ozark-ecology');
@@ -44,7 +50,7 @@ export async function createFoodWarningScene(moduleBase, projectEvidence) {
   material.ageHours=12*24;material.spoiled=true;
   // Install the ordinary event-time consumption observer, without ticking
   // autonomous controllers or manufacturing a witnessed inquiry.
-  const runtime=new PopulationRuntime(state,{cardinal:false}),social=runtime.social;
+  const runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false}),social=runtime.social;
   try {
   const sampled=finish(speaker,{type:'sample',targetId:materialId});
   for(let i=0;i<1800&&!speaker.discovery.effects.some(e=>e.objectId===materialId&&e.effect==='discomfort');i++)tick();
@@ -73,7 +79,7 @@ export async function createFoodWarningScene(moduleBase, projectEvidence) {
     require(listener.discovery.inquiries?.some(q=>q.sourceId===materialId),'Ordinary consumption observer supplied no witnessed inquiry');
     const endpointBefore=JSON.stringify(state),pairedInput=structuredClone(state),choices=[];
     for(const heard of [true,false]){
-      const branch=structuredClone(pairedInput),actor=branch.agents.find(n=>n.id===listener.id);
+      const branch=historicalState(structuredClone(pairedInput)),actor=branch.agents.find(n=>n.id===listener.id);
       bindOzarkEcology(branch.environment.ecology,geometry);
       for(const n of branch.agents)bindOzarkWorldAgent(n,geometry,branch);
       // This narrow ablation removes only the warning report; social delivery,
@@ -100,7 +106,7 @@ export async function createFoodWarningScene(moduleBase, projectEvidence) {
     const summary={actorId:listener.id,speakerId:speaker.id,sourceId:source.id,materialId,elapsed:state.elapsed,
       messageId:delivered.message.id,reportId:report.id,reportText:report.text,acquired,sampled,effect:structuredClone(effect),
       beforeDelivery,missed,decision,choiceComparison,interrupted:structuredClone(listener.active),
-      fixtureDisclosure:'Controlled initial placement at first eligible apple source; real paid pull, sample, release and peer grasp. Material age is explicitly set to 12 days to exercise unchanged spoilage chemistry; no mass, energy, body state, learning or receipt injection. Shared body/ecology time continues. Ordinary dialogue chooses warning, actual speech transport gates delivery. Out-of-range rejection is followed by a new explicit in-range delivery, not automatic replay. Ordinary PopulationRuntime consumption subscription witnesses the initial real sample, while its controllers are not ticked. Two independently rebound full-state/RNG clones compare ordinary policy with the warning report retained versus removed; control must select the exact held sample and heard arm must not, within 30 seconds of receipt. Live endpoint remains untouched by clone decisions. Save interrupts one paid inspection, not speech (speech is synchronous). Not spontaneous encounter, small-dose safety or survival evidence.'};
+      fixtureDisclosure:'Explicit historical legacy-channel regression, not default-main language. Controlled initial placement at first eligible apple source; real paid pull, sample, release and peer grasp. Material age is explicitly set to 12 days to exercise unchanged spoilage chemistry; no mass, energy, body state, learning or receipt injection. Shared body/ecology time continues. Ordinary dialogue chooses warning, actual speech transport gates delivery. Out-of-range rejection is followed by a new explicit in-range delivery, not automatic replay. Ordinary PopulationRuntime consumption subscription witnesses the initial real sample, while its controllers are not ticked. Two independently rebound full-state/RNG clones compare ordinary policy with the warning report retained versus removed; control must select the exact held sample and heard arm must not, within 30 seconds of receipt. Live endpoint remains untouched by clone decisions. Save interrupts one paid inspection, not speech (speech is synchronous). Not spontaneous encounter, small-dose safety or survival evidence.'};
     const save=storage=>{
       const rows=new Map(),disk=storage||{getItem:k=>rows.get(k)??null,setItem:(k,v)=>rows.set(k,v)};
       require(writeOzarkSave(disk,state,geometry),'Strict warning save rejected: '+state.saveError);

@@ -1,3 +1,5 @@
+// Historical legacy-language regression only. Default main communication is grounded;
+// reopened legacy records are archival, not an active main-world language channel.
 /** Explicit encounter exposure for native UI QA, not autonomous travel or
  * survival evidence. These functions are self-contained so a native harness
  * may serialize them into the sandboxed current-world renderer. No Node APIs,
@@ -7,6 +9,7 @@ export async function createMethodTransferUiFixture(moduleBase) {
   const { CONFIG, SOCIAL_RULES } = await use('config');
   const { createOzarkWorldGeometry } = await use('ozark-world-geometry');
   const { createOzarkState, writeOzarkSave, OZARK_SAVE_KEY } = await use('ozark-save');
+  const { bindCommunicationMode } = await use('communication-mode');
   const { bindOzarkWorldAgent } = await use('ozark-agent-world');
   const { tickEnvironment } = await use('environment');
   const { tickOzarkEcology } = await use('ozark-ecology');
@@ -16,7 +19,7 @@ export async function createMethodTransferUiFixture(moduleBase) {
   const { NpcController } = await use('controller');
   const geometry = createOzarkWorldGeometry(), state = createOzarkState(geometry);
   const environment = state.environment, [sender, receiver] = state.agents;
-  for (const actor of state.agents) bindOzarkWorldAgent(actor, geometry, state);
+  for (const actor of state.agents) {bindCommunicationMode(actor,'legacy');bindOzarkWorldAgent(actor, geometry, state);}
   function advance(seconds) {
     for (let passed = 0; passed < seconds - 1e-9; passed += .25) {
       const dt = Math.min(.25, seconds - passed);
@@ -73,7 +76,7 @@ export async function createMethodTransferUiFixture(moduleBase) {
   advance(60);
   if (!sender.discovery.techniques.length) throw new Error('No earned sender technique');
   observeNpc(sender, environment); observeNpc(receiver, environment);
-  const social = new SocialCoordinator({ getAgents: () => state.agents,
+  const social = new SocialCoordinator({ communicationMode:'legacy', getAgents: () => state.agents,
     getCommunity: () => state.community, getEnvironment: () => environment });
   const controller = new NpcController(sender, { environment, social });
   let delivered;
@@ -106,6 +109,7 @@ export async function completeMethodTransferUiFixture(moduleBase, storage) {
   const use = name => import(new URL(`src/${name}.js`, moduleBase).href);
   const { createOzarkWorldGeometry } = await use('ozark-world-geometry');
   const { loadOzarkSave, writeOzarkSave, OZARK_SAVE_KEY } = await use('ozark-save');
+  const { bindCommunicationMode } = await use('communication-mode');
   const { bindOzarkWorldAgent } = await use('ozark-agent-world');
   const { tickEnvironment } = await use('environment');
   const { tickOzarkEcology } = await use('ozark-ecology');
@@ -116,7 +120,7 @@ export async function completeMethodTransferUiFixture(moduleBase, storage) {
   const state=loaded.state,environment=state.environment,receiver=state.agents.find(a=>a.id==='mira');
   const report=receiver.discovery.reports.find(r=>r.teaching?.transfer?.targetObjectId);
   if(!report||report.status!=='unverified'||report.cursor!==0)throw new Error('Expected untried method report');
-  for(const actor of state.agents){bindOzarkWorldAgent(actor,geometry,state);observeNpc(actor,environment);}
+  for(const actor of state.agents){bindCommunicationMode(actor,'legacy');bindOzarkWorldAgent(actor,geometry,state);observeNpc(actor,environment);}
   function advance(seconds){
     for(let passed=0;passed<seconds-1e-9;passed+=.25){const dt=Math.min(.25,seconds-passed);
       tickEnvironment(environment,dt);tickOzarkEcology(environment.ecology,dt,environment,state.agents,{},geometry);
@@ -163,6 +167,7 @@ export function presentMethodTransferUi(stage,expected){
   get('#npc-tab-character').click();get('#npc-discovery-details').open=true;
   const entry=[...document.querySelectorAll('#npc-object-knowledge .knowledge-entry')].find(node=>node.querySelector('p')?.textContent===report.text);
   require(entry,'Missing heard method entry');
+  require(get('#npc-object-knowledge').textContent.includes('archival and inert'),'Missing default-main archival boundary');
   const text=entry.textContent;
   for(const phrase of ['appearance-based trial',expected.sourceObjectId,expected.targetObjectId,'not proof of safety'])require(text.includes(phrase),`Missing method boundary ${phrase}`);
   if(stage==='tested')require(text.includes('supported by my own bodily experience'),'Missing personally tested provenance');

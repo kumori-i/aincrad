@@ -29,12 +29,16 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // d2ec15996a13c70b28bf043657667410e1b7ecc2). Both instrumentation arms retain
 // those changes. Prior normalized pin:
 // 6177a5daff69fe65d614542ad4bb4d1a5780a338f53f6338102461af51bf7a1a.
-// This is current capture-on/off parity, not a rerun/relabel of historical trials.
-// Preserve the old controller pin by removing only the exact reviewed opt-in
-// communication seam. The baseline below therefore executes pre-bridge code,
-// not two copies of a potentially defective new default path. The null runtime
-// property is excluded only from controller-container comparisons; actors,
-// ecology, actions, events and RNG remain compared in full.
+// This is current grounded capture-on/off parity, not a rerun/relabel of
+// historical trajectories. The reviewed English-channel deprecation adds
+// runtime capability binding and naming/dialogue guards to BOTH arms.
+// Previous normalized controller pin (before this intentional behavior change):
+// 7946d27ceaaf13075f3ac29a5f059da1bf48af4e66bf774d7ced073e188d876b.
+// Remove only the exact capture and optional communication seams below. Thus
+// the baseline executes the current grounded controller without these seams,
+// not two copies of a potentially defective instrumentation path. The null
+// runtime property is excluded only from controller-container comparisons;
+// actors, ecology, actions, events and RNG remain compared in full.
 const baselineSource = source
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
   .replace(/^  setDiscoveryCandidateCapture\(enabled\)\{setDiscoveryCandidateCapture\(this,enabled\);\}\n/m, '')
@@ -45,7 +49,7 @@ const baselineSource = source
   .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
   .replace(',chooseOptional:this.experimentalDiscovery?choices=>this.experimentalDiscovery.choose(n,choices):null', '')
   .replace('const performed=this.perform(decision.action);this.experimentalDiscovery?.performed(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
-assert.equal(sha(baselineSource), '7946d27ceaaf13075f3ac29a5f059da1bf48af4e66bf774d7ced073e188d876b', 'baseline controller bytes');
+assert.equal(sha(baselineSource), '0007bae4d9e16a10999db52ff3df4213ced5d7ca6b497c5d98af0616120fde5b', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));
@@ -273,13 +277,13 @@ test('active, cooldown, asleep, nonawake, disposed, legacy and dialogue-return p
     dialogue: c => { c.social = { maybeDialogue() { return { type: 'ask_human', text: 'A question' }; }, action() { return { ok: true, code: 'ASKED' }; } }; },
   };
   for (const [label, setup] of Object.entries(cases)) {
-    const c = controller(); c.setDiscoveryCandidateCapture(true); setup(c); c.tick(0); assert.equal(c.takeDiscoveryCandidateSnapshot(), null, label);
+    const c = controller(undefined,NpcController,label==='dialogue'?{communicationMode:'legacy'}:{}); c.setDiscoveryCandidateCapture(true); setup(c); c.tick(0); assert.equal(c.takeDiscoveryCandidateSnapshot(), null, label);
   }
 });
 
-test('real idle seam captures after a non-returning dialogue check and immediately before physical choice', () => {
+test('historical legacy idle seam captures after a non-returning dialogue check and immediately before physical choice', () => {
   const n = createNpc({ mode: 'discovery' }); let reached = false, boundary = null;
-  const c = controller(n, NpcController, { social: { maybeDialogue(actor) { reached = true; boundary = collect(actor); assert.equal(c.takeDiscoveryCandidateSnapshot(), null); return null; } } });
+  const c = controller(n, NpcController, { communicationMode:'legacy', social: { maybeDialogue(actor) { reached = true; boundary = collect(actor); assert.equal(c.takeDiscoveryCandidateSnapshot(), null); return null; } } });
   c.setDiscoveryCandidateCapture(true); c.tick(0); const report = c.takeDiscoveryCandidateSnapshot();
   assert.equal(reached, true); assert.deepEqual(report, boundary); assert.equal(report.phase, 'before-discoveryDecision');
   assert.equal(report.body.activity, 'awake'); assert.ok(n.active || n.memory.experience.some(row => row.type === 'action'));

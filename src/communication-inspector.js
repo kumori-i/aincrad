@@ -9,11 +9,19 @@ const gauge = value => Number.isFinite(value) ? `${value.toFixed(1)}/100` : '—
 export function installCommunicationInspector({
   document, window, state, geometry, getLearning, getError = () => '',
   canOpen = () => true, onEnter = () => {}, onExit = () => {},
-  setPaused, isPaused,
+  setPaused, isPaused, openLearning, closeLearning=()=>{}, learningVisible=()=>false,
   createRenderer = (canvas, world) => new OzarkWorldRenderer(canvas, world),
   now = () => performance.now(),
 }) {
   const $ = id => document.getElementById(id);
+  // Production shortcut: one NPC panel, no second renderer, timer or scene.
+  if(openLearning){
+    let disposed=false;
+    const open=()=>{if(disposed||!canOpen())return false;onEnter();openLearning();return true;};
+    const close=()=>{closeLearning();onExit();};
+    $('open-communication').addEventListener('click',open);
+    return Object.freeze({open,close,refresh:()=>{},active:()=>learningVisible(),status:()=>({active:learningVisible(),paused:isPaused(),snapshot:getLearning()?.snapshot()??null}),dispose(){if(disposed)return;disposed=true;$('open-communication').removeEventListener('click',open);}});
+  }
   const dialog = $('communication-dialog'), listeners = [];
   let active = false, disposed = false, frame = null, renderer = null, snapshot = null, lastRefresh = -Infinity;
   const text = (id, value) => { $(id).textContent = value; };

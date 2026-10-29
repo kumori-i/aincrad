@@ -1,3 +1,4 @@
+import { legacyCommunication } from './communication-mode.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { validateLedgers, adverseEffect } from './receipt-proof.js';
 
@@ -114,10 +115,12 @@ export function validFoodWarningReports(npc) {
 }
 /** Losing the bounded heard receipt retires authority, but preserves prose. */
 export function retireUnheardFoodWarnings(npc) {
+  if(!legacyCommunication(npc))return null;
   const heard=new Set((npc.social?.heard||[]).map(m=>m.id));
   for (const report of npc.discovery?.reports||[]) if (report.warning && !heard.has(report.messageId)) delete report.warning;
 }
 export function receivedMaterialCaution(npc,materialId) {
+  if(!legacyCommunication(npc))return null;
   if (!npc?.inventory?.items?.includes(materialId) || !npc.discovery?.observations?.[materialId]) return null;
   return npc.discovery.reports.find(report=>report.warning?.materialId===materialId && validFoodWarningReport(report,npc) &&
     npc.elapsed-report.warning.receivedAt>=0 && npc.elapsed-report.warning.receivedAt<FOOD_WARNING_WINDOW_SECONDS) || null;

@@ -74,6 +74,8 @@ async function writePhase(win) {
   assert.equal(stored.features.finiteAquatic, 2);
   assert.equal(fixture.summary.renewalVerified, true);
   assert.equal(fixture.summary.timedHandoffVerified, true);
+  assert.equal(fixture.summary.groundedGesturesVerified, true);
+  assert.equal(fixture.summary.transfer.offer.message, undefined);
   await win.webContents.executeJavaScript('(' + installEmptyCurrentSlot.toString() + ')(localStorage,' + JSON.stringify({key:fixture.saveKey,inputRaw:fixture.raw}) + ')');
   await fs.writeFile(path.join(context.output, 'checkpoint.json'), JSON.stringify(fixture, null, 2));
   await session.defaultSession.flushStorageData();
@@ -109,8 +111,9 @@ async function reopenPhase(win) {
     const state = loaded.state;
     const social = new SocialCoordinator({getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>state.environment});
     const receiver = state.agents.find(row => row.id === receiverId);
-    return {observed:social.observe(receiver).foodSharing, attempt:social.action(receiver,{type:'accept_food',offerId})};
+    return {gestures:social.foodSharing.gestures(), observed:social.observe(receiver).foodSharing, attempt:social.action(receiver,{type:'accept_food',offerId})};
   }).toString() + ')(' + JSON.stringify(pending.offerId) + ',' + JSON.stringify(pending.receiverId) + ')');
+  assert.deepEqual(restartedConsent.gestures, []);
   assert.deepEqual(restartedConsent.observed, {requests:[],offers:[]});
   assert.equal(restartedConsent.attempt.ok, false, 'Restart cannot recover transient offer authority');
   // Start only to expose the real restored world, then pause immediately.
@@ -120,19 +123,18 @@ async function reopenPhase(win) {
   assert.deepEqual(await win.webContents.executeJavaScript('window.__ozarkWorld.fullSnapshot()'), before, 'Paused render cannot mutate renewal or ownership');
   await win.webContents.executeJavaScript("document.getElementById('pause-panel').classList.add('hidden')");
   const screenshots = [await capture(win, '01-restored-food-handoff.png')];
-  const conversation = await win.webContents.executeJavaScript('(' + (function (expectedText, receiverId, senderId) {
+  const learning = await win.webContents.executeJavaScript('(' + (function (receiverId) {
     const panel = document.getElementById('npc-panel');
     if (panel.classList.contains('hidden')) document.getElementById('open-npc').click();
     const select = document.getElementById('npc-select'); select.value = receiverId;
     select.dispatchEvent(new Event('change', {bubbles:true}));
     document.getElementById('npc-tab-conversation').click();
-    const entry = [...document.querySelectorAll('#journal-messages .journal-entry')]
-      .find(node => node.dataset.sender === senderId && node.querySelector('p')?.textContent === expectedText);
-    if (!entry) throw new Error('Actual saved food offer missing from recipient conversation');
-    entry.scrollIntoView({block:'center'});
-    return {text:entry.textContent,character:document.getElementById('npc-name').textContent};
-  }).toString() + ')(' + JSON.stringify(expected.summary.transfer.offer.message.text) + ',' + JSON.stringify(transfer.receiverId) + ',' + JSON.stringify(transfer.senderId) + ')');
-  screenshots.push(await capture(win, '02-restored-food-offer-conversation.png'));
+    const text=document.getElementById('journal-messages').textContent;
+    if(!text.includes('No symbol exchange involving this agent yet.'))throw new Error('Reopen must not invent symbol exchanges from physical sharing');
+    if(!text.includes('Observer annotations, not agent speech.'))throw new Error('Learning view must separate observer labels from agent language');
+    return {text,character:document.getElementById('npc-name').textContent};
+  }).toString() + ')(' + JSON.stringify(transfer.receiverId) + ')');
+  screenshots.push(await capture(win, '02-restored-learning-no-invented-dialogue.png'));
   assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.preview("shore")'), true);
   screenshots.push(await capture(win, '03-restored-renewable-watershed.png'));
   assert.deepEqual(await win.webContents.executeJavaScript('window.__ozarkWorld.fullSnapshot()'), before, 'Camera previews must remain read-only');
@@ -141,7 +143,7 @@ async function reopenPhase(win) {
     exactDiskBytesAcrossClosedProcess:true, noClosedTimeProgression:true, sandboxPreferencesVerified:true,
     renewalLedgerAndPopulationPreserved:true, recipientOwnershipPreserved:true, personalProofUnchanged:true,
     pendingOfferAuthorityDiscarded:true, restartedConsent,
-    pauseAndPreviewReadOnly:true, summary:expected.summary, screenshots, conversation,
+    pauseAndPreviewReadOnly:true, summary:expected.summary, screenshots, learning,
     fixtureDisclosure:expected.summary.fixtureDisclosure}, null, 2));
   console.log('PASS: native separate-process reopen retained renewal, ownership and distinct personal evidence.');
 }

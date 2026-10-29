@@ -1,3 +1,4 @@
+import { bindCommunicationMode } from '../src/communication-mode.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderGroundedNames } from '../src/npc-panel.js';
@@ -11,7 +12,7 @@ class TextNode {
 function freeze(x) { if (x && typeof x === 'object') { Object.values(x).forEach(freeze); Object.freeze(x); } return x; }
 const event = (id, at) => ({ messageId: `message:${id}`, at, scene: 'valley', speakerPosition: { x: 0, y: 0 }, listenerPosition: { x: 10, y: 0 }, objectPosition: { x: 20, y: 0 } });
 function fixture(confirmed = false) {
-  const n = { id: 'mira', seed: 12, elapsed: 50, discovery: { observations: {} } }; n.lexicon = createLexicon(n);
+  const n = { id: 'mira', seed: 12, elapsed: 50, discovery: { observations: {} } }; bindCommunicationMode(n,'legacy'); n.lexicon = createLexicon(n);
   const binding = recordGrounding(n, 'aster', 'ralumi', 'object:17', event(1, 10)); assert.ok(binding);
   if (confirmed) assert.equal(confirmReference(n, binding, { request: event(2, 20), selection: event(3, 30), confirmation: event(4, 40) }), true);
   return n;
@@ -51,6 +52,7 @@ test('conflicts outside eight visible rows remain explicit even after historical
 
 test('owner-chosen names remain separate from peer-grounded or confirmed names', () => {
   const n = { id: 'mira', seed: 12, elapsed: 10, scene: 'valley', position: { x: 0, y: 0 }, memory: { experience: [] }, discovery: { observations: {}, experiments: [] } };
+  bindCommunicationMode(n,'legacy');
   let own;
   for (let i = 1; i <= 4 && !own; i++) {
     n.elapsed = 10 + i;

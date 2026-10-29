@@ -1,3 +1,4 @@
+import { legacyCommunication } from './communication-mode.js';
 import { CONFIG, NPC_RULES, SOCIAL_RULES } from './config.js';
 import { validNameToken, lexicalLabels } from './naming-state.js';
 import { cleanAppearanceCues, appearanceCuesMatch } from './peer-teaching.js';
@@ -99,6 +100,7 @@ export function objectName(npc, objectId) {
 }
 export function namedObject(npc, objectId) { const label = objectName(npc, objectId); return label ? `“${label.token}” (${objectId})` : objectId; }
 export function resolveCategoryName(npc, token, speakerId, visibleObjects = []) {
+  if(!legacyCommunication(npc))return null;
   const labels = categoryLabels(npc).filter(r => r.token === token && (speakerId == null || r.speakerId === speakerId));
   // Distinct meanings are a conflict even when one currently lies out of sight.
   if (!labels.length || new Set(labels.map(r => cueKey(r.cues))).size !== 1) return null;
@@ -108,6 +110,7 @@ export function resolveCategoryName(npc, token, speakerId, visibleObjects = []) 
 /** Read-only model context: no world, material, species, effects, instructions,
  * inventory or private peer extension. Familiar words are not verified facts. */
 export function namingProposal(npc) {
+  if(!legacyCommunication(npc))return null;
   if (npc?.mode !== 'discovery' || !npc.learning || npc.lifecycle !== 'AWAKE' || npc.scene !== 'valley') return null;
   const lex = npc.categoryNames ?? empty(npc);
   if (!validCategoryNames(lex, npc) || lex.own.length >= CATEGORY_NAME_LIMIT) return null;
@@ -132,6 +135,7 @@ function requestValid(request, npc) {
  * retry after five simulated minutes; reload preserves the cooldown. Accepted
  * categories never request a synonym. Service/actor budgets still apply. */
 export function beginNamingProposal(npc, request) {
+  if(!legacyCommunication(npc))return null;
   const expected = namingProposal(npc);
   if (!expected || !same(expected, request)) return false;
   const lex = npc.categoryNames ?? empty(npc);
@@ -143,6 +147,7 @@ export function beginNamingProposal(npc, request) {
   return true;
 }
 export function acceptNamingProposal(npc, request, response) {
+  if(!legacyCommunication(npc))return null;
   const lex = npc.categoryNames, proof = request && pendingProof.get(request);
   if (!proof || proof.npc !== npc || !proof.identity || proof.identity !== visualSampleIdentity(npc, request.example.objectId)) return false;
   pendingProof.delete(request);
@@ -156,6 +161,7 @@ export function acceptNamingProposal(npc, request, response) {
 /** Atomic local grounded delivery; only the receiver's ordinary personal sample
  * supplies its example and cues. No transmitted ID is itself an observation. */
 export function recordCategoryGrounding(speaker, listener, own, objectId, event) {
+  if(!legacyCommunication(speaker)||!legacyCommunication(listener))return false;
   const a = speaker.categoryNames, b = listener.categoryNames ?? empty(listener);
   if (!validCategoryNames(a, speaker) || !validCategoryNames(b, listener) || speaker.id === listener.id || !a.own.includes(own) || own.announcedTo.length || b.heard.length >= CATEGORY_HEARD_LIMIT || !eventValid(event, speaker) || !eventValid(event, listener) || event.at !== speaker.elapsed || event.at !== listener.elapsed || !same(event.speakerPosition, speaker.position) || !same(event.listenerPosition, listener.position)) return false;
   const heard = samples(listener).find(s => s.objectId === objectId), said = samples(speaker).find(s => s.objectId === objectId);

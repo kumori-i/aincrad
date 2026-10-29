@@ -1,7 +1,10 @@
+import { legacyFixture } from './fixtures/legacy-communication.mjs';
+// These tests preserve the explicit historical English/naming channel.
+const createNpc=(...args)=>legacyFixture(rawcreateNpc(...args));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SOCIAL_RULES } from '../src/config.js';
-import { createNpc } from '../src/npc-state.js';
+import { createNpc as rawcreateNpc } from '../src/npc-state.js';
 import { createEnvironment } from '../src/environment.js';
 import { observeNpc } from '../src/npc.js';
 import { updateCognition } from '../src/cognition.js';
@@ -11,7 +14,7 @@ function fixture() {
   const aster = createNpc({id: 'aster'}), mira = createNpc({id: 'mira'});
   mira.position = {x: aster.position.x, y: aster.position.y + 35};
   const environment = createEnvironment(), community = createCommunity();
-  const social = new SocialCoordinator({getAgents: () => [aster, mira], getCommunity: () => community, getEnvironment: () => environment});
+  const social = new SocialCoordinator({communicationMode:'legacy',getAgents: () => [aster, mira], getCommunity: () => community, getEnvironment: () => environment});
   const advance = seconds => {environment.elapsed += seconds; aster.elapsed += seconds; mira.elapsed += seconds; social.tick(seconds);};
   return {aster, mira, environment, community, social, advance};
 }
