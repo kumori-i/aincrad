@@ -67,10 +67,13 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
   // Current main-world contracts, not the archived experimental weight learner.
   function assertPrivateAssociationDisclosure(text) {
     assert.match(text, /Observer annotations, not agent speech/);
-    assert.match(text, /Bodies and survival memories save locally\. Private visual associations restart empty on app reopen or world reset\./);
+    assert.match(text, /private visual associations save locally per individual.*after app reopen/i);
+    assert.match(text, /fresh or reset worlds and replacement individuals start empty/i);
     assert.match(text, /Reference matching is not bodily relief or sickness/);
     assert.doesNotMatch(text, /Communication weights restart/);
   }
+  const durableLearners=snapshot=>snapshot.learners.map(({agentId,identity,anchors,partners,counts})=>
+    ({agentId,identity,anchors,partners,counts}));
   function assertEmptyPrivateAssociations(snapshot) {
     assert.equal(snapshot.phase, 'private-visual-association', 'Current main uses private exemplar associations');
     for (const key of ['exchanges','updates','pending','observed','evidenceAdditions','correctionAttempts','supportUpdates','conflicts']) assert.equal(snapshot[key], 0, 'Fresh private association metric: ' + key);
@@ -196,6 +199,9 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       await waitFor(win, 'Boolean(window.__ozarkWorld)');
       const world = await evaluate(win, 'window.__ozarkWorld.fullSnapshot()');
       assert.equal(world.elapsed, 0, 'Explicit reset creates fresh ordinary world');
+      const previous=JSON.parse(await fs.readFile(path.join(context.output,'ordinary-checkpoint.json'),'utf8'));
+      assert.notEqual(world.worldLineage.instanceId,JSON.parse(previous.raw).worldLineage.instanceId,
+        'Explicit reset creates a distinct world identity');
       for (const agent of world.agents) { assert.equal(agent.elapsed, 0); assert.equal(agent.discovery.experiments.length, 0); assert.equal(agent.discovery.effects.length, 0); }
       const fresh = await learning(); assert(fresh);
       assert.equal(fresh.elapsed, 0); assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0, 'Reset clears pending reference transactions');
@@ -214,7 +220,9 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       const fresh = await learning(); assert(fresh, 'Main-world learner attaches before start');
       assert.equal(fresh.elapsed, previous.learning.elapsed, 'Main clock resumes saved time, not experiment time');
       assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0);
-      assertEmptyPrivateAssociations(fresh);
+      assert.deepEqual(fresh.observationEvents,[],'Reopen does not restore an in-flight visual-reference session');
+      assert.deepEqual(durableLearners(fresh),durableLearners(previous.learning),
+        'Independent reopen preserves any personally acquired private association and assigned symbols');
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
       assertPrivateAssociationDisclosure(await disclosure());

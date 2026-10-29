@@ -34,6 +34,14 @@ function helpers(exp){
   return {sender,receiver,env,advance,act,source,choices};
 }
 function legacyShape(snapshot){const {gates,relief,discomfort,effortExpiry,limitReached,observationEvents,...rest}=snapshot;return rest;}
+function comparableWorld(state){
+  const copy=structuredClone(state);
+  // Fresh worlds created by separate trials must have distinct lineage IDs.
+  // Keep every other physical, policy, RNG and learner field in this parity check.
+  copy.worldLineage.instanceId='<fresh-world-instance>';
+  copy.visualReference.worldId='<fresh-world-instance>';
+  return copy;
+}
 function scenario(factory,options={}){
   const pixelSensor=numeric(),exp=factory({geometry,pixelSensor,...options});exp.pixelSensor??=pixelSensor;
   try{
@@ -49,12 +57,12 @@ function scenario(factory,options={}){
 test('extracted finite wrapper preserves frozen protocol actions, physical states, receipts, RNG and weights',()=>{
   for(const enabled of [true,false]){
     const old=scenario(frozenExperiment,{enabled}),current=scenario(createCommunicationExperiment,{enabled});
-    assert.deepEqual(current.state,old.state);assert.deepEqual(current.snapshot,old.snapshot);
+    assert.deepEqual(comparableWorld(current.state),comparableWorld(old.state));assert.deepEqual(current.snapshot,old.snapshot);
   }
 });
 test('passive gate diagnostics on/off preserve exact paid actions, states, RNG, receipts and models',()=>{
   const on=scenario(()=>attached({diagnostics:true})),off=scenario(()=>attached({diagnostics:false}));
-  assert.deepEqual(on.state,off.state);assert.deepEqual(on.snapshot,off.snapshot);
+  assert.deepEqual(comparableWorld(on.state),comparableWorld(off.state));assert.deepEqual(on.snapshot,off.snapshot);
   assert.ok(on.gates.eligible>0);assert.ok(Object.values(off.gates).every(x=>x===0));
 });
 test('attachment never owns clock, survival seed, runtime or save and is not capped at 1800 seconds',()=>{
@@ -106,11 +114,19 @@ for(const change of ['epoch','actor','discovery','physiology'])test(`identity bo
     assert.equal(exp.snapshot().gates.sources,sourceCount);assert.equal(exp.snapshot().ledger.at(-1).reward,null);
   }finally{exp.dispose();}
 });
-test('main has one tick owner, guarded optional attachment and unrestricted ordinary save during inspection',async()=>{
+test('main has one tick owner and saves only validated current visual learning',async()=>{
   const source=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
+  const gate=await readFile(new URL('../src/visual-reference-save-gate.js',import.meta.url),'utf8');
   assert.equal((source.match(/population\.tick\(dt\)/g)||[]).length,1);
   assert.match(source,/communicate\('beforeTick'\);\s*state.elapsed \+= dt;\s*state.distance \+= motion.distance;\s*population.tick\(dt\);\s*communicate\('afterTick'\)/);
+  assert.match(source,/if\(referenceFixtureOwner&&!referenceCheckpoint\)return false/);
   assert.match(source,/if \(resetHeld \|\| resetRetired \|\| loaded.blocked \|\| !state\) return false/);
+  assert.match(source,/referenceSaveGate\.retire\(previous\)/);
+  assert.match(gate,/retained=validate\(learner\.exportPersistence\(\)\);[\s\S]*?learner\?\.dispose\(\)/,
+    'Completed learning is exported before channel disposal can censor pending work');
+  assert.match(source,/const reference=referenceSaveGate\.current\(communicationLearning\)/);
+  assert.match(source,/const ok=reference\.ok&&writeOzarkSave\(storage,state,geometry,\{referencePersistence:reference\.persistence\}\)/,
+    'Every ordinary save must require the current validated learner export');
   assert.doesNotMatch(source,/createCommunicationExperiment|1800|n\.rng\s*=/);
   assert.match(source,/catch \{ stopCommunication\(\); return null; \}/);
 });

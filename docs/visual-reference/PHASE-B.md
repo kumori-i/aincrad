@@ -50,10 +50,24 @@ bodily epoch and cancel pending transactions but retain memory. Actor/discovery/
 physiology replacement retires identity and purges old partner bindings before
 any choice or correction. Partner maps contain only current actual partners.
 
-Private associations are runtime-only: reopening, new attachments and world
-reset start empty. Ordinary survival bodies and memories still save. No user
-save is deleted by this change, and serialized action/observer fields cannot
-restore executable authority or learned associations.
+The current-world save retains bounded acquired anchors, assigned symbols and
+partner-specific own-view examples for each continuing individual. Reopening a
+valid save restores that data only when its world and individual lineage match.
+Fresh or reset worlds and replacement individuals start with empty associations;
+reusing a name, actor ID or copied lineage stamp does not carry old learning into
+a replacement body. Ordinary survival bodies and memories still save.
+
+Only complete absence of the optional learner extension migrates to blank
+associations. Malformed, partial, oversized or unsupported learner data protects
+the exact existing save bytes from ordinary overwrite. A stopped channel keeps
+completed associations when a pure export succeeds; if it cannot export safely,
+ordinary saving stops until the stored world can be inspected or the explicitly
+confirmed reset is used. No user save is deleted by this change.
+
+Sessions, unfinished gestures, correction rights, action permits, observer events
+and survival decision traces remain runtime-only. Reopen cannot complete a saved
+gesture or apply its correction twice. Memory persistence does not turn symbols
+into English words or grant either agent the other one's image features.
 
 ## Evidence and scope
 

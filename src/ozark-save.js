@@ -20,6 +20,8 @@ import { createOzarkEcology, validateOzarkEcology } from './ozark-ecology.js';
 import { createCommunity, validateCommunity } from './social.js';
 import { retainedProofIntegrityError } from './proof-retention.js';
 import { ozarkWaterSource } from './ozark-water-sources.js';
+import { createFreshReferencePersistence, validateReferencePersistence } from './visual-reference-save.js';
+import { currentVisualReferenceExport } from './visual-reference-save-registration.js';
 
 export const OZARK_SAVE_KEY = 'aincrad.world.v2';
 export const OZARK_SAVE_VERSION = 12;
@@ -31,6 +33,7 @@ const ENVELOPE_KEYS = Object.freeze([
   'player', 'playerBody', 'elapsed', 'distance', 'agents', 'environment',
   'community', 'selectedAgentId', 'waypoint',
 ]);
+const REFERENCE_ENVELOPE_KEYS = Object.freeze(['worldLineage', 'visualReference']);
 const BODY_KEYS = Object.freeze(['wetness', 'effort', 'stamina', 'health']);
 // These are authored/physical data. Derived body projections, discovery practice
 // counts and explicit interrupted-advice transformations are validated separately.
@@ -76,6 +79,35 @@ function sameExact(a, b) {
   const left = Reflect.ownKeys(a), right = Reflect.ownKeys(b);
   return left.length === right.length &&
     left.every(key => Object.hasOwn(b, key) && sameExact(a[key], b[key]));
+}
+
+// JSON.parse retains only the last value of a repeated object key. Check the
+// bounded, syntactically valid original text so duplicate learner fields (or
+// any other current-world fields) cannot be silently normalized on reopen.
+function hasDuplicateJsonKeys(raw) {
+  const stack = [];
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i];
+    if (char === '"') {
+      const start = i;
+      for (i++; i < raw.length; i++) {
+        if (raw[i] === '\\') { i++; continue; }
+        if (raw[i] === '"') break;
+      }
+      let after = i + 1;
+      while (raw[after] === ' ' || raw[after] === '\t' ||
+          raw[after] === '\r' || raw[after] === '\n') after++;
+      const keys = stack.at(-1);
+      if (raw[after] === ':' && keys instanceof Set) {
+        const key = JSON.parse(raw.slice(start, i + 1));
+        if (keys.has(key)) return true;
+        keys.add(key);
+      }
+    } else if (char === '{') stack.push(new Set());
+    else if (char === '[') stack.push(null);
+    else if (char === '}' || char === ']') stack.pop();
+  }
+  return false;
 }
 
 function assertGeometry(geometry) {
@@ -385,7 +417,9 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   if (!mode || !ozarkGeometryMatchesMode(geometry, mode))
     fail('unsupported version, feature combination or structural geometry');
   const { finiteAquatic } = mode;
-  const keys = Object.hasOwn(raw || {}, 'npc') ? [...ENVELOPE_KEYS, 'npc'] : ENVELOPE_KEYS;
+  const hasReference = REFERENCE_ENVELOPE_KEYS.some(key=>Object.hasOwn(raw || {},key));
+  const keys = [...ENVELOPE_KEYS,...(hasReference?REFERENCE_ENVELOPE_KEYS:[]),
+    ...(Object.hasOwn(raw || {}, 'npc')?['npc']:[])];
   if (!exactKeys(raw, keys) ||
       raw.geometryIdentity !== OZARK_WORLD_PROFILE.identity ||
       raw.simulationMode !== 'discovery' || raw.scene !== 'valley' ||
@@ -410,6 +444,9 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
       AGENT_IDS.some(id => !records.has(id))) fail('both original agents are required');
   const agents = AGENT_IDS.map(id =>
     checkActor(records.get(id), id, raw.elapsed, geometry, restoring));
+  // Only the complete absence of this optional schema-12 extension migrates.
+  // A partial, malformed or unsupported learner section protects saved bytes.
+  const reference=hasReference ? validateReferencePersistence(raw.worldLineage,raw.visualReference) : null;
   const environment = validateEnvironment(raw.environment, {
     elapsed: raw.elapsed, mode: 'discovery', connectedEcology: false,
     ecologyValidator: (rawEcology, context = {}) =>
@@ -456,6 +493,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     playerBody, elapsed: raw.elapsed, distance: raw.distance,
     agents, npc: agents[0], environment, community,
     selectedAgentId: raw.selectedAgentId, waypoint,
+    ...(reference||{}),
   };
 }
 
@@ -480,6 +518,7 @@ export function createOzarkState(geometry) {
     playerBody: { wetness: 0, effort: 0, stamina: 100, health: 100 },
     elapsed: 0, distance: 0, agents, npc: agents[0], environment,
     community: createCommunity(), selectedAgentId: 'aster', waypoint: null,
+    ...createFreshReferencePersistence(),
   };
   expectedRawByState.set(state, null);
   return state;
@@ -496,7 +535,10 @@ export function loadOzarkSave(storage, geometry) {
     if (typeof raw !== 'string' || raw.length === 0 || raw.length > 16 * 1024 * 1024) {
       fail('the saved bytes are missing or exceed the supported size');
     }
-    const state = validateOzarkState(JSON.parse(raw), geometry, { restoring: true });
+    const parsed = JSON.parse(raw);
+    if (hasDuplicateJsonKeys(raw)) fail('duplicate JSON field name');
+    const state = validateOzarkState(parsed, geometry, { restoring: true });
+    if(!Object.hasOwn(state,'worldLineage'))Object.assign(state,createFreshReferencePersistence());
     expectedRawByState.set(state, raw);
     return { state, exists: true, blocked: false, error: null };
   } catch (error) {
@@ -508,7 +550,7 @@ export function loadOzarkSave(storage, geometry) {
 }
 
 /** A same-slot, exact-byte compare prevents a stale process replacing a save. */
-export function writeOzarkSave(storage, state, geometry) {
+export function writeOzarkSave(storage, state, geometry, {referencePersistence}={}) {
   let phase = 'untracked-state';
   try {
     if (!expectedRawByState.has(state)) return failedSave(state, 'untracked-state');
@@ -516,7 +558,23 @@ export function writeOzarkSave(storage, state, geometry) {
     phase = 'storage-read';
     if (storage.getItem(OZARK_SAVE_KEY) !== expected) return failedSave(state, 'stored-value-changed');
     phase = 'live-validation';
-    const canonical = validateOzarkState(state, geometry, { restoring: false });
+    const currentExport=currentVisualReferenceExport(state);
+    if(currentExport){
+      if(referencePersistence===undefined)return failedSave(state,'reference-export-required');
+      let latest;
+      try{latest=currentExport();}catch{return failedSave(state,'reference-export-stale');}
+      if(!sameExact(referencePersistence,latest))return failedSave(state,'reference-export-stale');
+    }
+    // An active learner supplies a pure current export. Validate the state’s
+    // previous data too: an override cannot hide a malformed authored section.
+    if(referencePersistence!==undefined){
+      if(!exactKeys(referencePersistence,REFERENCE_ENVELOPE_KEYS))fail('invalid reference export shape');
+      validateReferencePersistence(state.worldLineage,state.visualReference);
+      if(referencePersistence.worldLineage?.instanceId!==state.worldLineage.instanceId)
+        fail('reference export changed the world instance');
+    }
+    const canonical = validateOzarkState(referencePersistence===undefined?state:
+      {...state,...referencePersistence}, geometry, { restoring: false });
     phase = 'serialization';
     const { npc: _alias, ...disk } = canonical;
     const raw = JSON.stringify(disk);

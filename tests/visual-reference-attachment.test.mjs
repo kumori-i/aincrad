@@ -110,11 +110,34 @@ test('association memory survives real collapse rescue recovery but replacement 
   assert.equal(sender.lifecycle,'AWAKE');assert.equal(sender.discovery,discovery);assert.equal(sender.physiology,physiology);
   const after=f.attachment.snapshot().learners;
   assert.deepEqual(after,before,'Bodily epoch changes retain exactly the same private memories');
-  sender.discovery=structuredClone(sender.discovery);f.attachment.beforeTick();
+  sender.discovery=structuredClone(sender.discovery);
+  const stale=f.attachment.snapshot();
+  assert.equal(stale.diagnostic.pendingReconciliation,true);
+  assert.deepEqual(stale.learners,[]);assert.deepEqual(stale.observationEvents,[]);
+  assert.deepEqual(stale.ledger,[]);assert.equal(stale.latest,null);
+  f.attachment.beforeTick();
   const replaced=f.attachment.snapshot().learners;
   assert.notEqual(replaced.find(l=>l.agentId===sender.id).identity,before.find(l=>l.agentId===sender.id).identity);
   assert.equal(replaced.find(l=>l.agentId===sender.id).counts.anchors,0);
   assert.equal(replaced.find(l=>l.agentId===receiver.id).counts.examples,0,'Old sender token cannot bind reused textual name');
+  assert.deepEqual(f.attachment.snapshot().observationEvents,[],
+    'Retired actor events cannot appear under a replacement using the same name');
+  f.attachment.dispose();
+});
+
+test('replacement hides a pending old-person exchange before normal reconciliation',()=>{
+  const f=fixture(),{sender}=f.begin();
+  assert.equal(f.attachment.snapshot().pending,1);
+  sender.discovery=structuredClone(sender.discovery);
+  const before=f.attachment.snapshot();
+  assert.equal(before.diagnostic.pendingReconciliation,true);
+  assert.equal(before.pending,0);
+  assert.deepEqual(before.learners,[]);
+  assert.deepEqual(before.observationEvents,[]);
+  assert.equal(before.latest,null);
+  assert.throws(()=>f.attachment.exportPersistence(),/reconciliation/);
+  f.attachment.beforeTick();
+  assert.equal(f.attachment.snapshot().pending,0);
   f.attachment.dispose();
 });
 

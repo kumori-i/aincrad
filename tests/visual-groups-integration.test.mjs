@@ -117,7 +117,16 @@ test('enabled and disabled observer have exact ordinary-controller world parity'
   const enabled=run(false),disabled=run(true);
   t.diagnostic(JSON.stringify({purpose:'Fixed natural-frequency and whole-runtime timing diagnostic only; not autonomous learning or isolated ingestion cost',enabled:enabled.diagnostic,disabled:disabled.diagnostic}));
   assert.ok(enabled.sampleCount>0);assert.equal(disabled.sampleCount,0);
-  assert.deepEqual(enabled.world,disabled.world,'actions, RNG, clocks, effort, stocks, learning and lexicons are unchanged');
+  assert.notEqual(enabled.world.worldLineage.instanceId,disabled.world.worldLineage.instanceId,
+    'Independent fresh-world processes receive distinct nonsemantic identities');
+  const normalized=world=>{
+    const copy=structuredClone(world);
+    copy.worldLineage.instanceId='<fresh-world-instance>';
+    copy.visualReference.worldId='<fresh-world-instance>';
+    return copy;
+  };
+  assert.deepEqual(normalized(enabled.world),normalized(disabled.world),
+    'Actions, RNG, clocks, effort, stocks, learning and lexicons are unchanged apart from fresh world identity');
 });
 
 

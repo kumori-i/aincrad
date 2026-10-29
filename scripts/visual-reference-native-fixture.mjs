@@ -19,6 +19,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
   const {npcEffortCost}=await use('npc-effort-funding');
   const {VISUAL_REFERENCE_MEMORY_LIMITS}=await use('visual-reference-memory');
+  const {validateReferencePersistence}=await use('visual-reference-save');
   const {loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
   const {state,populationState,reference,geometry,renderer,step,fixedStep,checkpoint:saveCheckpoint,auditAssociation}=context;
@@ -206,8 +207,15 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   }
   function checkpoint(storage){
     require(phase==='pending-save','Expected paid live indication at save');
+    const before=JSON.stringify(reference.snapshot()),persisted=reference.exportPersistence();
+    require(JSON.stringify(reference.snapshot())===before,'Persistence export changed private memory or pending metrics');
     if(!saveCheckpoint())return null;
     const raw=storage.getItem(OZARK_SAVE_KEY);require(raw,'Main save did not write current bytes');
+    const document=JSON.parse(raw),canonical=validateReferencePersistence(persisted.worldLineage,persisted.visualReference);
+    require(JSON.stringify(document.worldLineage)===JSON.stringify(canonical.worldLineage)&&
+      JSON.stringify(document.visualReference)===JSON.stringify(canonical.visualReference),
+    'Canonical checkpoint omitted or changed the pure private-memory export');
+    require(JSON.stringify(reference.snapshot())===before,'Save changed private memory or pending metrics');
     const loaded=loadOzarkSave({getItem:key=>key===OZARK_SAVE_KEY?raw:null},geometry);
     require(!loaded.blocked,'Canonical save failed strict reload');
     const result={raw,expectedRestored:projectEvidence(loaded.state),report:status(),serializedActive:structuredClone(pendingActive),serializedPermit:{...pendingPermit},

@@ -17,6 +17,7 @@ import { installCommunicationInspector } from './communication-inspector.js';
 import { attachVisualReferenceLearning } from './visual-reference-attachment.js';
 import { createCommunicationPixelSensor } from './communication-pixels.js';
 import { saveFailureMessage } from './save-failure-message.js';
+import { createVisualReferenceSaveGate } from './visual-reference-save-gate.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -42,14 +43,18 @@ let renderer = null;
 let npcPanel = null;
 let communicationInspector = null;
 let communicationLearning = null;
+const referenceSaveGate=createVisualReferenceSaveGate();
 let communicationError = '';
-// Learning failures retire only this optional channel. Survival and its save
-// remain authoritative; do not recreate actors or retry with old source claims.
+// Capture completed personal learning before disposal can censor in-flight
+// actions. If current memory cannot be validated, no ordinary save may replace
+// the last good bytes with a blank or older learner checkpoint.
 function stopCommunication() {
   const previous = communicationLearning;
   communicationLearning = null;
-  communicationError = 'Symbol learning stopped after an error. Survival continues; reopen the app to start fresh communication learners.';
-  try { previous?.dispose(); } catch { /* channel is already detached */ }
+  referenceSaveGate.retire(previous);
+  communicationError=referenceSaveGate.isBlocked()?
+    'Symbol learning stopped after an error. Current learned memory could not be verified; ordinary saving is blocked to protect it.':
+    'Symbol learning stopped after an error. Completed visual associations are retained for saving; survival continues.';
   notify(communicationError, 12);
 }
 function communicate(method, ...args) {
@@ -98,8 +103,11 @@ function selectedAgent() {
 function save(explicit = false, referenceCheckpoint = false) {
   if(referenceFixtureOwner&&!referenceCheckpoint)return false;
   if (resetHeld || resetRetired || loaded.blocked || !state) return false;
-  const ok = writeOzarkSave(storage, state, geometry);
-  const failure = ok ? '' : saveFailureMessage(getOzarkSaveFailure(state));
+  const reference=referenceSaveGate.current(communicationLearning);
+  const ok=reference.ok&&writeOzarkSave(storage,state,geometry,{referencePersistence:reference.persistence});
+  const failure=ok?'':!reference.ok?
+    'Saving is blocked because current visual learning could not be safely exported. Your previous saved bytes remain protected.':
+    saveFailureMessage(getOzarkSaveFailure(state));
   text('save-status', ok ? 'Ozark world saved locally' : failure);
   text('pause-save-failure', failure);
   if (explicit) notify(ok ? 'The world was saved.' : failure, 12);
@@ -527,6 +535,7 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
+    referencePersistenceProbe: args => communicationLearning?.inspectPersistedAssociation(args) ?? null,
     survivalSnapshot: () => location.search === '?test=1' ? survivalDecisionSnapshot(state.agents.find(actor => actor.id === state.selectedAgentId)) : null,
     communicationError: () => communicationError,
     communicationBoundaryProbe: () => {

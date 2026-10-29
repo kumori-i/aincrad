@@ -58,8 +58,8 @@ test('loaded world values and outcome/gate distinctions remain visible without p
   assert.match(f.$('communication-gates').textContent, /no source experience 2/);
   assert.match(f.$('communication-outcome').textContent, /No communication benefit/);
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /Communication weights restart on app reopen/);
-  assert.match(html, /Bodies and memories save locally/);
+  assert.match(html, /acquired visual associations save locally per individual/);
+  assert.match(html, /Bodies, survival memories and acquired visual associations save locally/);
   assert.doesNotMatch(html, /id="communication-(?:start|stop|seed|enabled|speed)"/);
   f.api.dispose();
 });

@@ -67,12 +67,13 @@ export function renderLearningView(parent, snapshot, agentId, error = '', gestur
   const restoreSurvivalFocus=document.activeElement===survivalViews.get(parent)?.summary;
   parent.replaceChildren();
   add(parent,'p','Observer annotations, not agent speech. Symbols have no supplied English translation.','small');
-  add(parent,'p','Bodies and survival memories save locally. Private visual associations restart empty on app reopen or world reset. This bounded view is session-only.','small');
+  add(parent,'p','Bodies, survival memories and private visual associations save locally per individual. Those associations can be used after app reopen; fresh or reset worlds and replacement individuals start empty. Events in this view are session-only.','small');
   renderSurvivalObserver(parent,survival,restoreSurvivalFocus);
-  if(!snapshot){parent.scrollTop=scrollTop;add(parent,'p',`Communication learning unavailable. ${String(error).slice(0,160)} Survival continues independently.`,'small');return;}
+  if(!snapshot){parent.scrollTop=scrollTop;add(parent,'p',`Communication learning unavailable. ${String(error).slice(0,160)}`,'small');return;}
   add(parent,'p',`${count(snapshot.elapsed)} simulation seconds · same main-world clock`,'small');
   const associations=snapshot.phase==='private-visual-association';
   const physicalReference=associations||snapshot.phase==='physical-reference-no-learning';
+  if(associations)add(parent,'p','Counts below cover this app session, including individuals later replaced. The private memory row describes the current individual.','small');
   if(associations)add(parent,'p',`${count(snapshot.opportunities)} optional opportunities · ${count(snapshot.exchanges)} attempted messages · ${count(snapshot.observed)} canonical observed demonstrations · ${count(snapshot.correct)} reference matches · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending`,'small');
   else add(parent,'p',physicalReference?`${count(snapshot.exchanges)} reference attempts · ${count(snapshot.observed)} observed demonstrations · ${count(snapshot.correct)} reference matches · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending · no learning updates`:`${count(snapshot.exchanges)} messages / action selections · ${count(snapshot.updates)} updates · ${count(snapshot.positive)} positive · ${count(snapshot.negative)} negative · ${count(snapshot.relief)} relief · ${count(snapshot.discomfort)} discomfort · ${count(snapshot.effortExpiry)} effort-only expiries · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending`,'small');
   if(associations){

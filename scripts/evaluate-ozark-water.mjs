@@ -231,7 +231,7 @@ function storage() {
 }
 
 /** One isolated, reproducible start. Negative actor outcomes are data. */
-export function evaluateOzarkWaterStart(seed, seconds = 300) {
+export function evaluateOzarkWaterStart(seed, seconds = 300, onFinalRawSave = null) {
   assert(Number.isSafeInteger(seed) && seed >= 0 && seed <= 0xffffffff);
   assert(Number.isSafeInteger(seconds) && seconds >= 1 && seconds <= 1800);
   const geometry = createOzarkWorldGeometry();
@@ -285,6 +285,12 @@ export function evaluateOzarkWaterStart(seed, seconds = 300) {
       `${before.id} changed physical state on load.`);
     assert.equal(retainedEffectProofError(after), null,
       `${before.id} lost exact learned effect proof on load.`);
+  }
+  // Optional test observer sees the exact final bytes only after readback,
+  // strict reload and per-agent physical/learned proof checks have passed.
+  if (onFinalRawSave !== null) {
+    assert.equal(typeof onFinalRawSave, 'function');
+    onFinalRawSave(raw);
   }
   return {
     seed, startKind: 'approved-spawns-varied-actor-rng',

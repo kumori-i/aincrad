@@ -12,7 +12,13 @@ test('Learning view shows literal events and observer-only labels without mutati
   event.status='interrupted';event.endedAt=14;renderLearningView(root,snapshot,'mira');assert.match(root.text,/interrupted/);assert.equal(root.children.filter(c=>c.dataset.learningEvent==='4').length,1);
   renderLearningView(root,snapshot,'other');assert.match(root.text,/No symbol exchange/);assert.doesNotMatch(root.text,/1 · 4/);
 });
-test('unavailable data clears old events and explicitly preserves survival independence',()=>{const root=new Node('div',document);renderLearningView(root,null,'aster','offline');assert.match(root.text,/unavailable.*offline Survival continues/);});
+test('unavailable data clears old events and reports the error without claiming play continues',()=>{
+  const root=new Node('div',document);
+  renderLearningView(root,{elapsed:1,exchanges:1,observationEvents:[{id:9,senderId:'aster',receiverId:'mira',tokens:[4,2],status:'pending'}]},'aster');
+  renderLearningView(root,null,'aster','offline');
+  assert.match(root.text,/Communication learning unavailable\. offline/);
+  assert.doesNotMatch(root.text,/4 · 2|Survival continues independently/);
+});
 
 test('refresh retains diagnostics expansion, summary focus and scroll without changing learner data',()=>{
   const root=new Node('div',document),snapshot={elapsed:1,gates:{optional:2},observationEvents:[]};
@@ -67,6 +73,8 @@ test('private association inspector distinguishes evidence, exploration and refe
   const before=structuredClone(snapshot);renderLearningView(root,snapshot,'mira');
   assert.match(root.text,/1 new visual exemplars/);assert.match(root.text,/2 uniform exploratory choices/);
   assert.match(root.text,/independent reference critic: different/);assert.match(root.text,/not bodily relief or sickness/);
-  assert.match(root.text,/restart empty on app reopen/);assert.match(root.text,/own post-choice demonstration/);
+  assert.match(root.text,/private visual associations save locally per individual.*after app reopen/i);
+  assert.match(root.text,/fresh or reset worlds and replacement individuals start empty/i);
+  assert.match(root.text,/own post-choice demonstration/);
   assert.doesNotMatch(root.text,/positive|negative|no learning updates/);assert.deepEqual(snapshot,before);
 });

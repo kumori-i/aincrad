@@ -8,7 +8,9 @@ import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
 import { CONFIG } from './config.js';
 import { createVisualReferenceMemory } from './visual-reference-memory.js';
-import { createReferenceRandomStream } from './visual-reference-random.js';
+import { createReferenceRandomStream, initialReferenceRandomStates, REFERENCE_RANDOM_PROTOCOL } from './visual-reference-random.js';
+import { validateReferencePersistence } from './visual-reference-save.js';
+import { markVisualReferenceAttached } from './visual-reference-save-registration.js';
 
 export const REFERENCE_LIMITS=Object.freeze({timeout:12,cooldown:12,featureDistance:.08,observationSeconds:.5,maxObservationStep:CONFIG.fixedStep,segmentLength:24,maxEvents:256});
 // Observation occurs at the real step endpoint. Never backdate sight into a
@@ -25,27 +27,90 @@ function identity(n){return {actor:n,epoch:n.epoch,discovery:n.discovery,physiol
 function unchanged(n,w){return n===w.actor&&n.epoch===w.epoch&&n.discovery===w.discovery&&n.physiology===w.physiology&&n.scene===w.scene&&n.position.x===w.position.x&&n.position.y===w.position.y;}
 function cropValid(c,n){return c&&c.epoch===n.epoch&&Number.isFinite(c.at)&&c.at<=n.elapsed&&n.elapsed-c.at<=1.1&&c.features?.length===48&&c.features.every(v=>Number.isFinite(v)&&v>=0&&v<=1)&&c.pixels?.length===768;}
 
-export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
+export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.visualReference?.seed??211}){
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
   if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
-  const pairRandom=createReferenceRandomStream({seed,purpose:'pair'}),targetRandom=createReferenceRandomStream({seed,purpose:'target'}),orderRandom=createReferenceRandomStream({seed,purpose:'order'}),choiceRandom=createReferenceRandomStream({seed,purpose:'choice'});
+  // The save codec verifies both sides of the world/individual lineage before
+  // any new opaque token is issued. Only data crosses this boundary.
+  const restored=validateReferencePersistence(state?.worldLineage,state?.visualReference);
+  if(restored.visualReference.seed!==seed)throw new TypeError('Reference symbol seed differs from the saved world');
+  const worldId=restored.worldLineage.instanceId,savedRandom=restored.visualReference.random;
+  const pairRandom=createReferenceRandomStream({seed,purpose:'pair',state:savedRandom.pair}),
+    targetRandom=createReferenceRandomStream({seed,purpose:'target',state:savedRandom.target}),
+    orderRandom=createReferenceRandomStream({seed,purpose:'order',state:savedRandom.order});
+  // Keep the exact fresh-stream seam used by the existing forced-choice unit
+  // harness. Both paths start at the saved continuation state without a draw.
+  const choiceRandom=savedRandom.choice===initialReferenceRandomStates(seed).choice?
+    createReferenceRandomStream({seed,purpose:'choice'}):
+    createReferenceRandomStream({seed,purpose:'choice',state:savedRandom.choice});
   const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet();
   const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0};
-  let disposed=false,nextId=1,nextIdentity=1,auditReaderIssued=false,auditEnabled=false,auditRecord=null;
+  let disposed=false,nextId=1,nextIdentity=restored.worldLineage.nextSerial,
+    auditReaderIssued=false,auditEnabled=false,auditRecord=null;
   const bump=(key)=>{gates[key]=Math.min(Number.MAX_SAFE_INTEGER,(gates[key]||0)+1);};
   // Identity is object provenance, not a reusable actor name or bodily epoch.
   // Ordinary collapse/rescue/recovery retains memory but cancels transactions.
+  function currentIdentities(){
+    if(!Array.isArray(state.agents)||state.agents.length!==identities.size)return false;
+    const present=new Set(state.agents),seen=new Set();
+    if(present.size!==state.agents.length)return false;
+    for(const actor of state.agents){
+      const entry=identities.get(actor);
+      if(!entry||seen.has(actor.id)||entry.agentId!==actor.id||
+          entry.discovery!==actor.discovery||entry.physiology!==actor.physiology)return false;
+      seen.add(actor.id);
+    }
+    return true;
+  }
+  function requireCurrentIdentities(){
+    if(!currentIdentities())throw new Error('Reference identities need a normal runtime reconciliation before export');
+  }
   function syncIdentities(){
+    if(!Array.isArray(state.agents)||state.agents.length!==2||
+        new Set(state.agents.map(actor=>actor?.id)).size!==2||
+        state.agents.some(actor=>!['aster','mira'].includes(actor?.id)))
+      throw new TypeError('Reference actors no longer match this world');
     const present=new Set(state.agents);
-    for(const [actor,entry]of identities)if(!present.has(actor)||entry.discovery!==actor.discovery||entry.physiology!==actor.physiology)identities.delete(actor);
+    const retiredIds=new Set();
+    for(const [actor,entry]of identities)if(!present.has(actor)||entry.agentId!==actor.id||
+        entry.discovery!==actor.discovery||entry.physiology!==actor.physiology){
+      retiredIds.add(entry.agentId);identities.delete(actor);
+    }
+    // Session rows carry names, not durable incarnation keys. Do not show a
+    // retired person's events as the replacement person's conversation.
+    if(retiredIds.size){
+      for(let index=events.length-1;index>=0;index--)
+        if(retiredIds.has(events[index].senderId)||retiredIds.has(events[index].receiverId))events.splice(index,1);
+      auditRecord=null;
+    }
     for(const actor of state.agents)if(!identities.has(actor)){
+      if(nextIdentity>0xffffffff)throw new RangeError('Reference actor serials are exhausted');
       const serial=nextIdentity++;
-      identities.set(actor,{token:Object.freeze({}),serial,discovery:actor.discovery,physiology:actor.physiology,
+      identities.set(actor,{token:Object.freeze({}),agentId:actor.id,serial,discovery:actor.discovery,physiology:actor.physiology,
         memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial})});
     }
     for(const [actor,entry]of identities)entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
   }
-  syncIdentities();
+  const originalActors=new Map(state.agents.map(actor=>[actor.id,actor]));
+  if(originalActors.size!==2||!['aster','mira'].every(id=>originalActors.has(id)))
+    throw new TypeError('Reference actors do not match the saved world');
+  for(const saved of restored.worldLineage.agents){
+    const actor=originalActors.get(saved.agentId);
+    identities.set(actor,{token:Object.freeze({}),agentId:saved.agentId,serial:saved.serial,
+      discovery:actor.discovery,physiology:actor.physiology,
+      memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:saved.serial})});
+  }
+  for(const [actor,entry]of identities)
+    entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
+  const byId=new Map([...identities].map(([actor,entry])=>[actor.id,entry]));
+  for(const saved of restored.visualReference.learners){
+    const owner=byId.get(saved.agentId);
+    owner.memory.restorePersistence({anchors:saved.anchors,partners:saved.partners},(agentId,serial)=>{
+      const partner=byId.get(agentId);
+      return partner?.serial===serial&&partner!==owner?partner.token:null;
+    });
+  }
+  markVisualReferenceAttached(state,exportPersistence);
   function clearDemonstration(t){
     t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;t.demonstration=null;
     delete t.event.demonstrationPixels;delete t.event.demonstrationObservedAt;
@@ -220,5 +285,37 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
       t.choiceActive=active;
     },
   };
-  return {hooks,createNativeAssociationAuditReader,beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');},snapshot(){return {phase:'private-visual-association',seed,enabled:true,elapsed:state.elapsed,...metrics,pending:sessions.size,gates:{...gates},learners:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:structuredClone(events),observationEvents:structuredClone(events),latest:events.length?structuredClone(events.at(-1)):null,agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,interpretation:'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Fresh on reopen. No autonomous language, abstraction or survival-benefit claim.'}};},dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');disposed=true;pixelSensor.dispose?.();}};
+  function exportPersistence(){
+    requireCurrentIdentities();
+    const byToken=new Map([...identities].map(([,entry])=>[entry.token,entry]));
+    const actors=['aster','mira'].map(id=>state.agents.find(actor=>actor.id===id));
+    const agents=actors.map(actor=>({agentId:actor.id,serial:identities.get(actor).serial}));
+    return {
+      worldLineage:{version:1,instanceId:worldId,nextSerial:nextIdentity,agents},
+      visualReference:{version:1,worldId,seed,protocol:REFERENCE_RANDOM_PROTOCOL,
+        random:{pair:pairRandom.state(),target:targetRandom.state(),
+          order:orderRandom.state(),choice:choiceRandom.state()},
+        learners:actors.map(actor=>{
+          const owner=identities.get(actor);
+          return {agentId:actor.id,serial:owner.serial,...owner.memory.exportPersistence(token=>{
+            const partner=byToken.get(token);
+            if(!partner||partner===owner)throw new TypeError('Reference partner identity is stale');
+            return {agentId:partner.agentId,serial:partner.serial};
+          })};
+        })},
+    };
+  }
+  function inspectPersistedAssociation({listenerId,senderId,symbol,candidateFeatures}={}){
+    requireCurrentIdentities();
+    if(disposed||listenerId===senderId)return null;
+    const listener=[...identities].find(([actor])=>actor.id===listenerId)?.[1];
+    const sender=[...identities].find(([actor])=>actor.id===senderId)?.[1];
+    if(!listener||!sender)return null;
+    return listener.memory.choose(sender.token,symbol,candidateFeatures);
+  }
+  return {hooks,createNativeAssociationAuditReader,exportPersistence,inspectPersistedAssociation,
+    beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},
+    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');},
+    snapshot(){const stale=!currentIdentities();return {phase:'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:stale?0:sessions.size,gates:{...gates},learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Retained by individual across reopen. No autonomous language, abstraction or survival-benefit claim.'}};},
+    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');disposed=true;pixelSensor.dispose?.();}};
 }

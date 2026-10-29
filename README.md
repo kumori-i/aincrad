@@ -54,11 +54,15 @@ main attachment. Historical automated fixtures retain their original channel.
 
 [Phase B rules and limits](docs/visual-reference/PHASE-B.md) describe the bounded
 private memory and its evidence gates. Existing bodies and memories save normally.
-Pending reference authority cannot revive on reopen/reset. Private associations
-start empty on reopen/reset; persistence would need a separate review. No trained
-lab weights or Ollama are used. Only the
-existing explicitly confirmed **Reset world** flow starts fresh bodies/memories;
-this development does not delete user saves.
+Each individual's acquired visual anchors and partner-specific examples are saved
+with a valid current world and can be used after an independent reopen. Fresh or
+reset worlds and replacement individuals begin without those associations. An
+unfinished gesture, correction right and session event history cannot revive on
+reopen. If communication stops, completed memory is retained only when it can be
+safely exported; otherwise ordinary saves are blocked to protect the stored world.
+No trained lab weights or Ollama are used. The existing explicitly confirmed
+**Reset world** flow starts fresh bodies and memories; this development does not
+delete user saves.
 
 Prewritten English speech, human journal instructions, agent notes, peer
 teaching/warnings and model naming remain disabled in the main world. Old names,
