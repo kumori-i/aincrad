@@ -3,7 +3,7 @@
 import { CONFIG } from './config.js';
 import { clockTime } from './world.js';
 import { createOzarkWorldGeometry } from './ozark-world-geometry.js';
-import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure } from './ozark-save.js';
+import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure, OZARK_SAVE_KEY } from './ozark-save.js';
 import { bindOzarkWorldAgent } from './ozark-agent-world.js';
 import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
@@ -13,7 +13,7 @@ import { environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
 import { installWorldReset } from './world-reset-ui.js';
 import { installCommunicationInspector } from './communication-inspector.js';
-import { attachCommunicationLearning } from './communication-attachment.js';
+import { attachVisualReferenceLearning } from './visual-reference-attachment.js';
 import { createCommunicationPixelSensor } from './communication-pixels.js';
 import { saveFailureMessage } from './save-failure-message.js';
 
@@ -52,12 +52,14 @@ function stopCommunication() {
   notify(communicationError, 12);
 }
 function communicate(method, ...args) {
-  try { return ['choose', 'performed'].includes(method)
+  try { return ['optionalAction', 'performOptional', 'performed', 'decision'].includes(method)
     ? communicationLearning?.hooks[method](...args)
     : communicationLearning?.[method](...args); }
   catch { stopCommunication(); return null; }
 }
 let started = false;
+// Runtime-only engineering ownership; never serialized or enabled in ordinary URLs.
+let referenceFixtureOwner = null;
 let resetHeld = false;
 let resetRetired = false;
 let paused = false;
@@ -92,7 +94,8 @@ function notify(message, seconds = 6) {
 function selectedAgent() {
   return population?.getAgent(state.selectedAgentId) || state.agents?.[0] || null;
 }
-function save(explicit = false) {
+function save(explicit = false, referenceCheckpoint = false) {
+  if(referenceFixtureOwner&&!referenceCheckpoint)return false;
   if (resetHeld || resetRetired || loaded.blocked || !state) return false;
   const ok = writeOzarkSave(storage, state, geometry);
   const failure = ok ? '' : saveFailureMessage(getOzarkSaveFailure(state));
@@ -140,12 +143,14 @@ if (loaded.blocked) {
   let sensor = null;
   try {
     sensor = createCommunicationPixelSensor(document);
-    communicationLearning = attachCommunicationLearning({ state, pixelSensor: sensor });
+    communicationLearning = attachVisualReferenceLearning({ state, pixelSensor: sensor });
   } catch {
     sensor?.dispose(); stopCommunication();
   }
   population = new PopulationRuntime(state, { cardinal: false, experimentalDiscovery: {
-    choose: (...args) => communicate('choose', ...args),
+    optionalAction: (...args) => communicate('optionalAction', ...args),
+    performOptional: (...args) => communicate('performOptional', ...args),
+    decision: (...args) => communicate('decision', ...args),
     performed: (...args) => communicate('performed', ...args),
   } });
 }
@@ -180,7 +185,7 @@ if (population) {
 }
 
 function begin() {
-  if (resetHeld || resetRetired || loaded.blocked || started || !save()) return false;
+  if (referenceFixtureOwner || resetHeld || resetRetired || loaded.blocked || started || !save()) return false;
   started = true;
   show('hud');
   keys.clear(); $('world').focus({ preventScroll: true });
@@ -258,6 +263,7 @@ function advancePlayer(dt, dx, dy, mode, sprint = false) {
   }
 }
 function fixedStep(dt) {
+  if(referenceFixtureOwner)return;
   const dx = Number(keys.has('KeyD') || keys.has('ArrowRight')) -
     Number(keys.has('KeyA') || keys.has('ArrowLeft'));
   const dy = Number(keys.has('KeyS') || keys.has('ArrowDown')) -
@@ -323,9 +329,9 @@ function frame(now) {
 requestAnimationFrame(frame);
 const simulationTimer = setInterval(() => {
   clock.advance(performance.now() / 1000, {
-    running: started && !paused && !loaded.blocked && !resetHeld && !resetRetired, speed: simulationSpeed,
+    running: started && !referenceFixtureOwner && !paused && !loaded.blocked && !resetHeld && !resetRetired, speed: simulationSpeed,
   });
-  if (started && performance.now() - lastAutosave > 10000) {
+  if (started && !referenceFixtureOwner && performance.now() - lastAutosave > 10000) {
     lastAutosave = performance.now(); save();
   }
 }, 1000 / 60);
@@ -462,8 +468,44 @@ for (const id of ['you', 'aster', 'mira'])
 if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
   window.__ozarkWorld = Object.freeze({
     start: begin, pause: () => setPause(true), save: () => save(true),
+    // The reviewed native engineering harness supplies this installer directly;
+    // no provider, saved data, message or agent action can enter this test route.
+    referenceFixture: async install => {
+      if(location.search!=='?test=1'||referenceFixtureOwner||started||loaded.exists||loaded.blocked||
+        state.elapsed!==0||!population||!communicationLearning||typeof install!=='function')return null;
+      try{if(storage.getItem(OZARK_SAVE_KEY)!==null)return null;}catch{return null;}
+      const owner={steps:0,failed:false,advancing:false,checkpointAttempted:false};referenceFixtureOwner=owner;keys.clear();
+      const step=()=>{
+        if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||owner.steps>=1200||
+          started||Math.abs(state.elapsed-owner.steps*CONFIG.fixedStep)>1e-7)return false;
+        owner.advancing=true;
+        try{advancePlayer(CONFIG.fixedStep,0,0,'walk');owner.steps++;return true;}
+        catch(error){owner.failed=true;communicationLearning?.censorPending();throw error;}
+        finally{owner.advancing=false;}
+      };
+      // Only the reviewed installer closure gets this one-shot persistence
+      // exception, for explicit isolated mid-action save/reopen verification.
+      const checkpoint=()=>{
+        if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||owner.checkpointAttempted||
+          owner.steps<=0||started||Math.abs(state.elapsed-owner.steps*CONFIG.fixedStep)>1e-7)return false;
+        owner.checkpointAttempted=true;
+        return save(false,true);
+      };
+      try{
+        const readAssociation=communicationLearning.createNativeAssociationAuditReader();
+        const auditAssociation=()=>{
+          if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||started||
+            Math.abs(state.elapsed-owner.steps*CONFIG.fixedStep)>1e-7)return null;
+          return readAssociation?.()??null;
+        };
+        return await install(Object.freeze({state,populationState:population.state,
+          reference:communicationLearning,geometry,renderer,fixedStep:CONFIG.fixedStep,step,checkpoint,auditAssociation}));
+      }
+      catch(error){owner.failed=true;communicationLearning?.censorPending();throw error;}
+    },
+    referenceFixtureState:()=>referenceFixtureOwner?{owned:true,steps:referenceFixtureOwner.steps,failed:referenceFixtureOwner.failed,checkpointAttempted:referenceFixtureOwner.checkpointAttempted}:null,
     step: (seconds, dx = 0, dy = 0, mode = 'walk') => {
-      if (!started || paused || !Number.isFinite(seconds) || seconds < 0 || seconds > 30 ||
+      if (referenceFixtureOwner || !started || paused || !Number.isFinite(seconds) || seconds < 0 || seconds > 30 ||
           !Number.isFinite(dx) || !Number.isFinite(dy) ||
           Math.abs(dx) > 1 || Math.abs(dy) > 1 ||
           !['walk', 'climb', 'swim'].includes(mode)) return false;

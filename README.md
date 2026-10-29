@@ -25,57 +25,53 @@ held-out message-ablation controls; harness delivery is not a language claim.
 The [v2 follow-up](docs/pixel-language-v2/README.md) adds contrastive color/shape
 episodes, broader appearances and a predeclared multi-seed replication test.
 
-## One world: survival and symbol learning
+## One world: survival and visual-reference development
 
-Aster and Mira now learn pixel-grounded symbols **in the main Ozark world**,
-alongside their existing survival learning. There is one population and one
-clock. No Ollama, trained lab weights or separate session is required.
-Open a character’s **Learning** tab (formerly Conversation), or pause with
-Escape and use **Learning inspector** as a shortcut to that same tab. It shows
-actual symbol emissions, copied local crops, selected actions, pending/interrupted
-outcomes and gate counters. English annotations are observer labels, not speech
-or translations. Closing the panel does not discard learning or change pause;
-Escape still controls the one main clock.
-The main world has no 1800-second experimental cutoff.
+This branch is developing **private visual associations** in the same main Ozark
+world: one population, clock and ordinary survival learning. Agents retain bounded
+own-view examples, assign stable arbitrary symbols to visual anchors, and learn
+partner-specific symbol associations only after genuinely observed, paid post-choice
+indications. Unknown or ambiguous meanings still lead to uniform exploratory choices.
+This is an engineered associative baseline, not a demonstrated autonomous language,
+abstract visual concepts, grammar, creativity or improved survival.
 
-**Persistence is deliberately partial in this increment:** the existing world,
-bodies and memories save as before, but communication weights and pending
-communication credit restart when the app reopens. Loaded old samples/effects
-cannot originate fresh messages. A new personal sample with a pre-consumption
-crop and a canonical bodily effect is required. **Reset world** starts fresh
-bodies, memories and policies through the existing confirmed reset flow.
+Open a character's **Learning** tab, or pause with Escape and use **Learning
+inspector** as a shortcut to that same tab. It shows copied crops, actual paid
+actions, observed/censored reference attempts, association evidence and separate
+reference correctness. It distinguishes new examples, repeated support, conflicts,
+confident matches and exploration; these are not positive/negative bodily outcomes.
+English annotations are observer labels, not speech, definitions or translations.
+Closing the panel changes neither the main clock nor the transaction. There is
+no separate playable experiment world or 1800-second cutoff.
 
-Symbols can influence already-permitted optional physical trials; urgent
-survival actions remain upstream. Only the listener's own linked action and
-ingestion receipts earn reinforcement. Diagnostics distinguish relief,
-discomfort, effort-only expiry and censored attempts. A negative reward can
-mean effort with no attributed outcome, not necessarily sickness. Gate counts
-show where opportunities stop; they do not change policies or reward rules.
+[The retained physical-stage evidence](docs/visual-reference/PHASE-A.md) include a supplied
+24-unit schematic direction cue, local geometry parser, all-visible distractors,
+conservative sensory-cap rejection, canonical paid work, and consecutive sampled
+1/60-second observation intervals. Those are engineered scaffolding, not learned
+visual concepts or creativity. Urgent survival decisions remain upstream. There
+is no bodily-reward update or competing old symbol/action-credit learner in the
+main attachment. Historical automated fixtures retain their original channel.
 
-This is an experimental mechanism, **not demonstrated language or improved
-survival**. Whole-object crops, motor channels, opportunities and reward mapping
-are supplied scaffolding. Prewritten English speech, human journal instructions,
-notes as agent messages, peer teaching/warnings and model naming are disabled
-in the main world. Old saved messages, names and reports remain archival and
-cannot drive new choices. Personal outcomes and physically witnessed actions
-remain available. Food handoffs use supplied nonverbal request/offer/consent
-gestures—not learned words or semantic food claims.
+[Phase B rules and limits](docs/visual-reference/PHASE-B.md) describe the bounded
+private memory and its evidence gates. Existing bodies and memories save normally.
+Pending reference authority cannot revive on reopen/reset. Private associations
+start empty on reopen/reset; persistence would need a separate review. No trained
+lab weights or Ollama are used. Only the
+existing explicitly confirmed **Reset world** flow starts fresh bodies/memories;
+this development does not delete user saves.
 
-The NPC **Learning** tab shows actual emitted symbols, original observation
-crops, selected actions and pending/settled/interrupted outcomes. English
-annotations are for the human observer, not translations or agent speech.
-The pause-menu Learning inspector shortcut opens this same tab. No shared
-reference/definition game or new reward has been added in this increment.
-Removing the old semantic channels intentionally changes agent behavior;
-future comparisons require a newly reviewed protocol. Existing worlds may
-retain techniques personally earned after old advice, so they are not
-language-naive starts. Only an explicit confirmed reset starts fresh.
-The displayed token pair encodes one category, not grammar. The isolated
-protocol factory remains for automated reproducibility, not a second playable
-world. The [frozen protocol](docs/communication-bridge/PROTOCOL.md) and its
-recorded comparison are historical evidence; this integration does not rerun
-or reinterpret that experiment. The Python labs remain separate research;
-their trained networks are never loaded into this runtime.
+Prewritten English speech, human journal instructions, agent notes, peer
+teaching/warnings and model naming remain disabled in the main world. Old names,
+messages and reports are archival. Personally earned techniques and real physical
+observation remain. Food handoffs use supplied nonverbal consent, not learned
+words or food facts. Existing worlds may retain personally earned effects of old
+advice, so they are not language-naive starts.
+
+Native physical proof and exact-source review must precede Phase B's private
+experience-backed associations. No successful language, grammar, improved
+survival or sample-efficiency claim follows from this stage. Future behavioral
+comparisons require a new frozen protocol. The [historical protocol](docs/communication-bridge/PROTOCOL.md)
+and Python lab evidence are unchanged; their trained networks are never imported.
 
 The [first six-trial results](docs/communication-bridge/RESULTS.md) found no
 demonstrated survival benefit: two seed pairs had no exchanges, and the third
@@ -144,7 +140,7 @@ and a paid grasp. No message grants nutrition or firsthand knowledge. The
 **Learning** tab separates these motor gestures from actual numeric-symbol events
 and English observer/debug narration. There is no English agent conversation or
 active human instruction entry in the main world. Ollama is not needed for the
-current offline survival or symbol learners.
+current offline survival or physical-reference verification.
 
 ### Historical communication mechanisms — disabled in the main world
 

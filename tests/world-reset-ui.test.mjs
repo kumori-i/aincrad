@@ -95,8 +95,8 @@ test('retirement failure never writes or enables old-session cancellation', asyn
 test('runtime central guard covers saves, simulation and terminal disposal', async () => {
   const source = await readFile(new URL('../src/ozark-world-main.js', import.meta.url), 'utf8');
   // Inspecting main learners must not suppress ordinary saves; reset holds remain required.
-  assert.match(source, /function save\(explicit = false\)\s*\{\s*if \(resetHeld \|\| resetRetired \|\| loaded.blocked \|\| !state\) return false;/);
-  assert.match(source, /running: started && !paused && !loaded.blocked && !resetHeld && !resetRetired/);
+  assert.match(source, /function save\(explicit = false, referenceCheckpoint = false\)\s*\{\s*if\(referenceFixtureOwner&&!referenceCheckpoint\)return false;\s*if \(resetHeld \|\| resetRetired \|\| loaded.blocked \|\| !state\) return false;/);
+  assert.match(source, /running: started && !referenceFixtureOwner && !paused && !loaded.blocked && !resetHeld && !resetRetired/);
   assert.match(source, /clearInterval\(simulationTimer\); communicationInspector\?\.dispose\(\); communicationLearning\?\.dispose\(\); population\?\.dispose\(\)/);
   assert.match(source, /pagehide[^\n]*save\(\)/); assert.match(source, /beforeunload[^\n]*save\(\)/);
 });

@@ -1,0 +1,82 @@
+name: Visual reference association native acceptance
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/visual-reference-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'index.html'
+      - 'style.css'
+      - 'scripts/visual-reference-native-fixture.mjs'
+      - 'scripts/verify-visual-reference-desktop.mjs'
+      - 'scripts/build.mjs'
+      - 'scripts/record-native-host.mjs'
+      - 'scripts/native-capture-readiness.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'scripts/structural-movement-native-contract.mjs'
+      - 'tests/visual-reference-*.test.mjs'
+      - 'tests/visual-indication-action.test.mjs'
+      - 'package*.json'
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-reference:
+    name: Own-demo association, actual main pixels and reopen (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - name: Causal action, local parser, private memory and transaction contracts
+        id: focused
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          node --test tests/visual-indication-action.test.mjs tests/visual-reference-*.test.mjs 2>&1 | tee test-results/visual-reference-focused.log
+      - name: Install sandbox-preserving Linux display and window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Linux deliberate paid main-world reference and independent reopen
+        id: native_linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs'
+      - name: macOS deliberate paid main-world reference and independent reopen
+        id: native_macos
+        if: runner.os == 'macOS'
+        run: node scripts/verify-visual-reference-desktop.mjs
+      - name: Record own-demo and diagnostic scope without claiming generalization
+        if: always()
+        shell: bash
+        env:
+          FOCUSED_OUTCOME: ${{ steps.focused.outcome }}
+          LINUX_OUTCOME: ${{ steps.native_linux.outcome }}
+          MACOS_OUTCOME: ${{ steps.native_macos.outcome }}
+        run: |
+          echo "Causal contracts: $FOCUSED_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Native private-association fixture: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deliberate paid listener inspect, then paid sender indication in the actual fresh main population at 1/60-second steps; actual Canvas crops and a supplied geometry parser. One actual own-view association after canonical paid demonstration, then a read-only same-scene fresh-view message-dependence query on actual memory, not a sampled later policy action. No vocabulary discrimination, generalization, autonomous cohort, reserved-seed sweep or survival-benefit claim. Inspect retained screenshots and private canonical/parser audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-reference-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/visual-reference-focused.log
+            test-results/visual-reference-native/
+          if-no-files-found: warn
+          retention-days: 7

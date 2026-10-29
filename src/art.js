@@ -3,6 +3,7 @@ import { hash, noise, terrain, waterDistance, ridgeValue, clamp } from './world.
 import { bodySignals } from './interoception.js';
 import { habitatConditions } from './ecology-regions.js';
 import { previewGroundColor } from './preview-ground-dispatch.js';
+import { publicIndicationGeometry } from './discovery-actions.js';
 
 export const ART_PIXEL = 2;
 export function canvas(w, h) { const c=document.createElement('canvas');c.width=Math.ceil(w);c.height=Math.ceil(h);return c; }
@@ -467,6 +468,14 @@ export function drawFieldNote(g,note){
   const ink=note.authorId==='mira'?'#80658d':'#52714b';rect(g,-3,-12,6,1,ink);rect(g,-3,-9,5,1,'#927d56');rect(g,-3,-6,7,1,'#927d56');
   g.restore();
 }
+/** Read-only rendering of the exact short public physical segment. No target
+ * lookup, distance-coded ray, or independently inferred gaze is drawn. */
+export function drawIndicationGeometry(g,geometry){
+  if(!geometry)return;
+  g.save();g.strokeStyle='#d9bc96';g.lineWidth=4;g.lineCap='round';
+  g.beginPath();g.moveTo(geometry.origin.x,geometry.origin.y);
+  g.lineTo(geometry.tip.x,geometry.tip.y);g.stroke();g.restore();
+}
 export function drawNpc(g,npc,time){
   const p=npc.position,collapsed=npc.lifecycle==='COLLAPSED',moving=npc.active?.request.type==='move'&&npc.active.blockedFor<.1;
   const target=npc.active?.route?.[npc.active.index],dx=target?target.x-p.x:0,dy=target?target.y-p.y:1,len=Math.hypot(dx,dy)||1,facing={x:dx/len,y:dy/len};
@@ -501,4 +510,5 @@ export function drawNpc(g,npc,time){
     for(let i=0;i<3;i++)rect(g,8+i*4,-53,2,2,identity==='mira'?'#80658d':'#52714b');
   }
   g.restore();
+  drawIndicationGeometry(g,publicIndicationGeometry(npc));
 }

@@ -25,6 +25,18 @@ No new reference task or reward change is part of this transition. Removing sema
 channels changes complete agent behavior, so historical studies are not evidence
 for this new configuration; future experiments need a new reviewed frozen protocol.
 
+## Shared visual reference — current branch verification stage
+
+Phase A established paid post-choice schematic direction cues and listener-local
+geometry parsing in the same main world. Phase B adds private bounded exemplar
+associations; see docs/visual-reference/PHASE-B.md. Keep phase-A proof historical.
+No release claims beyond actual exact-source/native evidence: this is supplied
+metric memory, not learned abstractions or autonomous language. Historical protocol
+fixtures stay immutable. Private visual memory is fresh on reopen/reset; ordinary
+survival memory still saves. The optional channel must never compete with urgent
+survival decisions or restore the old bodily-credit learner. Native engineering
+fixtures remain isolated, bounded and explicitly non-autonomous.
+
 ## Authority and boundaries
 
 - ozark-world-geometry.js and its structural helpers own authoritative movement, collision and sight. Player and NPC adapters share that geometry.

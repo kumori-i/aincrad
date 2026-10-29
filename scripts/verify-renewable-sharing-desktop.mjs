@@ -130,9 +130,13 @@ async function reopenPhase(win) {
     select.dispatchEvent(new Event('change', {bubbles:true}));
     document.getElementById('npc-tab-conversation').click();
     const text=document.getElementById('journal-messages').textContent;
-    if(!text.includes('No symbol exchange involving this agent yet.'))throw new Error('Reopen must not invent symbol exchanges from physical sharing');
+    const reference=window.__ozarkWorld.communicationSnapshot();
+    if(!reference||reference.exchanges!==0||reference.pending!==0||reference.updates!==0||
+      !Array.isArray(reference.observationEvents)||reference.observationEvents.length!==0)
+      throw new Error('Reopen must not invent reference activity from physical sharing');
+    if(!text.includes('No reference attempt involving this agent yet.'))throw new Error('Learning view must show the current empty reference state');
     if(!text.includes('Observer annotations, not agent speech.'))throw new Error('Learning view must separate observer labels from agent language');
-    return {text,character:document.getElementById('npc-name').textContent};
+    return {text,reference,character:document.getElementById('npc-name').textContent};
   }).toString() + ')(' + JSON.stringify(transfer.receiverId) + ')');
   screenshots.push(await capture(win, '02-restored-learning-no-invented-dialogue.png'));
   assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.preview("shore")'), true);

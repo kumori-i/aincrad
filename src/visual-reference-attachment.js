@@ -1,0 +1,224 @@
+// Private visual associations grounded only in canonical observed demonstrations.
+// One main-world optional channel; never owns the clock, population or bodily credit.
+import { createIndicationPermit, discoveryActionCompletion, successfulDiscoveryActionCompletion, referenceGeometry } from './discovery-actions.js';
+import { requestNpcIndication, cancelNpcAction } from './npc.js';
+import { senseReferenceObjects, resolveIndication, visibleIndicationGeometry, observeIndication } from './visual-reference-perception.js';
+import { actorLineOfSight } from './perception.js';
+import { bodySignals } from './interoception.js';
+import { isSleeping } from './biology.js';
+import { CONFIG } from './config.js';
+import { createVisualReferenceMemory } from './visual-reference-memory.js';
+import { createReferenceRandomStream } from './visual-reference-random.js';
+
+export const REFERENCE_LIMITS=Object.freeze({timeout:12,cooldown:12,featureDistance:.08,observationSeconds:.5,maxObservationStep:CONFIG.fixedStep,segmentLength:24,maxEvents:256});
+// Observation occurs at the real step endpoint. Never backdate sight into a
+// funded prefix: materially partial-funded steps cannot certify an interval.
+function fullReferenceSample(at,paidSeconds,stepSeconds){return Number.isFinite(at)&&Number.isFinite(paidSeconds)&&Number.isFinite(stepSeconds)&&stepSeconds>0&&stepSeconds<=REFERENCE_LIMITS.maxObservationStep+1e-8&&Math.abs(stepSeconds-paidSeconds)<=1e-8;}
+export function continuousReferenceStep(previousAt,at,paidSeconds,stepSeconds){
+  const gap=at-previousAt;
+  return fullReferenceSample(at,paidSeconds,stepSeconds)&&gap>0&&Math.abs(gap-stepSeconds)<=1e-8;
+}
+function rms(a,b){return Math.sqrt(a.reduce((s,x,i)=>s+(x-b[i])**2,0)/a.length);}
+function awake(n){return n?.lifecycle==='AWAKE'&&!isSleeping(n);}
+function urgent(n){const b=bodySignals(n);return ['ravenous','faint with hunger'].includes(b.hunger)||['parched','desperate thirst'].includes(b.thirst)||b.energy==='depleted'||b.pain==='severe';}
+function identity(n){return {actor:n,epoch:n.epoch,discovery:n.discovery,physiology:n.physiology,position:{...n.position},scene:n.scene};}
+function unchanged(n,w){return n===w.actor&&n.epoch===w.epoch&&n.discovery===w.discovery&&n.physiology===w.physiology&&n.scene===w.scene&&n.position.x===w.position.x&&n.position.y===w.position.y;}
+function cropValid(c,n){return c&&c.epoch===n.epoch&&Number.isFinite(c.at)&&c.at<=n.elapsed&&n.elapsed-c.at<=1.1&&c.features?.length===48&&c.features.every(v=>Number.isFinite(v)&&v>=0&&v<=1)&&c.pixels?.length===768;}
+
+export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
+  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
+  if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
+  const pairRandom=createReferenceRandomStream({seed,purpose:'pair'}),targetRandom=createReferenceRandomStream({seed,purpose:'target'}),orderRandom=createReferenceRandomStream({seed,purpose:'order'}),choiceRandom=createReferenceRandomStream({seed,purpose:'choice'});
+  const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet();
+  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0};
+  let disposed=false,nextId=1,nextIdentity=1,auditReaderIssued=false,auditEnabled=false,auditRecord=null;
+  const bump=(key)=>{gates[key]=Math.min(Number.MAX_SAFE_INTEGER,(gates[key]||0)+1);};
+  // Identity is object provenance, not a reusable actor name or bodily epoch.
+  // Ordinary collapse/rescue/recovery retains memory but cancels transactions.
+  function syncIdentities(){
+    const present=new Set(state.agents);
+    for(const [actor,entry]of identities)if(!present.has(actor)||entry.discovery!==actor.discovery||entry.physiology!==actor.physiology)identities.delete(actor);
+    for(const actor of state.agents)if(!identities.has(actor)){
+      const serial=nextIdentity++;
+      identities.set(actor,{token:Object.freeze({}),serial,discovery:actor.discovery,physiology:actor.physiology,
+        memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial})});
+    }
+    for(const [actor,entry]of identities)entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
+  }
+  syncIdentities();
+  function clearDemonstration(t){
+    t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;t.demonstration=null;
+    delete t.event.demonstrationPixels;delete t.event.demonstrationObservedAt;
+  }
+  function correct(t){
+    if(!correctionRights.delete(t))return;
+    metrics.correctionAttempts++;
+    // No target identity, critic correctness, sender pixels or bodily outcome
+    // crosses this boundary. This is the listener's own final visible crop.
+    const outcome=t.receiverMemory.memory.observe(t.senderMemory.token,t.symbol,t.demonstration.features);
+    t.event.correction=outcome.outcome;
+    if(outcome.added){metrics.evidenceAdditions++;metrics.updates++;}
+    else if(outcome.support)metrics.supportUpdates++;
+    else if(outcome.outcome==='capacity-conflict')metrics.conflicts++;
+    else metrics.correctionAbstentions++;
+  }
+  function finish(t,status,reason){
+    if(t.terminal)return;
+    t.terminal=true;sessions.delete(t);busy.delete(t.sender);busy.delete(t.receiver);
+    t.event.status=status;t.event.reason=reason;t.event.endedAt=state.elapsed;
+    if(status==='observed'){metrics.completed++;metrics.observed++;if(t.selectedId===t.targetId)metrics.correct++;t.event.referenceCorrect=t.selectedId===t.targetId;t.event.demonstratedObjectId=t.observedId;correct(t);if(auditEnabled&&!auditRecord)auditRecord=t;}
+    else{metrics.censored++;bump(`${t.stage}:${reason}`);}
+    // Only this transaction's own authentic active commands can be cancelled.
+    for(const [n,active]of [[t.receiver,t.choiceActive],[t.sender,t.indicationActive]])if(active&&n.active===active)cancelNpcAction(n,'REFERENCE_INTERRUPTED');
+  }
+  function current(t){
+    if(!state.agents.includes(t.sender)||!state.agents.includes(t.receiver)||!unchanged(t.sender,t.senderIdentity)||!unchanged(t.receiver,t.receiverIdentity))return 'identity-or-position-changed';
+    if(!awake(t.sender)||!awake(t.receiver))return 'not-awake';
+    if(urgent(t.sender)||urgent(t.receiver))return 'body-priority';
+    if(state.elapsed-t.startedAt>REFERENCE_LIMITS.timeout)return 'timeout';
+    if(!actorLineOfSight(t.receiver,t.receiver.position,t.sender.position))return 'peer-occluded';
+    for(const n of [t.sender,t.receiver]){
+      const sensed=senseReferenceObjects(n,state);if(!sensed.complete)return 'incomplete-sight';
+      for(const candidate of t.candidates){const at=sensed.bindings.indexOf(candidate.id),position=sensed.objects[at]?.position;if(!position||position.x!==candidate.position.x||position.y!==candidate.position.y)return 'candidate-changed';}
+    }
+    return null;
+  }
+  function maintain(){
+    syncIdentities();
+    for(const t of [...sessions]){
+      const invalid=current(t);if(invalid){finish(t,'censored',invalid);continue;}
+      if(t.stage==='choice'&&t.choiceActive&&t.receiver.active!==t.choiceActive){
+        const proof=discoveryActionCompletion(t.receiver,t.choiceActive);
+        if(!proof){finish(t,'censored','choice-interrupted');continue;}
+        const permit=createIndicationPermit(t.sender,t.receiver,t.choiceActive,t.targetId);
+        if(!permit){finish(t,'censored','choice-not-canonical-success');continue;}
+        t.permit=permit;t.stage='awaiting-indication';t.event.status=t.stage;t.event.selectedActionId=proof.eventId;
+      }
+      if(t.stage==='indicating'&&t.indicationActive&&t.sender.active!==t.indicationActive){
+        const proof=successfulDiscoveryActionCompletion(t.sender,t.indicationActive);
+        if(!proof||proof.type!=='indicate_object'||Math.abs(proof.worked-1.8)>1e-8){finish(t,'censored','indication-interrupted');continue;}
+        t.event.indicationActionId=proof.eventId;
+        if(t.contiguous+1e-8<REFERENCE_LIMITS.observationSeconds){finish(t,'censored','demonstration-not-observed');continue;}
+        if(!t.demonstration||t.demonstration.epoch!==t.receiver.epoch||Math.abs(t.demonstration.at-t.receiver.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){finish(t,'censored','stale-demonstration');continue;}
+        correctionRights.add(t);
+        finish(t,'observed','visible-post-choice-demonstration');
+      }
+    }
+  }
+  function observePaid(t,{paidSeconds,stepSeconds,at}){
+    if(t.terminal||t.stage!=='indicating'||!Number.isFinite(paidSeconds)||paidSeconds<=0)return;
+    // One coarse tick or repeated callback is not sustained observation. The
+    // main world's actual fixed step is 1/60 second. First sight is a baseline.
+    const previousAt=t.lastPaidAt;
+    const continuous=previousAt===undefined?fullReferenceSample(at,paidSeconds,stepSeconds):continuousReferenceStep(previousAt,at,paidSeconds,stepSeconds);
+    t.lastPaidAt=at;
+    if(!continuous){
+      clearDemonstration(t);bump('observation:noncontiguous-step');return;
+    }
+    const invalid=current(t);if(invalid){clearDemonstration(t);finish(t,'censored',invalid);return;}
+    const seen=observeIndication(t.receiver,t.sender,state);
+    const id=seen?.objectId;
+    const crop=id?pixelSensor.capture(t.receiver,state).get(id):null;
+    if(!id||!cropValid(crop,t.receiver)){clearDemonstration(t);bump(`observation:${seen?.reason||'no-fresh-crop'}`);return;}
+    if(t.observedId!==id||previousAt===undefined)clearDemonstration(t);else t.contiguous+=paidSeconds;
+    t.observedId=id;t.event.observedSeconds=t.contiguous;
+    t.demonstration=Object.freeze({features:Object.freeze(crop.features.slice()),at:crop.at,epoch:crop.epoch});
+    t.event.demonstrationPixels=crop.pixels.slice();t.event.demonstrationObservedAt=crop.at;
+  }
+  // Trusted fresh-profile engineering installer only. This cannot make a
+  // decision, train memory, select a favorable event or alter any random stream.
+  function createNativeAssociationAuditReader(){
+    if(disposed||auditReaderIssued)return null;
+    auditReaderIssued=true;auditEnabled=true;let consumed=false;
+    return ()=>{
+      if(consumed)return null;consumed=true;auditEnabled=false;
+      const t=auditRecord;auditRecord=null;
+      if(!t||disposed||current(t)||identities.get(t.sender)!==t.senderMemory||identities.get(t.receiver)!==t.receiverMemory)return null;
+      const sight=senseReferenceObjects(t.receiver,state);
+      if(!sight.complete||!t.auditOrder?.every(id=>sight.bindings.includes(id)))return null;
+      const captures=pixelSensor.capture(t.receiver,state),views=t.auditOrder.map(id=>captures.get(id));
+      if(views.some(c=>!cropValid(c,t.receiver)||Math.abs(c.at-t.receiver.elapsed)>1e-8))return null;
+      const own=views.map(c=>Object.freeze(c.features.slice()));
+      const known=t.receiverMemory.memory.choose(t.senderMemory.token,t.symbol,own);
+      const reversed=t.receiverMemory.memory.choose(t.senderMemory.token,t.symbol,own.slice().reverse());
+      let absent=null;
+      for(let symbol=0;symbol<64;symbol++){
+        const choice=t.receiverMemory.memory.choose(t.senderMemory.token,symbol,own);
+        if(choice.reason==='unknown-symbol'){absent={symbol,choice};break;}
+      }
+      return structuredClone({scope:'post-demonstration same-scene current-view retrieval diagnostic; not a policy action',
+        viewSource:'fresh-listener-current-canvas',eventId:t.event.id,at:t.receiver.elapsed,symbol:t.symbol,
+        candidateViews:views.map(c=>({at:c.at,features:c.features.slice(),pixels:c.pixels.slice()})),
+        demonstration:{at:t.demonstration.at,features:t.demonstration.features.slice()},
+        known,reversed,absent});
+    };
+  }
+  const hooks={
+    optionalAction(receiver){
+      if(disposed)return null;maintain();bump('optional');metrics.opportunities++;
+      const existing=busy.get(receiver);
+      if(existing){
+        if(existing.sender===receiver&&existing.stage==='awaiting-indication'){
+          const action=Object.freeze({type:'indicate_object'});actions.set(action,existing);existing.indicationRequest=action;return action;
+        }
+        bump('busy');return null;
+      }
+      if(!awake(receiver)||urgent(receiver)||receiver.active)return null;
+      if(receiver.elapsed-(cooldowns.get(receiver)??-Infinity)<REFERENCE_LIMITS.cooldown){bump('cooldown');return null;}
+      const sender=state.agents.find(n=>n!==receiver&&awake(n)&&!urgent(n)&&!n.active&&!busy.has(n)&&n.scene===receiver.scene&&Math.hypot(n.position.x-receiver.position.x,n.position.y-receiver.position.y)<=250&&actorLineOfSight(receiver,receiver.position,n.position));
+      if(!sender){bump('no-peer');return null;}
+      const own=senseReferenceObjects(receiver,state),other=senseReferenceObjects(sender,state);
+      if(!own.complete||!other.complete){bump('incomplete-sight');return null;}
+      const ownCrops=pixelSensor.capture(receiver,state),otherCrops=pixelSensor.capture(sender,state),candidates=[];
+      for(let i=0;i<own.objects.length;i++){
+        const id=own.bindings[i],j=other.bindings.indexOf(id),a=ownCrops.get(id),b=otherCrops.get(id);
+        if(j<0||!cropValid(a,receiver)||!cropValid(b,sender))continue;
+        const geometry=referenceGeometry(sender.position,own.objects[i].position,sender.scene,1);
+        if(!geometry||!visibleIndicationGeometry(receiver,geometry))continue;
+        const resolution=resolveIndication(geometry,own.objects);
+        if(resolution.index!==i)continue;
+        candidates.push({id,position:{...own.objects[i].position},own:a,other:b});
+      }
+      const senderMemory=identities.get(sender),receiverMemory=identities.get(receiver),pairs=[];
+      for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
+        const pair=[candidates[i],candidates[j]];
+        if(rms(pair[0].own.features,pair[1].own.features)<REFERENCE_LIMITS.featureDistance||rms(pair[0].other.features,pair[1].other.features)<REFERENCE_LIMITS.featureDistance)continue;
+        // Pure preflight includes BOTH alternatives and consumes no RNG.
+        const preflight=senderMemory.memory.planPair(pair.map(c=>c.other.features));
+        if(preflight.ok)pairs.push({pair,plan:preflight.plan});else bump(`sender:${preflight.reason}`);
+      }
+      if(!pairs.length){bump('no-feasible-distinguishable-pair');return null;}
+      const planned=pairs[Math.floor(pairRandom()*pairs.length)],pair=planned.pair;
+      const committed=senderMemory.memory.commitPair(planned.plan);
+      if(!committed.ok){bump(`sender:${committed.reason}`);return null;}
+      metrics.anchorsAllocated+=committed.allocated;
+      // Both encountered anchors commit before the uniform referent; no redraw.
+      const targetIndex=Math.floor(targetRandom()*2),target=pair[targetIndex],symbol=committed.symbols[targetIndex];
+      const ordered=orderRandom()<.5?pair.slice():pair.slice().reverse();
+      const choice=receiverMemory.memory.choose(senderMemory.token,symbol,ordered.map(c=>c.own.features));
+      const confident=choice.index===0||choice.index===1;
+      const selected=ordered[confident?choice.index:Math.floor(choiceRandom()*2)];
+      if(confident)metrics.matchedChoices++;else metrics.exploratoryChoices++;
+      bump(`choice:${choice.reason}`);
+      const action=Object.freeze({type:'inspect_object',targetId:selected.id});
+      const event={id:nextId++,emittedAt:state.elapsed,senderId:sender.id,receiverId:receiver.id,tokens:[Math.floor(symbol/8),symbol%8],status:'choice',action:'inspect_object',reward:null,senderPixels:target.other.pixels.slice(),receiverPixels:selected.own.pixels.slice(),senderObservedAt:target.other.at,receiverObservedAt:selected.own.at,phase:'private-visual-association',choiceMode:confident?'association-match':'uniform-exploration',choiceReason:choice.reason};
+      const t={sender,receiver,senderMemory,receiverMemory,symbol,senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,choiceRequest:action,stage:'choice',startedAt:state.elapsed,event,terminal:false,contiguous:0,observedId:null};
+      sessions.add(t);busy.set(sender,t);busy.set(receiver,t);actions.set(action,t);cooldowns.set(receiver,receiver.elapsed);metrics.exchanges++;
+      events.push(event);if(events.length>REFERENCE_LIMITS.maxEvents)events.shift();return action;
+    },
+    decision(n,decision){const t=busy.get(n);if(t&&decision.need!=='understanding')finish(t,'censored','priority-decision');},
+    performOptional(n,action){
+      const t=actions.get(action);if(!t||t.terminal||n!==t.sender||action!==t.indicationRequest)return null;
+      t.stage='indicating';t.event.status=t.stage;
+      const result=requestNpcIndication(n,t.permit,state.environment,{onPaid:work=>{try{observePaid(t,work);}catch{finish(t,'censored','observer-error');}}});
+      if(result?.code!=='ACTION_STARTED'){finish(t,'censored','indication-start-rejected');return result;}
+      t.indicationActive=n.active;return result;
+    },
+    performed(n,action,result,active){
+      const t=actions.get(action);if(!t||t.terminal||n!==t.receiver||action!==t.choiceRequest)return;
+      if(result?.code!=='ACTION_STARTED'||!active){finish(t,'censored','choice-start-rejected');return;}
+      t.choiceActive=active;
+    },
+  };
+  return {hooks,createNativeAssociationAuditReader,beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');},snapshot(){return {phase:'private-visual-association',seed,enabled:true,elapsed:state.elapsed,...metrics,pending:sessions.size,gates:{...gates},learners:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:structuredClone(events),observationEvents:structuredClone(events),latest:events.length?structuredClone(events.at(-1)):null,agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,interpretation:'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Fresh on reopen. No autonomous language, abstraction or survival-benefit claim.'}};},dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');disposed=true;pixelSensor.dispose?.();}};
+}
