@@ -14,8 +14,9 @@ export function visualReferenceEvidence(state) {
 export async function installVisualReferenceFixture(context,moduleBase,projectEvidence) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {observeNpc,requestNpcAction,requestNpcIndication,cancelNpcAction}=await use('npc');
-  const {createIndicationPermit,publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion}=await use('discovery-actions');
-  const {observeIndication,senseReferenceObjects,resolveIndication}=await use('visual-reference-perception');
+  const {createIndicationPermit,publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,referenceGeometry}=await use('discovery-actions');
+  const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry}=await use('visual-reference-perception');
+  const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
   const {npcEffortCost}=await use('npc-effort-funding');
   const {VISUAL_REFERENCE_MEMORY_LIMITS}=await use('visual-reference-memory');
@@ -28,7 +29,18 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   require(state===populationState&&state.elapsed===0&&state.agents.length===2,'Expected fresh actual main state/population');
   near(fixedStep,1/60,'Actual main fixed step');
   require(reference?.snapshot().phase==='private-visual-association','Expected actual private-association attachment');
-  const [sender,listener]=state.agents,initialPositions=state.agents.map(n=>({...n.position}));
+  const [sender,listener]=state.agents;
+  if(context.responseScenario===true){
+    // Explicit engineering geometry, never an ordinary-world opportunity or
+    // a runtime pair/target override. The unchanged default profile retains
+    // both original actor positions.
+    require(sender.id==='aster'&&listener.id==='mira'&&sender.position.x===276&&sender.position.y===760&&
+      listener.position.x===300&&listener.position.y===920,'Authored response fixture requires exact fresh actors');
+    require(geometry.canOccupy(230,960),'Authored listener position must be physically occupiable');
+    listener.position.x=230;listener.position.y=960;
+    require(actorLineOfSight(listener,listener.position,sender.position),'Authored response actors must see each other');
+  }
+  const initialPositions=state.agents.map(n=>({...n.position}));
   const sensor=context.auditSensor||createCommunicationPixelSensor(document);
   const actualCanvas=!context.auditSensor;
   const audit=[],responseAudit=[],steps=[],checks={};
@@ -39,6 +51,24 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   // Bounded deliberate command scheduling, NOT bodily holds: the same ordinary
   // population still integrates every environment, ecology and body fixed step.
   for(const n of state.agents){n.nextDecisionAt=holdUntil;observeNpc(n,state.environment);}
+  if(context.responseScenario===true){
+    const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state);
+    require(own.complete&&other.complete,'Authored response geometry requires complete original sight');
+    let forward=0;
+    for(let i=0;i<own.objects.length;i++){
+      const id=own.bindings[i],j=other.bindings.indexOf(id);if(j<0)continue;
+      const position=own.objects[i].position,cue=referenceGeometry(sender.position,position,sender.scene,1);
+      if(!cue||!visibleIndicationGeometry(listener,cue)||resolveIndication(cue,own.objects).index!==i)continue;
+      forward++;
+      const reply=referenceGeometry(listener.position,position,listener.scene,1);
+      require(reply&&visibleIndicationGeometry(sender,reply)&&resolveIndication(reply,other.objects).index===j,
+        'Every authored forward candidate must admit an independent visible reply');
+    }
+    require(forward>=2,'Authored response geometry needs at least two original candidates');
+    checks.authoredGeometry={scope:'engineering-only fresh-profile placement; no ordinary-world opportunity claim',
+      senderOriginal:{x:276,y:760},listenerOriginal:{x:300,y:920},listenerPlaced:{x:230,y:960},
+      forwardAndReverseCandidateCount:forward,peerDistance:Math.hypot(listener.position.x-sender.position.x,listener.position.y-sender.position.y)};
+  }
   if(renderer){renderer.followNpc=true;renderer.followId=sender.id;renderer.targetZoom=2;renderer.snap(sender.position);}
   const project=()=>projectEvidence(state);
   const pose=()=>publicIndicationGeometry(sender);
@@ -86,14 +116,16 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       require(Object.keys(response).sort().join(',')==='origin,progress,scene,tip','Listener response geometry leaks target metadata');
       near(Math.hypot(response.tip.x-response.origin.x,response.tip.y-response.origin.y),24,'Fixed listener response segment');
       const sensed=senseReferenceObjects(sender,state),numeric=resolveIndication(response,sensed.objects),seen=observeIndication(sender,listener,state);
-      require(sensed.complete&&seen.reason==='resolved','Sender failed current visible response correspondence');
-      require(numeric.index===seen.index&&sensed.bindings[numeric.index]===seen.objectId,'Sender response binding must follow numeric geometry parser');
-      require(seen.objectId===responseActive.request.targetId,'Private response actuator witness and sender geometry disagree');
-      const crop=sensor.capture(sender,state).get(seen.objectId);
-      require(crop?.pixels?.length===768&&crop.features?.length===48,'Missing sender fresh response crop');
+      const resolved=sensed.complete&&seen.reason==='resolved'&&numeric.index===seen.index&&
+        sensed.bindings[numeric.index]===seen.objectId&&seen.objectId===responseActive.request.targetId;
+      require(context.responseScenario!==true||resolved,'Authored response failed current visible correspondence');
+      const crop=resolved?sensor.capture(sender,state).get(seen.objectId):null;
+      require(context.responseScenario!==true||crop?.pixels?.length===768&&crop.features?.length===48,
+        'Authored response lacks a fresh sender crop');
       responseAudit.push({at:state.elapsed,senderAt:sender.elapsed,geometry:response,numericInput:sensed.objects,numericResult:numeric,
-        localBinding:seen.objectId,reason:seen.reason,paidSeconds:discoveryActionPaidSeconds(listener,listener.active),
-        senderFeatures:crop.features.slice()});
+        localBinding:seen.objectId??null,reason:resolved?'resolved':seen.reason==='resolved'?'binding-mismatch':seen.reason,
+        paidSeconds:discoveryActionPaidSeconds(listener,listener.active),
+        senderFeatures:crop?.features?.slice()??null});
     }
     associationState();
   };
@@ -166,8 +198,14 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(indicationProof?.type==='indicate_object','No canonical successful sender indication');
     near(indicationProof.worked,1.8,'Paid sender work');near(state.elapsed-baseline.at,1.8,'Real main indication duration');
     require(!pose(),'Completion must remove public cue');
-    const snapshot=associationState();require(snapshot.observed===1&&snapshot.pending===1&&snapshot.latest.status==='observed'&&
-      snapshot.latest.feedbackStatus==='awaiting-response','Actual attachment did not preserve the paid response opportunity');
+    const snapshot=associationState();
+    const replyAvailable=snapshot.pending===1&&snapshot.latest.feedbackStatus==='awaiting-response';
+    const replyCensored=snapshot.pending===0&&snapshot.latest.feedbackStatus==='censored';
+    require(snapshot.observed===1&&snapshot.latest.status==='observed'&&
+      (context.responseScenario===true?replyAvailable:replyAvailable||replyCensored),
+    'Actual attachment lost the paid association or an eligible optional reply');
+    checks.replyAvailable=replyAvailable;
+    if(replyCensored)checks.replyCensorReason=snapshot.latest.feedbackReason;
     require(snapshot.senderFeedback.length===0,'Sender cannot receive feedback before a listener response');
     require(snapshot.latest.observedSeconds>=.5-1e-8,'Final consecutive paid perception was insufficient');
     require(audit.length>=100,'Missing repeated actual fixed-step listener perception');
@@ -184,7 +222,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     checks.ownAssociation={evidenceAdditions:1,correctionAttempts:1,receiverExamples:1,symbol:entry.symbol,features:finalOwnFeatures,
       provenance:'listener final personally observed demonstration crop; one canonical completion'};
     checks.sameMainPopulation=true;checks.actualFixedStep=1/60;checks.canonicalOwnDemonstrationOnly=true;
-    phase='indication-complete';return status();
+    phase=replyAvailable?'indication-complete':'completed';return status();
   }
   function beginResponse(){
     require(phase==='indication-complete'&&!pose()&&!responsePose(),'Expected learned demonstration and no unpaid response cue');
@@ -203,14 +241,16 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(phase==='responding','Expected paid listener response');for(let i=0;i<24;i++)tick();
     require(responsePose()&&responseAudit.length>=23,'No sustained paid public listener response');
     const id=responseActive.request.targetId,senderCrop=sensor.capture(sender,state).get(id),listenerCrop=sensor.capture(listener,state).get(id);
-    require(senderCrop?.pixels?.length===768&&senderCrop.features?.length===48,'Missing actual current sender response crop');
-    require(listenerCrop?.pixels?.length===768&&listenerCrop.features?.length===48,'Missing own listener response comparison crop');
     const g=responsePose(),sensed=senseReferenceObjects(sender,state),index=sensed.bindings.indexOf(id);
-    require(index>=0&&resolveIndication(g,sensed.objects).index===index,'Response geometry must resolve in sender local sight');
-    const ambiguous=resolveIndication(g,[...sensed.objects,sensed.objects[index]]);
-    require(ambiguous.reason==='ambiguous'&&ambiguous.index===null,'Competing sender-side geometry must fail closed');
-    checks.responseVisible={actualCanvas,sender:{pixels:senderCrop.pixels.slice(),features:senderCrop.features.slice(),at:senderCrop.at,epoch:senderCrop.epoch},
-      listenerComparison:{pixels:listenerCrop.pixels.slice(),features:listenerCrop.features.slice(),at:listenerCrop.at,epoch:listenerCrop.epoch},
+    const resolved=index>=0&&resolveIndication(g,sensed.objects).index===index;
+    require(context.responseScenario!==true||resolved,'Authored response geometry must resolve in sender local sight');
+    require(context.responseScenario!==true||senderCrop?.pixels?.length===768&&senderCrop.features?.length===48&&
+      listenerCrop?.pixels?.length===768&&listenerCrop.features?.length===48,'Authored response needs current Canvas crops');
+    const ambiguous=resolved?resolveIndication(g,[...sensed.objects,sensed.objects[index]]):null;
+    if(resolved)require(ambiguous.reason==='ambiguous'&&ambiguous.index===null,'Competing sender-side geometry must fail closed');
+    checks.responseVisible={actualCanvas,resolved,
+      sender:senderCrop?{pixels:senderCrop.pixels.slice(),features:senderCrop.features.slice(),at:senderCrop.at,epoch:senderCrop.epoch}:null,
+      listenerComparison:listenerCrop?{pixels:listenerCrop.pixels.slice(),features:listenerCrop.features.slice(),at:listenerCrop.at,epoch:listenerCrop.epoch}:null,
       numericAmbiguity:ambiguous,scope:'Only sender fresh crop may reach feedback; listener comparison is a private engineering audit'};
     require(reference.snapshot().senderFeedback.length===0,'Visible response cannot train before canonical paid completion');
     return status();
@@ -222,19 +262,22 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     near(state.elapsed-responseBaseline.at,1.8,'Real main listener response duration');
     require(!pose()&&!responsePose(),'Completion must remove both public cues');
     const snapshot=associationState(),feedback=snapshot.senderFeedback[0],feedbackStatus=snapshot.latest.feedbackStatus;
-    require(snapshot.observed===1&&snapshot.pending===0&&feedback?.eventId===snapshot.latest.id&&
-      ['matched','mismatched'].includes(feedbackStatus),'Completed response must produce exactly one session feedback entry');
-    require((feedback.signal==='match'&&feedbackStatus==='matched')||(feedback.signal==='mismatch'&&feedbackStatus==='mismatched'),
-      'Feedback status must name the bounded local visual similarity signal');
+    const sampled=feedback?.eventId===snapshot.latest.id&&
+      ((feedback.signal==='match'&&feedbackStatus==='matched')||(feedback.signal==='mismatch'&&feedbackStatus==='mismatched'));
+    require(snapshot.observed===1&&snapshot.pending===0&&
+      (context.responseScenario===true?sampled&&feedbackStatus==='mismatched':sampled||feedbackStatus==='censored'),
+    'Completed response must yield a paid local sample or an explicit censored outcome');
     const finalSender=sensor.capture(sender,state).get(responseActive.request.targetId);
     const finalListener=sensor.capture(listener,state).get(responseActive.request.targetId);
-    require(finalSender?.pixels?.length===768&&finalSender.features?.length===48&&finalListener?.features?.length===48,
-      'Missing final fresh Canvas response views');
-    require(JSON.stringify(feedback.features)===JSON.stringify(finalSender.features)&&
-      JSON.stringify(feedback.features)===JSON.stringify(poolCommunicationPixels(finalSender.pixels)),
-      'Feedback must contain the sender crop from the final paid response world state');
-    require(feedback.at<=sender.elapsed+1e-8&&sender.elapsed-feedback.at<=fixedStep+1e-8,
-      'Sender feedback must come from the final current paid step');
+    if(sampled){
+      require(finalSender?.pixels?.length===768&&finalSender.features?.length===48&&finalListener?.features?.length===48,
+        'Sampled response needs final fresh Canvas views');
+      require(JSON.stringify(feedback.features)===JSON.stringify(finalSender.features)&&
+        JSON.stringify(feedback.features)===JSON.stringify(poolCommunicationPixels(finalSender.pixels)),
+        'Feedback must contain the sender crop from the final paid response world state');
+      require(feedback.at<=sender.elapsed+1e-8&&sender.elapsed-feedback.at<=fixedStep+1e-8,
+        'Sender feedback must come from the final current paid step');
+    }else require(snapshot.senderFeedback.length===0,'Censored reply cannot yield a sender training sample');
     require(responseAudit.length>=100,'Missing repeated sender-side response perception');
     for(let i=1;i<responseAudit.length;i++)near(responseAudit[i].at-responseAudit[i-1].at,fixedStep,'Consecutive sender response perceptions');
     const expectedEffort=npcEffortCost(1.8,.25),metabolized=listener.physiology.totals.metabolizedKcal-responseBaseline.metabolized;
@@ -244,10 +287,11 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     checks.responsePayment={canonicalWorkSeconds:proof.worked,expectedActionEffortKcal:expectedEffort,
       totalMetabolizedKcal:metabolized,availableEnergyChange:listener.physiology.availableEnergyKcal-responseBaseline.available,
       includesOrdinaryMetabolism:true};
-    checks.senderFeedback={...feedback,actualCanvas,senderObservedFeatures:finalSender.features.slice(),
+    if(sampled)checks.senderFeedback={...feedback,actualCanvas,senderObservedFeatures:finalSender.features.slice(),
       senderCurrentFeatures:finalSender.features.slice(),
       listenerComparisonFeatures:finalListener.features.slice(),senderOnly:true,
       interpretation:'One sender-local visible-crop similarity signal from a completed paid listener gesture; no hidden correctness or bodily reward'};
+    else checks.responseCensorReason=snapshot.latest.feedbackReason;
     phase='completed';return status();
   }
   function inspectAssociation(){
@@ -352,8 +396,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       serializedPermit:responseCase?{}:{...pendingPermit},serializedDemonstrationActive:responseCase?structuredClone(secondDemoActive):null,
       pendingKind:responseCase?'listener-response':'sender-demonstration',
       fixtureDisclosure:responseCase?
-        'Fresh disposable main-world negative control with fixed communication seed 212, whose first independent target/order/exploration draws require a wrong original choice. Actual Canvas views, canonical paid inspection, sender correction and listener response show a sender-local mismatch after listener learning. This is a deliberate engineering branch, not a scientific seed search or autonomous rate. A second optional full attachment transaction is saved and closed during its genuinely paid listener response; no second feedback is granted. Ordinary environment, ecology and bodies continue at 1/60 second with only bounded decision scheduling.':
-        'Fresh default main state/population and original positions, deliberate optional listener inspect, post-choice sender indication, then optional paid listener response. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. Exactly one own-view association follows canonical paid sender indication; one ephemeral sender-local visual similarity signal follows the completed paid listener response. The one-shot message-dependence query uses actual memory and fresh own views but is not a policy action or generalization claim. Second canonical paid sequence is saved mid-cue to test reopen interruption.'};
+        'Fresh disposable main-world negative control with fixed communication seed 212 and explicitly authored Mira position (230,960), moved from (300,920) before any action. Aster remains at (276,760); ecology, bodies and resources are unchanged. This engineering geometry makes forward and reverse gestures numerically resolvable under the ordinary parser; it is not ordinary opportunity evidence, a favorable runtime redraw, or a scientific seed search. Independent target/order/exploration draws require a wrong original choice. Actual Canvas views, canonical paid inspection, sender correction and listener response show a sender-local mismatch after listener learning. A second optional full attachment transaction is saved and closed during its genuinely paid listener response; no second feedback is granted. The main environment, ecology and bodies continue at 1/60 second with only bounded decision scheduling.':
+        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication. The later optional reply is attempted only if independently resolvable; an unavailable reply censors feedback without erasing the acquired own-view association. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. The one-shot message-dependence query uses actual memory and fresh own views but is not a policy action or generalization claim. Second canonical paid sequence is saved mid-cue to test reopen interruption.'};
     for(let i=0;i<state.agents.length;i++)require(JSON.stringify(state.agents[i].position)===JSON.stringify(initialPositions[i]),'Fixture moved an actor');
     return result;
   }

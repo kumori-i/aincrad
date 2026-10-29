@@ -39,7 +39,10 @@ The [sender-visible response slice](docs/visual-reference/SENDER-FEEDBACK.md)
 lets the listener optionally indicate its original paid inspection choice after
 the sender's demonstration. A completed reply can give the sender a temporary
 own-view visual similarity signal. Agents still do not generate learned letter
-sequences, and this signal does not establish understanding.
+sequences, and this signal does not establish understanding. The original
+exchange keeps its existing candidate checks. The reply is offered only when
+its gesture can be resolved in the sender's current sight; an unavailable
+reply leaves the listener's completed association intact.
 
 Open a character's **Learning** tab, or pause with Escape and use **Learning
 inspector** as a shortcut to that same tab. It shows copied crops, actual paid

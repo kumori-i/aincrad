@@ -129,9 +129,12 @@ test('serialized negative-control fixture saves a paid pending listener response
   const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};let saved=false;
   const checkpoint=()=>{if(saved)return false;saved=true;return writeOzarkSave(storage,state,geometry,
     {referencePersistence:reference.exportPersistence()});};
-  const fixture=await serialized(installVisualReferenceFixture)({state,populationState:population.state,reference,geometry,step,fixedStep:1/60,
+  const fixture=await serialized(installVisualReferenceFixture)({state,populationState:population.state,reference,geometry,step,fixedStep:1/60,responseScenario:true,
     auditSensor:sensor,checkpoint,auditAssociation:reference.createNativeAssociationAuditReader()},new URL('../',import.meta.url),serialized(visualReferenceEvidence));
   try{
+    assert.deepEqual(state.agents[0].position,{x:276,y:760},'Engineering placement does not move Aster');
+    assert.deepEqual(state.agents[1].position,{x:230,y:960},'The dedicated response profile declares Mira’s authored position');
+    assert(fixture.status().checks.authoredGeometry.forwardAndReverseCandidateCount>=2);
     fixture.beginChoice();fixture.completeChoice();fixture.beginIndication();fixture.visible();
     const corrected=fixture.completeIndication();
     assert.equal(corrected.reference.latest.referenceCorrect,false,'Seed 212 deliberately makes the first original choice wrong');

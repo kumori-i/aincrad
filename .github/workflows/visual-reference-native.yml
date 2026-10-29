@@ -24,7 +24,7 @@ permissions:
   contents: read
 jobs:
   native-reference:
-    name: Own-demo association, paid response, actual main pixels and reopen (${{ matrix.os }})
+    name: Own-demo association, optional response, actual main pixels and reopen (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +71,7 @@ jobs:
         run: |
           echo "Causal contracts: $FOCUSED_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
           echo "Native private-association and sender-response fixture: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-          echo "Two independent disposable profiles are configured to run three native processes each. The default profile checks interruption of a paid sender cue across close/reopen. A fixed seed-212 engineering negative control checks a wrong original paid listener choice, subsequent corrective learning, and the sender's actual-Canvas visual mismatch after the listener replies with its ORIGINAL choice. Its second full optional exchange is configured to save and close during the genuinely paid listener response; reopen must retain the association and discard response authority and all session feedback. Both fixtures use actual main-population bodies/ecology at 1/60-second steps and supplied pixel pooling/geometry, with bounded decision scheduling when they run. These are engineering checks, not autonomous rates, language composition, generalization or survival benefit. Inspect screenshots and parser/permit audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
+          echo "Two independent disposable profiles are configured to run three native processes each. The default profile retains original actor positions and checks a paid sender demonstration, retained listener learning, optional reply censorship when reverse geometry is unavailable, and interruption of a second paid sender cue across close/reopen. The separate fixed seed-212 engineering negative control moves only Mira from (300,920) to (230,960) before action to make both public gesture directions numerically resolvable under the ordinary parser. It checks a wrong original paid listener choice, subsequent corrective learning, and the sender's actual-Canvas visual mismatch after the listener replies with its ORIGINAL choice. Its second full optional exchange is configured to save and close during the genuinely paid listener response; reopen must retain the association and discard response authority and all session feedback. Both fixtures use actual main-population bodies/ecology at 1/60-second steps and supplied pixel pooling/geometry, with bounded decision scheduling when they run. Authored geometry and deliberate actions are engineering checks, not ordinary opportunity evidence, autonomous rates, language composition, generalization or survival benefit. Inspect screenshots and parser/permit audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

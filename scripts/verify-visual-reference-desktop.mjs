@@ -168,7 +168,8 @@ function installRunner(context,helpers){
   async function exercise(win){
     assert.equal(await raw(win),null,'Fresh disposable profile must contain no current save');
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
-    const install='window.__visualReferenceFixture=await window.__ozarkWorld.referenceFixture(context=>('+installVisualReferenceFixture.toString()+')(context,document.baseURI,('+visualReferenceEvidence.toString()+')),'+
+    const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':'context';
+    const install='window.__visualReferenceFixture=await window.__ozarkWorld.referenceFixture(context=>('+installVisualReferenceFixture.toString()+')('+fixtureContext+',document.baseURI,('+visualReferenceEvidence.toString()+')),'+
       JSON.stringify(context.responseScenario?{negativeControlSeed:212}:{})+');return Boolean(window.__visualReferenceFixture)';
     assert.equal(await evaluate(win,'(async()=>{'+install+'})()'),true,'Install fixture on actual fresh main population');
     assert.equal(await evaluate(win,'window.__ozarkWorld.communicationSnapshot().seed'),context.responseScenario?212:211,
@@ -186,18 +187,40 @@ function installRunner(context,helpers){
     await capture(win,'03-during-paid-public-direction-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.completeIndication()');
     assert.equal(status.pose,null);assert.equal(status.reference.observed,1);assert.equal(status.reference.updates,1);assert.equal(status.reference.evidenceAdditions,1);
-    assert.equal(status.reference.latest.feedbackStatus,'awaiting-response');assert.deepEqual(status.reference.senderFeedback,[]);
+    assert.deepEqual(status.reference.senderFeedback,[]);
+    const replyAvailable=status.checks.replyAvailable;
+    assert.equal(typeof replyAvailable,'boolean','Actual response geometry must be audited after listener learning');
+    if(context.responseScenario)assert.equal(replyAvailable,true,'Authored response profile must offer a visible paid reply');
+    else if(!replyAvailable){
+      assert.equal(status.reference.latest.feedbackStatus,'censored');
+      assert.equal(status.reference.latest.feedbackReason,'response-not-resolvable');
+      assert.equal(status.reference.pending,0,'An unresolvable reply must leave no pending authority');
+    }
+    if(replyAvailable)assert.equal(status.reference.latest.feedbackStatus,'awaiting-response');
     await fs.writeFile(path.join(context.output,'completed-reference.json'),JSON.stringify(status,null,2));
     await capture(win,'04-after-sender-completion-no-cue.png');
-    status=await evaluate(win,'window.__visualReferenceFixture.beginResponse()');
-    assert.equal(status.responsePose,null);assert.deepEqual(status.reference.senderFeedback,[]);
-    status=await evaluate(win,'window.__visualReferenceFixture.visibleResponse()');
-    assert(status.responsePose);assert.equal(status.checks.responseVisible.actualCanvas,true);
-    await fs.writeFile(path.join(context.output,'visible-response-parser-audit.json'),JSON.stringify(status,null,2));
-    await capture(win,'04a-during-paid-listener-response.png');
-    status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
-    assert.equal(status.responsePose,null);assert.equal(status.reference.senderFeedback.length,1);
-    assert.equal(status.checks.senderFeedback.actualCanvas,true);assert.equal(status.checks.senderFeedback.senderOnly,true);
+    if(replyAvailable){
+      status=await evaluate(win,'window.__visualReferenceFixture.beginResponse()');
+      assert.equal(status.responsePose,null);assert.deepEqual(status.reference.senderFeedback,[]);
+      status=await evaluate(win,'window.__visualReferenceFixture.visibleResponse()');
+      assert(status.responsePose);assert.equal(status.checks.responseVisible.actualCanvas,true);
+      await fs.writeFile(path.join(context.output,'visible-response-parser-audit.json'),JSON.stringify(status,null,2));
+      await capture(win,'04a-during-paid-listener-response.png');
+      status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
+      assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
+      if(status.reference.latest.feedbackStatus==='censored'){
+        assert.equal(context.responseScenario,false,'Authored response profile must produce its required mismatch');
+        assert.deepEqual(status.reference.senderFeedback,[],'A paid but censored reply gives no training sample');
+      }else{
+        assert(['matched','mismatched'].includes(status.reference.latest.feedbackStatus));
+        assert.equal(status.reference.senderFeedback.length,1);
+        assert.equal(status.checks.senderFeedback.actualCanvas,true);assert.equal(status.checks.senderFeedback.senderOnly,true);
+      }
+      await capture(win,'04a2-after-listener-response-no-cue.png');
+    }else{
+      assert.equal(status.responsePose,null,'No reply pose or paid response may exist after geometry censorship');
+      await capture(win,'04a2-unavailable-listener-response-no-cue.png');
+    }
     const firstSymbol=status.reference.latest.tokens[0]*8+status.reference.latest.tokens[1];
     const firstEntry=status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.partners
       .flatMap(partner=>partner.entries).find(entry=>entry.symbol===firstSymbol);
@@ -222,8 +245,7 @@ function installRunner(context,helpers){
         senderFeedback:status.reference.senderFeedback[0],senderCurrentFeatures:status.checks.senderFeedback.senderCurrentFeatures,
         source:'genuine paid actions and actual Canvas in a fixed engineering negative control'},null,2));
     }
-    await fs.writeFile(path.join(context.output,'completed-sender-feedback.json'),JSON.stringify(status,null,2));
-    await capture(win,'04a2-after-listener-response-no-cue.png');
+    await fs.writeFile(path.join(context.output,'first-response-outcome.json'),JSON.stringify(status,null,2));
     status=await evaluate(win,'window.__visualReferenceFixture.inspectAssociation()');
     const associationAudit=status.checks.retrievalDiagnostic;
     assert.equal(associationAudit.readOnly,true);
@@ -315,14 +337,22 @@ function installRunner(context,helpers){
     const retrieval=await assertReopenedRetrieval(win,saved,'Second independent reopen');
     assert.deepEqual(retrieval,saved.retrieval,'Repeated reopen preserves the same message-dependent retrieval');
     const associationAudit=JSON.parse(await fs.readFile(path.join(context.output,'association-retrieval-audit.json'),'utf8'));
+    const firstEvent=saved.report.reference.observationEvents[0],replyAvailable=saved.report.checks.replyAvailable;
+    const paidReplySeconds=saved.report.checks.responsePayment?.canonicalWorkSeconds??0;
     await capture(win,'08-repeated-reopen-no-duplicate-interruption.png');
     await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:false,
       sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,
-      sameMainStateAndPopulation:true,fixedStepSeconds:1/60,paidChoiceBeforeIndication:true,paidIndicationSeconds:1.8,
-      paidListenerResponseSeconds:1.8,actualCanvasCrops:true,consecutiveListenerGeometryAudit:true,
-      consecutiveSenderResponseGeometryAudit:true,privateCanonicalWitnessOnly:true,
+      mainPopulationAndEcology:true,originalActorPositions:!context.responseScenario,
+      authoredResponseGeometry:saved.report.checks.authoredGeometry??null,
+      fixedStepSeconds:1/60,paidChoiceBeforeIndication:true,paidIndicationSeconds:1.8,
+      replyAvailable,replyFeedbackStatus:firstEvent.feedbackStatus,paidListenerResponseSeconds:paidReplySeconds,
+      replyUnavailableCensored:!replyAvailable&&firstEvent.feedbackStatus==='censored',
+      paidReplyCensored:replyAvailable&&firstEvent.feedbackStatus==='censored',
+      actualCanvasCrops:true,consecutiveListenerGeometryAudit:true,
+      consecutiveSenderResponseGeometryAudit:paidReplySeconds>0,privateCanonicalWitnessOnly:true,
       canonicalOwnDemonstrationAssociation:true,associationEvidenceAdditions:saved.report.reference.evidenceAdditions,readOnlyActualMemoryRetrieval:true,
-      ephemeralSenderFeedback:saved.report.reference.senderFeedback.length,senderOnlyFreshResponseCrop:true,noFeedbackOnReopen:true,
+      ephemeralSenderFeedback:saved.report.reference.senderFeedback.length,
+      senderOnlyFreshResponseCrop:!!saved.report.checks.senderFeedback?.senderOnly,noFeedbackOnReopen:true,
       actualLearningTabCaptured:true,learningPanelReadOnly:true,
       ...(context.responseScenario?{
         initialRetrievalEligibleDistributions:associationAudit.eligibleDistributions,
@@ -337,8 +367,8 @@ function installRunner(context,helpers){
       savedMidSenderDemonstration:!context.responseScenario,
       screenshots:[...saved.screenshots,...screenshots],fixtureDisclosure:saved.fixtureDisclosure,
       scope:context.responseScenario?
-        'Fixed fresh-profile negative control with wrong original paid inspection, completed correction and sender-local actual-Canvas mismatch. A second full optional exchange is saved during the genuinely paid listener response; isolated reopen and second reopen discard that response permit and any pending or completed sender feedback, preserving private associations. Bounded engineering actions only. No sampled later policy action, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.':
-        'Bounded engineering-only deliberate main-world actions, native pixels, canonical own-demo association, one paid listener response and sender-local visual similarity feedback, and retained private memory across isolated native close/reopen. Post-reopen retrieval queries use genuine listener Canvas views recorded before close; they do not capture new views after reopen. No sampled later policy action, vocabulary discrimination, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
+        'Fixed seed-212 engineering negative control with authored initial Mira position (230,960), wrong original paid inspection, completed correction and sender-local actual-Canvas mismatch. A second full optional exchange is saved during the genuinely paid listener response; isolated reopen and second reopen discard that response permit and any pending or completed sender feedback, preserving private associations. This is not ordinary initial geometry, a sampled later policy action, generalization, autonomous cohort, scientific-seed sweep or survival-benefit evidence.':
+        'Bounded engineering-only deliberate original-position main-world actions and native pixels prove the canonical own-demo association. The reverse reply is offered only when actual sender geometry permits it; its result may be paid visual feedback or censored with no sample or added reply cost. Private memory remains across isolated native close/reopen. Post-reopen retrieval queries use genuine listener Canvas views recorded before close; they do not capture new views after reopen. No sampled later policy action, vocabulary discrimination, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
   }
   async function closeNormally(win){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Engineering fixture must never start an independent wall-clock loop');
@@ -389,8 +419,8 @@ try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
     nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:responseScenario?
-      'engineering-only fixed wrong-choice negative control; actual Canvas mismatch and save during paid listener response across independent close/reopen; no cohort or generalization':
-      'engineering-only; own-demo association, sender-local paid response feedback, old sender-cue close/reopen and read-only retrieval; no cohort or generalization'};
+      'engineering-only fixed wrong-choice negative control with authored Mira position (230,960); actual Canvas mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
+      'engineering-only original-position own-demo association; optional sender-visible reply can be censored when geometry is unavailable; paid sender-cue close/reopen and read-only retrieval; no cohort or generalization'};
   await writeFile(join(output,'prepared.json'),JSON.stringify(prepared,null,2));
   if(prepareOnly)console.log(JSON.stringify(prepared));
   else{

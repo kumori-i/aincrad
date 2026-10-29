@@ -27,7 +27,7 @@ function fixture(seed=211,{reverseTicks=false,differentViews=false,attach=attach
   const indicate=sender=>{const action=attachment.hooks.optionalAction(sender);assert.equal(action?.type,'indicate_object');const result=attachment.hooks.performOptional(sender,action);assert.equal(result.code,'ACTION_STARTED');return action;};
   return {state,attachment,pixelSensor,step,advance,begin,indicate};
 }
-test('reciprocal preflight admits both alternatives before an independent wrong seed-212 choice',()=>{
+test('original one-way pair admission draws each independent stream once without a favorable retry',()=>{
   const seed=212,f=fixture(seed),sender=f.state.agents[0],receiver=f.state.agents[1];
   try{
     const senderSight=senseReferenceObjects(sender,f.state),receiverSight=senseReferenceObjects(receiver,f.state);
@@ -44,20 +44,64 @@ test('reciprocal preflight admits both alternatives before an independent wrong 
     f.advance(2);f.indicate(choice.sender);f.advance(2);
     const result=f.attachment.snapshot().latest;
     const pair=[choice.action.targetId,result.demonstratedObjectId];
-    assert.equal(new Set(pair).size,2,'The original paid choice is wrong despite the reciprocal preflight');
-    assert.equal(result.referenceCorrect,false);
     for(const id of pair){
       const listenerIndex=receiverSight.bindings.indexOf(id),senderIndex=senderSight.bindings.indexOf(id);
       assert(listenerIndex>=0&&senderIndex>=0);
       const position=receiverSight.objects[listenerIndex].position;
       const forward=referenceGeometry(sender.position,position,sender.scene,1);
-      const reverse=referenceGeometry(receiver.position,position,receiver.scene,1);
       assert(visibleIndicationGeometry(receiver,forward),`Sender cue visible for ${id}`);
       assert.equal(resolveIndication(forward,receiverSight.objects).index,listenerIndex);
-      assert(visibleIndicationGeometry(sender,reverse),`Listener reply visible for ${id}`);
-      assert.equal(resolveIndication(reverse,senderSight.objects).index,senderIndex,
-        `The sender resolves either possible original choice independently of target selection: ${id}`);
     }
+  }finally{f.attachment.dispose();}
+});
+test('unresolvable optional listener reply does not gate or erase the original paid association',()=>{
+  const seed=212,f=fixture(seed),sender=f.state.agents[0],receiver=f.state.agents[1];
+  try{
+    const senderSight=senseReferenceObjects(sender,f.state),receiverSight=senseReferenceObjects(receiver,f.state);
+    const eligible=receiverSight.bindings.flatMap((id,index)=>{
+      const senderIndex=senderSight.bindings.indexOf(id);
+      if(senderIndex<0)return [];
+      const position=receiverSight.objects[index].position;
+      const forward=referenceGeometry(sender.position,position,sender.scene,1);
+      if(!visibleIndicationGeometry(receiver,forward)||resolveIndication(forward,receiverSight.objects).index!==index)return [];
+      const reverse=referenceGeometry(receiver.position,position,receiver.scene,1);
+      const replyVisible=!!visibleIndicationGeometry(sender,reverse)&&
+        resolveIndication(reverse,senderSight.objects).index===senderIndex;
+      return [{id,index,replyVisible}];
+    });
+    const replyUnavailable=eligible.find(row=>!row.replyVisible);
+    const replyAvailable=eligible.find(row=>row.replyVisible&&row.index<replyUnavailable?.index);
+    assert(replyUnavailable&&replyAvailable,'Fresh synthetic fixture must include an earlier reciprocal and later one-way-only referent');
+    const features=new Map([[replyAvailable.id,.15],[replyUnavailable.id,.85]]);
+    const ordinaryCapture=f.pixelSensor.capture.bind(f.pixelSensor);
+    f.pixelSensor.capture=(actor,state)=>{
+      const crops=ordinaryCapture(actor,state);
+      for(const [id,crop]of crops){
+        if(!features.has(id)){crops.delete(id);continue;}
+        const value=features.get(id);
+        crops.set(id,{...crop,features:Array(48).fill(value),pixels:Array(768).fill(Math.round(value*255))});
+      }
+      return crops;
+    };
+    const before=f.attachment.exportPersistence().visualReference.random;
+    const choice=f.begin();
+    const after=f.attachment.exportPersistence().visualReference.random;
+    const oneDraw=Object.fromEntries(['pair','target','order','choice'].map(purpose=>{
+      const stream=createReferenceRandomStream({seed,purpose,state:before[purpose]});stream();return [purpose,stream.state()];
+    }));
+    assert.deepEqual(after,oneDraw,'Response visibility cannot redraw an original pair, target, order or exploratory choice');
+    assert.equal(choice.action.targetId,replyUnavailable.id,'Fixed first exploratory choice is the original one-way-only referent');
+    f.advance(2);f.indicate(sender);f.advance(2);
+    const completed=f.attachment.snapshot();
+    assert.equal(completed.observed,1,'The forward paid demonstration completes');
+    assert.equal(completed.updates,1,'The listener learns from its own current view');
+    assert.equal(completed.learners.find(row=>row.agentId===receiver.id).counts.examples,1);
+    assert.equal(completed.latest.referenceCorrect,false,'The chosen original referent differs from the sender target');
+    assert.equal(completed.latest.feedbackStatus,'censored');
+    assert.equal(completed.latest.feedbackReason,'response-not-resolvable');
+    assert.equal(completed.pending,0,'Unresolvable optional reply mints no pending authority');
+    assert.equal(completed.feedbackCensored,1);
+    assert.deepEqual(completed.senderFeedback,[],'The sender receives no positive or negative training sample');
   }finally{f.attachment.dispose();}
 });
 test('paid post-choice indication adds one own-view association and never bodily reward',()=>{

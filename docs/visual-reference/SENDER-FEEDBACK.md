@@ -17,12 +17,18 @@ pooling reduces that crop to 48 RGB features. The receiver's private pixels,
 inspection target identity, hidden correctness flag, and bodily state do not
 enter the feedback input.
 
-The optional exchange preflights both candidate gestures in both directions
-against each actor's full visible object set. This can reduce opportunities.
-It runs before the independent pair, target, order, and exploratory-choice
-draws; it neither inspects correctness nor redraws a favorable target.
-It does not promise later visibility: moving objects, changing sight, and
-ambiguous correspondence during paid work still censor feedback.
+The original optional exchange retains its sender-to-listener gesture and
+crop checks before the independent pair, target, order, and exploratory-choice
+draws. Reverse visibility is evaluated only at the later response stage, so
+the original candidate pool is unchanged. After the paid sender demonstration
+has completed and the listener has earned its own-view example, the reply is
+offered only if the original inspected referent is uniquely resolvable by a
+reverse gesture in the sender's fresh full visible object set. If that
+gesture is unavailable or ambiguous, the reply is censored without changing
+the completed association.
+The original pair and target are never redrawn for a reply. Moving objects,
+changing sight, and ambiguous correspondence during paid response work can
+still censor feedback.
 
 Only a fully paid reply, a fresh final sender crop, and at least 0.5 seconds
 of consecutive valid paid sight can yield a sample. RMS distance to the
@@ -46,27 +52,37 @@ feedback. Save export, inspection, and rendering do not consume it.
 
 The optional channel still yields to urgent survival decisions. An unpracticed
 inspection costs 1.8 seconds at 0.25 effort, and each indication costs 1.8
-seconds at 0.25 effort. The maximum planned physical work is therefore 5.4
-seconds and 1.35 effort-weighted seconds, plus the ordinary 0.65-second
-decision delay after each of the first two actions. This fits within the
-unchanged 12-second transaction timeout with room for ordinary scheduling;
-any delay beyond that deadline censors feedback. No opportunity is forced.
+seconds at 0.25 effort. An exchange whose reply cannot start pays only for
+the original inspection and sender demonstration. If a reply starts, maximum
+planned physical work is 5.4 seconds and 1.35 effort-weighted seconds, plus
+the ordinary 0.65-second decision delay after each of the first two actions.
+This fits within the unchanged 12-second transaction timeout with room for
+ordinary scheduling; any delay beyond that deadline censors feedback. No
+opportunity is forced.
 Either actor's urgent body need, collapse, changed position or sight, action
 interruption, replacement, or disposal ends the pending response without a
 match or mismatch sample. The listener's already completed own-view example
-remains its own earned evidence. The extra paid action can reduce ordinary
-exchange frequency.
+remains its own earned evidence. A started reply consumes real time and effort
+and can delay later ordinary exchanges.
 
 The native engineering gate has two separate disposable profiles per host.
 Both deliberately schedule paid actions on the fresh main world and inspect
-actual Canvas crops. The first saves during a paid sender demonstration. The
-second uses a disclosed fixed communication seed, 212, whose independent
-stream draws make the first exploratory inspection select the other candidate.
-It checks that the listener learns the correction yet replies with its
-original inspected referent, yielding a sender-local mismatch. A second full
-optional exchange in that profile is saved during a paid listener response;
+actual Canvas crops. The default profile keeps the original Aster and Mira
+positions. It proves the paid sender demonstration and retained listener
+association, even if the later reply is unavailable and censored, then saves
+during a second paid sender demonstration. The separate response profile moves
+only Mira from (300,920) to the occupiable (230,960) before any action. Aster
+remains at (276,760); resources, ecology, and bodies are unchanged. This
+declared engineering placement makes the forward and reverse public gestures
+numerically resolvable under the ordinary parser. It also uses a disclosed
+fixed communication seed, 212, whose independent stream draws make the first
+exploratory inspection select the other candidate. It checks that the listener
+learns the correction yet replies with its original inspected referent,
+yielding a sender-local mismatch. A second full optional exchange in that
+profile is saved during a paid listener response;
 independent close/reopen must discard the response authority and session
 feedback while retaining earned associations. This is an engineered negative
-control, not a scientific seed sweep or autonomous sample. It cannot establish
+control and authored geometry, not ordinary opportunity evidence, a scientific
+seed sweep, or an autonomous sample. It cannot establish
 an ordinary learning rate, composition, grammar, generalization, or survival
 benefit.

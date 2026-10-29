@@ -171,6 +171,17 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     t.event.demonstratedObjectId=t.observedId;t.event.status='observed';t.event.reason='visible-post-choice-demonstration';
     correct(t);
     if(auditEnabled&&!auditRecord)auditRecord=t;
+    // Reply visibility is checked only after the listener has earned its own
+    // example. It must not remove an otherwise valid original pair, target,
+    // or choice from the ordinary exchange.
+    const selected=t.candidates.find(candidate=>candidate.id===t.selectedId);
+    const senderSight=senseReferenceObjects(t.sender,state);
+    const senderIndex=senderSight.bindings.indexOf(t.selectedId);
+    const reply=selected&&referenceGeometry(t.receiver.position,selected.position,t.receiver.scene,1);
+    if(!senderSight.complete||senderIndex<0||!reply||!visibleIndicationGeometry(t.sender,reply)||
+        resolveIndication(reply,senderSight.objects).index!==senderIndex){
+      finishResponse(t,'censored','response-not-resolvable');return;
+    }
     t.responsePermit=createListenerResponsePermit(t.receiver,t.sender,t.indicationActive);
     if(!t.responsePermit){finishResponse(t,'censored','response-not-authorized');return;}
     t.stage='awaiting-response';t.event.feedbackStatus='awaiting-response';
@@ -318,11 +329,6 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         if(!geometry||!visibleIndicationGeometry(receiver,geometry))continue;
         const resolution=resolveIndication(geometry,own.objects);
         if(resolution.index!==i)continue;
-        // Either candidate may be the listener's original choice. Check the
-        // reverse public gesture against the sender's full visible set before
-        // creating an optional exchange; never infer its referent from an ID.
-        const reply=referenceGeometry(receiver.position,own.objects[i].position,receiver.scene,1);
-        if(!reply||!visibleIndicationGeometry(sender,reply)||resolveIndication(reply,other.objects).index!==j)continue;
         candidates.push({id,position:{...own.objects[i].position},own:a,other:b});
       }
       const senderMemory=identities.get(sender),receiverMemory=identities.get(receiver),pairs=[];
