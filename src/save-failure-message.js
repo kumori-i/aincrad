@@ -3,6 +3,8 @@ const labels = Object.freeze({
   'untracked-state': 'this session is not authorized to replace the current save',
   'stored-value-changed': 'the stored world differs from this session’s expected saved value',
   'live-validation': 'the live world failed strict save validation',
+  'reference-export-required': 'current individual visual learning was not supplied for validation',
+  'reference-export-stale': 'supplied visual learning no longer matches the live individual',
   'serialization': 'the live world could not be serialized',
   'save-too-large': 'the serialized world exceeds the supported save size',
   'storage-read': 'the current stored world could not be read (storage access)',

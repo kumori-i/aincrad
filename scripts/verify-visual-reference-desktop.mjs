@@ -47,6 +47,36 @@ function installRunner(context,helpers){
   const evaluate=(win,source)=>{stage=source.slice(0,140);return win.webContents.executeJavaScript(source);};
   const snapshot=win=>evaluate(win,'('+visualReferenceEvidence.toString()+')(window.__ozarkWorld.fullSnapshot())');
   const raw=win=>evaluate(win,"localStorage.getItem('aincrad.world.v2')");
+  const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts})=>
+    ({agentId,identity,anchors,partners,counts}));
+  function assertRetainedLearning(reference,saved,label){
+    assert.equal(reference.pending,0,label+' must not resume a transaction');
+    for(const key of ['exchanges','completed','observed','correct','censored','updates','correctionAttempts','evidenceAdditions','supportUpdates','conflicts'])
+      assert.equal(reference[key],0,label+' must not replay '+key);
+    assert.deepEqual(reference.observationEvents,[],label+' has no resurrected event history');
+    assert.deepEqual(durableLearners(reference),durableLearners(saved.report.reference),label+' retains the learned private associations');
+    const learned=saved.report.reference.learners.find(row=>row.counts.examples===1);
+    assert(learned,'Saved listener own-view example is required');
+    assert.equal(reference.learners.find(row=>row.agentId===learned.agentId)?.counts.examples,1,
+      label+' retains the listener own-view example');
+  }
+  async function assertReopenedRetrieval(win,saved,label){
+    const audit=JSON.parse(await fs.readFile(path.join(context.output,'association-retrieval-audit.json'),'utf8'));
+    const observed=saved.report.reference.observationEvents.find(event=>event.status==='observed');
+    assert(observed,'Saved canonical observed correction is required');
+    const base={listenerId:observed.receiverId,senderId:observed.senderId};
+    const candidates=audit.candidateViews.map(view=>view.features);
+    const beforeWorld=await snapshot(win),beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeRaw=await raw(win);
+    const probe=async(symbol,candidateFeatures)=>evaluate(win,
+      'window.__ozarkWorld.referencePersistenceProbe('+JSON.stringify({...base,symbol,candidateFeatures})+')');
+    assert.deepEqual(await probe(audit.symbol,candidates),audit.known,label+' retrieves the demonstrated symbol from retained memory');
+    assert.deepEqual(await probe(audit.symbol,candidates.slice().reverse()),audit.reversed,label+' follows reversed own views');
+    assert.deepEqual(await probe(audit.absent.symbol,candidates),audit.absent.choice,label+' abstains for an unheard symbol');
+    assert.deepEqual(await snapshot(win),beforeWorld,label+' retrieval leaves the world unchanged');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,label+' retrieval leaves learner memory and metrics unchanged');
+    assert.equal(await raw(win),beforeRaw,label+' retrieval cannot write save bytes');
+    return {known:audit.known,reversed:audit.reversed,absent:audit.absent.choice,readOnly:true};
+  }
   async function waitFor(win,expression){for(let i=0;i<1200;i++){if(await evaluate(win,expression))return;await delay(50);}throw new Error('Condition missing: '+expression);}
   async function capture(win,name){
     const before=await snapshot(win);
@@ -87,7 +117,8 @@ function installRunner(context,helpers){
       '0 association-matched choices','1 uniform exploratory choices','1 corrective observations','1 new visual exemplars',
       '1 partner-symbol entries','1 own demonstrated examples','Reference matching is not bodily relief or sickness.',
       'uniform-exploration (unknown-symbol)','observed correction: new-exemplar',
-      'Listener’s own post-choice demonstration','Private visual associations restart empty'])assert(learning.text.includes(text),text);
+      'Listener’s own post-choice demonstration'])assert(learning.text.includes(text),text);
+    assert.match(learning.text,/private visual associations.*reopen/i,'Learning must describe retained private memory');
     assert(!learning.text.includes('measured reward'),'Observer reference counts cannot imply bodily reward');
     const displayedWorld=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
     assert.deepEqual({...displayedWorld,selectedAgentId:beforeWorld.selectedAgentId},beforeWorld,'Opening Learning may change only observer selection, not the world');
@@ -155,15 +186,16 @@ function installRunner(context,helpers){
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Loaded profile cannot obtain fresh fixture authority');
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
-    assert.equal(reference.pending,0);assert.equal(reference.exchanges,0);assert.equal(reference.updates,0);
     assert.equal(reference.learners.length,2);
-    for(const memory of reference.learners)assert.deepEqual(memory.counts,{anchors:0,partners:0,entries:0,examples:0,conflicts:0},'Reopen starts empty private association memory, not restored labels');
+    assertRetainedLearning(reference,saved,'First independent reopen');
+    const retrieval=await assertReopenedRetrieval(win,saved,'First independent reopen');
     const replay=await evaluate(win,'('+probeVisualReferenceReopen.toString()+')(document.baseURI,window.__ozarkWorld.fullSnapshot(),'+JSON.stringify(saved.serializedActive)+','+JSON.stringify(saved.serializedPermit)+')');
     assert.equal(replay.noRevivedAuthority,true);
     assert.deepEqual(await snapshot(win),restored,'Read-only copied-state replay audit cannot mutate reopened main');
     await capture(win,'07-independent-reopen-no-authority.png');
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true);
-    await fs.writeFile(path.join(context.output,'after-checkpoint.json'),JSON.stringify({raw:await raw(win),expectedRestored:restored,replay,reference,
+    await fs.writeFile(path.join(context.output,'after-checkpoint.json'),JSON.stringify({raw:await raw(win),expectedRestored:restored,replay,reference,retrieval,
+      report:saved.report,
       fixtureDisclosure:saved.fixtureDisclosure,screenshots:[...saved.screenshots,...screenshots]},null,2));
     await session.defaultSession.flushStorageData();
   }
@@ -172,8 +204,10 @@ function installRunner(context,helpers){
     assert.equal(await raw(win),saved.raw,'Third process reads exact post-interruption save bytes');
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Repeated reopen cannot duplicate interruption or revive authority');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
-    const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');assert.equal(reference.pending,0);assert.equal(reference.observed,0);assert.equal(reference.updates,0);
-    for(const memory of reference.learners)assert.deepEqual(memory.counts,{anchors:0,partners:0,entries:0,examples:0,conflicts:0},'Repeated reopen cannot revive exemplar memory');
+    const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
+    assertRetainedLearning(reference,{report:{reference:saved.reference}},'Second independent reopen');
+    const retrieval=await assertReopenedRetrieval(win,saved,'Second independent reopen');
+    assert.deepEqual(retrieval,saved.retrieval,'Repeated reopen preserves the same message-dependent retrieval');
     const associationAudit=JSON.parse(await fs.readFile(path.join(context.output,'association-retrieval-audit.json'),'utf8'));
     await capture(win,'08-repeated-reopen-no-duplicate-interruption.png');
     await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:false,
@@ -183,9 +217,10 @@ function installRunner(context,helpers){
       canonicalOwnDemonstrationAssociation:true,associationEvidenceAdditions:1,readOnlyActualMemoryRetrieval:true,
       actualLearningTabCaptured:true,learningPanelReadOnly:true,
       retrievalEligibleDistributions:associationAudit.eligibleDistributions,timestampedCandidatePairSha256:associationAudit.timestampedPairSha256,
-      noBodilyReward:true,reopenEmptyAssociationMemory:true,noClosedTimeProgression:true,noRevivedAuthority:true,noDuplicateInterruption:true,
+      noBodilyReward:true,reopenRetainsIndividualAssociation:true,restoredMemoryRetrievalOnRecordedOwnViews:true,
+      noClosedTimeProgression:true,noRevivedAuthority:true,noDuplicateInterruption:true,
       screenshots:[...saved.screenshots,...screenshots],fixtureDisclosure:saved.fixtureDisclosure,
-      scope:'Bounded engineering-only deliberate main-world actions, native pixels, canonical own-demo association and read-only same-scene fresh-view retrieval eligibility, plus isolated native close/reopen. No sampled later policy action, vocabulary discrimination, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
+      scope:'Bounded engineering-only deliberate main-world actions, native pixels, canonical own-demo association, and retained private memory across isolated native close/reopen. Post-reopen retrieval queries use genuine listener Canvas views recorded before close; they do not capture new views after reopen. No sampled later policy action, vocabulary discrimination, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
   }
   async function closeNormally(win){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Engineering fixture must never start an independent wall-clock loop');

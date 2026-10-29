@@ -25,7 +25,7 @@ test('private-association native preparation is isolated, sandbox-preserving and
     // Capture the actual generated helper, not a test reimplementation. It is
     // constructed outside installRunner and must retain its own assert binding.
     vm.runInNewContext(source.replace('// Production asset scheme and profile registration remain synchronous.',
-      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
+      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;globalThis.assertRetainedLearning=assertRetainedLearning;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
     assert.equal(loaded.length,1,'Production scheme/profile registration remains synchronous');
     const calls=[],nodes={
       'npc-panel':{classList:{contains:()=>!nodes.visible},dataset:{journalTab:'character'}},
@@ -51,10 +51,29 @@ test('private-association native preparation is isolated, sandbox-preserving and
     assert.throws(()=>runHistory({...restored,elapsed:2}),{code:'ERR_ASSERTION'},'Reopen time mismatch must still fail closed');
     const changed=structuredClone(restored);changed.agents[0].memory.experience[0].type='fabricated';
     assert.throws(()=>runHistory(changed),{code:'ERR_ASSERTION'},'Existing canonical history must remain exact');
+    const learners=[
+      {agentId:'aster',identity:1,anchors:[{symbol:3,features:[.1]}],partners:[],counts:{anchors:1,examples:0}},
+      {agentId:'mira',identity:2,anchors:[],partners:[{slot:0,entries:[{symbol:3,examples:[[.2]],support:1,conflicted:false}]}],counts:{anchors:0,examples:1}},
+    ];
+    const emptyMetrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,
+      correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,pending:0,observationEvents:[],learners,latest:null};
+    const original={learners,latest:{receiverId:'mira'}};
+    const runRetained=(reference,saved)=>vm.runInNewContext(
+      'assertRetainedLearning('+JSON.stringify(reference)+','+JSON.stringify(saved)+',"test reopen")',sandbox);
+    assert.doesNotThrow(()=>runRetained(emptyMetrics,{report:{reference:original}}),
+      'First reopen retains one private example without replayed metrics');
+    assert.doesNotThrow(()=>runRetained(emptyMetrics,{report:{reference:emptyMetrics}}),
+      'Second reopen can validate against the first reopen snapshot with latest null');
+    const lost=structuredClone(emptyMetrics);lost.learners[1].partners=[];lost.learners[1].counts.examples=0;
+    assert.throws(()=>runRetained(lost,{report:{reference:original}}),{code:'ERR_ASSERTION'},
+      'A lost example fails the generated native assertion');
     for(const contract of ['Install fixture on actual fresh main population','Fixture owns the sole manual clock','Fresh fixture installer is one-use',
       'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-indication bytes',
       'Repeated reopen cannot duplicate interruption or revive authority','Loaded profile cannot obtain fresh fixture authority',
-      'Application uses exact isolated disposable test profile','Reopen starts empty private association memory',
+      'Application uses exact isolated disposable test profile','retains the learned private associations',
+      "assertRetainedLearning(reference,saved,'First independent reopen')",
+      "assertRetainedLearning(reference,{report:{reference:saved.reference}},'Second independent reopen')",
+      'referencePersistenceProbe(','retrieves the demonstrated symbol from retained memory',
       'Message changes actual-memory eligibility, not a sampled policy action',
       'Opening Learning may change only observer selection, not the world','Learning open/capture/close leaves reference snapshot exact',
       '04b-learning-own-association-counters.png','04c-learning-own-demonstration-provenance.png','association-learning-view.json','association-retrieval-audit.json','timestampedPairSha256','captureWithReadiness({','prefs.sandbox,true'])assert(source.includes(contract),contract);

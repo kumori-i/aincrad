@@ -32,8 +32,10 @@ geometry parsing in the same main world. Phase B adds private bounded exemplar
 associations; see docs/visual-reference/PHASE-B.md. Keep phase-A proof historical.
 No release claims beyond actual exact-source/native evidence: this is supplied
 metric memory, not learned abstractions or autonomous language. Historical protocol
-fixtures stay immutable. Private visual memory is fresh on reopen/reset; ordinary
-survival memory still saves. The optional channel must never compete with urgent
+fixtures stay immutable. Bounded private visual associations persist with each
+individual in a valid current-world save; fresh/reset worlds and replaced
+individuals begin without them. Session events and unfinished gesture authority
+do not persist. The optional channel must never compete with urgent
 survival decisions or restore the old bodily-credit learner. Native engineering
 fixtures remain isolated, bounded and explicitly non-autonomous.
 

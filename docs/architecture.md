@@ -92,7 +92,10 @@ identity tokens track actual actor/discovery/physiology objects, preserve ordina
 recovery, and purge replacements before choices/updates. Pending correction is a
 private consumed-once capability minted only after canonical physical completion
 and fresh final own sight; critic IDs/correctness never enter memory APIs.
-Private associations start empty on reopen; see [Phase B rules](visual-reference/PHASE-B.md).
+Bounded private associations persist for each continuing individual in the strict
+current-world save. Fresh/reset worlds and replacement individuals start empty;
+unfinished gesture authority and observer events do not persist. See
+[Phase B rules](visual-reference/PHASE-B.md).
 
 ## Observation-driven inquiry
 

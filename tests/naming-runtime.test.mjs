@@ -39,6 +39,18 @@ function fixture({unique=true,legacyGround=false}={}){
 const storage=()=>{const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};};
 function physical(f){return historicalClone(f.state.agents.map(n=>({rng:n.rng,inventory:n.inventory,physiology:n.physiology,experiments:n.discovery.experiments,practice:n.discovery.practice,effects:n.discovery.effects,techniques:n.discovery.techniques})));}
 function confirm(f){f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();assert.equal(f.social.naming.pendingCount(),1);f.advance(.1);f.step();f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();}
+function assertSameExceptWorldInstance(left,right,label){
+  assert.equal(left.worldLineage.instanceId,left.visualReference.worldId,'Left world keeps its two lineage tags bound');
+  assert.equal(right.worldLineage.instanceId,right.visualReference.worldId,'Right world keeps its two lineage tags bound');
+  assert.notEqual(left.worldLineage.instanceId,right.worldLineage.instanceId,'Independent fresh worlds have unique instance IDs');
+  const normalize=world=>{
+    const copy=structuredClone(world);
+    copy.worldLineage.instanceId='<fresh-world-instance>';
+    copy.visualReference.worldId='<fresh-world-instance>';
+    return copy;
+  };
+  assert.deepEqual(normalize(left),normalize(right),label);
+}
 
 test('legacy paid-encounter fixture preserves individual naming compatibility and physical RNG',()=>{
   const f=fixture();assert.equal(f.a.lexicon,undefined);const rng=f.a.rng,own=f.name(f.a);assert.equal(f.a.rng,rng);
@@ -183,7 +195,7 @@ test('ground-only safety preserves full state and pending cancellation before co
         f.social.dispose();
         return result;
       };
-      assert.deepEqual(run(false), run(true), `${phase}: ${reason}`);
+      assertSameExceptWorldInstance(run(false),run(true),`${phase}: ${reason}`);
     }
   }
 });
@@ -194,7 +206,7 @@ test('ground-only safety leaves the complete successful lexical protocol state u
     assert.ok(f.b.lexicon.heard[0].confirmation);
     const state = historicalClone(f.state); f.social.dispose(); return state;
   };
-  assert.deepEqual(run(false), run(true));
+  assertSameExceptWorldInstance(run(false),run(true));
 });
 
 test('fresh ordinary paid encounters do not create seeded names when no local model is configured',()=>{

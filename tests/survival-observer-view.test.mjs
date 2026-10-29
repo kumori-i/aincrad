@@ -27,7 +27,7 @@ test('bounded disclosures retain expansion/focus and render when communication u
  const details=node.children.find(n=>n.dataset.survivalDiagnostics);assert.equal(details.children[1].children.filter(n=>n.dataset.survivalDecision).length,8);
  assert.match(details.text,/Latest 8 of 64 retained/);assert.match(details.text,/9 older records evicted · 4 notes truncated · 1 invalid notes omitted/);
  details.open=true;details.children[0].focus();node.scrollTop=120;
- renderLearningView(node,null,'mira','offline',[],snapshot);assert.equal(node.children.find(n=>n.dataset.survivalDiagnostics),details);assert.equal(details.open,true);assert.equal(document.activeElement,details.children[0]);assert.equal(node.scrollTop,120);assert.match(node.text,/Survival continues independently/);assert.match(node.text,/Available fuel: 320.0/);
+ renderLearningView(node,null,'mira','offline',[],snapshot);assert.equal(node.children.find(n=>n.dataset.survivalDiagnostics),details);assert.equal(details.open,true);assert.equal(document.activeElement,details.children[0]);assert.equal(node.scrollTop,120);assert.match(node.text,/Communication learning unavailable\. offline/);assert.match(node.text,/Available fuel: 320.0/);
 });
 test('panel supplies selected actor diagnostics separately; existing engine IDs and historical labels stay intact',()=>{
  const source=readFileSync(new URL('../src/npc-panel.js',import.meta.url),'utf8'),html=readFileSync(new URL('../index.html',import.meta.url),'utf8');

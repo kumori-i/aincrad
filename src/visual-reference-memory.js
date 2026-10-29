@@ -19,12 +19,17 @@ function unique(distances){
 }
 function token(value){return !!value&&typeof value==='object';}
 function symbol(value){return Number.isInteger(value)&&value>=0&&value<L.symbols;}
+function exactKeys(value,keys){return token(value)&&!Array.isArray(value)&&
+  Reflect.ownKeys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));}
+function serial(value){return Number.isInteger(value)&&value>=1&&value<=0xffffffff;}
+function peer(value){return exactKeys(value,['agentId','serial'])&&
+  typeof value.agentId==='string'&&/^[a-z][a-z0-9_-]{0,63}$/.test(value.agentId)&&serial(value.serial);}
 const increment=value=>Math.min(Number.MAX_SAFE_INTEGER,value+1);
 
 export function createVisualReferenceMemory({symbolSeed=1,symbolIdentity=0}={}){
   if(!Number.isInteger(symbolSeed)||symbolSeed<0||symbolSeed>0xffffffff)throw new TypeError('Expected uint32 symbol seed');
   const inventory=createReferenceSymbolInventory({seed:symbolSeed,identity:symbolIdentity}),anchors=[],plans=new WeakMap(),partners=new Map();
-  let allowed=new Set(),revision=0;
+  let allowed=new Set(),revision=0,restored=false;
   function planPair(input){
     const own=pair(input);if(!own)return {ok:false,reason:'invalid-features'};
     const prospective=anchors.slice(),assigned=[];
@@ -96,5 +101,64 @@ export function createVisualReferenceMemory({symbolSeed=1,symbolIdentity=0}={}){
     return {anchors:anchors.map(a=>({symbol:a.symbol,features:a.features.slice()})),partners:rows,
       counts:{anchors:anchors.length,partners:rows.length,entries:rows.reduce((n,p)=>n+p.entries.length,0),examples:rows.reduce((n,p)=>n+p.entries.reduce((m,e)=>m+e.examples.length,0),0),conflicts:rows.reduce((n,p)=>n+p.entries.filter(e=>e.conflicted).length,0)}};
   }
-  return Object.freeze({planPair,commitPair,reconcilePartners,choose,observe,retirePartner,snapshot});
+  function exportPersistence(describePartner){
+    if(typeof describePartner!=='function')throw new TypeError('A partner identity reader is required');
+    const seen=new Set(),rows=[];
+    for(const [partner,entries]of partners){
+      const identity=describePartner(partner);
+      if(!peer(identity)||seen.has(`${identity.agentId}:${identity.serial}`))throw new TypeError('Unbound reference partner');
+      seen.add(`${identity.agentId}:${identity.serial}`);
+      rows.push({agentId:identity.agentId,serial:identity.serial,entries:[...entries].map(([message,e])=>
+        ({symbol:message,examples:e.examples.map(example=>example.slice()),support:e.support,conflicted:e.conflicted}))});
+    }
+    return {anchors:anchors.map(anchor=>({symbol:anchor.symbol,features:anchor.features.slice()})),partners:rows};
+  }
+  function restorePersistence(data,resolvePartner){
+    if(restored||anchors.length||partners.size||typeof resolvePartner!=='function'||
+        !exactKeys(data,['anchors','partners'])||!Array.isArray(data.anchors)||
+        !Array.isArray(data.partners)||data.anchors.length>L.anchors||data.partners.length>L.symbols)
+      throw new TypeError('Invalid reference memory restoration');
+    const importedAnchors=[],importedPartners=new Map(),seenPeers=new Set();
+    for(const [index,row]of data.anchors.entries()){
+      const own=exactKeys(row,['symbol','features'])?features(row.features):null;
+      if(!own||row.symbol!==inventory[index]||importedAnchors.some(a=>distance(a.features,own)<=L.novel))
+        throw new TypeError('Invalid reference anchors');
+      importedAnchors.push(Object.freeze({symbol:row.symbol,features:own}));
+    }
+    if(importedAnchors.length===1)throw new TypeError('A single reference anchor cannot be committed');
+    for(const row of data.partners){
+      if(!exactKeys(row,['agentId','serial','entries'])||!peer({agentId:row.agentId,serial:row.serial})||
+          !Array.isArray(row.entries)||row.entries.length<1||row.entries.length>L.symbols)
+        throw new TypeError('Invalid reference partner');
+      const key=`${row.agentId}:${row.serial}`;
+      if(seenPeers.has(key))throw new TypeError('Duplicate reference partner');
+      seenPeers.add(key);
+      const partner=resolvePartner(row.agentId,row.serial);
+      if(!token(partner)||!allowed.has(partner)||importedPartners.has(partner))
+        throw new TypeError('Unknown reference partner');
+      const entries=new Map();
+      for(const entry of row.entries){
+        if(!exactKeys(entry,['symbol','examples','support','conflicted'])||!symbol(entry.symbol)||
+            entries.has(entry.symbol)||!Array.isArray(entry.examples)||entry.examples.length<1||
+            entry.examples.length>L.examples||!Number.isSafeInteger(entry.support)||
+            entry.support<entry.examples.length||typeof entry.conflicted!=='boolean'||
+            entry.conflicted&&entry.examples.length!==L.examples)
+          throw new TypeError('Invalid reference evidence');
+        const examples=[];
+        for(const raw of entry.examples){
+          const own=features(raw);
+          if(!own||examples.some(example=>distance(example,own)<=L.novel))
+            throw new TypeError('Invalid reference exemplar');
+          examples.push(own);
+        }
+        entries.set(entry.symbol,{examples,support:entry.support,conflicted:entry.conflicted});
+      }
+      importedPartners.set(partner,entries);
+    }
+    anchors.push(...importedAnchors);
+    for(const [partner,entries]of importedPartners)partners.set(partner,entries);
+    revision++;restored=true; // Plans created before restoration cannot commit later.
+  }
+  return Object.freeze({planPair,commitPair,reconcilePartners,choose,observe,retirePartner,snapshot,
+    exportPersistence,restorePersistence});
 }
