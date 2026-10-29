@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { renderLearningView } from '../src/learning-view.js';
 class Node {constructor(tag,doc){this.tag=tag;this.ownerDocument=doc;this.children=[];this.dataset={};this.textContent='';}append(n){this.children.push(n);}replaceChildren(){this.children=[];this.scrollTop=0;}focus(){this.ownerDocument.activeElement=this;}setAttribute(){}getContext(){return {clearRect(){},createImageData(){return{data:new Uint8ClampedArray(1024)};},putImageData(){}};}get text(){return this.textContent+' '+this.children.map(c=>c.text).join(' ');}}
@@ -24,4 +25,37 @@ test('refresh retains diagnostics expansion, summary focus and scroll without ch
   assert.equal(details.open,true);assert.equal(document.activeElement,summary);assert.equal(root.scrollTop,120);assert.match(details.text,/optional: 3/);assert.deepEqual(snapshot,before);
   details.open=false;renderLearningView(root,snapshot,'aster');assert.equal(details.open,false,'User collapse is preserved too');
   details.open=true;renderLearningView(root,null,'aster','temporary error');renderLearningView(root,snapshot,'aster');assert.equal(root.children.find(c=>c.tag==='details'),details);assert.equal(details.open,true,'Temporary unavailability does not reset disclosure');
+});
+
+
+test('native sharing reopen assertion executes against current Learning DOM and rejects invented activity',()=>{
+  const source=readFileSync(new URL('../scripts/verify-renewable-sharing-desktop.mjs',import.meta.url),'utf8');
+  const start=source.indexOf('function (receiverId) {',source.indexOf('const learning ='));
+  const end=source.indexOf('}).toString()',start);
+  assert.ok(start>=0&&end>start);
+  const inline=source.slice(start,end+1);
+  const reference={phase:'physical-reference-no-learning',elapsed:42,exchanges:0,pending:0,updates:0,observationEvents:[]};
+  const root=new Node('div',document);
+  const render=()=>renderLearningView(root,reference,'mira');
+  const elements={
+    'npc-panel':{classList:{contains:()=>false}},
+    'npc-select':{value:'',dispatchEvent:render},
+    'npc-tab-conversation':{click:render},
+    'journal-messages':{get textContent(){return root.text;}},
+    'npc-name':{textContent:'Mira'},
+  };
+  const fakeDocument={getElementById:id=>elements[id]};
+  const run=Function('window','document','Event','return ('+inline+')')(
+    {__ozarkWorld:{communicationSnapshot:()=>reference}},fakeDocument,class Event{});
+  const result=run('mira');
+  assert.match(result.text,/No reference attempt involving this agent yet/);
+  assert.match(result.text,/Observer annotations, not agent speech/);
+  assert.equal(result.reference,reference);
+  for(const key of ['exchanges','pending','updates']){
+    reference[key]=1;assert.throws(()=>run('mira'),/must not invent reference activity/);reference[key]=0;
+  }
+  reference.observationEvents=[{senderId:'other',receiverId:'another'}];
+  assert.throws(()=>run('mira'),/must not invent reference activity/,'Hidden foreign-agent events must fail too');
+  reference.observationEvents=[];reference.phase='historical-symbol-path';
+  assert.throws(()=>run('mira'),/current empty reference state/,'Old empty wording is not the current main path');
 });
