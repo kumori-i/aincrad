@@ -9,6 +9,7 @@ import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
 import {renderLearningView} from '../src/learning-view.js';
 import {createVisualReferenceMemory} from '../src/visual-reference-memory.js';
+import {beginSurvivalDecision,noteSurvivalDecision,finishSurvivalDecision,survivalDecisionSnapshot} from '../src/survival-decision-observer.js';
 
 test('communication native preparation stays isolated and never claims native execution', async () => {
   const output = await mkdtemp(join(tmpdir(), 'communication-harness-contract-'));
@@ -29,7 +30,7 @@ test('communication native preparation stays isolated and never claims native ex
     const sandbox={require:stub,process:{argv:['runner','--phase=exercise']},console,setTimeout:()=>1,clearTimeout(){}};
     const registration="require(path.join(context.application, 'desktop/main.cjs'));";
     assert(source.includes(registration));
-    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateAssociationDisclosure;globalThis.emptyMemoryAssert=assertEmptyPrivateAssociations;'+registration),sandbox);
+    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateAssociationDisclosure;globalThis.emptyMemoryAssert=assertEmptyPrivateAssociations;globalThis.observerAssert=assertSurvivalObserver;globalThis.observerReadOnlyAssert=assertObserverReadOnly;globalThis.presentObserver=presentSurvivalObserver;'+registration),sandbox);
     // Execute the actual generated helper against current rendered observer text.
     // This small DOM contract is not native rendering evidence.
     class Node {
@@ -58,6 +59,36 @@ test('communication native preparation stays isolated and never claims native ex
       value=>{value.pending=1;},
     ]){const changed=structuredClone(fresh);corrupt(changed);assert.throws(()=>checkMemory(changed),{code:'ERR_ASSERTION'});}
 
+    // Execute actual generated observer assertions and DOM helper against the
+    // real view + observer module. This is a DOM contract, not native evidence.
+    class ObserverNode {
+      constructor(tag,doc){this.tag=tag;this.ownerDocument=doc;this.children=[];this.dataset={};this._text='';}
+      set textContent(value){this._text=value;}get textContent(){return this._text+this.children.map(child=>child.textContent).join('');}
+      append(child){child.parent=this;this.children.push(child);}replaceChildren(){this.children=[];}setAttribute(){}
+      querySelectorAll(selector){const match=node=>selector==='[data-survival-diagnostics]'?node.dataset.survivalDiagnostics:selector==='[data-survival-decision]'?node.dataset.survivalDecision:node.tag===selector;return this.children.flatMap(child=>[...(match(child)?[child]:[]),...child.querySelectorAll(selector)]);}
+      querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
+      click(){assert.equal(this.tag,'summary');this.parent.open=!this.parent.open;}
+      scrollIntoView(){this.scrolled=true;}focus(){this.ownerDocument.activeElement=this;}
+    }
+    const observerDocument={createElement(tag){return new ObserverNode(tag,this);}},messages=new ObserverNode('div',observerDocument),controls={
+      'npc-panel':{classList:{contains:()=>false}},'npc-tab-conversation':{click(){}},'journal-messages':messages};
+    observerDocument.getElementById=id=>{assert(controls[id],id);return controls[id];};sandbox.document=observerDocument;
+    const actor={id:'aster',epoch:1,elapsed:10,discovery:{},physiology:{profile:'human',satietyHours:0,availableEnergyKcal:320,storedEnergyKcal:83000,health:99,totals:{ingestedKcal:95,absorbedKcal:40,metabolizedKcal:80}},stats:{independentMeals:3,independentDrinks:2}};
+    const world={selectedAgentId:'aster',elapsed:10,agents:[actor]},unchanged=structuredClone(world);
+    const draw=observer=>{renderLearningView(messages,fresh,'aster','',[],observer);return sandbox.presentObserver();};
+    const checkObserver=(observer,rendered,empty=false)=>vm.runInNewContext('observerAssert('+[observer,world,rendered,empty].map(value=>JSON.stringify(value)).join(',')+')',sandbox);
+    let observer=survivalDecisionSnapshot(actor),rendered=draw(observer);assert.doesNotThrow(()=>checkObserver(observer,rendered,true));
+    for(let i=0;i<10;i++){const token=beginSurvivalDecision(actor,{});noteSurvivalDecision(token,'visit:urgent-food');noteSurvivalDecision(token,'food:urgent-candidates',0);finishSurvivalDecision(token,{type:'sample'},{action:{type:'rest'},need:'rest'},'food');}
+    observer=survivalDecisionSnapshot(actor);rendered=draw(observer);assert.equal(rendered.rows.length,8);assert.equal(rendered.rows[0].sequence,'10');assert.doesNotThrow(()=>checkObserver(observer,rendered));
+    assert.throws(()=>checkObserver(observer,rendered,true),{code:'ERR_ASSERTION'});
+    for(const corrupt of [value=>{value.body.availableEnergyKcal++;},value=>{value.counters={};},value=>{value.gateCounts={};},value=>{value.records.at(-1).actualType='sample';},value=>{value.records.at(-1).phases.ordinaryFood='entered';},value=>{value.records.at(-1).at=20;},value=>{value.records.at(-1).notes[0].count=9;},value=>{value.records=Array(65).fill(value.records[0]);}]){const changed=structuredClone(observer);corrupt(changed);assert.throws(()=>checkObserver(changed,rendered),{code:'ERR_ASSERTION'});}
+    for(const corrupt of [value=>{value.text=value.text.replace('not whole meals','whole meals');},value=>{value.rows.pop();},value=>{value.rows[0].sequence='999';},value=>{value.rows[0].text=value.rows[0].text.replace('selected action: rest','selected action: sample');},value=>{value.rows[0].noteCounts[0]=5;}]){const changed=structuredClone(rendered);corrupt(changed);assert.throws(()=>checkObserver(observer,changed),{code:'ERR_ASSERTION'});}
+    assert.deepEqual(world,unchanged,'Rendered instrumentation cannot mutate the actor');
+    const boundary={world,reference:fresh,observer,saved:JSON.stringify(world)};
+    const readOnly=after=>vm.runInNewContext('observerReadOnlyAssert('+JSON.stringify(boundary)+','+JSON.stringify(after)+')',sandbox);
+    assert.doesNotThrow(()=>readOnly(boundary));
+    for(const corrupt of [value=>{value.world.elapsed++;},value=>{value.world.agents[0].physiology.availableEnergyKcal--;},value=>{value.reference.pending++;},value=>{value.observer.counters.begun++;},value=>{value.saved+=' ';}]){const changed=structuredClone(boundary);corrupt(changed);assert.throws(()=>readOnly(changed),{code:'ERR_ASSERTION'});}
+
     assert.equal(loaded.length, 1, 'Actual application scheme registration remains synchronous');
     for (const contract of [
       'Independent reopen preserves exact ordinary bytes', 'Inspector does not suppress ordinary autosave writes',
@@ -67,6 +98,8 @@ test('communication native preparation stays isolated and never claims native ex
       'Private association counts restart empty', 'Main clock resumes saved time, not experiment time',
       'Explicit reset creates fresh ordinary world', 'Reset clears pending reference transactions',
       'Fresh private anchors are concretely empty','Fresh private partner examples are concretely empty',
+      'Session-only diagnostics restart empty','Ordinary bounded interval produced actual diagnostic records',
+      "auditSurvivalObserver(win,'initial',true)","auditSurvivalObserver(win,'reopen',true)","auditSurvivalObserver(win,'reset',true)","auditSurvivalObserver(win,'paused')",
       'captureWithReadiness({', 'win.webContents.sendInputEvent', 'prefs.sandbox, true',
     ]) assert(source.includes(contract), contract);
     const archive = JSON.parse(await readFile(join(prepared.output, 'profile-evidence.json'), 'utf8'));

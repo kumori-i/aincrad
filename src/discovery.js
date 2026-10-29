@@ -1,3 +1,8 @@
+import { beginSurvivalDecision, noteSurvivalDecision, noteCurrentSurvivalDecision, finishSurvivalDecision, closeSurvivalDecision } from './survival-decision-observer.js';
+// Observer failures are deliberately outside policy authority. No callbacks or data are installed in actors.
+function survivalObserve(fn,...args){try{return fn(...args);}catch{return null;}}
+function survivalNote(npc,code,count){survivalObserve(noteCurrentSurvivalDecision,npc,code,count);}
+function survivalReturn(npc,code,value){survivalNote(npc,code);return value;}
 import { legacyCommunication } from './communication-mode.js';
 import { receivedMaterialCaution } from './food-warning.js';
 import { markNpcRunTravel } from './npc-effort-funding.js';
@@ -372,12 +377,13 @@ function finishedSourceMaterial(npc,acquired,technique){
 }
 function sampleEligible(npc,id,body=bodySignals(npc),foodLearning=true){
   const d=memory(npc);
-  if(experiencedFoodSourceCaution(npc,id))return false; // Own exact-source caution also protects generic/ablated sampling.
-  if(availabilityBlocked(npc,'sample',id)||samplingBlocked(npc,body)||d.effects.some(e=>e.objectId===id&&(e.effect==='discomfort'||['aching','hurting'].includes(e.pain)))||receivedMaterialCaution(npc,id))return false;
+  if(experiencedFoodSourceCaution(npc,id))return survivalReturn(npc,'sample:source-caution',false); // Own exact-source caution also protects generic/ablated sampling.
+  if(availabilityBlocked(npc,'sample',id)||samplingBlocked(npc,body)||d.effects.some(e=>e.objectId===id&&(e.effect==='discomfort'||['aching','hurting'].includes(e.pain)))||receivedMaterialCaution(npc,id))return survivalReturn(npc,'sample:composite-blocked',false);
   // Keep every pending identity for delayed feedback/protection, even when
   // repeated positive experience supports another physical bite before it arrives.
-  if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds&&!(foodLearning&&supportedHeldMaterial(npc,id)))return false;
-  return !recentlyFailed(npc,'sample',id);
+  if(d.samplesPending[id]!==undefined&&npc.elapsed-d.samplesPending[id]<DISCOVERY_RULES.feedbackWaitSeconds&&!(foodLearning&&supportedHeldMaterial(npc,id)))return survivalReturn(npc,'sample:feedback-wait',false);
+  const eligible=!recentlyFailed(npc,'sample',id);
+  return survivalReturn(npc,eligible?'sample:eligible':'sample:recent-failure',eligible);
 }
 function unfinishedHeldTrial(npc,body){
   const d=memory(npc);
@@ -410,15 +416,16 @@ function deferRestRetry(npc,body){
   return true;
 }
 function learnedStep(npc){
-  const d=memory(npc),run=d.run;if(!run)return null;
-  const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){d.run=null;return null;}
-  if(run.awaiting)return null;if(run.cursor>=technique.steps.length){d.run=null;return null;}
+  survivalNote(npc,'visit:learned-run');
+  const d=memory(npc),run=d.run;if(!run)return survivalReturn(npc,'run:missing-or-expired',null);
+  const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}
+  if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){d.run=null;return survivalReturn(npc,'run:complete',null);}
   const step=technique.steps[run.cursor],id=step.targetId==='$source'?technique.sourceId:run.materialId;
-  if(!id){d.run=null;return null;}
-  if(availabilityBlocked(npc,step.type,id)){d.run=null;return null;}
-  if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return null;const object=d.observations[id];
-  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return markNpcRunTravel(npc,move);d.run=null;return null;}
-  run.awaiting=true;run.expectedType=step.type;run.expectedId=id;return {type:step.type,targetId:id};
+  if(!id){d.run=null;return survivalReturn(npc,'run:no-target',null);}
+  if(availabilityBlocked(npc,step.type,id)){d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}
+  if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return survivalReturn(npc,'run:eligibility-blocked',null);const object=d.observations[id];
+  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return survivalReturn(npc,'run:travel',markNpcRunTravel(npc,move));d.run=null;return survivalReturn(npc,'run:route-missing',null);}
+  run.awaiting=true;run.expectedType=step.type;run.expectedId=id;return survivalReturn(npc,'run:action',{type:step.type,targetId:id});
 }
 /** Pain from actual observed contact supports avoidance; appearance alone predicts no threat. */
 export function contactEscape(npc){
@@ -431,7 +438,10 @@ export function contactEscape(npc){
 }
 /** A generic novelty/outcome learner. It never looks up an object's species or nutrients. */
 export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,chooseOptional=null,optionalAction=null}={}){
+  let survivalScope=null;
+  try{
   processDiscoveryFeedback(npc,{foodLearning});availabilityScans.set(npc,new Map());const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
+  survivalScope=survivalObserve(beginSurvivalDecision,npc,body);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
   const trialHunger=['hungry','ravenous','faint with hunger'].includes(body.hunger);
   // Evaluation can ablate positive food associations without erasing perception,
@@ -439,7 +449,9 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(!foodLearning)d.run=null;
   const wrap=(action,reason,need='understanding')=>{
     const retreat=recoveryChoice(npc,action,need);
-    return {action:retreat||action,reason:retreat?'My attempted walk did not make progress. I can cautiously retrace a short part of my own recent path before choosing another route.':reason,need,provider:'discovery-learner'};
+    const result={action:retreat||action,reason:retreat?'My attempted walk did not make progress. I can cautiously retrace a short part of my own recent path before choosing another route.':reason,need,provider:'discovery-learner'};
+    survivalObserve(finishSurvivalDecision,survivalScope,action,result,need);
+    return result;
   };
   const escape=contactEscape(npc);if(escape)return wrap(escape.action,'A contact I actually experienced hurt; I can move away through terrain I observed.','safety');
   const thirsty=['thirsty','parched','desperate thirst'].includes(body.thirst)||
@@ -464,15 +476,19 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(npc.scene!=='valley'&&(!dangerous||body.thirst==='desperate thirst'||body.hunger==='faint with hunger')&&(thirsty||['hungry','ravenous','faint with hunger'].includes(body.hunger))){const exit=npc.memory.caveExits?.[npc.scene];if(exit){if(distance(npc.position,exit)<100)return wrap({type:'exit_shelter'},'My body needs something outside this refuge.','survival');const move=routeTarget(npc,exit);if(move)return wrap(move,'I remember this route toward the opening.','survival');}}
   const waterEscape=terrainTraversalDecision(npc);
   if(waterEscape?.need==='safety')return wrap(waterEscape.action,waterEscape.reason,'safety');
+  survivalObserve(noteSurvivalDecision,survivalScope,'visit:urgent-food');
   if(foodLearning&&(['ravenous','faint with hunger'].includes(body.hunger)||depletedAfterRefusal)&&!samplingBlocked(npc,body)){
+    survivalObserve(noteSurvivalDecision,survivalScope,'enter:urgent-food');
     if(depletedAfterRefusal){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I still hold the result of an operation sequence I previously tested; I can cautiously finish its first sampling trial before acquiring more.','food');}
     const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
+    survivalObserve(noteSurvivalDecision,survivalScope,'food:held-supported-found',carried?1:0);
     if(carried)return wrap({type:'sample',targetId:carried},depletedAfterRefusal?'Rest was refused while I felt depleted; a previous portion of this held material brought relief, so I can test another.':'My hunger is urgent, and a previous portion of this held material brought relief; I can test another before resting.','food');
     if(trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
     const reason=depletedAfterRefusal?'Rest was refused while I felt depleted; I can try an observed route and operation sequence that previously brought bodily relief.':'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.';
     if(d.run){const action=learnedStep(npc);if(action)return wrap(action,reason,'food');}
     if(!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
       const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&(depletedAfterRefusal||distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach));
+      survivalObserve(noteSurvivalDecision,survivalScope,'food:urgent-candidates',candidates.length);
       if(depletedAfterRefusal)candidates.sort((a,b)=>distance(npc.position,d.observations[a.sourceId].position)-distance(npc.position,d.observations[b.sourceId].position));
       for(const technique of candidates){
         d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
@@ -489,13 +505,17 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(d.run){const action=learnedStep(npc);if(action)return wrap(action,'I am repeating an operation sequence supported by my own bodily feedback.','food');}
   // Appetite is not fuel: a content stomach can coexist with waning energy.
   // Necessary sleep/rest and immediate safety have already been considered.
+  survivalObserve(noteSurvivalDecision,survivalScope,'visit:ordinary-food');
   const energyFoodNeed=['waning','low','depleted'].includes(body.energy);
   const hungry=foodLearning&&(body.hunger!=='content'||energyFoodNeed)&&!samplingBlocked(npc,body);
   const knownHeld=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
+  survivalObserve(noteSurvivalDecision,survivalScope,'food:held-supported-found',knownHeld?1:0);
+  if(hungry)survivalObserve(noteSurvivalDecision,survivalScope,'enter:ordinary-food');
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},energyFoodNeed?'My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.':'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&(trialHunger||energyFoodNeed)&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
   if(hungry&&!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
     const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds&&!finishedSourceMaterial(npc,e,t))).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+    survivalObserve(noteSurvivalDecision,survivalScope,'food:ordinary-candidates',candidates.length);
     for(const technique of candidates){
       d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
       const action=learnedStep(npc);
@@ -569,6 +589,7 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   }
   // A trusted runtime may request a paid reference operation only after all
   // ordinary safety, bodily-care and learned-procedure returns above.
+  survivalObserve(noteSurvivalDecision,survivalScope,'visit:optional');
   if(typeof optionalAction==='function'){const action=optionalAction();if(action)return wrap(action,'A supplied visual-reference interaction is being attempted; no learned meaning is established.');}
   // Runtime-only opt-in experiment may choose an already eligible optional
   // operation. Every bodily-care/procedure/safety gate above remains prior.
@@ -576,4 +597,5 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(typeof chooseOptional==='function'&&choices.length){const index=chooseOptional(choices);if(Number.isInteger(index)&&index>=0&&index<choices.length)return wrap(choices[index].action,'An experimental learned signal influenced this optional physical trial; its outcome remains untested.');}
   if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
+  }finally{survivalObserve(closeSurvivalDecision,survivalScope);}
 }

@@ -67,6 +67,15 @@ async function capture(win, name) {
   await fs.writeFile(path.join(context.output, name), png);
   return { file: name, bytes: png.length, ...image.getSize() };
 }
+// Current app projection contract; historical staged action evidence is unchanged.
+function assertSatietyUi(rendered, actor) {
+  assert.equal(rendered.label,'Satiety');
+  assert.equal(rendered.tooltip,'Satiety is modeled appetite duration, not stomach fullness or stored energy.');
+  assert.equal(rendered.hidden,false);
+  assert.equal(rendered.foodText,actor.nourishment.toFixed(1)+' / 100');
+  assert.ok(Math.abs(rendered.foodValue-actor.nourishment)<1e-8);
+  assert.equal(rendered.energyText,actor.energy.toFixed(1));
+}
 async function writePhase(win) {
   assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"), null);
   const fixture = await win.webContents.executeJavaScript('(' + ${JSON.stringify(createLearningCycleFixture.toString())} + ')(document.baseURI)');
@@ -143,10 +152,7 @@ async function reopenPhase(win) {
         energyText:document.getElementById('npc-energy-debug').textContent,
         hidden:document.getElementById('npc-condition').classList.contains('hidden')};
     }).toString() + ')()');
-    assert.equal(rendered.label,'Food satisfaction');
-    assert.equal(rendered.tooltip,'Appetite satisfaction, not stored energy or calorie coverage.');
-    assert.equal(rendered.hidden,false);assert.ok(Math.abs(rendered.foodValue-actor.nourishment)<1e-8);
-    assert.equal(rendered.energyText,actor.energy.toFixed(1));
+    assertSatietyUi(rendered,actor);
     foodSatisfactionUI.push({actorId:actor.id,...rendered});
     screenshots.push(await capture(win,'03-food-satisfaction-'+actor.id+'.png'));
   }

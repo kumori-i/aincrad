@@ -68,6 +68,11 @@ function installRunner(context,helpers){
     select.dispatchEvent(new Event('change',{bubbles:true}));
     document.getElementById('npc-tab-conversation').click();
     const messages=document.getElementById('journal-messages');messages.scrollTop=0;
+    // Current observer sections can precede reference metrics. Use ordinary
+    // scrolling rather than assuming their absolute position in the panel.
+    const counters=[...messages.querySelectorAll('p')].find(node=>node.textContent.includes('canonical observed demonstrations'));
+    if(!counters)throw Error('Missing actual reference counter row');
+    counters.scrollIntoView({block:'start'});
     return {text:messages.textContent,selected:select.value,visible:!panel.classList.contains('hidden'),
       tab:panel.dataset.journalTab,character:document.getElementById('npc-name').textContent};
   }

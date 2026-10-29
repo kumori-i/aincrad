@@ -32,12 +32,14 @@ test('private-association native preparation is isolated, sandbox-preserving and
       'open-npc':{click(){calls.push('open');nodes.visible=true;}},
       'npc-select':{value:'aster',dispatchEvent(event){calls.push('select:'+this.value);assert.equal(event.type,'change');assert.equal(event.bubbles,true);}},
       'npc-tab-conversation':{click(){calls.push('learning');nodes['npc-panel'].dataset.journalTab='conversation';}},
-      'journal-messages':{textContent:'Observer text',scrollTop:100},'npc-name':{textContent:'Listener'},visible:false};
+      'journal-messages':{textContent:'Observer text',scrollTop:100,querySelectorAll(){return [{textContent:'1 canonical observed demonstrations',scrollIntoView(options){assert.equal(options.block,'start');calls.push('scroll-counters');}}];}},'npc-name':{textContent:'Listener'},visible:false};
     sandbox.document={getElementById:id=>{assert(nodes[id],id);return nodes[id];}};
     sandbox.Event=class{constructor(type,options){this.type=type;Object.assign(this,options);}};
     const panel=sandbox.presentAssociationLearning('brin');
     assert.equal(panel.selected,'brin');assert.equal(panel.visible,true);assert.equal(panel.tab,'conversation');assert.equal(panel.text,'Observer text');
-    assert.deepEqual(calls,['open','select:brin','learning']);assert.equal(nodes['journal-messages'].scrollTop,0);
+    assert.deepEqual(calls,['open','select:brin','learning','scroll-counters']);assert.equal(nodes['journal-messages'].scrollTop,0);
+    nodes['journal-messages'].querySelectorAll=()=>[];
+    assert.throws(()=>sandbox.presentAssociationLearning('brin'),/Missing actual reference counter row/);
     // DOM-control regression only: actual rendered pixels still require native CI.
 
     const stored={elapsed:1,environment:{elapsed:1,ecology:{elapsed:1,pending:0}},player:{x:0,y:0},playerBody:{stamina:100},
