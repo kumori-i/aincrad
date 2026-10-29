@@ -98,6 +98,8 @@ export function renderLearningView(parent, snapshot, agentId, error = '', gestur
     add(entry,'p',tokens,'learning-symbols');
     add(entry,'p',`${event.status} · selected action: ${event.action}${event.reward===null||!Number.isFinite(event.reward)?'':` · measured reward ${event.reward.toFixed(3)}`}`,'small');
     if(event.phase==='private-visual-association')add(entry,'p',`${event.choiceMode||'pending'} (${event.choiceReason||'unavailable'}) · observed correction: ${event.correction||'none'} · funded visible indication ${number(event.observedSeconds||0)}s${typeof event.referenceCorrect==='boolean'?` · independent reference critic: ${event.referenceCorrect?'matched':'different'}`:''}`,'small');
+    if(event.phase==='private-visual-association'&&event.feedbackStatus)
+      add(entry,'p',`Sender-local visible response: ${event.feedbackStatus}. This is visual similarity, not proof of understanding or bodily reward.`,'small');
     if(event.phase==='physical-reference-no-learning')add(entry,'p',`Reference observation: ${event.reason||'pending'} · funded visible indication ${number(event.observedSeconds||0)}s${typeof event.referenceCorrect==='boolean'?` · independent reference critic: ${event.referenceCorrect?'matched':'different'}`:''}. No associative update.`,'small');
     if(event.endedAt!==undefined)add(entry,'p',`Settled at ${number(event.endedAt)}s${Number.isFinite(event.cost)?` · effort cost ${number(event.cost)}`:''}${Number.isFinite(event.benefit)?` · bodily feedback ${number(event.benefit)}`:''}`,'small');
     const crops=add(entry,'div','','communication-crops');

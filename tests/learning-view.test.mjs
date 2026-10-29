@@ -69,10 +69,11 @@ test('native sharing reopen assertion executes against current Learning DOM and 
 test('private association inspector distinguishes evidence, exploration and reference correctness without bodily reward claims',()=>{
   const root=new Node('div',document),snapshot={phase:'private-visual-association',elapsed:20,opportunities:4,exchanges:2,observed:1,correct:0,censored:1,pending:0,matchedChoices:0,exploratoryChoices:2,correctionAttempts:1,evidenceAdditions:1,supportUpdates:0,conflicts:0,correctionAbstentions:0,
     learners:[{agentId:'mira',anchors:[],counts:{anchors:0,entries:1,examples:1,conflicts:0}}],
-    observationEvents:[{id:1,phase:'private-visual-association',senderId:'aster',receiverId:'mira',tokens:[3,2],status:'observed',action:'inspect_object',reward:null,choiceMode:'uniform-exploration',choiceReason:'unknown-symbol',correction:'new-exemplar',referenceCorrect:false,observedSeconds:1.7,demonstrationPixels:Array(768).fill(25),demonstrationObservedAt:3.8}]};
+    observationEvents:[{id:1,phase:'private-visual-association',senderId:'aster',receiverId:'mira',tokens:[3,2],status:'observed',action:'inspect_object',reward:null,choiceMode:'uniform-exploration',choiceReason:'unknown-symbol',correction:'new-exemplar',referenceCorrect:false,feedbackStatus:'mismatched',observedSeconds:1.7,demonstrationPixels:Array(768).fill(25),demonstrationObservedAt:3.8}]};
   const before=structuredClone(snapshot);renderLearningView(root,snapshot,'mira');
   assert.match(root.text,/1 new visual exemplars/);assert.match(root.text,/2 uniform exploratory choices/);
   assert.match(root.text,/independent reference critic: different/);assert.match(root.text,/not bodily relief or sickness/);
+  assert.match(root.text,/Sender-local visible response: mismatched/);
   assert.match(root.text,/private visual associations save locally per individual.*after app reopen/i);
   assert.match(root.text,/fresh or reset worlds and replacement individuals start empty/i);
   assert.match(root.text,/own post-choice demonstration/);

@@ -15,6 +15,7 @@ import { SimulationClock } from './simulation-clock.js';
 import { installWorldReset } from './world-reset-ui.js';
 import { installCommunicationInspector } from './communication-inspector.js';
 import { attachVisualReferenceLearning } from './visual-reference-attachment.js';
+import { initialReferenceRandomStates } from './visual-reference-random.js';
 import { createCommunicationPixelSensor } from './communication-pixels.js';
 import { saveFailureMessage } from './save-failure-message.js';
 import { createVisualReferenceSaveGate } from './visual-reference-save-gate.js';
@@ -479,7 +480,10 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     start: begin, pause: () => setPause(true), save: () => save(true),
     // The reviewed native engineering harness supplies this installer directly;
     // no provider, saved data, message or agent action can enter this test route.
-    referenceFixture: async install => {
+    referenceFixture: async (install, options={}) => {
+      const optionKeys=options&&typeof options==='object'&&!Array.isArray(options)?Object.keys(options):null;
+      if(!optionKeys||!(optionKeys.length===0||optionKeys.length===1&&
+          optionKeys[0]==='negativeControlSeed'&&options.negativeControlSeed===212))return null;
       if(location.search!=='?test=1'||referenceFixtureOwner||started||loaded.exists||loaded.blocked||
         state.elapsed!==0||!population||!communicationLearning||typeof install!=='function')return null;
       try{if(storage.getItem(OZARK_SAVE_KEY)!==null)return null;}catch{return null;}
@@ -501,6 +505,16 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
         return save(false,true);
       };
       try{
+        if(options.negativeControlSeed===212){
+          // Deliberate engineering negative control on a blank disposable test
+          // profile. Stream arithmetic fixes a wrong first exploratory choice;
+          // no saved world, association, body or ordinary route is altered.
+          if(state.visualReference?.seed!==211||state.visualReference.learners.some(row=>row.anchors.length||row.partners.length))
+            throw new Error('Negative control requires a fresh blank reference learner');
+          communicationLearning.dispose();
+          state.visualReference={...state.visualReference,seed:212,random:initialReferenceRandomStates(212)};
+          communicationLearning=attachVisualReferenceLearning({state,pixelSensor:createCommunicationPixelSensor(document),seed:212});
+        }
         const readAssociation=communicationLearning.createNativeAssociationAuditReader();
         const auditAssociation=()=>{
           if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||started||
