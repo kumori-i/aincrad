@@ -1,0 +1,106 @@
+[
+  {
+    "before": "import { legacyCommunication }",
+    "after": "import { beginSurvivalDecision, noteSurvivalDecision, noteCurrentSurvivalDecision, finishSurvivalDecision, closeSurvivalDecision } from './survival-decision-observer.js';\n// Observer failures are deliberately outside policy authority. No callbacks or data are installed in actors.\nfunction survivalObserve(fn,...args){try{return fn(...args);}catch{return null;}}\nfunction survivalNote(npc,code,count){survivalObserve(noteCurrentSurvivalDecision,npc,code,count);}\nfunction survivalReturn(npc,code,value){survivalNote(npc,code);return value;}\nimport { legacyCommunication }"
+  },
+  {
+    "before": "if(experiencedFoodSourceCaution(npc,id))return false;",
+    "after": "if(experiencedFoodSourceCaution(npc,id))return survivalReturn(npc,'sample:source-caution',false);"
+  },
+  {
+    "before": "||receivedMaterialCaution(npc,id))return false;",
+    "after": "||receivedMaterialCaution(npc,id))return survivalReturn(npc,'sample:composite-blocked',false);"
+  },
+  {
+    "before": "&&!(foodLearning&&supportedHeldMaterial(npc,id)))return false;",
+    "after": "&&!(foodLearning&&supportedHeldMaterial(npc,id)))return survivalReturn(npc,'sample:feedback-wait',false);"
+  },
+  {
+    "before": "  return !recentlyFailed(npc,'sample',id);",
+    "after": "  const eligible=!recentlyFailed(npc,'sample',id);\n  return survivalReturn(npc,eligible?'sample:eligible':'sample:recent-failure',eligible);"
+  },
+  {
+    "before": "function learnedStep(npc){\n",
+    "after": "function learnedStep(npc){\n  survivalNote(npc,'visit:learned-run');\n"
+  },
+  {
+    "before": "const d=memory(npc),run=d.run;if(!run)return null;",
+    "after": "const d=memory(npc),run=d.run;if(!run)return survivalReturn(npc,'run:missing-or-expired',null);"
+  },
+  {
+    "before": "npc.elapsed-run.startedAt>90){d.run=null;return null;}",
+    "after": "npc.elapsed-run.startedAt>90){d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}"
+  },
+  {
+    "before": "if(run.awaiting)return null;if(run.cursor>=technique.steps.length){d.run=null;return null;}",
+    "after": "if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){d.run=null;return survivalReturn(npc,'run:complete',null);}"
+  },
+  {
+    "before": "if(!id){d.run=null;return null;}",
+    "after": "if(!id){d.run=null;return survivalReturn(npc,'run:no-target',null);}"
+  },
+  {
+    "before": "if(availabilityBlocked(npc,step.type,id)){d.run=null;return null;}",
+    "after": "if(availabilityBlocked(npc,step.type,id)){d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}"
+  },
+  {
+    "before": "step.type==='sample'&&!sampleEligible(npc,id))return null;const object",
+    "after": "step.type==='sample'&&!sampleEligible(npc,id))return survivalReturn(npc,'run:eligibility-blocked',null);const object"
+  },
+  {
+    "before": "if(move)return markNpcRunTravel(npc,move);d.run=null;return null;}",
+    "after": "if(move)return survivalReturn(npc,'run:travel',markNpcRunTravel(npc,move));d.run=null;return survivalReturn(npc,'run:route-missing',null);}"
+  },
+  {
+    "before": "run.expectedId=id;return {type:step.type,targetId:id};",
+    "after": "run.expectedId=id;return survivalReturn(npc,'run:action',{type:step.type,targetId:id});"
+  },
+  {
+    "before": "optionalAction=null}={}){\n",
+    "after": "optionalAction=null}={}){\n  let survivalScope=null;\n  try{\n"
+  },
+  {
+    "before": "body=bodySignals(npc),senses=sensedEnvironment(npc);\n",
+    "after": "body=bodySignals(npc),senses=sensedEnvironment(npc);\n  survivalScope=survivalObserve(beginSurvivalDecision,npc,body);\n"
+  },
+  {
+    "before": "    return {action:retreat||action,reason:retreat?'My attempted walk did not make progress. I can cautiously retrace a short part of my own recent path before choosing another route.':reason,need,provider:'discovery-learner'};",
+    "after": "    const result={action:retreat||action,reason:retreat?'My attempted walk did not make progress. I can cautiously retrace a short part of my own recent path before choosing another route.':reason,need,provider:'discovery-learner'};\n    survivalObserve(finishSurvivalDecision,survivalScope,action,result,need);\n    return result;"
+  },
+  {
+    "before": "  if(foodLearning&&(['ravenous'",
+    "after": "  survivalObserve(noteSurvivalDecision,survivalScope,'visit:urgent-food');\n  if(foodLearning&&(['ravenous'"
+  },
+  {
+    "before": "||depletedAfterRefusal)&&!samplingBlocked(npc,body)){\n",
+    "after": "||depletedAfterRefusal)&&!samplingBlocked(npc,body)){\n    survivalObserve(noteSurvivalDecision,survivalScope,'enter:urgent-food');\n"
+  },
+  {
+    "before": "    if(carried)return wrap",
+    "after": "    survivalObserve(noteSurvivalDecision,survivalScope,'food:held-supported-found',carried?1:0);\n    if(carried)return wrap"
+  },
+  {
+    "before": "      if(depletedAfterRefusal)candidates.sort",
+    "after": "      survivalObserve(noteSurvivalDecision,survivalScope,'food:urgent-candidates',candidates.length);\n      if(depletedAfterRefusal)candidates.sort"
+  },
+  {
+    "before": "  const energyFoodNeed=",
+    "after": "  survivalObserve(noteSurvivalDecision,survivalScope,'visit:ordinary-food');\n  const energyFoodNeed="
+  },
+  {
+    "before": "  if(hungry&&knownHeld)return wrap",
+    "after": "  survivalObserve(noteSurvivalDecision,survivalScope,'food:held-supported-found',knownHeld?1:0);\n  if(hungry)survivalObserve(noteSurvivalDecision,survivalScope,'enter:ordinary-food');\n  if(hungry&&knownHeld)return wrap"
+  },
+  {
+    "before": "\n    for(const technique of candidates){\n",
+    "after": "\n    survivalObserve(noteSurvivalDecision,survivalScope,'food:ordinary-candidates',candidates.length);\n    for(const technique of candidates){\n"
+  },
+  {
+    "before": "  if(typeof optionalAction==='function')",
+    "after": "  survivalObserve(noteSurvivalDecision,survivalScope,'visit:optional');\n  if(typeof optionalAction==='function')"
+  },
+  {
+    "before": "  return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');\n}",
+    "after": "  return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');\n  }finally{survivalObserve(closeSurvivalDecision,survivalScope);}\n}"
+  }
+]

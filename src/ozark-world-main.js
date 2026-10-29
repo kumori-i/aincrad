@@ -8,6 +8,7 @@ import { bindOzarkWorldAgent } from './ozark-agent-world.js';
 import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
 import { createNpcPanel } from './npc-panel.js';
+import { survivalDecisionSnapshot } from './survival-decision-observer.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
@@ -526,6 +527,7 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
+    survivalSnapshot: () => location.search === '?test=1' ? survivalDecisionSnapshot(state.agents.find(actor => actor.id === state.selectedAgentId)) : null,
     communicationError: () => communicationError,
     communicationBoundaryProbe: () => {
       if(!population || started&&!paused) return null;

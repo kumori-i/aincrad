@@ -34,7 +34,7 @@ The recipient may attempt taught steps without random rediscovery, using only a 
 
 Expiry, unavailable source and a failed physical attempt do not by themselves prove a food claim false. Own adverse or beneficial feedback supplies the relevant evidence. Restore must not reset ambiguous completed acquisitions into runnable advice. Human hints use the same reported-versus-experienced distinction and cannot resolve unknown animals through a private species table.
 
-`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology stays in developer inspection. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. English deprecation changed total agent behavior. The subsequent visual-reference branch replaces the main optional channel; historical studies do not establish results for it. Future studies need a new frozen protocol.
+`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology is observer-only: the Learning tab distinguishes modeled satiety from available fuel and stored reserves. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. English deprecation changed total agent behavior. The subsequent visual-reference branch replaces the main optional channel; historical studies do not establish results for it. Future studies need a new frozen protocol.
 
 ## Main-world visual reference and private associations
 
@@ -168,3 +168,34 @@ origins needed by held materials. Strict schema-12 validation rejects malformed
 appetite, completion and testimony data instead of inventing or replaying proof.
 See [food mechanics](food-balance/README.md), [funding](NPC-EFFORT-FUNDING.md) and
 [source-bound verification](food-system/VERIFICATION.md).
+
+
+## Passive survival decision observation
+
+`survival-decision-observer.js` keeps process-local WeakMap diagnostics, never
+actor/save fields or policy inputs. `discovery.js` opens an opaque scope after
+its existing feedback, body and sensory reads, records only visited existing
+gates, and closes in `finally`. Its original recovery choice is evaluated once;
+requested and returned action/need are copied without changing either. Observer
+errors are swallowed only at the diagnostic boundary, not policy exceptions.
+Compound short-circuit sampling gates retain a composite label; branches not
+visited are not failures. Candidate counts are existing filtered results, not
+new searches. No body/route/recovery/eligibility query is repeated for narration.
+
+History retains at most 64 decisions and 32 finite-enum notes per decision, with
+explicit evictions/truncation and bounded aggregate counters. The Learning view
+shows at most eight recent records. These are decisions, not completed actions
+or a complete causal explanation. Epoch changes retain tagged records; replacing
+the actor, discovery or physiology identity starts fresh. Reopening/reset starts
+fresh. Reading the panel copies data and cannot consume RNG, advance time or
+change stored history. The exact test route adds only a no-argument copied
+selected-actor snapshot for native comparison.
+
+Satiety is the human model's appetite-duration hours on its six-hour scale; zero
+does not mean empty fuel or starvation. Available and reserve energy are shown
+separately in kcal, alongside cumulative ingestion, absorption and expenditure.
+The legacy `independentMeals` count is labeled food-sampling/feedback events,
+not full meals. No food policy, physiological rate or save schema changes here.
+Exact pre-observer discovery source reconstruction and independently bound clone
+parity tests guard the selected results, state, RNG and exception behavior; native
+UI evidence is a separate engineering gate, not a new learning cohort.

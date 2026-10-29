@@ -86,12 +86,16 @@ messages enabled or erased. Online weight updates are not proof of shared words.
 - Ground, shoreline, tree and map rendering use original pixel artwork. Visual detail does not manufacture food, complete an action or advance simulation time.
 - A day lasts one hour at normal speed. Escape pauses explicitly; maps, the journal, blur and minimized windows do not. Closing the application stops progression, without offline catch-up.
 
-## Food satisfaction and paid work
+## Satiety, energy and paid work
 
-Human **Food satisfaction** is appetite, not stored calories. A 95 kcal apple
+Human **Satiety** is modeled appetite duration, not stomach fullness or stored calories. A 95 kcal apple
 adds four gameplay satisfaction-hours before time spent eating; a normal 30 g
 portion adds two-thirds of an hour, water adds none, and satisfaction is capped
-at six hours. Energy, digestion and expenditure remain separate. See
+at six hours. Energy, digestion and expenditure remain separate. The Learning tab
+shows available fuel, stored reserves and cumulative calories independently, plus
+a bounded session-only record of actually visited survival decision gates.
+“Food-sampling/feedback events” is a legacy counter, not a count of whole meals.
+These observer annotations do not guide agents or change food policy. See
 [food mechanics and limitations](docs/food-balance/README.md).
 
 Human NPC actions and purposeful movement now require

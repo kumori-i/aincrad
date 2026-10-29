@@ -31,7 +31,7 @@ function fixture({checked=false,staleProjection=false,selectionFault=null,render
     if(selectionFault==='disk'){const changed=JSON.parse(savedBytes);changed.agents[0].energy-=1;savedBytes=JSON.stringify(changed);}
     if(selectionFault==='no-save')savedBytes=bytes;
     update('selection-change');}});
-  add('#npc-nourishment',{previousElementSibling:{textContent:'Food satisfaction',title:'Appetite satisfaction, not stored energy or calorie coverage.'}});
+  add('#npc-nourishment',{previousElementSibling:{textContent:'Satiety',title:'Satiety is modeled appetite duration, not stomach fullness or stored energy.'}});
   for(const id of ['nourishment-value','energy-debug','fatigue-debug','sleep-debug'])add('#npc-'+id);
   add('#npc-condition',{scrollIntoView(){events.push({kind:'scroll'});}});
   const context={document:{querySelector:id=>nodes.get(id)},localStorage:{getItem:()=>savedBytes},
@@ -96,4 +96,12 @@ for(const fault of ['live','physics','history'])test(`canonical checkpoint rejec
   }}};
   const canonical=vm.runInNewContext('('+canonicalCombinedFoodCheckpoint.toString()+')',context);
   assert.throws(()=>canonical(value=>structuredClone(value)),/Canonical save changed (full live state|physical\/history evidence)/);
+});
+
+for(const [label,tooltip] of [
+  ['Food satisfaction','Satiety is modeled appetite duration, not stomach fullness or stored energy.'],
+  ['Satiety','Appetite satisfaction, not stored energy or calorie coverage.'],
+])test('serialized presenter rejects obsolete appetite UI '+label+' / '+tooltip,async()=>{
+  const f=fixture();Object.assign(f.nodes.get('#npc-nourishment').previousElementSibling,{textContent:label,title:tooltip});
+  await assert.rejects(f.present(f.expected),/Misleading appetite label/);
 });

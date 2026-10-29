@@ -83,6 +83,88 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       assert.deepEqual(learner.partners, [], 'Fresh private partner examples are concretely empty');
     }
   }
+  // Copied actual observer data, never a policy input or a reconstructed learner.
+  function assertSurvivalObserver(observer, world, rendered, empty = false) {
+    assert.equal(observer?.version,1);assert.deepEqual(observer.limits,{records:64,notes:32,counter:2147483647});
+    const actor=world.agents.find(row=>row.id===world.selectedAgentId);assert(actor);
+    const body=observer.body,f=actor.physiology;
+    for(const key of ['satietyHours','availableEnergyKcal','storedEnergyKcal'])assert.equal(body[key],f[key],key);
+    for(const key of ['ingestedKcal','absorbedKcal','metabolizedKcal'])assert.equal(body[key],f.totals[key],key);
+    assert.equal(body.satietyMaximumHours,6);assert.equal(body.satietyPercent,f.satietyHours/6*100);
+    assert.equal(body.foodFeedbackEvents,actor.stats.independentMeals);
+    assert.equal(body.independentDrinks,actor.stats.independentDrinks);assert.equal(body.health,f.health);
+    assert(Array.isArray(observer.records));assert(observer.records.length<=64);
+    assert.deepEqual(Object.keys(observer.counters).sort(),['begun','droppedNotes','evictedRecords','finished','incomplete','rejectedNotes','superseded']);
+    assert.equal(Object.keys(observer.gateCounts).length,23,'Concrete finite gate counters must be present');
+    for(const value of [...Object.values(observer.counters),...Object.values(observer.gateCounts)])assert(Number.isSafeInteger(value)&&value>=0&&value<=2147483647);
+    if(empty){assert.deepEqual(observer.records,[]);assert.equal(observer.active,false);for(const value of [...Object.values(observer.counters),...Object.values(observer.gateCounts)])assert.equal(value,0,'Session-only diagnostics restart empty');}
+    const text=rendered.text,n=value=>value.toFixed(1);
+    for(const phrase of ['Survival observer',
+      'Satiety: '+n(body.satietyHours)+' / 6.0 modeled game hours · '+n(body.satietyPercent)+'/100.',
+      'Modeled appetite duration, not stomach fullness or stored energy.',
+      'Available fuel: '+n(body.availableEnergyKcal)+' kcal · stored reserves: '+n(body.storedEnergyKcal)+' kcal',
+      'Cumulative intake: '+n(body.ingestedKcal)+' kcal ingested · '+n(body.absorbedKcal)+' kcal absorbed · '+n(body.metabolizedKcal)+' kcal spent',
+      body.foodFeedbackEvents+' food-sampling/feedback events (legacy counter; not whole meals)',
+      'session-only, not saved.','not visited is not failed.','selected actions, not proof of completion','No advice is sent to agents.',
+      'Latest '+Math.min(observer.records.length,8)+' of '+observer.records.length+' retained decisions (maximum 64).',
+      observer.counters.evictedRecords+' older records evicted · '+observer.counters.droppedNotes+' notes truncated · '+observer.counters.rejectedNotes+' invalid notes omitted.',
+    ])assert(text.includes(phrase),'Actual observer disclosure: '+phrase);
+    const recent=observer.records.slice(-8).reverse();assert.equal(rendered.open,true);assert.equal(rendered.rows.length,recent.length);
+    const choice=value=>value===null?'not recorded':value.replaceAll('_',' ');
+    const phase=(value,food=false)=>value==='entered'?'entered':value==='visited'?(food?'reached; branch not entered':'reached'):'not visited (not a failure)';
+    for(let i=0;i<recent.length;i++){
+      const record=recent[i],row=rendered.rows[i];assert.equal(row.sequence,String(record.sequence));
+      assert(Number.isFinite(record.at)&&record.at>=0&&record.at<=world.elapsed);
+      assert(['selected','incomplete','superseded'].includes(record.status));assert(record.notes.length<=32);
+      for(const note of record.notes){assert(Object.hasOwn(observer.gateCounts,note.code));assert(Number.isSafeInteger(note.count)&&note.count>=0);}
+      for(const phrase of ['#'+record.sequence+' · '+n(record.at)+'s · epoch '+record.epoch+' · '+record.status,
+        'Selected need: '+choice(record.actualNeed)+' · selected action: '+choice(record.actualType)+'. Requested need: '+choice(record.requestedNeed)+' · requested action: '+choice(record.requestedType)+'.',
+        'Urgent food: '+phase(record.phases.urgentFood,true)+' · ordinary food: '+phase(record.phases.ordinaryFood,true)+' · learned run: '+phase(record.phases.learnedRun)+' · optional action: '+phase(record.phases.optional),
+      ])assert(row.text.includes(phrase),'Actual selected decision annotation: '+phrase);
+      assert.equal(row.noteCounts.length,record.notes.length);assert.deepEqual(row.noteCounts,record.notes.map(note=>note.count));
+    }
+    if(!recent.length)assert(text.includes('No recorded survival decision yet.'));
+  }
+  function assertObserverReadOnly(before,after) {
+    assert.deepEqual(after.world,before.world,'Observer tabs/disclosures/scrolling preserve full world and actor RNG');
+    assert.deepEqual(after.reference,before.reference,'Observer UI preserves private reference state');
+    assert.deepEqual(after.observer,before.observer,'Observer UI never creates decisions or counters');
+    assert.equal(after.saved,before.saved,'Observer UI never writes ordinary saved bytes');
+  }
+  // Only real panel controls and scrolling; no clock or action invocation.
+  function presentSurvivalObserver() {
+    const panel=document.getElementById('npc-panel');
+    if(panel.classList.contains('hidden'))document.getElementById('open-communication').click();
+    document.getElementById('npc-tab-conversation').click();
+    const messages=document.getElementById('journal-messages'),details=messages.querySelector('[data-survival-diagnostics]');
+    if(!details)throw Error('Missing actual survival observer disclosure');
+    if(!details.open)details.querySelector('summary').click();
+    const heading=[...messages.querySelectorAll('h3')].find(node=>node.textContent==='Survival observer');
+    if(!heading)throw Error('Missing current survival observer heading');heading.scrollIntoView({block:'start'});
+    return {text:messages.textContent,open:details.open,rows:[...details.querySelectorAll('[data-survival-decision]')].map(row=>({
+      sequence:row.dataset.survivalDecision,text:row.textContent,
+      noteCounts:[...row.querySelectorAll('p')].slice(3).map(note=>Number(note.textContent.match(/ · count (\d+)$/)?.[1])),
+    }))};
+  }
+  async function auditSurvivalObserver(win,name,empty=false) {
+    const full=()=>evaluate(win,'window.__ozarkWorld.fullSnapshot()'),observer=()=>evaluate(win,'window.__ozarkWorld.survivalSnapshot()');
+    const before=await full(),reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),saved=await raw(win),data=await observer();
+    assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().paused'),true,'Observer UI proof never advances a paused clock');
+    const rendered=await evaluate(win,'('+presentSurvivalObserver.toString()+')()');
+    assertSurvivalObserver(data,before,rendered,empty);
+    if(!empty)assert(data.records.length>0,'Ordinary bounded interval produced actual diagnostic records, not successful-food evidence');
+    await capture(win,'survival-'+name+'-body.png');
+    if(!empty){
+      assert.equal(await evaluate(win,"(()=>{const row=document.querySelector('#journal-messages [data-survival-decision]');if(!row)return false;row.scrollIntoView({block:'start'});return true;})()"),true);
+      await capture(win,'survival-'+name+'-decisions.png');
+    }
+    await evaluate(win,"(()=>{const summary=document.querySelector('#journal-messages [data-survival-diagnostics] summary');summary.click();summary.click();document.getElementById('npc-tab-character').click();document.getElementById('npc-tab-conversation').click();document.getElementById('close-npc').click();document.getElementById('open-communication').click();return true;})()");
+    const repeated=await evaluate(win,'('+presentSurvivalObserver.toString()+')()');assert.deepEqual(repeated,rendered,'Repeated existing UI controls preserve actual annotations');
+    assertObserverReadOnly({world:before,reference,observer:data,saved},{world:await full(),reference:await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),observer:await observer(),saved:await raw(win)});
+    await fs.writeFile(path.join(context.output,'survival-'+name+'.json'),JSON.stringify({elapsed:before.elapsed,selectedAgentId:before.selectedAgentId,
+      actor:before.agents.find(row=>row.id===before.selectedAgentId),observer:data,rendered,readOnly:true,
+      coverage:'Ordinary bounded UI instrumentation proof; selected decisions are not completed actions or autonomous performance.'},null,2));
+  }
   async function run(win) {
     await waitFor(win, 'Boolean(window.__ozarkWorld)');
     assert.equal(await evaluate(win, 'location.href'), 'aincrad://app/index.html?test=1');
@@ -120,6 +202,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       assertEmptyPrivateAssociations(fresh);
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication');
+      await auditSurvivalObserver(win,'reset',true);
       await capture(win, 'reset-fresh-inspector.png');
       await fs.writeFile(path.join(context.output, 'reset-checkpoint.json'), JSON.stringify({ world, learning: fresh }, null, 2));
       return;
@@ -135,6 +218,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
       assertPrivateAssociationDisclosure(await disclosure());
+      await auditSurvivalObserver(win,'reopen',true);
       await capture(win, 'independent-reopen.png'); return;
     }
     assert.equal(await raw(win), null, 'Disposable profile starts empty');
@@ -145,6 +229,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
     assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves reference transactions, RNG and private memory');
     assertPrivateAssociationDisclosure(await disclosure());
+    await auditSurvivalObserver(win,'initial',true);
     assert.equal(await evaluate(win, "document.getElementById('journal-form').classList.contains('hidden')"), true);
     assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false, 'Shortcut uses the same NPC panel, not a second modal');
     await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics] summary').click()");
@@ -168,6 +253,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     await delay(1000); assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().elapsed'), frozen);
     assert.equal(await evaluate(win, 'window.__ozarkWorld.snapshot().paused'), true, 'Native Escape pauses the one main world');
     await click(win, 'open-communication');
+    await auditSurvivalObserver(win,'paused');
     const retained = await learning();
     await evaluate(win, "document.getElementById('npc-select').value='mira';document.getElementById('npc-select').dispatchEvent(new Event('change'))");
     assert.deepEqual(await learning(), retained, 'Follow selection cannot change learning');

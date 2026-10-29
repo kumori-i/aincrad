@@ -144,7 +144,7 @@ export async function presentCombinedFoodUi(expected) {
   get('#npc-tab-character').click();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   const actor=selected.agents.find(n=>n.id===expected.actorId),label=get('#npc-nourishment').previousElementSibling;
-  require(label.textContent.includes('Food satisfaction')&&label.title==='Appetite satisfaction, not stored energy or calorie coverage.','Misleading appetite label');
+  require(label.textContent.includes('Satiety')&&label.title==='Satiety is modeled appetite duration, not stomach fullness or stored energy.','Misleading appetite label');
   const actual=get('#npc-nourishment-value').textContent,expectedText=actor.nourishment.toFixed(1)+' / 100';
   require(actual===expectedText,'Rendered projection mismatch: actual '+JSON.stringify(actual)+'; expected '+JSON.stringify(expectedText));
   for(const [id,key] of [['energy','energy'],['fatigue','fatigue'],['sleep','sleepPressure']])require(get('#npc-'+id+'-debug').textContent===actor[key].toFixed(1),'Separate '+id+' diagnostic mismatch');

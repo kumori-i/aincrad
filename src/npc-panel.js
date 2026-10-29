@@ -1,3 +1,4 @@
+import { survivalDecisionSnapshot } from './survival-decision-observer.js';
 import { renderLearningView } from './learning-view.js';
 import { visualGroups, visualSampleCurrent } from './visual-group-memory.js';
 import { lexicalLabels } from './naming-state.js';
@@ -241,7 +242,7 @@ export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCom
   function updateConversation(){
     if(grounded){
       $('journal-unread').textContent='';
-      if(visible&&tab==='conversation'){try{renderLearningView($('journal-messages'),getLearning()?.snapshot(),getNpc().id,getLearningError(),getRuntime().social.foodSharing?.gestures?.()||[]);}catch{renderLearningView($('journal-messages'),null,getNpc().id,'Observer refresh failed.');}}
+      if(visible&&tab==='conversation'){try{renderLearningView($('journal-messages'),getLearning()?.snapshot(),getNpc().id,getLearningError(),getRuntime().social.foodSharing?.gestures?.()||[],survivalDecisionSnapshot(getNpc()));}catch{renderLearningView($('journal-messages'),null,getNpc().id,'Observer refresh failed.',[],survivalDecisionSnapshot(getNpc()));}}
       const notes=$('npc-field-notes');notes.replaceChildren();add(notes,'p','Archived field notes are inert historical records; they are not read by agents.','small');
       for(const message of (getCommunity().messages||[]).slice(-40)){const entry=add(notes,'article','','journal-entry');entry.dataset.sender=message.senderId;add(entry,'p',message.text);add(entry,'p','Archived English message · inert; not a current agent utterance','small');}
       for(const note of (getCommunity().notes||[]).slice(-20).reverse()){const node=add(notes,'article','','field-note');add(node,'h3',note.title);add(node,'p',note.text);}
