@@ -170,7 +170,9 @@ function installRunner(context,helpers){
 
 const helpers={captureWithReadiness,waitForCaptureFrames,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
   visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen};
-const source='('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';
+// Serialized helper expressions are created outside installRunner, so their
+// imported assertion dependency must exist in the generated outer scope.
+const source="const assert = require('node:assert/strict');\n"+'('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';
 let nativeProcessesClosed=true,nativeProcessesStarted=0;
 try{
   await writeFile(harness,source);

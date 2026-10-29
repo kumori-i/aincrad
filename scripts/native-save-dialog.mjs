@@ -218,11 +218,12 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
       catch(error){
         if(error.commandCode===1&&!error.commandSignal&&!error.commandKilled&&!error.commandStderr.trim())names={stdout:''};
         // A child can disappear while xdotool recursively enumerates X windows.
-        // Only this exact post-activation X_QueryTree diagnostic is inconclusive:
+        // Only these exact post-activation X_QueryTree/X_GetProperty disappearance
+        // diagnostics are inconclusive:
         // it is NOT proof of dismissal. Require a later clean no-match, retain
         // the failed command, and never send another activation or input.
         else if(error.commandCode===1&&!error.commandSignal&&!error.commandKilled&&
-          /^X Error of failed request:  BadWindow \(invalid Window parameter\)\n  Major opcode of failed request:  15 \(X_QueryTree\)\n  Resource id in failed request:  0x[0-9a-f]+\n  Serial number of failed request:  \d+\n  Current serial number in output stream:  \d+\n?$/.test(error.commandStderr)){
+          /^X Error of failed request:  BadWindow \(invalid Window parameter\)\n  Major opcode of failed request:  (?:15 \(X_QueryTree\)|20 \(X_GetProperty\))\n  Resource id in failed request:  0x[0-9a-f]+\n  Serial number of failed request:  \d+\n  Current serial number in output stream:  \d+\n?$/.test(error.commandStderr)){
           diagnostics.inconclusiveDisappearanceProbes=(diagnostics.inconclusiveDisappearanceProbes||0)+1;
           await wait(100);continue;
         }else throw error;

@@ -250,7 +250,7 @@ test('command contract only: changed or multiple targets after inconclusive obse
   }
 });
 test('command contract only: arbitrary or mixed X errors and killed/signaled commands fail without retry',async()=>{
-  for(const extra of [{code:2},{stderr:queryTreeBadWindow+'permission denied\n'},{stderr:queryTreeBadWindow.replace('15 (X_QueryTree)','20 (X_GetProperty)')},{stderr:'Cannot open display'},{killed:true},{signal:'SIGTERM'}]){
+  for(const extra of [{code:2},{stderr:queryTreeBadWindow+'permission denied\n'},{stderr:queryTreeBadWindow.replace('15 (X_QueryTree)','18 (X_ChangeProperty)')},{stderr:queryTreeBadWindow.replace('15 (X_QueryTree)','15 (X_GetProperty)')},{stderr:'Cannot open display'},{killed:true},{signal:'SIGTERM'}]){
     const fixture=dismissalHarness(()=>{throw badWindow(extra);});
     await assert.rejects(driveNativeSaveDialog(fixture.options),/Native dialog command/);
     assert.equal(fixture.probes(),1);assert.equal(fixture.record().inconclusiveDisappearanceProbes,undefined);
@@ -260,4 +260,32 @@ test('command contract only: BadWindow during initial recognition is never retri
   const {options}=harness();let calls=0;
   await assert.rejects(driveNativeSaveDialog({...options,run:async()=>{calls++;throw badWindow();}}),/Native dialog command/);
   assert.equal(calls,1);
+});
+
+const getPropertyBadWindow=queryTreeBadWindow.replace('15 (X_QueryTree)','20 (X_GetProperty)');
+test('command contract only: observed GetProperty disappearance remains inconclusive until later clean no-match',async()=>{
+  const fixture=dismissalHarness(n=>{
+    if(n===1)throw badWindow({stderr:getPropertyBadWindow,stdout:''});
+    if(n===2)return {stdout:'77\n'};
+    throw Object.assign(new Error('no match'),{code:1,stderr:''});
+  });
+  await driveNativeSaveDialog(fixture.options);
+  assert.equal(fixture.probes(),3);assert.equal(fixture.record().inconclusiveDisappearanceProbes,1);
+  assert.equal(fixture.record().saveDialogDismissed,true);
+  assert.ok(fixture.record().commands.some(c=>c.error?.stderr===getPropertyBadWindow));
+  assert.equal(fixture.calls.filter(c=>c.args.at(-1)==='alt+s').length,1,'Never submit again after a disappearing-window probe');
+});
+test('command contract only: persistent GetProperty errors are not clean absence or successful dismissal',async()=>{
+  const fixture=dismissalHarness(()=>{throw badWindow({stderr:getPropertyBadWindow,stdout:''});});
+  await assert.rejects(driveNativeSaveDialog(fixture.options),/dismissal could not be established/);
+  assert.equal(fixture.probes(),50);assert.equal(fixture.record().saveDialogDismissed,false);
+  assert.equal(fixture.record().inconclusiveDisappearanceProbes,50);
+  assert.equal(fixture.calls.filter(c=>c.args.at(-1)==='alt+s').length,1);
+});
+test('command contract only: GetProperty during initial recognition or with mixed diagnostics still fails closed',async()=>{
+  const {options}=harness();let calls=0;
+  await assert.rejects(driveNativeSaveDialog({...options,run:async()=>{calls++;throw badWindow({stderr:getPropertyBadWindow});}}),/Native dialog command/);
+  assert.equal(calls,1);
+  const mixed=dismissalHarness(()=>{throw badWindow({stderr:getPropertyBadWindow+'permission denied\n'});});
+  await assert.rejects(driveNativeSaveDialog(mixed.options),/Native dialog command/);assert.equal(mixed.probes(),1);
 });

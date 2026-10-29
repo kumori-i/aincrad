@@ -21,8 +21,21 @@ test('phase-A native preparation is isolated, sandbox-preserving and never claim
     const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});assert.equal(syntax.status,0,syntax.stderr);
     const source=await readFile(prepared.harness,'utf8'),app=new EventEmitter(),loaded=[],require=createRequire(import.meta.url);
     const stub=name=>name==='electron'?{app,session:{}}:name.endsWith('main.cjs')?loaded.push(name):require(name);
-    vm.runInNewContext(source,{require:stub,process:{argv:['runner','--phase=exercise']},console,setTimeout:()=>1,clearTimeout(){}});
+    const sandbox={require:stub,process:{argv:['runner','--phase=exercise']},console,setTimeout:()=>1,clearTimeout(){}};
+    // Capture the actual generated helper, not a test reimplementation. It is
+    // constructed outside installRunner and must retain its own assert binding.
+    vm.runInNewContext(source.replace('// Production asset scheme and profile registration remain synchronous.',
+      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
     assert.equal(loaded.length,1,'Production scheme/profile registration remains synchronous');
+    const stored={elapsed:1,environment:{elapsed:1,ecology:{elapsed:1,pending:0}},player:{x:0,y:0},playerBody:{stamina:100},
+      agents:[{id:'aster',position:{x:0,y:0},elapsed:1,memory:{experience:[{id:1,type:'observation'}]}}]};
+    const restored={elapsed:1,clocks:{environmentElapsed:1,ecologyElapsed:1,ecologyPending:0},player:{x:0,y:0},playerBody:{stamina:100},
+      agents:[{id:'aster',position:{x:0,y:0},elapsed:1,active:null,memory:{experience:[{id:1,type:'observation'}]}}]};
+    const runHistory=actual=>vm.runInNewContext('serializedHistoryAssert('+JSON.stringify(stored)+','+JSON.stringify(actual)+')',sandbox);
+    assert.doesNotThrow(()=>runHistory(restored),'Generated reopen helper must resolve imported assertions');
+    assert.throws(()=>runHistory({...restored,elapsed:2}),{code:'ERR_ASSERTION'},'Reopen time mismatch must still fail closed');
+    const changed=structuredClone(restored);changed.agents[0].memory.experience[0].type='fabricated';
+    assert.throws(()=>runHistory(changed),{code:'ERR_ASSERTION'},'Existing canonical history must remain exact');
     for(const contract of ['Install fixture on actual fresh main population','Fixture owns the sole manual clock','Fresh fixture installer is one-use',
       'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-indication bytes',
       'Repeated reopen cannot duplicate interruption or revive authority','Loaded profile cannot obtain fresh fixture authority',
