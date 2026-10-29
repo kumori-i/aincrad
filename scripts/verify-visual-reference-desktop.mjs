@@ -17,7 +17,7 @@ import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferen
 const root=fileURLToPath(new URL('..',import.meta.url)),prepareOnly=process.argv.includes('--prepare-only');
 assert(process.argv.slice(2).every(arg=>arg==='--prepare-only'),'Only --prepare-only is supported');
 if(!prepareOnly){
-  assert(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_WORKFLOW==='Visual reference phase A native acceptance','Native execution requires the approved engineering CI workflow');
+  assert(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_WORKFLOW==='Visual reference association native acceptance','Native execution requires the approved engineering CI workflow');
   assert(['linux','darwin'].includes(process.platform),'Linux/macOS only');
   assert(process.getuid?.()!==0,'Native QA requires an unprivileged sandboxed runtime');
   assert(process.platform!=='linux'||process.env.DISPLAY||process.env.WAYLAND_DISPLAY,'Authorized supported display required');
@@ -34,7 +34,7 @@ const harness=join(output,'runner.cjs'),phases=['exercise','reopen','verify'];
 
 function installRunner(context,helpers){
   const {app,session}=require('electron'),assert=require('node:assert/strict');
-  const fs=require('node:fs/promises'),path=require('node:path');
+  const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto');
   const {captureWithReadiness,waitForCaptureFrames,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
     visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen}=helpers;
   const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
@@ -60,6 +60,43 @@ function installRunner(context,helpers){
     await fs.writeFile(path.join(context.output,name),png);screenshots.push({name,...metadata});
     assert.deepEqual(await snapshot(win),before,'Native screenshot readiness/rendering is read-only');
   }
+  // Serialized observer-only DOM controls; never starts the clock or a policy.
+  function presentAssociationLearning(receiverId){
+    const panel=document.getElementById('npc-panel');
+    if(panel.classList.contains('hidden'))document.getElementById('open-npc').click();
+    const select=document.getElementById('npc-select');select.value=receiverId;
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    document.getElementById('npc-tab-conversation').click();
+    const messages=document.getElementById('journal-messages');messages.scrollTop=0;
+    return {text:messages.textContent,selected:select.value,visible:!panel.classList.contains('hidden'),
+      tab:panel.dataset.journalTab,character:document.getElementById('npc-name').textContent};
+  }
+  async function captureAssociationLearning(win){
+    const beforeWorld=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
+    const beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
+    const receiver=beforeReference.learners.find(memory=>memory.counts.examples===1);
+    assert(receiver,'Actual acquiring listener must exist before UI inspection');
+    const learning=await evaluate(win,'('+presentAssociationLearning.toString()+')('+JSON.stringify(receiver.agentId)+')');
+    assert.equal(learning.selected,receiver.agentId);assert.equal(learning.visible,true);assert.equal(learning.tab,'conversation');
+    for(const text of ['Observer annotations, not agent speech.','1 canonical observed demonstrations',
+      '0 association-matched choices','1 uniform exploratory choices','1 corrective observations','1 new visual exemplars',
+      '1 partner-symbol entries','1 own demonstrated examples','Reference matching is not bodily relief or sickness.',
+      'uniform-exploration (unknown-symbol)','observed correction: new-exemplar',
+      'Listener’s own post-choice demonstration','Private visual associations restart empty'])assert(learning.text.includes(text),text);
+    assert(!learning.text.includes('measured reward'),'Observer reference counts cannot imply bodily reward');
+    const displayedWorld=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
+    assert.deepEqual({...displayedWorld,selectedAgentId:beforeWorld.selectedAgentId},beforeWorld,'Opening Learning may change only observer selection, not the world');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,'Learning view cannot mutate association memory or metrics');
+    await capture(win,'04b-learning-own-association-counters.png');
+    assert.equal(await evaluate(win,`(()=>{const crop=document.getElementById('journal-messages').querySelector('[aria-label="Listener’s own post-choice demonstration"]');if(!crop)return false;crop.scrollIntoView({block:'center'});return true;})()`),true);
+    await capture(win,'04c-learning-own-demonstration-provenance.png');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),displayedWorld,'Learning screenshots and scrolling cannot advance time or mutate the world');
+    await evaluate(win,`(()=>{const select=document.getElementById('npc-select');select.value=${JSON.stringify(beforeWorld.selectedAgentId)};select.dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('close-npc').click();return true;})()`);
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),beforeWorld,'Closing Learning restores observer selection with exact unchanged full world');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,'Learning open/capture/close leaves reference snapshot exact');
+    await fs.writeFile(path.join(context.output,'association-learning-view.json'),JSON.stringify({...learning,readOnly:true,
+      temporaryObserverSelectionOnly:true,restoredSelectedAgentId:beforeWorld.selectedAgentId,at:beforeWorld.elapsed},null,2));
+  }
   async function exercise(win){
     assert.equal(await raw(win),null,'Fresh disposable profile must contain no current save');
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
@@ -77,9 +114,17 @@ function installRunner(context,helpers){
     await fs.writeFile(path.join(context.output,'visible-parser-audit.json'),JSON.stringify(status,null,2));
     await capture(win,'03-during-paid-public-direction-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.completeIndication()');
-    assert.equal(status.pose,null);assert.equal(status.reference.observed,1);assert.equal(status.reference.updates,0);
+    assert.equal(status.pose,null);assert.equal(status.reference.observed,1);assert.equal(status.reference.updates,1);assert.equal(status.reference.evidenceAdditions,1);
     await fs.writeFile(path.join(context.output,'completed-reference.json'),JSON.stringify(status,null,2));
     await capture(win,'04-after-completion-no-cue.png');
+    status=await evaluate(win,'window.__visualReferenceFixture.inspectAssociation()');
+    const associationAudit=status.checks.retrievalDiagnostic;
+    assert.equal(associationAudit.readOnly,true);
+    assert.deepEqual(associationAudit.eligibleDistributions.absent,[.5,.5]);
+    assert.notDeepEqual(associationAudit.eligibleDistributions.known,associationAudit.eligibleDistributions.absent,'Message changes actual-memory eligibility, not a sampled policy action');
+    const timestampedPairSha256=createHash('sha256').update(JSON.stringify(associationAudit.candidateViews)).digest('hex');
+    await fs.writeFile(path.join(context.output,'association-retrieval-audit.json'),JSON.stringify({...associationAudit,timestampedPairSha256},null,2));
+    await captureAssociationLearning(win);
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),false,'Ordinary save/UI cannot persist a fixture-owned world');
     assert.equal(await raw(win),null,'Only the one-shot explicit fixture checkpoint may write');
     status=await evaluate(win,'window.__visualReferenceFixture.pendingForSave()');assert(status.pose);
@@ -105,7 +150,9 @@ function installRunner(context,helpers){
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Loaded profile cannot obtain fresh fixture authority');
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
-    assert.equal(reference.pending,0);assert.equal(reference.exchanges,0);assert.equal(reference.updates,0);assert.deepEqual(reference.learners,[]);
+    assert.equal(reference.pending,0);assert.equal(reference.exchanges,0);assert.equal(reference.updates,0);
+    assert.equal(reference.learners.length,2);
+    for(const memory of reference.learners)assert.deepEqual(memory.counts,{anchors:0,partners:0,entries:0,examples:0,conflicts:0},'Reopen starts empty private association memory, not restored labels');
     const replay=await evaluate(win,'('+probeVisualReferenceReopen.toString()+')(document.baseURI,window.__ozarkWorld.fullSnapshot(),'+JSON.stringify(saved.serializedActive)+','+JSON.stringify(saved.serializedPermit)+')');
     assert.equal(replay.noRevivedAuthority,true);
     assert.deepEqual(await snapshot(win),restored,'Read-only copied-state replay audit cannot mutate reopened main');
@@ -121,14 +168,19 @@ function installRunner(context,helpers){
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Repeated reopen cannot duplicate interruption or revive authority');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');assert.equal(reference.pending,0);assert.equal(reference.observed,0);assert.equal(reference.updates,0);
+    for(const memory of reference.learners)assert.deepEqual(memory.counts,{anchors:0,partners:0,entries:0,examples:0,conflicts:0},'Repeated reopen cannot revive exemplar memory');
+    const associationAudit=JSON.parse(await fs.readFile(path.join(context.output,'association-retrieval-audit.json'),'utf8'));
     await capture(win,'08-repeated-reopen-no-duplicate-interruption.png');
     await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:false,
       sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,
       sameMainStateAndPopulation:true,fixedStepSeconds:1/60,paidChoiceBeforeIndication:true,paidIndicationSeconds:1.8,
       actualCanvasCrops:true,consecutiveListenerGeometryAudit:true,privateCanonicalWitnessOnly:true,
-      noAssociationUpdates:true,noClosedTimeProgression:true,noRevivedAuthority:true,noDuplicateInterruption:true,
+      canonicalOwnDemonstrationAssociation:true,associationEvidenceAdditions:1,readOnlyActualMemoryRetrieval:true,
+      actualLearningTabCaptured:true,learningPanelReadOnly:true,
+      retrievalEligibleDistributions:associationAudit.eligibleDistributions,timestampedCandidatePairSha256:associationAudit.timestampedPairSha256,
+      noBodilyReward:true,reopenEmptyAssociationMemory:true,noClosedTimeProgression:true,noRevivedAuthority:true,noDuplicateInterruption:true,
       screenshots:[...saved.screenshots,...screenshots],fixtureDisclosure:saved.fixtureDisclosure,
-      scope:'Bounded engineering-only deliberate main-world actions, native pixels, paid parser audit and isolated native close/reopen. No autonomous cohort, learned associations, scientific-seed sweep or behavior-success claim.'},null,2));
+      scope:'Bounded engineering-only deliberate main-world actions, native pixels, canonical own-demo association and read-only same-scene fresh-view retrieval eligibility, plus isolated native close/reopen. No sampled later policy action, vocabulary discrimination, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
   }
   async function closeNormally(win){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Engineering fixture must never start an independent wall-clock loop');
@@ -177,7 +229,7 @@ let nativeProcessesClosed=true,nativeProcessesStarted=0;
 try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
-    nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:'engineering-only; no cohort or learning'};
+    nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:'engineering-only; own-demo association and read-only retrieval; no cohort or generalization'};
   await writeFile(join(output,'prepared.json'),JSON.stringify(prepared,null,2));
   if(prepareOnly)console.log(JSON.stringify(prepared));
   else{

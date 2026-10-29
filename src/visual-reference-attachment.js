@@ -1,4 +1,4 @@
-// Phase A: physical reference transactions, with NO associative learner or updates.
+// Private visual associations grounded only in canonical observed demonstrations.
 // One main-world optional channel; never owns the clock, population or bodily credit.
 import { createIndicationPermit, discoveryActionCompletion, successfulDiscoveryActionCompletion, referenceGeometry } from './discovery-actions.js';
 import { requestNpcIndication, cancelNpcAction } from './npc.js';
@@ -7,6 +7,7 @@ import { actorLineOfSight } from './perception.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
 import { CONFIG } from './config.js';
+import { createVisualReferenceMemory } from './visual-reference-memory.js';
 
 export const REFERENCE_LIMITS=Object.freeze({timeout:12,cooldown:12,featureDistance:.08,observationSeconds:.5,maxObservationStep:CONFIG.fixedStep,segmentLength:24,maxEvents:256});
 // Observation occurs at the real step endpoint. Never backdate sight into a
@@ -27,16 +28,45 @@ function cropValid(c,n){return c&&c.epoch===n.epoch&&Number.isFinite(c.at)&&c.at
 export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
   if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
-  const pairRandom=stream(seed^0x526e5),targetRandom=stream(seed^0x156a9),orderRandom=stream(seed^0x77112),choiceRandom=stream(seed^0x3986a),symbolRandom=stream(seed^0x991ba);
-  const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={};
-  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0};
-  let disposed=false,nextId=1;
+  const pairRandom=stream(seed^0x526e5),targetRandom=stream(seed^0x156a9),orderRandom=stream(seed^0x77112),choiceRandom=stream(seed^0x3986a);
+  const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet();
+  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0};
+  let disposed=false,nextId=1,nextIdentity=1,auditReaderIssued=false,auditEnabled=false,auditRecord=null;
   const bump=(key)=>{gates[key]=Math.min(Number.MAX_SAFE_INTEGER,(gates[key]||0)+1);};
+  // Identity is object provenance, not a reusable actor name or bodily epoch.
+  // Ordinary collapse/rescue/recovery retains memory but cancels transactions.
+  function syncIdentities(){
+    const present=new Set(state.agents);
+    for(const [actor,entry]of identities)if(!present.has(actor)||entry.discovery!==actor.discovery||entry.physiology!==actor.physiology)identities.delete(actor);
+    for(const actor of state.agents)if(!identities.has(actor)){
+      const serial=nextIdentity++;
+      identities.set(actor,{token:Object.freeze({}),serial,discovery:actor.discovery,physiology:actor.physiology,
+        memory:createVisualReferenceMemory({symbolSeed:(seed^Math.imul(serial,0x9e3779b9))>>>0})});
+    }
+    for(const [actor,entry]of identities)entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
+  }
+  syncIdentities();
+  function clearDemonstration(t){
+    t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;t.demonstration=null;
+    delete t.event.demonstrationPixels;delete t.event.demonstrationObservedAt;
+  }
+  function correct(t){
+    if(!correctionRights.delete(t))return;
+    metrics.correctionAttempts++;
+    // No target identity, critic correctness, sender pixels or bodily outcome
+    // crosses this boundary. This is the listener's own final visible crop.
+    const outcome=t.receiverMemory.memory.observe(t.senderMemory.token,t.symbol,t.demonstration.features);
+    t.event.correction=outcome.outcome;
+    if(outcome.added){metrics.evidenceAdditions++;metrics.updates++;}
+    else if(outcome.support)metrics.supportUpdates++;
+    else if(outcome.outcome==='capacity-conflict')metrics.conflicts++;
+    else metrics.correctionAbstentions++;
+  }
   function finish(t,status,reason){
     if(t.terminal)return;
     t.terminal=true;sessions.delete(t);busy.delete(t.sender);busy.delete(t.receiver);
     t.event.status=status;t.event.reason=reason;t.event.endedAt=state.elapsed;
-    if(status==='observed'){metrics.completed++;metrics.observed++;if(t.selectedId===t.targetId)metrics.correct++;t.event.referenceCorrect=t.selectedId===t.targetId;t.event.demonstratedObjectId=t.observedId;}
+    if(status==='observed'){metrics.completed++;metrics.observed++;if(t.selectedId===t.targetId)metrics.correct++;t.event.referenceCorrect=t.selectedId===t.targetId;t.event.demonstratedObjectId=t.observedId;correct(t);if(auditEnabled&&!auditRecord)auditRecord=t;}
     else{metrics.censored++;bump(`${t.stage}:${reason}`);}
     // Only this transaction's own authentic active commands can be cancelled.
     for(const [n,active]of [[t.receiver,t.choiceActive],[t.sender,t.indicationActive]])if(active&&n.active===active)cancelNpcAction(n,'REFERENCE_INTERRUPTED');
@@ -54,6 +84,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
     return null;
   }
   function maintain(){
+    syncIdentities();
     for(const t of [...sessions]){
       const invalid=current(t);if(invalid){finish(t,'censored',invalid);continue;}
       if(t.stage==='choice'&&t.choiceActive&&t.receiver.active!==t.choiceActive){
@@ -68,6 +99,8 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
         if(!proof||proof.type!=='indicate_object'||Math.abs(proof.worked-1.8)>1e-8){finish(t,'censored','indication-interrupted');continue;}
         t.event.indicationActionId=proof.eventId;
         if(t.contiguous+1e-8<REFERENCE_LIMITS.observationSeconds){finish(t,'censored','demonstration-not-observed');continue;}
+        if(!t.demonstration||t.demonstration.epoch!==t.receiver.epoch||Math.abs(t.demonstration.at-t.receiver.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){finish(t,'censored','stale-demonstration');continue;}
+        correctionRights.add(t);
         finish(t,'observed','visible-post-choice-demonstration');
       }
     }
@@ -80,20 +113,49 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
     const continuous=previousAt===undefined?fullReferenceSample(at,paidSeconds,stepSeconds):continuousReferenceStep(previousAt,at,paidSeconds,stepSeconds);
     t.lastPaidAt=at;
     if(!continuous){
-      t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;bump('observation:noncontiguous-step');return;
+      clearDemonstration(t);bump('observation:noncontiguous-step');return;
     }
-    const invalid=current(t);if(invalid){t.contiguous=0;t.event.observedSeconds=0;finish(t,'censored',invalid);return;}
+    const invalid=current(t);if(invalid){clearDemonstration(t);finish(t,'censored',invalid);return;}
     const seen=observeIndication(t.receiver,t.sender,state);
     const id=seen?.objectId;
     const crop=id?pixelSensor.capture(t.receiver,state).get(id):null;
-    if(!id||!cropValid(crop,t.receiver)){t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;bump(`observation:${seen?.reason||'no-fresh-crop'}`);return;}
-    if(t.observedId!==id||previousAt===undefined)t.contiguous=0;else t.contiguous+=paidSeconds;
+    if(!id||!cropValid(crop,t.receiver)){clearDemonstration(t);bump(`observation:${seen?.reason||'no-fresh-crop'}`);return;}
+    if(t.observedId!==id||previousAt===undefined)clearDemonstration(t);else t.contiguous+=paidSeconds;
     t.observedId=id;t.event.observedSeconds=t.contiguous;
+    t.demonstration=Object.freeze({features:Object.freeze(crop.features.slice()),at:crop.at,epoch:crop.epoch});
     t.event.demonstrationPixels=crop.pixels.slice();t.event.demonstrationObservedAt=crop.at;
+  }
+  // Trusted fresh-profile engineering installer only. This cannot make a
+  // decision, train memory, select a favorable event or alter any random stream.
+  function createNativeAssociationAuditReader(){
+    if(disposed||auditReaderIssued)return null;
+    auditReaderIssued=true;auditEnabled=true;let consumed=false;
+    return ()=>{
+      if(consumed)return null;consumed=true;auditEnabled=false;
+      const t=auditRecord;auditRecord=null;
+      if(!t||disposed||current(t)||identities.get(t.sender)!==t.senderMemory||identities.get(t.receiver)!==t.receiverMemory)return null;
+      const sight=senseReferenceObjects(t.receiver,state);
+      if(!sight.complete||!t.auditOrder?.every(id=>sight.bindings.includes(id)))return null;
+      const captures=pixelSensor.capture(t.receiver,state),views=t.auditOrder.map(id=>captures.get(id));
+      if(views.some(c=>!cropValid(c,t.receiver)||Math.abs(c.at-t.receiver.elapsed)>1e-8))return null;
+      const own=views.map(c=>Object.freeze(c.features.slice()));
+      const known=t.receiverMemory.memory.choose(t.senderMemory.token,t.symbol,own);
+      const reversed=t.receiverMemory.memory.choose(t.senderMemory.token,t.symbol,own.slice().reverse());
+      let absent=null;
+      for(let symbol=0;symbol<64;symbol++){
+        const choice=t.receiverMemory.memory.choose(t.senderMemory.token,symbol,own);
+        if(choice.reason==='unknown-symbol'){absent={symbol,choice};break;}
+      }
+      return structuredClone({scope:'post-demonstration same-scene current-view retrieval diagnostic; not a policy action',
+        viewSource:'fresh-listener-current-canvas',eventId:t.event.id,at:t.receiver.elapsed,symbol:t.symbol,
+        candidateViews:views.map(c=>({at:c.at,features:c.features.slice(),pixels:c.pixels.slice()})),
+        demonstration:{at:t.demonstration.at,features:t.demonstration.features.slice()},
+        known,reversed,absent});
+    };
   }
   const hooks={
     optionalAction(receiver){
-      if(disposed)return null;maintain();bump('optional');
+      if(disposed)return null;maintain();bump('optional');metrics.opportunities++;
       const existing=busy.get(receiver);
       if(existing){
         if(existing.sender===receiver&&existing.stage==='awaiting-indication'){
@@ -117,15 +179,30 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
         if(resolution.index!==i)continue;
         candidates.push({id,position:{...own.objects[i].position},own:a,other:b});
       }
-      const pairs=[];
-      for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++)if(rms(candidates[i].own.features,candidates[j].own.features)>=REFERENCE_LIMITS.featureDistance&&rms(candidates[i].other.features,candidates[j].other.features)>=REFERENCE_LIMITS.featureDistance)pairs.push([candidates[i],candidates[j]]);
-      if(!pairs.length){bump('no-distinguishable-pair');return null;}
-      // No rejection/redraw after the referent. Pair, target, order, selection and
-      // arbitrary Phase-A symbol have separate RNGs; there is no learned policy.
-      const pair=pairs[Math.floor(pairRandom()*pairs.length)],target=pair[Math.floor(targetRandom()*2)],ordered=orderRandom()<.5?pair.slice():pair.slice().reverse(),selected=ordered[Math.floor(choiceRandom()*2)],symbol=Math.floor(symbolRandom()*64);
+      const senderMemory=identities.get(sender),receiverMemory=identities.get(receiver),pairs=[];
+      for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
+        const pair=[candidates[i],candidates[j]];
+        if(rms(pair[0].own.features,pair[1].own.features)<REFERENCE_LIMITS.featureDistance||rms(pair[0].other.features,pair[1].other.features)<REFERENCE_LIMITS.featureDistance)continue;
+        // Pure preflight includes BOTH alternatives and consumes no RNG.
+        const preflight=senderMemory.memory.planPair(pair.map(c=>c.other.features));
+        if(preflight.ok)pairs.push({pair,plan:preflight.plan});else bump(`sender:${preflight.reason}`);
+      }
+      if(!pairs.length){bump('no-feasible-distinguishable-pair');return null;}
+      const planned=pairs[Math.floor(pairRandom()*pairs.length)],pair=planned.pair;
+      const committed=senderMemory.memory.commitPair(planned.plan);
+      if(!committed.ok){bump(`sender:${committed.reason}`);return null;}
+      metrics.anchorsAllocated+=committed.allocated;
+      // Both encountered anchors commit before the uniform referent; no redraw.
+      const targetIndex=Math.floor(targetRandom()*2),target=pair[targetIndex],symbol=committed.symbols[targetIndex];
+      const ordered=orderRandom()<.5?pair.slice():pair.slice().reverse();
+      const choice=receiverMemory.memory.choose(senderMemory.token,symbol,ordered.map(c=>c.own.features));
+      const confident=choice.index===0||choice.index===1;
+      const selected=ordered[confident?choice.index:Math.floor(choiceRandom()*2)];
+      if(confident)metrics.matchedChoices++;else metrics.exploratoryChoices++;
+      bump(`choice:${choice.reason}`);
       const action=Object.freeze({type:'inspect_object',targetId:selected.id});
-      const event={id:nextId++,emittedAt:state.elapsed,senderId:sender.id,receiverId:receiver.id,tokens:[Math.floor(symbol/8),symbol%8],status:'choice',action:'inspect_object',reward:null,senderPixels:target.other.pixels.slice(),receiverPixels:selected.own.pixels.slice(),senderObservedAt:target.other.at,receiverObservedAt:selected.own.at,phase:'physical-reference-no-learning'};
-      const t={sender,receiver,senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),targetId:target.id,selectedId:selected.id,choiceRequest:action,stage:'choice',startedAt:state.elapsed,event,terminal:false,contiguous:0,observedId:null};
+      const event={id:nextId++,emittedAt:state.elapsed,senderId:sender.id,receiverId:receiver.id,tokens:[Math.floor(symbol/8),symbol%8],status:'choice',action:'inspect_object',reward:null,senderPixels:target.other.pixels.slice(),receiverPixels:selected.own.pixels.slice(),senderObservedAt:target.other.at,receiverObservedAt:selected.own.at,phase:'private-visual-association',choiceMode:confident?'association-match':'uniform-exploration',choiceReason:choice.reason};
+      const t={sender,receiver,senderMemory,receiverMemory,symbol,senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,choiceRequest:action,stage:'choice',startedAt:state.elapsed,event,terminal:false,contiguous:0,observedId:null};
       sessions.add(t);busy.set(sender,t);busy.set(receiver,t);actions.set(action,t);cooldowns.set(receiver,receiver.elapsed);metrics.exchanges++;
       events.push(event);if(events.length>REFERENCE_LIMITS.maxEvents)events.shift();return action;
     },
@@ -143,5 +220,5 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=211}){
       t.choiceActive=active;
     },
   };
-  return {hooks,beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');},snapshot(){return {phase:'physical-reference-no-learning',seed,enabled:true,elapsed:state.elapsed,...metrics,pending:sessions.size,gates:{...gates},learners:[],ledger:structuredClone(events),observationEvents:structuredClone(events),latest:events.length?structuredClone(events.at(-1)):null,agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,meanTotalVariation:0,argmaxChanged:0,interpretation:'Phase A verifies paid visible reference only. No associations, learned meanings or survival benefit.'}};},dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');disposed=true;pixelSensor.dispose?.();}};
+  return {hooks,createNativeAssociationAuditReader,beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');},snapshot(){return {phase:'private-visual-association',seed,enabled:true,elapsed:state.elapsed,...metrics,pending:sessions.size,gates:{...gates},learners:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:structuredClone(events),observationEvents:structuredClone(events),latest:events.length?structuredClone(events.at(-1)):null,agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,interpretation:'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Fresh on reopen. No autonomous language, abstraction or survival-benefit claim.'}};},dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');disposed=true;pixelSensor.dispose?.();}};
 }

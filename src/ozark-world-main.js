@@ -491,8 +491,16 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
         owner.checkpointAttempted=true;
         return save(false,true);
       };
-      try{return await install(Object.freeze({state,populationState:population.state,
-        reference:communicationLearning,geometry,renderer,fixedStep:CONFIG.fixedStep,step,checkpoint}));}
+      try{
+        const readAssociation=communicationLearning.createNativeAssociationAuditReader();
+        const auditAssociation=()=>{
+          if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||started||
+            Math.abs(state.elapsed-owner.steps*CONFIG.fixedStep)>1e-7)return null;
+          return readAssociation?.()??null;
+        };
+        return await install(Object.freeze({state,populationState:population.state,
+          reference:communicationLearning,geometry,renderer,fixedStep:CONFIG.fixedStep,step,checkpoint,auditAssociation}));
+      }
       catch(error){owner.failed=true;communicationLearning?.censorPending();throw error;}
     },
     referenceFixtureState:()=>referenceFixtureOwner?{owned:true,steps:referenceFixtureOwner.steps,failed:referenceFixtureOwner.failed,checkpointAttempted:referenceFixtureOwner.checkpointAttempted}:null,

@@ -27,22 +27,24 @@ episodes, broader appearances and a predeclared multi-seed replication test.
 
 ## One world: survival and visual-reference development
 
-This branch is at **Phase A: physical-reference verification**, not a finished
-language-learning release. Aster and Mira remain in the same main Ozark world,
-with one population, clock and ordinary survival learning. The replacement
-communication path currently measures paid inspection and genuinely observed
-post-choice indication; **association updates are absent**. Symbols and choices
-are arbitrary in this verification stage. This intermediate branch must not be
-merged as a completed learning milestone.
+This branch is developing **private visual associations** in the same main Ozark
+world: one population, clock and ordinary survival learning. Agents retain bounded
+own-view examples, assign stable arbitrary symbols to visual anchors, and learn
+partner-specific symbol associations only after genuinely observed, paid post-choice
+indications. Unknown or ambiguous meanings still lead to uniform exploratory choices.
+This is an engineered associative baseline, not a demonstrated autonomous language,
+abstract visual concepts, grammar, creativity or improved survival.
 
 Open a character's **Learning** tab, or pause with Escape and use **Learning
 inspector** as a shortcut to that same tab. It shows copied crops, actual paid
-actions, observed/censored reference attempts and separate reference correctness.
+actions, observed/censored reference attempts, association evidence and separate
+reference correctness. It distinguishes new examples, repeated support, conflicts,
+confident matches and exploration; these are not positive/negative bodily outcomes.
 English annotations are observer labels, not speech, definitions or translations.
 Closing the panel changes neither the main clock nor the transaction. There is
 no separate playable experiment world or 1800-second cutoff.
 
-[Phase A's exact boundaries](docs/visual-reference/PHASE-A.md) include a supplied
+[The retained physical-stage evidence](docs/visual-reference/PHASE-A.md) include a supplied
 24-unit schematic direction cue, local geometry parser, all-visible distractors,
 conservative sensory-cap rejection, canonical paid work, and consecutive sampled
 1/60-second observation intervals. Those are engineered scaffolding, not learned
@@ -50,9 +52,11 @@ visual concepts or creativity. Urgent survival decisions remain upstream. There
 is no bodily-reward update or competing old symbol/action-credit learner in the
 main attachment. Historical automated fixtures retain their original channel.
 
-Existing bodies and memories save normally. Pending reference authority is
-runtime-only and cannot revive on reopen/reset. Future associative memory needs
-its own persistence review; no trained lab weights or Ollama are used. Only the
+[Phase B rules and limits](docs/visual-reference/PHASE-B.md) describe the bounded
+private memory and its evidence gates. Existing bodies and memories save normally.
+Pending reference authority cannot revive on reopen/reset. Private associations
+start empty on reopen/reset; persistence would need a separate review. No trained
+lab weights or Ollama are used. Only the
 existing explicitly confirmed **Reset world** flow starts fresh bodies/memories;
 this development does not delete user saves.
 

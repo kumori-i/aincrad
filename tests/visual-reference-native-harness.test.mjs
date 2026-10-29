@@ -8,7 +8,7 @@ import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 import vm from 'node:vm';
 
-test('phase-A native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
+test('private-association native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
   const output=await mkdtemp(join(tmpdir(),'visual-reference-harness-contract-'));let passed=false;
   try{
     const result=spawnSync(process.execPath,['scripts/verify-visual-reference-desktop.mjs','--prepare-only'],{encoding:'utf8',timeout:120000,
@@ -25,8 +25,21 @@ test('phase-A native preparation is isolated, sandbox-preserving and never claim
     // Capture the actual generated helper, not a test reimplementation. It is
     // constructed outside installRunner and must retain its own assert binding.
     vm.runInNewContext(source.replace('// Production asset scheme and profile registration remain synchronous.',
-      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
+      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
     assert.equal(loaded.length,1,'Production scheme/profile registration remains synchronous');
+    const calls=[],nodes={
+      'npc-panel':{classList:{contains:()=>!nodes.visible},dataset:{journalTab:'character'}},
+      'open-npc':{click(){calls.push('open');nodes.visible=true;}},
+      'npc-select':{value:'aster',dispatchEvent(event){calls.push('select:'+this.value);assert.equal(event.type,'change');assert.equal(event.bubbles,true);}},
+      'npc-tab-conversation':{click(){calls.push('learning');nodes['npc-panel'].dataset.journalTab='conversation';}},
+      'journal-messages':{textContent:'Observer text',scrollTop:100},'npc-name':{textContent:'Listener'},visible:false};
+    sandbox.document={getElementById:id=>{assert(nodes[id],id);return nodes[id];}};
+    sandbox.Event=class{constructor(type,options){this.type=type;Object.assign(this,options);}};
+    const panel=sandbox.presentAssociationLearning('brin');
+    assert.equal(panel.selected,'brin');assert.equal(panel.visible,true);assert.equal(panel.tab,'conversation');assert.equal(panel.text,'Observer text');
+    assert.deepEqual(calls,['open','select:brin','learning']);assert.equal(nodes['journal-messages'].scrollTop,0);
+    // DOM-control regression only: actual rendered pixels still require native CI.
+
     const stored={elapsed:1,environment:{elapsed:1,ecology:{elapsed:1,pending:0}},player:{x:0,y:0},playerBody:{stamina:100},
       agents:[{id:'aster',position:{x:0,y:0},elapsed:1,memory:{experience:[{id:1,type:'observation'}]}}]};
     const restored={elapsed:1,clocks:{environmentElapsed:1,ecologyElapsed:1,ecologyPending:0},player:{x:0,y:0},playerBody:{stamina:100},
@@ -39,7 +52,10 @@ test('phase-A native preparation is isolated, sandbox-preserving and never claim
     for(const contract of ['Install fixture on actual fresh main population','Fixture owns the sole manual clock','Fresh fixture installer is one-use',
       'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-indication bytes',
       'Repeated reopen cannot duplicate interruption or revive authority','Loaded profile cannot obtain fresh fixture authority',
-      'Application uses exact isolated disposable test profile','captureWithReadiness({','prefs.sandbox,true'])assert(source.includes(contract),contract);
+      'Application uses exact isolated disposable test profile','Reopen starts empty private association memory',
+      'Message changes actual-memory eligibility, not a sampled policy action',
+      'Opening Learning may change only observer selection, not the world','Learning open/capture/close leaves reference snapshot exact',
+      '04b-learning-own-association-counters.png','04c-learning-own-demonstration-provenance.png','association-learning-view.json','association-retrieval-audit.json','timestampedPairSha256','captureWithReadiness({','prefs.sandbox,true'])assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
     const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
@@ -56,9 +72,9 @@ async function fixtureHook(overrides={}){
   assert(start>=0);const end=source.indexOf('    referenceFixtureState:',start);assert(end>start);
   const installer=source.slice(start+'referenceFixture: '.length,end).trim().replace(/,$/,'');
   const state={elapsed:0},context={location:{search:'?test=1'},started:false,loaded:{exists:false,blocked:false},state,
-    population:{state},communicationLearning:{censorPending(){context.censored++;}},storage:{getItem(){return null;}},
+    population:{state},communicationLearning:{censorPending(){context.censored++;},createNativeAssociationAuditReader(){let read=false;return()=>{if(read)return null;read=true;context.audited++;return {copied:true};};}},storage:{getItem(){return null;}},
     OZARK_SAVE_KEY:'aincrad.world.v2',CONFIG:{fixedStep:1/60},geometry:{},renderer:{},keys:{clear(){context.cleared++;}},
-    advancePlayer(dt){assert.equal(dt,1/60);state.elapsed+=dt;},save(explicit,bypass){assert.equal(explicit,false);assert.equal(bypass,true);context.saved++;return true;},cleared:0,censored:0,saved:0,...overrides};
+    advancePlayer(dt){assert.equal(dt,1/60);state.elapsed+=dt;},save(explicit,bypass){assert.equal(explicit,false);assert.equal(bypass,true);context.saved++;return true;},cleared:0,censored:0,saved:0,audited:0,...overrides};
   const hook=Function('context',`let {location,started,loaded,state,population,communicationLearning,storage,OZARK_SAVE_KEY,CONFIG,geometry,renderer,keys,advancePlayer,save}=context;let referenceFixtureOwner=null;return {install:${installer},owner:()=>referenceFixtureOwner};`)(context);
   return {hook,context,source};
 }
@@ -73,6 +89,7 @@ test('actual fresh-main fixture installer rejects other routes, existing profile
   assert.equal(await hook.install(value=>{controls=value;return true;}),true);
   assert.equal(controls.state,controls.populationState);assert.equal(controls.population,undefined);assert(Object.isFrozen(controls));
   assert.equal(context.cleared,1);assert.equal(await hook.install(()=>true),null);
+  assert.deepEqual(controls.auditAssociation(),{copied:true});assert.equal(controls.auditAssociation(),null);assert.equal(context.audited,1);
   assert.equal(controls.checkpoint(),false,'No zero-work fixture checkpoint');
   for(let i=0;i<1200;i++)assert.equal(controls.step(),true);
   assert.equal(controls.step(),false);assert.equal(controls.checkpoint(),true);assert.equal(controls.checkpoint(),false);assert.equal(context.saved,1);assert.equal(hook.owner().steps,1200);assert(Math.abs(context.state.elapsed-20)<1e-7);

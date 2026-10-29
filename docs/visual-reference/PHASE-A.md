@@ -1,6 +1,6 @@
 # Shared visual reference — physical verification stage
 
-This branch's Phase A is **not a learned language**. It is the first verification
+Historical Phase A is **not a learned language**. It is the first verification
 stage toward replacing delayed bodily-credit communication in the same main
 Aincrad world. It must not be released as a completed learning milestone. No
 associative memory, neural updates, imported weights or shared vocabulary exist
@@ -71,3 +71,14 @@ Pending transactions and runtime permits do not survive reopening or world reset
 Save restoration cannot recreate executable authority. No user save is deleted.
 The eventual association memory's reopen/reset contract requires its own Phase B
 review; historical communication weights already restart on reopen.
+
+## Retained engineering proof
+
+Tree `76c5f31a6d9d692875641c2a441530b4f463e7b5`, PR64 head
+`218be5b97836ed2d1e78c46e9d5d779c228621d8`, native run `40819072551`
+passed Linux x64 and macOS arm64. Both isolated profiles executed paid inspection,
+paid indication, actual local parser samples, cue-present/absent screenshots,
+interruption and two independent close/reopen processes with exact saved histories
+and no revived authority. Root reviewed actual artifacts. This is physical
+engineering proof only, not autonomous behavior or language learning. Earlier
+harness failures remain retained. The current next stage is [Phase B](PHASE-B.md).

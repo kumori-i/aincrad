@@ -36,19 +36,21 @@ Expiry, unavailable source and a failed physical attempt do not by themselves pr
 
 `npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology stays in developer inspection. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. English deprecation changed total agent behavior. The subsequent visual-reference branch replaces the main optional channel; historical studies do not establish results for it. Future studies need a new frozen protocol.
 
-## Main-world visual reference — Phase A only
+## Main-world visual reference and private associations
 
 `visual-reference-attachment.js` owns one bounded reference transaction per actor,
 not a clock or population. `ozark-world-main.js` still calls `beforeTick`, advances
 the sole population/environment/body clock once, then calls `afterTick`. A new
 optional-action callback occurs only after ordinary bodily/safety/procedure gates.
-There are no association updates in this intermediate verification stage. The
+Only canonical observed post-choice demonstrations can update private associations. The
 historical `communication-attachment.js` delayed bodily-credit learner remains
 in historical automated fixtures only, never alongside the new main attachment.
 
 Two distinguishable, mutually visible alternatives must both be geometrically
 resolvable before uniform referent selection. Separate RNGs govern pair, referent,
-order, arbitrary symbol and arbitrary listener choice. The listener's paid
+order and uniform exploratory listener choice. A separate per-identity shuffled symbol
+inventory supplies stable arbitrary symbols; pure both-candidate anchor feasibility
+and atomic allocation precede the referent draw. The listener's paid
 inspection completion issues a one-use private indication permit. A subsequent
 sender optional slot executes fixed 1.8-second / .25-effort indication. Canonical
 runtime funding/success witnesses cannot be recreated from saved action-shaped
@@ -66,7 +68,9 @@ backdated into an assumed funded prefix. Reference correctness remains an observ
 critic, separate from perceived demonstration, learning and bodily benefit.
 
 `communication-inspector.js` opens the same NPC Learning tab. `learning-view.js`
-labels this phase explicitly as physical verification, not learned meaning. At
+labels supplied-metric private associations distinctly from abstract concepts or
+autonomous language. It separates evidence additions, support, conflicts, matched
+choices, exploration and reference correctness from bodily outcomes. At
 most 256 copied observer events are retained, with 32 per selected actor shown.
 English annotations are never agent speech or translations. Normal saves remain
 schema 12 and pending authority never restores. Scene/identity/position or urgent
@@ -76,9 +80,19 @@ A fresh-profile, exact `?test=1` engineering installer can temporarily own bound
 manual 1/60 steps for actual native proof. It cannot mix normal timers, begin, QA
 steps or ordinary saves; only its authenticated closure has a one-attempt explicit
 checkpoint exception for isolated mid-gesture reopen testing. No authority is
-persisted. See [Phase A boundaries](visual-reference/PHASE-A.md). Do not merge this
-intermediate branch as a completed learning release; native physical proof and
-source review precede Phase B association wiring and new frozen evaluation.
+persisted. See [Phase A boundaries](visual-reference/PHASE-A.md). Releasing the
+private-association baseline requires exact-source review, aggregate checks and
+actual native acquisition/retrieval/reopen proof. Future autonomous evaluation
+requires a separately reviewed frozen protocol.
+
+The physical-stage proof is retained at tree `76c5f31a6d9d692875641c2a441530b4f463e7b5`.
+`visual-reference-memory.js` owns immutable sender anchors and partner-specific
+listener exemplars using only each owner's own 48 pooled pixel features. Attachment
+identity tokens track actual actor/discovery/physiology objects, preserve ordinary
+recovery, and purge replacements before choices/updates. Pending correction is a
+private consumed-once capability minted only after canonical physical completion
+and fresh final own sight; critic IDs/correctness never enter memory APIs.
+Private associations start empty on reopen; see [Phase B rules](visual-reference/PHASE-B.md).
 
 ## Observation-driven inquiry
 

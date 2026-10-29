@@ -1,4 +1,4 @@
-/** Engineering-only, deliberate phase-A exercise of the actual main state and
+/** Engineering-only, deliberate private-association exercise of the actual main state and
  * PopulationRuntime. It neither creates a population nor owns a second clock. */
 export function visualReferenceEvidence(state) {
   return structuredClone({elapsed:state.elapsed,player:state.player,playerBody:state.playerBody,
@@ -16,16 +16,17 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const {observeNpc,requestNpcAction,requestNpcIndication,cancelNpcAction}=await use('npc');
   const {createIndicationPermit,publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion}=await use('discovery-actions');
   const {observeIndication,senseReferenceObjects,resolveIndication}=await use('visual-reference-perception');
-  const {createCommunicationPixelSensor}=await use('communication-pixels');
+  const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
   const {npcEffortCost}=await use('npc-effort-funding');
+  const {VISUAL_REFERENCE_MEMORY_LIMITS}=await use('visual-reference-memory');
   const {loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
-  const {state,populationState,reference,geometry,renderer,step,fixedStep,checkpoint:saveCheckpoint}=context;
+  const {state,populationState,reference,geometry,renderer,step,fixedStep,checkpoint:saveCheckpoint,auditAssociation}=context;
   const require=(value,message)=>{if(!value)throw new Error(message);};
   const near=(a,b,label)=>require(Math.abs(a-b)<1e-7,`${label}: ${a} != ${b}`);
   require(state===populationState&&state.elapsed===0&&state.agents.length===2,'Expected fresh actual main state/population');
   near(fixedStep,1/60,'Actual main fixed step');
-  require(reference?.snapshot().phase==='physical-reference-no-learning','Expected actual phase-A attachment');
+  require(reference?.snapshot().phase==='private-visual-association','Expected actual private-association attachment');
   const [sender,listener]=state.agents,initialPositions=state.agents.map(n=>({...n.position}));
   const sensor=context.auditSensor||createCommunicationPixelSensor(document);
   const actualCanvas=!context.auditSensor;
@@ -39,10 +40,16 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   if(renderer){renderer.followNpc=true;renderer.followId=sender.id;renderer.targetZoom=2;renderer.snap(sender.position);}
   const project=()=>projectEvidence(state);
   const pose=()=>publicIndicationGeometry(sender);
-  const noUpdates=()=>{
-    const s=reference.snapshot();
-    require(s.updates===0&&s.positive===0&&s.negative===0&&s.relief===0&&s.discomfort===0&&s.learners.length===0,'Phase A cannot train or pay a reward');
-    require(s.observationEvents.every(e=>e.reward===null),'No reference reward');return s;
+  const associationState=()=>{
+    const s=reference.snapshot(),completed=!!successfulDiscoveryActionCompletion(sender,indicationActive),expected=completed?1:0;
+    require(s.positive===0&&s.negative===0&&s.relief===0&&s.discomfort===0,'Association evidence cannot pay a bodily reward');
+    require(s.observationEvents.every(e=>e.reward===null),'No reference reward');
+    require(s.learners.length===2,'Expected the same two private main-world memories');
+    const own=s.learners.find(n=>n.agentId===listener.id);
+    require(s.updates===expected&&s.evidenceAdditions===expected&&s.correctionAttempts===expected&&
+      s.supportUpdates===0&&s.conflicts===0&&own.counts.entries===expected&&own.counts.examples===expected,
+      'Exactly one listener own-view exemplar may appear, only after canonical paid indication completion');
+    return s;
   };
   const tick=()=>{
     require(state.elapsed+fixedStep<=holdUntil+1e-8,'Fixture exceeded bounded deliberate scheduling');
@@ -68,10 +75,10 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       audit.push({at:state.elapsed,listenerAt:listener.elapsed,geometry:g,numericInput:sensed.objects,numericResult:numeric,
         localBinding:seen.objectId,reason:seen.reason,paidSeconds:discoveryActionPaidSeconds(sender,sender.active)});
     }
-    noUpdates();
+    associationState();
   };
   const until=(condition,label,max=180)=>{for(let i=0;!condition()&&i<max;i++)tick();require(condition(),label);};
-  const status=()=>({phase,elapsed:state.elapsed,pose:pose(),reference:noUpdates(),privateWitness:{targetId:privateTargetId??null,
+  const status=()=>({phase,elapsed:state.elapsed,pose:pose(),reference:associationState(),privateWitness:{targetId:privateTargetId??null,
     choice:choiceProof??null,indication:indicationProof??null},audit:structuredClone(audit),steps:structuredClone(steps),checks:{...checks}});
   function beginChoice(){
     require(phase==='ready'&&!pose(),'Before choice there must be no paid cue');
@@ -80,7 +87,10 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const result=requestNpcAction(listener,action,state.environment);choiceActive=listener.active;
     reference.hooks.performed(listener,action,result,choiceActive);
     require(result.code==='ACTION_STARTED'&&choiceActive,'Deliberate listener inspect did not start');
-    require(!pose(),'An unfinished listener choice cannot produce a cue');phase='choice';return status();
+    require(!pose(),'An unfinished listener choice cannot produce a cue');
+    require(reference.snapshot().latest.choiceMode==='uniform-exploration'&&reference.snapshot().latest.choiceReason==='unknown-symbol','Actual first policy action must use empty-memory uniform exploration');
+    checks.preDemonstration={receiverExamples:0,choiceMode:'uniform-exploration',choiceReason:'unknown-symbol',eligibleDistribution:[.5,.5]};
+    phase='choice';return status();
   }
   function completeChoice(){
     require(phase==='choice','Expected listener choice');
@@ -135,7 +145,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(indicationProof?.type==='indicate_object','No canonical successful sender indication');
     near(indicationProof.worked,1.8,'Paid sender work');near(state.elapsed-baseline.at,1.8,'Real main indication duration');
     require(!pose(),'Completion must remove public cue');
-    const snapshot=noUpdates();require(snapshot.observed===1&&snapshot.pending===0&&snapshot.latest.status==='observed','Actual attachment did not observe completed demonstration');
+    const snapshot=associationState();require(snapshot.observed===1&&snapshot.pending===0&&snapshot.latest.status==='observed','Actual attachment did not observe completed demonstration');
     require(snapshot.latest.observedSeconds>=.5-1e-8,'Final consecutive paid perception was insufficient');
     require(audit.length>=100,'Missing repeated actual fixed-step listener perception');
     for(let i=1;i<audit.length;i++)near(audit[i].at-audit[i-1].at,fixedStep,'Consecutive listener perceptions');
@@ -144,8 +154,44 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(JSON.stringify(sender.inventory)===JSON.stringify(baseline.inventory)&&sender.discovery.experiments.length===baseline.experiments,'Indication fabricated acquisition or experiment');
     checks.payment={canonicalWorkSeconds:indicationProof.worked,expectedActionEffortKcal:expectedEffort,totalMetabolizedKcal:metabolized,
       availableEnergyChange:sender.physiology.availableEnergyKcal-baseline.available,includesOrdinaryMetabolism:true};
-    checks.sameMainPopulation=true;checks.actualFixedStep=1/60;checks.noAssociationUpdates=true;
+    const own=snapshot.learners.find(n=>n.agentId===listener.id),entry=own.partners[0]?.entries[0];
+    const finalOwnFeatures=poolCommunicationPixels(snapshot.latest.demonstrationPixels);
+    require(entry?.examples.length===1&&JSON.stringify(entry.examples[0])===JSON.stringify(finalOwnFeatures),'Stored exemplar must equal the listener final observed demonstration, not sender pixels');
+    require(entry.symbol===snapshot.latest.tokens[0]*8+snapshot.latest.tokens[1]&&snapshot.latest.correction==='new-exemplar','Own exemplar must bind the actually received numeric symbol');
+    checks.ownAssociation={evidenceAdditions:1,correctionAttempts:1,receiverExamples:1,symbol:entry.symbol,features:finalOwnFeatures,
+      provenance:'listener final personally observed demonstration crop; one canonical completion'};
+    checks.sameMainPopulation=true;checks.actualFixedStep=1/60;checks.canonicalOwnDemonstrationOnly=true;
     phase='completed';return status();
+  }
+  function inspectAssociation(){
+    require(phase==='completed'&&!checks.retrievalDiagnostic,'Audit exactly one completed real demonstration');
+    const beforeWorld=JSON.stringify(project()),beforeReference=JSON.stringify(reference.snapshot());
+    const evidence=auditAssociation();
+    require(evidence?.viewSource==='fresh-listener-current-canvas','Missing one-shot actual-memory fresh-view diagnostic');
+    require(evidence.eventId===reference.snapshot().latest.id&&evidence.symbol===checks.ownAssociation.symbol,'Diagnostic must use the first actual completed message');
+    near(evidence.at,listener.elapsed,'Current diagnostic time');
+    require(evidence.candidateViews?.length===2,'Expected same two current listener candidates');
+    for(const view of evidence.candidateViews){
+      near(view.at,listener.elapsed,'Fresh listener view time');
+      require(view.pixels?.length===768&&view.features?.length===48,'Expected actual own Canvas view');
+      require(JSON.stringify(view.features)===JSON.stringify(poolCommunicationPixels(view.pixels)),'Numeric audit features must come from copied own pixels');
+    }
+    require(JSON.stringify(evidence.demonstration.features)===JSON.stringify(checks.ownAssociation.features),'Audit must inspect actual acquired own evidence');
+    require([0,1].includes(evidence.known.index)&&evidence.known.reason==='unique-match','Current same-view known message must uniquely retrieve acquired evidence');
+    const distances=evidence.candidateViews.map(view=>Math.sqrt(view.features.reduce((sum,value,index)=>sum+(value-checks.ownAssociation.features[index])**2,0)/48));
+    require(evidence.known.distances.length===2&&evidence.reversed.distances.length===2,'Actual memory must expose both candidate distances');
+    for(let index=0;index<2;index++){near(evidence.known.distances[index],distances[index],'Actual-memory distance to the acquired own example');near(evidence.reversed.distances[1-index],distances[index],'Reversed actual-memory distance');}
+    require(distances.filter(distance=>distance<=VISUAL_REFERENCE_MEMORY_LIMITS.match).length===1&&
+      distances[evidence.known.index]<=VISUAL_REFERENCE_MEMORY_LIMITS.match&&
+      distances[1-evidence.known.index]>=distances[evidence.known.index]+VISUAL_REFERENCE_MEMORY_LIMITS.margin,'Known-message eligibility must obey supplied match and margin, not hidden correctness');
+    require(evidence.reversed.index===1-evidence.known.index&&evidence.reversed.reason==='unique-match','Reversed current candidates must reverse eligible index');
+    require(evidence.absent&&evidence.absent.symbol!==evidence.symbol&&evidence.absent.choice.index===null&&evidence.absent.choice.reason==='unknown-symbol','Absent message must abstain from confident retrieval');
+    const distributions={known:evidence.known.index===0?[1,0]:[0,1],absent:[.5,.5],reversed:evidence.reversed.index===0?[1,0]:[0,1]};
+    require(auditAssociation()===null,'Diagnostic handle must be consumed, not a repeatable choice API');
+    require(JSON.stringify(project())===beforeWorld&&JSON.stringify(reference.snapshot())===beforeReference,'Read-only retrieval diagnostic changed main state, histories, memory or transaction metrics');
+    checks.retrievalDiagnostic={...evidence,eligibleDistributions:distributions,readOnly:true,
+      interpretation:'Actual-memory same-scene fresh-view message-dependent retrieval eligibility only; no sampled or later policy action, vocabulary discrimination, generalization or survival benefit'};
+    return status();
   }
   function pendingForSave(){
     require(phase==='completed','Complete primary reference before interruption fixture');
@@ -165,7 +211,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const loaded=loadOzarkSave({getItem:key=>key===OZARK_SAVE_KEY?raw:null},geometry);
     require(!loaded.blocked,'Canonical save failed strict reload');
     const result={raw,expectedRestored:projectEvidence(loaded.state),report:status(),serializedActive:structuredClone(pendingActive),serializedPermit:{...pendingPermit},
-      fixtureDisclosure:'Fresh default main state/population and original positions, deliberate optional listener inspect then post-choice sender indication. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, association updates, reward, cohort, scientific-seed sweep or autonomous-adoption claim. Second canonical paid sequence is saved mid-cue to test reopen interruption.'};
+      fixtureDisclosure:'Fresh default main state/population and original positions, deliberate optional listener inspect then post-choice sender indication. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. Exactly one own-view association follows canonical paid completion; the one-shot message-dependence query uses actual memory and fresh own views but is not a policy action or generalization claim. Second canonical paid sequence is saved mid-cue to test reopen interruption.'};
     for(let i=0;i<state.agents.length;i++)require(JSON.stringify(state.agents[i].position)===JSON.stringify(initialPositions[i]),'Fixture moved an actor');
     return result;
   }
@@ -175,7 +221,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     checks.interruption={paidSeconds:paid,result:structuredClone(sender.lastResult),poseCleared:true};
     require(paid>0&&paid<1.8,'Interruption must retain genuine partial paid work');phase='interrupted';return status();
   }
-  return {project,status,beginChoice,completeChoice,beginIndication,visible,completeIndication,pendingForSave,checkpoint,interrupt,
+  return {project,status,beginChoice,completeChoice,beginIndication,visible,completeIndication,inspectAssociation,pendingForSave,checkpoint,interrupt,
     dispose(){sensor.dispose?.();}};
 }
 

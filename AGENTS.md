@@ -27,14 +27,15 @@ for this new configuration; future experiments need a new reviewed frozen protoc
 
 ## Shared visual reference — current branch verification stage
 
-Phase A adds a paid, post-choice schematic direction cue and listener-local
-geometry parsing to the same main world. No association updates are present yet.
-See docs/visual-reference/PHASE-A.md. Do not merge this intermediate default as a
-completed learning release: exact native affordance proof and source review must
-precede Phase B. Preserve historical protocol fixtures. The cue/parser, segmented
-pixels and thresholds are supplied biases, not learned concepts. Fresh-only
-engineering fixture ownership and checkpoint authority are runtime-only; normal
-UI saves/timers cannot interfere with that isolated verification process.
+Phase A established paid post-choice schematic direction cues and listener-local
+geometry parsing in the same main world. Phase B adds private bounded exemplar
+associations; see docs/visual-reference/PHASE-B.md. Keep phase-A proof historical.
+No release claims beyond actual exact-source/native evidence: this is supplied
+metric memory, not learned abstractions or autonomous language. Historical protocol
+fixtures stay immutable. Private visual memory is fresh on reopen/reset; ordinary
+survival memory still saves. The optional channel must never compete with urgent
+survival decisions or restore the old bodily-credit learner. Native engineering
+fixtures remain isolated, bounded and explicitly non-autonomous.
 
 ## Authority and boundaries
 
