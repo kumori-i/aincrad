@@ -50,9 +50,14 @@ the run still stops at the prespecified target.
 
 ## Clock, observer and evidence bounds
 
-Poll the ordinary clock approximately every **1 wall second**. Make compact
-detailed projections at least **10 simulation seconds** apart, plus initial and
-terminal projections. At the first passive observation of elapsed time
+The prepared runner anchors clock slots at ordinary start and reads once at
+the first observed slot boundary at or after each **1 wall second** interval.
+If a read runs late, it skips catch-up reads and records how many wall slots
+were missed. It makes a compact detailed projection at the first clock read
+at least **10 simulation seconds** after the previous detailed projection,
+plus initial and terminal projections. A late detailed read records the number
+of crossed 10-second windows it missed; it does not backdate or invent samples.
+At the first passive observation of elapsed time
 **≥ 1,200 simulation seconds**, request ordinary pause once; record observed
 threshold time, confirmed paused time, wall time and overshoot. Overshoot above
 **2 simulation seconds** is a retained deviation, never a rerun reason. Do not
@@ -137,7 +142,7 @@ Report, overall and by sender/listener where available:
 
 The current test hook combines compact communication counts/events, actor
 partner-bank occupancy and both actors' bounded survival-body/decision summaries.
-The eventual runner must project any further world clocks or identity checks
+The prepared runner projects further world clocks and identity checks
 from `fullSnapshot()` **inside the renderer**, and allowlist only the numeric
 body and bank summaries needed above. A full world, private feature vectors,
 crops and model weights must not cross IPC.
@@ -154,7 +159,12 @@ trajectory supports no causal comparison.
 
 ## Source freeze and later work
 
-The eventual new runner/workflow must verify the externally approved exact
+The prepare-only runner `scripts/prepare-character-ordinary-pilot.mjs` creates
+source inventory, generated observer and candidate receipt artifacts without
+starting Electron. Its execution mode requires a separate external reviewed
+receipt and a new attempt-1 GitHub branch-create event. No workflow activates
+it in this checkpoint, and no pilot has run. The later one-time workflow must
+verify the externally approved exact
 commit/tree, source inventory and hashes, built renderer fingerprint, Linux x64
 host, unprivileged sandboxed Electron preferences, isolated profile, fixed
 seeds, default start and normal speed before ordinary progression. It must use a
@@ -162,6 +172,11 @@ seeds, default start and normal speed before ordinary progression. It must use a
 manual dispatch, fallback trigger or rerun. The parent will review the written
 protocol and exact instrumentation source before any pilot dispatch. No runner
 or workflow is activated by this document.
+
+The existing Linux/macOS character-message native engineering fixture separately
+checks the new passive measurement counters, actual paid Canvas actions and
+repeated-read purity. Those authored scenes test instrumentation and do not
+consume the ordinary pilot or count as an ordinary outcome.
 
 Length-matched shuffled-message controls and novel-instance evaluation are
 possible later, but require separately frozen source, sampling and outcome

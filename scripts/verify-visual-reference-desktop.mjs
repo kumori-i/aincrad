@@ -47,12 +47,52 @@ function installRunner(context,helpers){
   assert(context.phases.includes(phase));
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   let running=false,closed=false,allowQuit=false,stage='initializing';
-  const events=[],screenshots=[];
+  const events=[],screenshots=[],measurementChecks=[];
   const deadline=setTimeout(()=>{console.error('Visual reference native deadline at '+stage);app.exit(1);},240000);
   app.on('will-quit',event=>{if(!allowQuit)event.preventDefault();else{assert(closed);console.log('VISUAL_REFERENCE_NATIVE_WILL_QUIT '+phase);}});
   const evaluate=(win,source)=>{stage=source.slice(0,140);return win.webContents.executeJavaScript(source);};
   const snapshot=win=>evaluate(win,'('+visualReferenceEvidence.toString()+')(window.__ozarkWorld.fullSnapshot())');
   const raw=win=>evaluate(win,"localStorage.getItem('aincrad.world.v2')");
+  // This engineering fixture reads the same bounded main-world observer used
+  // by the prospective ordinary pilot. Full world and private model values
+  // are compared inside the renderer and never returned in this QA record.
+  function readPureMeasurement(){
+    const q=window.__ozarkWorld,fixture=window.__visualReferenceFixture;
+    const beforeWorld=JSON.stringify(q.fullSnapshot()),
+      beforeReference=JSON.stringify(q.communicationSnapshot()),
+      beforeCharacter=JSON.stringify(fixture?.characterExport?.()??null),
+      beforeSaved=localStorage.getItem('aincrad.world.v2');
+    const first=q.communicationMeasurementSnapshot(),second=q.communicationMeasurementSnapshot();
+    return {first,second,worldUnchanged:JSON.stringify(q.fullSnapshot())===beforeWorld,
+      referenceUnchanged:JSON.stringify(q.communicationSnapshot())===beforeReference,
+      characterUnchanged:JSON.stringify(fixture?.characterExport?.()??null)===beforeCharacter,
+      savedBytesUnchanged:localStorage.getItem('aincrad.world.v2')===beforeSaved};
+  }
+  async function measurementPoint(win,label){
+    const evidence=await evaluate(win,'('+readPureMeasurement.toString()+')()');
+    for(const key of ['worldUnchanged','referenceUnchanged','characterUnchanged','savedBytesUnchanged'])
+      assert.equal(evidence[key],true,label+' repeated passive measurement cannot alter '+key);
+    assert.deepEqual(evidence.first,evidence.second,label+' repeated passive measurement must be exact');
+    const result=evidence.first;
+    assert.equal(result?.phase,'private-character-message',label+' uses the actual character observer');
+    assert.equal(result.seed,context.responseScenario?212:211,label+' keeps the declared engineering seed');
+    assert.equal(result.identityPendingReconciliation,false);
+    assert.equal(result.actors?.length,2);
+    assert.equal(result.survival?.length,2);
+    const forbidden=new Set(['senderPixels','receiverPixels','demonstrationPixels','candidatePixels',
+      'features','model','examples','messageHandle','orderedOwnFeatures','targetId','demonstratedObjectId']);
+    const inspect=value=>{
+      if(Array.isArray(value)){for(const row of value)inspect(row);return;}
+      if(value&&typeof value==='object')for(const [key,row]of Object.entries(value)){
+        assert.equal(forbidden.has(key),false,label+' must not expose private '+key);inspect(row);
+      }
+    };
+    inspect(result);
+    measurementChecks.push({phase,label,counts:{...result.counts},eventsRetained:result.eventsRetained,
+      eventsEvicted:result.eventsEvicted,eventsRetired:result.eventsRetired});
+    await fs.writeFile(path.join(context.output,phase+'-measurement-'+label+'.json'),JSON.stringify(result,null,2));
+    return result;
+  }
   const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts,character})=>
     ({agentId,identity,anchors,partners,counts,character}));
   function assertRetainedLearning(reference,saved,label){
@@ -209,9 +249,26 @@ function installRunner(context,helpers){
     assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),false,'Fixture owns the sole manual clock; normal timer start is blocked');
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Fresh fixture installer is one-use');
     let status=await evaluate(win,'window.__visualReferenceFixture.status()');assert.equal(status.pose,null);
+    let measured=await measurementPoint(win,'fresh');
+    assert(Object.values(measured.counts).every(value=>value===0),'Fresh engineering world has zero communication counts');
+    assert.equal(measured.events.length,0);assert.equal(measured.pending,0);
+    assert(measured.actors.every(actor=>actor.character.senderUpdates===0&&
+      actor.character.listenerUpdates===0&&actor.character.uniqueDemonstrations===0&&
+      actor.character.replayUses===0&&actor.character.partnerBanks.every(bank=>
+        bank.trained===false&&bank.retainedExamples===0)),'Fresh individuals have untrained private banks');
     await capture(win,'01-before-listener-choice-no-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.beginChoice()');assert.equal(status.pose,null);
+    measured=await measurementPoint(win,'emitted-choice');
+    assert.equal(measured.counts.emissions,1);assert.equal(measured.counts.paidInspectionStarts,1);
+    assert.equal(measured.counts.paidInspectionCompletions,0);
+    assert.equal(measured.counts.canonicalDemonstrations,0);
+    assert.equal(measured.events[0]?.message,status.reference.latest.message,
+      'Observer message is the exact sampled physical transaction');
     status=await evaluate(win,'window.__visualReferenceFixture.completeChoice()');assert.equal(status.checks.choiceCompletedBeforeIndication,true);
+    measured=await measurementPoint(win,'paid-inspection');
+    assert.equal(measured.counts.paidInspectionCompletions,1);
+    assert.equal(measured.counts.paidInspectionOutcomeUnavailable,0);
+    assert.equal(measured.counts.canonicalDemonstrations,0);
     assert.equal(status.pose,null);await capture(win,'02-paid-choice-complete-no-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.beginIndication()');assert.equal(status.pose,null);
     status=await evaluate(win,'window.__visualReferenceFixture.visible()');assert(status.pose);assert.equal(status.checks.visibleCrop.actualCanvas,true,'Native audit uses actual current Canvas crops');
@@ -224,6 +281,13 @@ function installRunner(context,helpers){
     assert.equal(status.checks.listenerLearning.optimizerSteps,1);
     assert.equal(status.checks.listenerLearning.actualCanvas,true);
     assert.deepEqual(status.reference.senderFeedback,[]);
+    measured=await measurementPoint(win,'own-view-demonstration');
+    assert.equal(measured.counts.canonicalDemonstrations,1);
+    assert.equal(measured.counts.validListenerDemonstrations,1);
+    assert.equal(measured.counts.listenerOptimizerSteps,1);
+    assert.equal(measured.counts.listenerReplayUses,0);
+    assert.equal(measured.counts.criticCorrect,status.reference.correct);
+    assert.equal(measured.counts.senderUpdates,0);
     const replyAvailable=status.checks.replyAvailable;
     assert.equal(typeof replyAvailable,'boolean','Actual response geometry must be audited after listener learning');
     if(context.responseScenario)assert.equal(replyAvailable,true,'Authored response profile must offer a visible paid reply');
@@ -238,12 +302,22 @@ function installRunner(context,helpers){
     if(replyAvailable){
       status=await evaluate(win,'window.__visualReferenceFixture.beginResponse()');
       assert.equal(status.responsePose,null);assert.deepEqual(status.reference.senderFeedback,[]);
+      measured=await measurementPoint(win,'paid-reply-start');
+      assert.equal(measured.counts.paidReplyStarts,1);
+      assert.equal(measured.counts.paidReplyCompletions,0);
       status=await evaluate(win,'window.__visualReferenceFixture.visibleResponse()');
       assert(status.responsePose);assert.equal(status.checks.responseVisible.actualCanvas,true);
       await fs.writeFile(path.join(context.output,'visible-response-parser-audit.json'),JSON.stringify(status,null,2));
       await capture(win,'04a-during-paid-listener-response.png');
       status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
       assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
+      measured=await measurementPoint(win,'paid-reply-complete');
+      assert.equal(measured.counts.paidReplyCompletions,1);
+      assert.equal(measured.counts.paidReplyOutcomeUnavailable,0);
+      assert.equal(measured.counts.senderUpdates,Number(status.reference.latest.senderUpdate===true));
+      assert.equal(measured.counts.visualMatches,Number(status.reference.latest.feedbackStatus==='matched'));
+      assert.equal(measured.counts.visualMismatches,Number(status.reference.latest.feedbackStatus==='mismatched'));
+      if(context.responseScenario){assert.equal(measured.counts.visualMismatches,1);assert.equal(measured.counts.senderUpdates,1);}
       if(status.reference.latest.feedbackStatus==='censored'){
         assert.equal(context.responseScenario,false,'Authored response profile must produce its required mismatch');
         assert.equal(status.checks.senderLearning.updated,false,'A paid but censored reply gives no sender update');
@@ -256,6 +330,10 @@ function installRunner(context,helpers){
       await capture(win,'04a2-after-listener-response-no-cue.png');
     }else{
       assert.equal(status.responsePose,null,'No reply pose or paid response may exist after geometry censorship');
+      measured=await measurementPoint(win,'unavailable-reply');
+      assert.equal(measured.counts.paidReplyStarts,0);
+      assert.equal(measured.counts.paidReplyCompletions,0);
+      assert.equal(measured.counts.responseCensors,1);
       await capture(win,'04a2-unavailable-listener-response-no-cue.png');
     }
     const firstMessage=status.reference.latest.message;
@@ -298,6 +376,14 @@ function installRunner(context,helpers){
     assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeRefusedSave,
       'Refused ordinary save cannot draw character RNG or update either model');
     status=await evaluate(win,'window.__visualReferenceFixture.'+(context.responseScenario?'pendingResponseForSave':'pendingForSave')+'()');
+    measured=await measurementPoint(win,'second-pending');
+    assert.equal(measured.counts.emissions,2,'Two authentic sampled messages must be counted');
+    assert.equal(measured.counts.paidInspectionStarts,2);
+    assert.equal(measured.counts.paidInspectionCompletions,2);
+    assert.equal(measured.pending,1,'The partly paid second exchange remains pending');
+    assert.equal(measured.eventsRetained,2);assert.equal(measured.eventsEvicted,0);
+    assert.equal(measured.events[1]?.message,status.reference.latest.message,
+      'The second observer message is the exact new sampled transaction');
     if(context.responseScenario){
       const second=status.checks.secondLabel;
       assert(second?.actualCanvas&&/^[a-z]{1,6}$/.test(second.secondMessage),
@@ -315,6 +401,14 @@ function installRunner(context,helpers){
       assert.equal(second.demonstrations,second.updated?2:1);
       assert.equal(second.optimizerSteps,second.updated?2:1);
       assert.equal(second.replayUses,second.updated?1:0);
+      assert.equal(measured.counts.canonicalDemonstrations,2);
+      assert.equal(measured.counts.validListenerDemonstrations,second.updated?2:1);
+      assert.equal(measured.counts.listenerOptimizerSteps,second.optimizerSteps);
+      assert.equal(measured.counts.listenerReplayUses,second.replayUses);
+      assert.equal(measured.counts.paidReplyStarts,2);
+      assert.equal(measured.counts.paidReplyCompletions,1,
+        'A partly paid second reply is not a physical completion');
+      assert.equal(measured.counts.senderUpdates,1,'The pending second reply cannot repeat sender learning');
       await fs.writeFile(path.join(context.output,'second-listener-label-audit.json'),JSON.stringify(second,null,2));
       assert.equal(status.phase,'pending-response-save');assert(status.responsePose);
       assert.equal(status.reference.latest.feedbackStatus,'responding');
@@ -333,7 +427,14 @@ function installRunner(context,helpers){
       assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,
         'Post-second inspection cannot change private memory or feedback');
       await fs.writeFile(path.join(context.output,'character-post-second-export.json'),JSON.stringify({model:beforeModel,readOnly:true},null,2));
-    }else{assert(status.pose);await capture(win,'05-second-paid-indication-before-save.png');}
+    }else{
+      assert.equal(measured.counts.canonicalDemonstrations,1,
+        'An unfinished second indication is not a listener demonstration');
+      assert.equal(measured.counts.listenerOptimizerSteps,1);
+      assert.equal(measured.counts.paidReplyStarts,replyAvailable?1:0);
+      assert.equal(measured.counts.paidReplyCompletions,replyAvailable?1:0);
+      assert(status.pose);await capture(win,'05-second-paid-indication-before-save.png');
+    }
     const beforePendingSave=await evaluate(win,'window.__visualReferenceFixture.characterExport()');
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),false);
     assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforePendingSave,
@@ -343,11 +444,22 @@ function installRunner(context,helpers){
     assert.equal(checkpoint.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
     assert.equal(await evaluate(win,'window.__visualReferenceFixture.checkpoint(localStorage)'),null,'Fixture checkpoint is one attempt only');
     assert.equal(checkpoint.raw,await raw(win));
+    measured=await measurementPoint(win,'after-checkpoint');
+    assert.equal(measured.pending,1,'Read-only measurement cannot settle saved pending authority');
     await fs.writeFile(path.join(context.output,'checkpoint.json'),JSON.stringify({...checkpoint,screenshots},null,2));
     status=await evaluate(win,'window.__visualReferenceFixture.interrupt()');assert.equal(status.checks.interruption.poseCleared,true);
     assert.equal(status.checks.interruption.pendingKind,checkpoint.pendingKind);
     if(context.responseScenario)assert.deepEqual(status.reference.senderFeedback,[],
       'Interruption clears session feedback and cannot produce a second sample');
+    const beforeInterruptCounts=measured.counts;
+    measured=await measurementPoint(win,'after-interruption');
+    assert.equal(measured.pending,0,'Interrupted paid action must lose its ephemeral authority');
+    for(const key of ['paidInspectionCompletions','paidReplyCompletions','listenerOptimizerSteps','senderUpdates'])
+      assert.equal(measured.counts[key],beforeInterruptCounts[key],
+        'Interrupted partial work cannot create another '+key);
+    const censorKey=context.responseScenario?'responseCensors':'originalCensors';
+    assert.equal(measured.counts[censorKey],beforeInterruptCounts[censorKey]+1,
+      'The interrupted pending exchange must be censored once');
     await fs.writeFile(path.join(context.output,'interruption.json'),JSON.stringify(status,null,2));
     await capture(win,'06-explicit-interruption-no-cue.png');
     assert.equal(await raw(win),checkpoint.raw,'Post-save interruption cannot rewrite saved mid-action bytes');
@@ -362,6 +474,11 @@ function installRunner(context,helpers){
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Actual reopen preserves clocks/bodies/history and interrupts only unfinished action');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Loaded profile cannot obtain fresh fixture authority');
+    const measured=await measurementPoint(win,'first-reopen');
+    assert(Object.values(measured.counts).every(value=>value===0),
+      'Process-local measurement cannot replay a saved transaction');
+    assert.equal(measured.events.length,0);
+    assert.equal(measured.pending,0,'Saved pending action cannot revive learning authority');
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
     assert.equal(reference.learners.length,2);
     assertRetainedLearning(reference,saved,'First independent reopen');
@@ -390,6 +507,11 @@ function installRunner(context,helpers){
     assert.equal(await raw(win),saved.raw,'Third process reads exact post-interruption save bytes');
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Repeated reopen cannot duplicate interruption or revive authority');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
+    const measured=await measurementPoint(win,'second-reopen');
+    assert(Object.values(measured.counts).every(value=>value===0),
+      'Repeated reopen cannot replay observer counts or learning');
+    assert.equal(measured.events.length,0);
+    assert.equal(measured.pending,0);
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
     assertRetainedLearning(reference,saved,'Second independent reopen');
     const modelAudit=await assertReopenedCharacter(win,saved,'Second independent reopen');
@@ -399,6 +521,8 @@ function installRunner(context,helpers){
     assert.deepEqual(JSON.parse(await raw(win)).characterMessages,JSON.parse(saved.raw).characterMessages,
       'Second independent reopen retains exact live model weights, counters and RNG states');
     const characterAudit=JSON.parse(await fs.readFile(path.join(context.output,'character-model-audit.json'),'utf8'));
+    const priorMeasurementChecks=(await Promise.all(context.phases.slice(0,-1).map(async name=>
+      JSON.parse(await fs.readFile(path.join(context.output,name+'-measurement-checks.json'),'utf8'))))).flatMap(row=>row.checks);
     const firstEvent=saved.report.reference.observationEvents[0],replyAvailable=saved.report.checks.replyAvailable;
     const paidReplySeconds=saved.report.checks.responsePayment?.canonicalWorkSeconds??0;
     await capture(win,'08-repeated-reopen-no-duplicate-interruption.png');
@@ -421,6 +545,7 @@ function installRunner(context,helpers){
       ephemeralSenderFeedback:saved.report.reference.senderFeedback.length,
       senderOnlyFreshResponseCrop:!!saved.report.checks.senderFeedback?.senderOnly,noFeedbackOnReopen:true,
       actualLearningTabCaptured:true,learningPanelReadOnly:true,
+      passiveMeasurementNativeQA:true,passiveMeasurementChecks:[...priorMeasurementChecks,...measurementChecks],
       ...(context.responseScenario?{
         modelCandidatePermutationEquivariant:true,
         postSecondPrivateModelExportPersistedExact:true,
@@ -444,6 +569,8 @@ function installRunner(context,helpers){
   }
   async function closeNormally(win){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Engineering fixture must never start an independent wall-clock loop');
+    await fs.writeFile(path.join(context.output,phase+'-measurement-checks.json'),
+      JSON.stringify({phase,checks:measurementChecks},null,2));
     await session.defaultSession.flushStorageData();await delay(100);
     const lifecycle=[],done=new Promise(resolve=>win.once('closed',()=>{lifecycle.push('closed');closed=true;resolve();}));
     win.once('close',()=>lifecycle.push('close'));win.close();await done;
