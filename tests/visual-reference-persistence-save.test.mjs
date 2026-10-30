@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {createOzarkState,loadOzarkSave,writeOzarkSave,getOzarkSaveFailure,OZARK_SAVE_KEY} from '../src/ozark-save.js';
 import {createReferenceRandomStream,createReferenceSymbolInventory} from '../src/visual-reference-random.js';
+import {VISUAL_REFERENCE_MEMORY_LIMITS} from '../src/visual-reference-memory.js';
 import {validateCharacterPersistence} from '../src/visual-reference-save.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
 import {markVisualReferenceAttached} from '../src/visual-reference-save-registration.js';
@@ -27,6 +28,26 @@ function learned(state){
   section.random={pair:0,target:0xffffffff,order:42,choice:0x9e3779b9};
   return persistence;
 }
+function changeAssignedAnchorSymbol(row){
+  const anchor=row.visualReference.learners[0].anchors[0];
+  const original=anchor.symbol;
+  anchor.symbol=(original+1)%VISUAL_REFERENCE_MEMORY_LIMITS.symbols;
+  assert.notEqual(anchor.symbol,original,'The replacement stays in range and changes the assigned symbol');
+}
+function changePartnerSymbolToUnretainedAnchor(row){
+  const listener=row.visualReference.learners[1],partner=listener.partners[0];
+  const owner=row.visualReference.learners.find(learner=>learner.agentId===partner.agentId);
+  assert(owner,'The partner entry has a retained owner');
+  const retained=new Set(owner.anchors.map(anchor=>anchor.symbol));
+  const symbol=Array.from({length:VISUAL_REFERENCE_MEMORY_LIMITS.symbols},(_,index)=>index)
+    .find(candidate=>!retained.has(candidate));
+  assert(Number.isInteger(symbol),'An in-range unretained symbol exists');
+  const entry=partner.entries[0],original=entry.symbol;
+  assert(retained.has(original),'The original entry is grounded in a retained anchor');
+  entry.symbol=symbol;
+  assert.notEqual(entry.symbol,original,'The replacement removes the entry\'s anchor grounding');
+}
+function differentWorldId(id){return (id[0]==='0'?'1':'0')+id.slice(1);}
 
 test('unique world lineage and strict complete learner data survive exact schema-12 save/reopen',()=>{
   const disk=storage(),state=createOzarkState(geometry),other=createOzarkState(geometry);
@@ -102,9 +123,12 @@ test('quoted JSON-like contents are not keys and the historical v1 slot remains 
 });
 
 test('malformed, partial, unsupported and cross-world learner bytes protect the occupied save',()=>{
-  const disk=storage(),state=createOzarkState(geometry),extension=learned(state);
+  const disk=storage(),state=createOzarkState(geometry,{communicationSeed:2}),extension=learned(state);
   assert.equal(writeOzarkSave(disk,state,geometry,{referencePersistence:extension}),true);
-  const original=JSON.parse(disk.getItem(OZARK_SAVE_KEY));
+  const originalBytes=disk.getItem(OZARK_SAVE_KEY),original=JSON.parse(originalBytes);
+  assert.equal(original.visualReference.learners[0].anchors[0].symbol,63,
+    'Declared seed 2 exercises the former hardcoded-symbol no-op boundary');
+  assert.equal(original.visualReference.learners[1].partners[0].entries[0].symbol,63);
   const mutations=[
     row=>{delete row.visualReference;},
     row=>{delete row.worldLineage;},
@@ -113,7 +137,7 @@ test('malformed, partial, unsupported and cross-world learner bytes protect the 
     row=>{row.characterMessages=null;},
     row=>{row.characterMessages.version=3;},
     row=>{row.characterMessages.protocol='unsupported-sequence-rng';},
-    row=>{row.characterMessages.worldId=crypto.randomUUID();},
+    row=>{row.characterMessages.worldId=differentWorldId(row.characterMessages.worldId);},
     row=>{row.characterMessages.random.pair=-1;},
     row=>{delete row.characterMessages.random.order;},
     row=>{row.characterMessages.learners[0].serial++;},
@@ -132,23 +156,25 @@ test('malformed, partial, unsupported and cross-world learner bytes protect the 
     row=>{row.worldLineage.unrecognized=true;},
     row=>{row.worldLineage.agents[0].serial=row.worldLineage.agents[1].serial;},
     row=>{row.worldLineage.nextSerial=1;},
-    row=>{row.visualReference.worldId=crypto.randomUUID();},
+    row=>{row.visualReference.worldId=differentWorldId(row.visualReference.worldId);},
     row=>{row.visualReference.learners[1].serial++;},
     row=>{delete row.visualReference.learners[0].serial;},
     row=>{row.visualReference.random.choice=-1;},
-    row=>{row.visualReference.learners[0].anchors[0].symbol=63;},
+    changeAssignedAnchorSymbol,
     row=>{row.visualReference.learners[0].anchors[0].features[0]=NaN;},
     row=>{row.visualReference.learners[1].partners[0].serial++;},
     row=>{row.visualReference.learners[1].partners[0].entries[0].support=1;},
     row=>{row.visualReference.learners[1].partners[0].entries[0].examples.push(flat(.14));},
-    row=>{row.visualReference.learners[1].partners[0].entries[0].symbol=63;},
+    changePartnerSymbolToUnretainedAnchor,
     row=>{row.visualReference.learners[1].partners[0].entries[0].conflicted=true;},
     row=>{row.visualReference.learners[0].anchors=Array(17).fill(row.visualReference.learners[0].anchors[0]);},
     row=>{row.visualReference.learners[1].partners[0].entries.push(structuredClone(row.visualReference.learners[1].partners[0].entries[0]));},
   ];
   for(const [index,mutate] of mutations.entries()){
     const damaged=structuredClone(original);mutate(damaged);
-    const bytes=JSON.stringify(damaged);disk.setItem(OZARK_SAVE_KEY,bytes);
+    const bytes=JSON.stringify(damaged);
+    assert.notEqual(bytes,originalBytes,`mutation ${index} must alter the occupied bytes`);
+    disk.setItem(OZARK_SAVE_KEY,bytes);
     const opened=loadOzarkSave(disk,geometry);
     assert.equal(opened.blocked,true,`mutation ${index}`);
     assert.equal(opened.state,null);
@@ -159,6 +185,22 @@ test('malformed, partial, unsupported and cross-world learner bytes protect the 
   disk.setItem(OZARK_SAVE_KEY,oversized);
   assert.equal(loadOzarkSave(disk,geometry).blocked,true);
   assert.equal(disk.getItem(OZARK_SAVE_KEY),oversized);
+});
+
+test('in-range symbol corruption stays distinct at the maximum and an ordinary explicit seed',()=>{
+  for(const [seed,firstSymbol] of [[2,63],[211,43]]){
+    const original=learned(createOzarkState(geometry,{communicationSeed:seed}));
+    assert.equal(original.visualReference.learners[0].anchors[0].symbol,firstSymbol);
+    assert.deepEqual(validateCharacterPersistence(original),original);
+    for(const [mutate,expectedError] of [
+      [changeAssignedAnchorSymbol,/assigned symbol inventory/],
+      [changePartnerSymbolToUnretainedAnchor,/partner symbol evidence/],
+    ]){
+      const damaged=structuredClone(original);mutate(damaged);
+      assert.notDeepEqual(damaged,original,'The explicit-seed corruption must change the payload');
+      assert.throws(()=>validateCharacterPersistence(damaged),expectedError);
+    }
+  }
 });
 
 test('only an exactly absent v2 section may migrate; present partial data cannot be made fresh',()=>{
