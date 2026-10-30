@@ -180,8 +180,42 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     else if(outcome.outcome==='capacity-conflict')metrics.conflicts++;
     else metrics.correctionAbstentions++;
   }
+  // A physical action can finish in tickNpc and then lose its transaction to
+  // the same tick's survival decision, before the ordinary afterTick hook. The
+  // non-consuming success receipt is evidence for observer counts only. It
+  // is checked against the duration captured at action start, not mutable
+  // active fields. It never grants a permit, settles a trajectory, or changes
+  // learner timing.
+  function reconcilePaidCompletion(t){
+    if(!measurement)return;
+    for(const [active,seconds,counted,unavailable,completed,unknown,type] of [
+      [t.choiceActive,t.choiceSeconds,'inspectionCompletionCounted','inspectionOutcomeUnavailable',
+        'paidInspectionCompletions','paidInspectionOutcomeUnavailable','inspect_object'],
+      [t.responseActive,t.responseSeconds,'replyCompletionCounted','replyOutcomeUnavailable',
+        'paidReplyCompletions','paidReplyOutcomeUnavailable','indicate_object'],
+    ]){
+      if(!active||t[counted]||t[unavailable])continue;
+      const owner=t.receiver,identity=t.receiverIdentity;
+      const intact=owner===identity.actor&&owner.epoch===identity.epoch&&
+        owner.discovery===identity.discovery&&owner.physiology===identity.physiology;
+      const proof=intact?successfulDiscoveryActionCompletion(owner,active):null;
+      if(proof?.type===type&&proof.targetId===t.selectedId&&
+          Number.isFinite(seconds)&&seconds>0&&Number.isFinite(proof.worked)&&
+          Math.abs(proof.worked-seconds)<=1e-8&&
+          Number.isSafeInteger(proof.eventId)&&proof.eventId>0){
+        // The old actor's exact success witness survives an object replacement.
+        t[counted]=true;measurement.count(completed);continue;
+      }
+      if(!intact||!state.agents.includes(owner)||identities.get(owner)!==t.receiverMemory){
+        // A started action with no verifiable witness after identity loss has
+        // an unknown outcome, regardless of its raw completedWork fields.
+        t[unavailable]=true;measurement.count(unknown);
+      }
+    }
+  }
   function finishResponse(t,status,reason,crop=null){
     if(t.terminal)return;
+    reconcilePaidCompletion(t);
     if(protocol==='sequence'){
       if(crop){
         measurement.count(status==='matched'?'visualMatches':'visualMismatches');
@@ -215,6 +249,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   }
   function finish(t,status,reason){
     if(t.terminal)return;
+    reconcilePaidCompletion(t);
     if(t.demonstrationCompleted){finishResponse(t,'censored',reason);return;}
     if(protocol==='sequence')t.senderMemory.character.cancelMessage(t.messageHandle);
     retireIndicationPermit(t.permit);
@@ -267,12 +302,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   function maintain(){
     syncIdentities();
     for(const t of [...sessions]){
+      reconcilePaidCompletion(t);
       const invalid=current(t);if(invalid){finish(t,'censored',invalid);continue;}
       if(t.stage==='choice'&&t.choiceActive&&t.receiver.active!==t.choiceActive){
         const proof=discoveryActionCompletion(t.receiver,t.choiceActive);
         if(!proof||proof.type!=='inspect_object'||proof.targetId!==t.selectedId){finish(t,'censored','choice-interrupted');continue;}
-        if(successfulDiscoveryActionCompletion(t.receiver,t.choiceActive))
-          measurement?.count('paidInspectionCompletions');
         const permit=createIndicationPermit(t.sender,t.receiver,t.choiceActive,t.targetId);
         if(!permit){finish(t,'censored','choice-not-canonical-success');continue;}
         t.permit=permit;t.stage='awaiting-indication';t.event.status=t.stage;t.event.selectedActionId=proof.eventId;
@@ -289,7 +323,6 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       if(t.stage==='responding'&&t.responseActive&&t.receiver.active!==t.responseActive){
         const proof=successfulDiscoveryActionCompletion(t.receiver,t.responseActive);
         if(!proof||proof.type!=='indicate_object'||Math.abs(proof.worked-1.8)>1e-8){finish(t,'censored','response-interrupted');continue;}
-        measurement?.count('paidReplyCompletions');
         t.event.responseActionId=proof.eventId;
         if(t.responseContiguous+1e-8<REFERENCE_LIMITS.observationSeconds){finish(t,'censored','response-not-observed');continue;}
         const crop=t.responseCrop;
@@ -458,7 +491,9 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),
         auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,
         intendedFeatures:Object.freeze(target.other.features.slice()),choiceRequest:action,stage:'choice',startedAt:state.elapsed,
-        event,terminal:false,contiguous:0,observedId:null,responseContiguous:0,responseObservedId:null};
+        event,terminal:false,inspectionCompletionCounted:false,replyCompletionCounted:false,
+        inspectionOutcomeUnavailable:false,replyOutcomeUnavailable:false,
+        contiguous:0,observedId:null,responseContiguous:0,responseObservedId:null};
       sessions.add(t);busy.set(sender,t);busy.set(receiver,t);actions.set(action,t);cooldowns.set(receiver,receiver.elapsed);metrics.exchanges++;
       if(measurement){measurement.count('emissions');measurement.retain(event);}
       else{events.push(event);if(events.length>REFERENCE_LIMITS.maxEvents)events.shift();}
@@ -478,7 +513,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         const result=requestNpcIndication(n,t.responsePermit,state.environment,{onPaid:work=>{try{observeResponsePaid(t,work);}catch{finish(t,'censored','response-observer-error');}}});
         if(result?.code!=='ACTION_STARTED'){finish(t,'censored','response-start-rejected');return result;}
         measurement?.count('paidReplyStarts');
-        t.responseActive=n.active;return result;
+        t.responseActive=n.active;t.responseSeconds=n.active.seconds;return result;
       }
       return null;
     },
@@ -486,7 +521,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       const t=actions.get(action);if(!t||t.terminal||n!==t.receiver||action!==t.choiceRequest)return;
       if(result?.code!=='ACTION_STARTED'||!active){finish(t,'censored','choice-start-rejected');return;}
       measurement?.count('paidInspectionStarts');
-      t.choiceActive=active;
+      t.choiceActive=active;t.choiceSeconds=active.seconds;
     },
   };
   function exportPersistence(){

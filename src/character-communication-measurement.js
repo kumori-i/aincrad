@@ -5,7 +5,8 @@ export const CHARACTER_MEASUREMENT_LIMITS=Object.freeze({eventRows:256,censorRea
 
 const KEYS=Object.freeze([
   'optionalChecks','feasibleOpportunities','emissions','paidInspectionStarts',
-  'paidInspectionCompletions','paidReplyStarts','paidReplyCompletions',
+  'paidInspectionCompletions','paidInspectionOutcomeUnavailable',
+  'paidReplyStarts','paidReplyCompletions','paidReplyOutcomeUnavailable',
   'canonicalDemonstrations','criticCorrect',
   'validListenerDemonstrations','ambiguousListenerLabels','rejectedListenerLabels',
   'listenerReplayUses','listenerOptimizerSteps','visualMatches','visualMismatches',

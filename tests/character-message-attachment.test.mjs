@@ -7,6 +7,7 @@ import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction,collapseNpc} from '../src/npc.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
+import {successfulDiscoveryActionCompletion} from '../src/discovery-actions.js';
 import {senseReferenceObjects} from '../src/visual-reference-perception.js';
 import {createFreshCharacterMessages} from '../src/visual-reference-save.js';
 import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
@@ -43,6 +44,26 @@ function fixture({seed=211,listenerOffset=0,attach=attachVisualReferenceLearning
     attachment.afterTick();
   };
   const advance=seconds=>{for(let i=0;i<Math.round(seconds/CONFIG.fixedStep);i++)step();};
+  function completeBeforeAfterTick(actor){
+    const active=actor.active;
+    assert.equal(active?.kind,'interaction');
+    let ticks=0;
+    while(actor.active===active&&active.worked+CONFIG.fixedStep+1e-8<active.seconds){
+      step();
+      assert(++ticks<180,'Paid action must finish within its bounded duration');
+    }
+    assert.equal(actor.active,active,'The final physical tick has not yet run');
+    attachment.beforeTick();state.elapsed+=CONFIG.fixedStep;
+    for(const member of state.agents)tickNpc(member,CONFIG.fixedStep,state.environment);
+    assert.notEqual(actor.active,active,'The physical action finished before afterTick');
+    const proof=successfulDiscoveryActionCompletion(actor,active);
+    assert(proof&&Number.isSafeInteger(proof.eventId)&&proof.eventId>0,
+      'The original actor has an authentic non-consuming success receipt');
+    assert.equal(proof.type,active.request.type);
+    assert.equal(proof.targetId,active.request.targetId);
+    assert(Math.abs(proof.worked-active.seconds)<1e-8);
+    return {active,proof};
+  }
   function begin(){
     const action=attachment.hooks.optionalAction(listener);
     assert.equal(action?.type,'inspect_object');
@@ -74,7 +95,7 @@ function fixture({seed=211,listenerOffset=0,attach=attachVisualReferenceLearning
     advance(2);
     return attachment.snapshot();
   }
-  return {state,sender,listener,pixelSensor,attachment,step,advance,begin,demonstrate,
+  return {state,sender,listener,pixelSensor,attachment,step,advance,completeBeforeAfterTick,begin,demonstrate,
     beginResponse,respond,event};
 }
 
@@ -184,12 +205,119 @@ test('an interrupted paid inspection is an attempt, not a completed choice or wr
   const measure=f.attachment.measurementSnapshot();
   assert.equal(measure.counts.paidInspectionStarts,1);
   assert.equal(measure.counts.paidInspectionCompletions,0);
+  assert.equal(measure.counts.paidInspectionOutcomeUnavailable,0);
   assert.equal(measure.counts.originalCensors,1);
   assert.equal(measure.counts.canonicalDemonstrations,0);
   assert.equal(measure.counts.criticCorrect,0);
   assert(measure.reasons.some(row=>row.kind==='original'&&row.reason==='choice-interrupted'));
   f.attachment.dispose();
 });
+
+for(const kind of ['inspection','reply'])for(const ending of ['priority','invalid-current'])
+  test(`a completed paid ${kind} counts once before ${ending} censors learning`,()=>{
+    const f=fixture();f.begin();
+    if(kind==='reply'){f.demonstrate();f.beginResponse();}
+    const senderBefore=senderData(f.attachment),listenerBefore=listenerData(f.attachment);
+    const {active,proof}=f.completeBeforeAfterTick(f.listener);
+    assert.equal(proof.type,kind==='inspection'?'inspect_object':'indicate_object');
+    assert.equal(proof.targetId,active.request.targetId);
+    if(ending==='priority')f.attachment.hooks.decision(f.listener,{need:'water'});
+    else{f.listener.position.x+=1;f.attachment.afterTick();}
+    const key=kind==='inspection'?'paidInspectionCompletions':'paidReplyCompletions';
+    const unknown=kind==='inspection'?'paidInspectionOutcomeUnavailable':'paidReplyOutcomeUnavailable';
+    let measure=f.attachment.measurementSnapshot();
+    assert.equal(measure.counts[key],1,'The physical success receipt is counted before terminal censorship');
+    assert.equal(measure.counts[unknown],0);
+    assert.equal(measure.counts.originalCensors,kind==='inspection'?1:0);
+    assert.equal(measure.counts.responseCensors,kind==='reply'?1:0);
+    assert.equal(measure.counts.canonicalDemonstrations,kind==='reply'?1:0);
+    assert.equal(measure.counts.validListenerDemonstrations,kind==='reply'?1:0);
+    assert.equal(measure.counts.senderUpdates,0);
+    assert(measure.reasons.some(row=>row.kind===(kind==='inspection'?'original':'response')&&
+      row.reason===(ending==='priority'?'priority-decision':'identity-or-position-changed')));
+    assert.deepEqual(senderData(f.attachment),senderBefore,'Censoring cannot settle a sender trajectory');
+    assert.deepEqual(listenerData(f.attachment),listenerBefore,'The completed action cannot add a second listener update');
+    f.attachment.afterTick();f.attachment.beforeTick();f.attachment.censorPending();
+    f.attachment.dispose();f.attachment.dispose();
+    measure=f.attachment.measurementSnapshot();
+    assert.equal(measure.counts[key],1,'Repeated reconciliation and disposal never recount the receipt');
+    assert.equal(measure.counts[unknown],0);
+  });
+
+test('owner replacement after a proven completion retains the original receipt once',()=>{
+  const f=fixture();f.begin();
+  const {active}=f.completeBeforeAfterTick(f.listener);
+  assert(successfulDiscoveryActionCompletion(f.listener,active));
+  f.state.agents[1]={...f.listener};
+  f.attachment.beforeTick();f.attachment.afterTick();
+  const measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.paidInspectionCompletions,1);
+  assert.equal(measure.counts.paidInspectionOutcomeUnavailable,0);
+  assert.equal(measure.counts.originalCensors,1);
+  assert.equal(measure.counts.canonicalDemonstrations,0);
+  assert.equal(measure.eventsRetired,1);
+  assert.deepEqual(measure.events,[]);
+  f.attachment.dispose();
+});
+
+test('owner replacement without an authentic receipt records uncertainty, not a fabricated completion',()=>{
+  const f=fixture();f.begin();
+  const active=f.listener.active;
+  f.advance(.3);
+  assert.equal(successfulDiscoveryActionCompletion(f.listener,active),null);
+  f.state.agents[1]={...f.listener};
+  assert.equal(successfulDiscoveryActionCompletion(f.state.agents[1],active),null,
+    'A copied actor cannot inherit the old action witness');
+  f.attachment.beforeTick();f.attachment.afterTick();f.attachment.censorPending();
+  const measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.paidInspectionStarts,1);
+  assert.equal(measure.counts.paidInspectionCompletions,0);
+  assert.equal(measure.counts.paidInspectionOutcomeUnavailable,1);
+  assert.equal(measure.counts.canonicalDemonstrations,0);
+  assert.equal(measure.counts.originalCensors,1);
+  assert.equal(measure.eventsRetired,1);
+  f.attachment.dispose();
+  assert.equal(f.attachment.measurementSnapshot().counts.paidInspectionOutcomeUnavailable,1);
+});
+
+for(const kind of ['inspection','reply'])
+  test(`an epoch change after completed ${kind} work makes its outcome unavailable`,()=>{
+    const f=fixture();f.begin();
+    if(kind==='reply'){f.demonstrate();f.beginResponse();}
+    const {active}=f.completeBeforeAfterTick(f.listener);
+    assert(successfulDiscoveryActionCompletion(f.listener,active));
+    f.listener.epoch++;
+    assert.equal(successfulDiscoveryActionCompletion(f.listener,active),null,
+      'The raw completed work cannot certify success after the owner epoch changes');
+    f.attachment.afterTick();f.attachment.beforeTick();
+    const measure=f.attachment.measurementSnapshot();
+    const completed=kind==='inspection'?'paidInspectionCompletions':'paidReplyCompletions';
+    const unknown=kind==='inspection'?'paidInspectionOutcomeUnavailable':'paidReplyOutcomeUnavailable';
+    assert.equal(measure.counts[completed],0);
+    assert.equal(measure.counts[unknown],1);
+    assert.equal(measure.counts.originalCensors,kind==='inspection'?1:0);
+    assert.equal(measure.counts.responseCensors,kind==='reply'?1:0);
+    assert.equal(measure.counts.senderUpdates,0);
+    f.attachment.dispose();
+    assert.equal(f.attachment.measurementSnapshot().counts[unknown],1);
+  });
+
+for(const kind of ['inspection','reply'])
+  test(`disposal immediately after physical ${kind} completion counts its receipt once`,()=>{
+    const f=fixture();f.begin();
+    if(kind==='reply'){f.demonstrate();f.beginResponse();}
+    const {active}=f.completeBeforeAfterTick(f.listener);
+    assert(successfulDiscoveryActionCompletion(f.listener,active));
+    f.attachment.dispose();f.attachment.dispose();
+    const measure=f.attachment.measurementSnapshot();
+    const completed=kind==='inspection'?'paidInspectionCompletions':'paidReplyCompletions';
+    const unknown=kind==='inspection'?'paidInspectionOutcomeUnavailable':'paidReplyOutcomeUnavailable';
+    assert.equal(measure.counts[completed],1);
+    assert.equal(measure.counts[unknown],0);
+    assert.equal(measure.counts.originalCensors,kind==='inspection'?1:0);
+    assert.equal(measure.counts.responseCensors,kind==='reply'?1:0);
+    assert.equal(measure.counts.senderUpdates,0);
+  });
 
 test('a second physical demonstration counts one new experience and prior replay separately',()=>{
   const f=fixture();f.begin();f.demonstrate();f.respond('match');
@@ -396,4 +524,45 @@ test('repeated snapshot, legacy feedback reads and strict saves cannot draw or t
   assert.equal(f.attachment.snapshot().pending,0);
   assert.deepEqual(senderData(f.attachment).model,before.learners[0].sender.model);
   f.attachment.dispose();
+});
+
+test('disabling only passive measurement preserves full world, model, replay and RNG continuation',async()=>{
+  const source=await readFile(new URL('../src/visual-reference-attachment.js',import.meta.url),'utf8');
+  const declaration="const measurement=protocol==='sequence'?createCharacterCommunicationMeasurement({eventRows:REFERENCE_LIMITS.maxEvents}):null;";
+  assert(source.includes(declaration),'The observer-only source intervention must match the exact declaration');
+  const isolated=source.replace(declaration,'const measurement=null;')
+    .replaceAll('measurement.count(','measurement?.count(')
+    .replace(/from '(\.\/[^']+)'/g,(_all,path)=>
+      `from '${new URL(path,new URL('../src/visual-reference-attachment.js',import.meta.url)).href}'`);
+  const {attachVisualReferenceLearning:withoutMeasurement}=await import(
+    `data:text/javascript;base64,${Buffer.from(isolated).toString('base64')}`);
+  const normalizeWorldId=value=>{
+    const copy=structuredClone(value),worldId=copy.worldLineage.instanceId;
+    const walk=node=>{
+      if(!node||typeof node!=='object')return;
+      for(const [key,part] of Object.entries(node)){
+        if((key==='instanceId'||key==='worldId')&&part===worldId)node[key]='same-world';
+        else walk(part);
+      }
+    };
+    walk(copy);return copy;
+  };
+  const rows=[];
+  for(const attach of [attachVisualReferenceLearning,withoutMeasurement]){
+    const f=fixture({attach});
+    f.begin();f.demonstrate();f.respond('mismatch');
+    const first=f.attachment.snapshot().latest;
+    assert.equal(first.feedbackStatus,'mismatched');
+    f.pixelSensor.senderOverrides.clear();f.advance(12.2);f.begin();
+    const second=f.attachment.snapshot().latest;
+    rows.push({worldId:f.state.worldLineage.instanceId,
+      messages:[first.message,second.message],
+      outcomes:[first.listenerUpdate,first.senderUpdate,first.feedbackStatus],
+      state:normalizeWorldId(f.state),
+      persistence:normalizeWorldId(f.attachment.exportPersistence())});
+    f.attachment.dispose();
+  }
+  assert.notEqual(rows[0].worldId,rows[1].worldId,'Fresh fixture worlds retain independent lineages');
+  for(const key of ['messages','outcomes','state','persistence'])
+    assert.deepEqual(rows[0][key],rows[1][key],`${key} must not depend on passive measurement`);
 });

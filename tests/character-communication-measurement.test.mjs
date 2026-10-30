@@ -6,7 +6,8 @@ import {
 
 const keys=[
   'optionalChecks','feasibleOpportunities','emissions','paidInspectionStarts',
-  'paidInspectionCompletions','paidReplyStarts','paidReplyCompletions',
+  'paidInspectionCompletions','paidInspectionOutcomeUnavailable',
+  'paidReplyStarts','paidReplyCompletions','paidReplyOutcomeUnavailable',
   'canonicalDemonstrations','criticCorrect',
   'validListenerDemonstrations','ambiguousListenerLabels','rejectedListenerLabels',
   'listenerReplayUses','listenerOptimizerSteps','visualMatches','visualMismatches',
@@ -25,8 +26,10 @@ test('fixed session counters have distinct denominators and saturate without ove
   assert.equal(measurement.count('emissions'),true);
   assert.equal(measurement.count('paidInspectionStarts'),true);
   assert.equal(measurement.count('paidInspectionCompletions'),true);
+  assert.equal(measurement.count('paidInspectionOutcomeUnavailable'),true);
   assert.equal(measurement.count('paidReplyStarts'),true);
   assert.equal(measurement.count('paidReplyCompletions'),true);
+  assert.equal(measurement.count('paidReplyOutcomeUnavailable'),true);
   assert.equal(measurement.count('canonicalDemonstrations'),true);
   assert.equal(measurement.count('validListenerDemonstrations'),true);
   assert.equal(measurement.count('listenerReplayUses',3),true);
@@ -34,6 +37,8 @@ test('fixed session counters have distinct denominators and saturate without ove
   const counts=measurement.snapshot().counts;
   assert.equal(counts.optionalChecks,3);
   assert.equal(counts.feasibleOpportunities,1);
+  assert.equal(counts.paidInspectionOutcomeUnavailable,1);
+  assert.equal(counts.paidReplyOutcomeUnavailable,1);
   assert.equal(counts.criticCorrect,0,'A demonstration is not assumed correct');
   assert.equal(counts.listenerReplayUses,3);
   assert.equal(counts.listenerOptimizerSteps,1);

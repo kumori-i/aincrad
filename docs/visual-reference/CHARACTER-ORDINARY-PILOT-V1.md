@@ -107,7 +107,10 @@ Report, overall and by sender/listener where available:
    `validListenerDemonstrations`, `ambiguousListenerLabels`,
    `rejectedListenerLabels` and `listenerOptimizerSteps`.
    `paidInspectionCompletions` requires a successful inspection receipt; even
-   that can occur without a canonical demonstration.
+   that can occur without a canonical demonstration. Reconcile this physical
+   receipt before a same-tick priority or visibility censor. A started action
+   whose outcome cannot be verified after owner identity loss is counted in
+   `paidInspectionOutcomeUnavailable`, never as a completed inspection.
 3. `validListenerDemonstrations` as unique valid physical examples,
    `listenerReplayUses` as uses of earlier examples, and retained partner-bank
    examples as separate quantities. A replay use is not a new experience.
@@ -116,6 +119,9 @@ Report, overall and by sender/listener where available:
    `responseCensors`, with bounded stage/reason detail. Visual comparisons
    occur before sender settlement; they must not be reported as updates.
    Ambiguous gray-zone feedback is a response censor reason, not a mismatch.
+   `paidReplyOutcomeUnavailable` separately records started reply actions whose
+   physical outcome cannot be verified after owner identity loss. Valid old
+   actor receipts still count if replacement occurs after physical completion.
 5. Completed, canonically demonstrated listener choices with a boolean
    **observer-only** critic result: numerator = `criticCorrect`; denominator =
    `canonicalDemonstrations`; critic-incorrect = denominator minus numerator.
