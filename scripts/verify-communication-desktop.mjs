@@ -174,10 +174,16 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       noteCounts:[...row.querySelectorAll('p')].slice(3).map(note=>Number(note.textContent.match(/ · count (\d+)$/)?.[1])),
     }))};
   }
+  async function checkpointPausedObserver(win) {
+    assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().paused'),true,'Observer UI proof never advances a paused clock');
+    // The normal timer still autosaves while paused. Flush the frozen world before
+    // reading its byte baseline so a later timer save writes the same bytes.
+    assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true,'Paused observer audit checkpoints ordinary saved bytes');
+  }
   async function auditSurvivalObserver(win,name,empty=false) {
     const full=()=>evaluate(win,'window.__ozarkWorld.fullSnapshot()'),observer=()=>evaluate(win,'window.__ozarkWorld.survivalSnapshot()');
+    await checkpointPausedObserver(win);
     const before=await full(),reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),saved=await raw(win),data=await observer();
-    assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().paused'),true,'Observer UI proof never advances a paused clock');
     const rendered=await evaluate(win,'('+presentSurvivalObserver.toString()+')()');
     assertSurvivalObserver(data,before,rendered,empty);
     if(!empty)assert(data.records.length>0,'Ordinary bounded interval produced actual diagnostic records, not successful-food evidence');

@@ -31,7 +31,25 @@ test('communication native preparation stays isolated and never claims native ex
     const sandbox={require:stub,process:{argv:['runner','--phase=exercise']},console,setTimeout:()=>1,clearTimeout(){}};
     const registration="require(path.join(context.application, 'desktop/main.cjs'));";
     assert(source.includes(registration));
-    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateCharacterDisclosure;globalThis.emptyMemoryAssert=assertFreshCharacterLearning;globalThis.observerAssert=assertSurvivalObserver;globalThis.observerReadOnlyAssert=assertObserverReadOnly;globalThis.presentObserver=presentSurvivalObserver;'+registration),sandbox);
+    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateCharacterDisclosure;globalThis.emptyMemoryAssert=assertFreshCharacterLearning;globalThis.observerAssert=assertSurvivalObserver;globalThis.observerReadOnlyAssert=assertObserverReadOnly;globalThis.presentObserver=presentSurvivalObserver;globalThis.checkpointPausedObserver=checkpointPausedObserver;'+registration),sandbox);
+    const checkpointCall='await checkpointPausedObserver(win);', baselineRead='const before=await full(),reference=';
+    assert(source.includes(checkpointCall) && source.includes(baselineRead));
+    assert(source.indexOf(checkpointCall)<source.indexOf(baselineRead),'Normal save must precede the read-only byte baseline');
+    const disk={saved:'{"elapsed":4.499999999999989}'},current='{"elapsed":12.83333333333355}',stale=disk.saved,calls=[];
+    const auditWindow={webContents:{executeJavaScript(code){
+      calls.push(code);
+      if(code==='window.__ozarkWorld.snapshot().paused')return true;
+      if(code==='window.__ozarkWorld.save()'){disk.saved=current;return true;}
+      throw Error('Unexpected audit expression: '+code);
+    }}};
+    await sandbox.checkpointPausedObserver(auditWindow);
+    assert.deepEqual(calls,['window.__ozarkWorld.snapshot().paused','window.__ozarkWorld.save()']);
+    const checkpoint=disk.saved;assert.notEqual(checkpoint,stale,'The paused world had newer state than the last autosave');
+    disk.saved=current;assert.equal(disk.saved,checkpoint,'A later legitimate paused autosave preserves the byte baseline');
+    await assert.rejects(sandbox.checkpointPausedObserver({webContents:{executeJavaScript(code){return code.includes('paused')?true:false;}}}),
+      {code:'ERR_ASSERTION'},'A failed ordinary checkpoint cannot start a read-only audit');
+    await assert.rejects(sandbox.checkpointPausedObserver({webContents:{executeJavaScript(){return false;}}}),
+      {code:'ERR_ASSERTION'},'An advancing world cannot start the paused audit');
     // Execute the actual generated helper against current rendered observer text.
     // This small DOM contract is not native rendering evidence.
     class Node {
