@@ -26,8 +26,26 @@ test('character-message native preparation is isolated, sandbox-preserving and n
     // Capture the actual generated helper, not a test reimplementation. It is
     // constructed outside installRunner and must retain its own assert binding.
     vm.runInNewContext(source.replace('// Production asset scheme and profile registration remain synchronous.',
-      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;globalThis.assertRetainedLearning=assertRetainedLearning;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
+      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;globalThis.assertRetainedLearning=assertRetainedLearning;globalThis.readPureMeasurement=readPureMeasurement;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
     assert.equal(loaded.length,1,'Production scheme/profile registration remains synchronous');
+    for(const changedField of ['world','reference','character','saved']){
+      const state={world:{elapsed:0},reference:{seed:211},character:{rng:7},saved:'unchanged'};
+      let calls=0;
+      sandbox.window={__ozarkWorld:{fullSnapshot:()=>state.world,communicationSnapshot:()=>state.reference,
+        communicationMeasurementSnapshot(){if(calls++===0){
+          if(changedField==='world')state.world.elapsed++;
+          if(changedField==='reference')state.reference.seed++;
+          if(changedField==='character')state.character.rng++;
+          if(changedField==='saved')state.saved='changed';
+        }return {counts:{emissions:0}};}},
+      __visualReferenceFixture:{characterExport:()=>state.character}};
+      sandbox.localStorage={getItem:()=>state.saved};
+      const observed=vm.runInNewContext('readPureMeasurement()',sandbox);
+      assert.equal(calls,2,'Native measurement helper must read the observer twice');
+      for(const [field,flag]of [['world','worldUnchanged'],['reference','referenceUnchanged'],
+        ['character','characterUnchanged'],['saved','savedBytesUnchanged']])
+        assert.equal(observed[flag],changedField!==field,'Observer mutation must be detected for '+field);
+    }
     const calls=[],nodes={
       'npc-panel':{classList:{contains:()=>!nodes.visible},dataset:{journalTab:'character'}},
       'open-npc':{click(){calls.push('open');nodes.visible=true;}},
@@ -92,6 +110,8 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       'second-listener-label-audit.json','secondListenerPhysicalDemonstrations',
       'characterMessages','modelStateSha256','[data-character-message="true"]',
       '04b0-exact-message-and-paid-recipient-action.png',
+      'communicationMeasurementSnapshot()','paidInspectionCompletions','own-view-demonstration',
+      'after-checkpoint','after-interruption','first-reopen','second-reopen','passiveMeasurementNativeQA',
       'Copied original paid inspection receipt cannot create a new indication permit',
       'Second independent reopen retains exact live model weights, counters and RNG states',
       'Opening Learning may change only observer selection, not the world','Learning open/capture/close leaves reference snapshot exact',
@@ -129,7 +149,8 @@ test('response lifecycle native preparation keeps a separate profile and three-p
       'assertRetainedLearning(reference,saved','no resurrected sender feedback',
       'Recorded sender feedback must agree with sender-only actual Canvas RMS',
       'no second sender update','second-listener-label-audit.json',
-      'secondListenerPhysicalDemonstrations','secondListenerOptimizerSteps','secondListenerReplayUses'])
+      'secondListenerPhysicalDemonstrations','secondListenerOptimizerSteps','secondListenerReplayUses',
+      'paid-reply-complete','visualMismatches','senderUpdates','second-pending'])
       assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
