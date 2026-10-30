@@ -30,6 +30,7 @@ function fixture(seed=211,{reverseTicks=false,differentViews=false,attach=attach
 test('original one-way pair admission draws each independent stream once without a favorable retry',()=>{
   const seed=212,f=fixture(seed),sender=f.state.agents[0],receiver=f.state.agents[1];
   try{
+    assert.equal(f.attachment.measurementSnapshot(),null,'Historical symbol fixtures retain their original observer shape');
     const senderSight=senseReferenceObjects(sender,f.state),receiverSight=senseReferenceObjects(receiver,f.state);
     assert.equal(senderSight.complete,true);assert.equal(receiverSight.complete,true);
     const before=f.attachment.exportPersistence().visualReference.random;

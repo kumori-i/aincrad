@@ -52,12 +52,13 @@ function fixture({seed=211,listenerOffset=0,attach=attachVisualReferenceLearning
     return action;
   }
   function demonstrate(){
+    const observedBefore=attachment.snapshot().observed;
     advance(2);
     const action=attachment.hooks.optionalAction(sender);
     assert.equal(action?.type,'indicate_object');
     assert.equal(attachment.hooks.performOptional(sender,action).code,'ACTION_STARTED');
     advance(2);
-    assert.equal(attachment.snapshot().observed,1);
+    assert.equal(attachment.snapshot().observed,observedBefore+1);
   }
   function beginResponse(){
     const action=attachment.hooks.optionalAction(listener);
@@ -100,6 +101,108 @@ test('sequence emission and paid own-view demonstration update only the private 
   assert.notDeepEqual(listenerAfter.model,listenerBefore.model);
   assert.deepEqual(f.attachment.exportPersistence().visualReference,legacy,
     'New sequence exchanges do not rewrite anchors, examples or four legacy streams');
+  f.attachment.dispose();
+});
+
+test('passive ordinary measurement separates optional checks, feasible pairs, paid receipts and critic denominator',()=>{
+  const f=fixture({seed:212}),before=f.attachment.exportPersistence();
+  f.listener.active={request:{type:'rest'}};
+  assert.equal(f.attachment.hooks.optionalAction(f.listener),null);
+  let measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.optionalChecks,1);
+  assert.equal(measure.counts.feasibleOpportunities,0);
+  assert.equal(measure.counts.emissions,0);
+  assert.deepEqual(f.attachment.exportPersistence(),before,'A rejected observer opportunity draws no model or policy RNG');
+  f.listener.active=null;
+  f.begin();
+  measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.optionalChecks,2);
+  assert.equal(measure.admissionGates.optional,2);
+  assert.equal(measure.admissionGateKeysOmitted,0);
+  assert.equal(measure.counts.feasibleOpportunities,1);
+  assert.equal(measure.counts.emissions,1);
+  assert.equal(measure.counts.paidInspectionStarts,1);
+  assert.equal(measure.counts.paidInspectionCompletions,0);
+  assert.equal(measure.counts.canonicalDemonstrations,0);
+  assert.equal(measure.events.length,1);
+  assert.equal(measure.events[0].message,f.event().message);
+  assert.equal(measure.events[0].senderPixels,undefined);
+  assert.equal(measure.events[0].targetId,undefined);
+  assert.equal(typeof measure.events[0].bodyAtEmission.sender.hunger,'string');
+  f.demonstrate();
+  measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.paidInspectionCompletions,1);
+  assert.equal(measure.counts.canonicalDemonstrations,1);
+  assert.equal(measure.counts.criticCorrect,0,'Seed 212 makes a wrong original paid choice');
+  assert.equal(measure.counts.validListenerDemonstrations,1);
+  assert.equal(measure.counts.listenerOptimizerSteps,1);
+  assert.equal(measure.counts.listenerReplayUses,0);
+  assert.equal(measure.counts.originalCensors,0);
+  assert.equal(measure.counts.responseCensors,0);
+  assert.equal(measure.counts.emissions,f.attachment.snapshot().exchanges);
+  assert.equal(measure.counts.canonicalDemonstrations,f.attachment.snapshot().observed);
+  assert.equal(measure.counts.criticCorrect,f.attachment.snapshot().correct);
+  f.respond('mismatch');
+  measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.visualMismatches,1);
+  assert.equal(measure.counts.visualMatches,0);
+  assert.equal(measure.counts.paidReplyStarts,1);
+  assert.equal(measure.counts.paidReplyCompletions,1);
+  assert.equal(measure.counts.senderUpdates,1);
+  assert.equal(measure.counts.responseCensors,0);
+  assert.equal(measure.events[0].feedbackStatus,'mismatched');
+  f.attachment.dispose();
+});
+
+test('ambiguous own-view label and interrupted reply stay outside the wrong-choice and sender-update counts',()=>{
+  const ambiguous=fixture();ambiguous.begin();ambiguous.pixelSensor.listenerOffset=.09;ambiguous.demonstrate();
+  const unclear=ambiguous.attachment.measurementSnapshot();
+  assert.equal(unclear.counts.canonicalDemonstrations,1);
+  assert.equal(unclear.counts.criticCorrect,Number(ambiguous.event().referenceCorrect));
+  assert.equal(unclear.counts.ambiguousListenerLabels,1);
+  assert.equal(unclear.counts.validListenerDemonstrations,0);
+  assert.equal(unclear.counts.listenerReplayUses,0);
+  ambiguous.attachment.dispose();
+
+  const interrupted=fixture();interrupted.begin();interrupted.demonstrate();interrupted.beginResponse();
+  cancelNpcAction(interrupted.listener,'TEST_INTERRUPTION');interrupted.advance(2);
+  const measure=interrupted.attachment.measurementSnapshot();
+  assert.equal(measure.counts.canonicalDemonstrations,1);
+  assert.equal(measure.counts.validListenerDemonstrations,1);
+  assert.equal(measure.counts.responseCensors,1);
+  assert.equal(measure.counts.originalCensors,0);
+  assert.equal(measure.counts.paidReplyStarts,1);
+  assert.equal(measure.counts.paidReplyCompletions,0);
+  assert.equal(measure.counts.senderUpdates,0);
+  assert(measure.reasons.some(row=>row.kind==='response'&&row.reason==='response-interrupted'));
+  interrupted.attachment.dispose();
+});
+
+test('an interrupted paid inspection is an attempt, not a completed choice or wrong critic result',()=>{
+  const f=fixture();f.begin();f.advance(.3);
+  cancelNpcAction(f.listener,'TEST_INTERRUPTION');f.step();
+  const measure=f.attachment.measurementSnapshot();
+  assert.equal(measure.counts.paidInspectionStarts,1);
+  assert.equal(measure.counts.paidInspectionCompletions,0);
+  assert.equal(measure.counts.originalCensors,1);
+  assert.equal(measure.counts.canonicalDemonstrations,0);
+  assert.equal(measure.counts.criticCorrect,0);
+  assert(measure.reasons.some(row=>row.kind==='original'&&row.reason==='choice-interrupted'));
+  f.attachment.dispose();
+});
+
+test('a second physical demonstration counts one new experience and prior replay separately',()=>{
+  const f=fixture();f.begin();f.demonstrate();f.respond('match');
+  f.pixelSensor.senderOverrides.clear();f.advance(12.2);
+  f.begin();f.demonstrate();
+  const measure=f.attachment.measurementSnapshot(),bank=listenerData(f.attachment);
+  assert.equal(measure.counts.validListenerDemonstrations,2);
+  assert.equal(measure.counts.listenerOptimizerSteps,2);
+  assert.equal(measure.counts.listenerReplayUses,1);
+  assert.equal(bank.demonstrations,2);
+  assert.equal(bank.replayUses,1);
+  assert.equal(bank.examples.length,2);
+  assert.equal(measure.events.at(-1).listenerReplayUses,1);
   f.attachment.dispose();
 });
 
@@ -224,9 +327,14 @@ test('timeout and owner/partner identity boundaries retire a pending sequence wi
     assert.equal(senderData(f.attachment).updates,0,ending);
     if(ending==='sender-collapse')assert.equal(listenerData(f.attachment).demonstrations,1,
       'The continuing listener retains its earned own-view learning');
-    if(ending.startsWith('partner-'))assert.equal(
-      snapshot.learners.find(row=>row.agentId==='mira').character.partnerBanks[0].trained,false,
-      'A replacement individual begins with an untrained partner bank');
+    if(ending.startsWith('partner-')){
+      assert.equal(snapshot.learners.find(row=>row.agentId==='mira').character.partnerBanks[0].trained,false,
+        'A replacement individual begins with an untrained partner bank');
+      const measure=f.attachment.measurementSnapshot();
+      assert.equal(measure.counts.emissions,1,'Aggregate session totals survive row retirement');
+      assert.equal(measure.eventsRetired,1,'An old incarnation cannot appear under a reused name');
+      assert.deepEqual(measure.events,[]);
+    }
     f.attachment.dispose();
   }
 });
@@ -247,6 +355,9 @@ test('pending sender trajectory is absent after strict save/reopen; completed li
   const restored=attachVisualReferenceLearning({state:reopened.state,pixelSensor:sensor,protocol:'sequence'});
   assert.equal(restored.snapshot().pending,0);
   assert.deepEqual(restored.snapshot().observationEvents,[]);
+  assert.equal(restored.measurementSnapshot().counts.emissions,0,'Session-only measurement restarts on reopen');
+  assert.equal(restored.measurementSnapshot().counts.validListenerDemonstrations,0);
+  assert.deepEqual(restored.measurementSnapshot().events,[]);
   assert.equal(listenerData(restored).demonstrations,1);
   assert.equal(senderData(restored).updates,0);
   assert.equal(senderData(restored).emissions,1);
@@ -259,11 +370,20 @@ test('pending sender trajectory is absent after strict save/reopen; completed li
 
 test('repeated snapshot, legacy feedback reads and strict saves cannot draw or train pending models',()=>{
   const f=fixture();f.begin();
-  const before=f.attachment.exportPersistence().characterMessages;
+  const before=f.attachment.exportPersistence().characterMessages,world=structuredClone(f.state);
   const values=new Map(),storage={getItem:key=>values.get(key)??null,
     setItem:(key,value)=>values.set(key,value)};
   for(let i=0;i<3;i++){
     const snapshot=f.attachment.snapshot();
+    const measurement=f.attachment.measurementSnapshot();
+    assert.equal(measurement.counts.emissions,1);
+    measurement.counts.emissions=999;
+    measurement.admissionGates.optional=999;
+    measurement.events[0].message='forged';
+    measurement.actors[0].body.hunger='forged';
+    assert.equal(f.attachment.measurementSnapshot().events[0].message,snapshot.latest.message,
+      'The compact measurement is a defensive copy');
+    assert.notEqual(f.attachment.measurementSnapshot().admissionGates.optional,999);
     assert.equal(snapshot.pending,1);
     assert.deepEqual(f.attachment.takeSenderFeedback(f.sender),[]);
     const exportNow=f.attachment.exportPersistence();
@@ -271,6 +391,7 @@ test('repeated snapshot, legacy feedback reads and strict saves cannot draw or t
     assert.equal(writeOzarkSave(storage,f.state,geometry,{referencePersistence:exportNow}),true);
     assert.deepEqual(f.attachment.exportPersistence().characterMessages,before);
   }
+  assert.deepEqual(f.state,world,'Observer projections and saves cannot mutate the running world');
   f.attachment.censorPending();
   assert.equal(f.attachment.snapshot().pending,0);
   assert.deepEqual(senderData(f.attachment).model,before.learners[0].sender.model);

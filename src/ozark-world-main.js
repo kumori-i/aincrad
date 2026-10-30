@@ -556,6 +556,21 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
+    communicationMeasurementSnapshot: () => {
+      if(location.search!=='?test=1')return null;
+      const measurement=communicationLearning?.measurementSnapshot();
+      if(!measurement)return null;
+      return {...measurement,survival:state.agents.map(actor=>{
+        const summary=survivalDecisionSnapshot(actor);
+        return {agentId:actor.id,counters:summary.counters,gateCounts:summary.gateCounts,
+          recordsRetained:summary.records.length,decisionActive:summary.active,
+          body:{...summary.body,waterDeficitMl:actor.physiology.waterDeficitMl,
+            stamina:actor.physiology.stamina},
+          stats:{collapses:actor.stats.collapses,rescues:actor.stats.rescues,
+            foodFeedbackEvents:actor.stats.independentMeals,drinks:actor.stats.independentDrinks},
+          activeAction:actor.active?.request?.type??null};
+      })};
+    },
     referencePersistenceProbe: args => communicationLearning?.inspectPersistedAssociation(args) ?? null,
     survivalSnapshot: () => location.search === '?test=1' ? survivalDecisionSnapshot(state.agents.find(actor => actor.id === state.selectedAgentId)) : null,
     communicationError: () => communicationError,
