@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "approved": true,
+  "protocol": "ordinary-character-messages-v1",
+  "commit": "6612d4d5c0d873130df6f9ef00eba73c71ea96e9",
+  "tree": "250ea92db258120fb08f720bafb7a7dd56573f22",
+  "activationRef": "experiments/character-ordinary-pilot-v1-once",
+  "sourceManifestSha256": "c1c1adad9f454d1c623b580cecd47f85db6e5439e6fb5f94b5f767380d3ac736",
+  "protocolSha256": "af9cf091f84fd56f2a1c5a949147b0dad4ea04ad288b73dda665313efefc8620",
+  "runnerSha256": "81be08e8e792210c2e4f5a9f450435c856c0f3550be566959a95dd6e7ef0f194",
+  "generatedRunnerSha256": "e31faa962a067740c33ddb41114ebc6020c8da9622247f4b1b6d225ade698263",
+  "runtimeFingerprint": "802dcd8b8c8a5a647820226fbf8843b508d2944aaea036bc7f76fee33777839d",
+  "rendererManifestSha256": "4ebc8ca0257dcdb6d1ad956b12b51745c087fa8084825e7c73fa672d53dd45a6",
+  "reviewedBy": "dev (parent source and protocol review)",
+  "reviewedAt": "2026-10-30T20:50:53Z"
+}
