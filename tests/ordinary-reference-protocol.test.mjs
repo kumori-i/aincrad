@@ -10,7 +10,7 @@ import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
 const snapshot=(elapsed=0,events=[])=>({geometryIdentity:P.geometryIdentity,elapsed,referenceElapsed:elapsed,worldSeed:74193,communicationSeed:211,phase:'private-visual-association',fixedStep:1/60,version:12,agents:[{elapsed,memory:{}},{elapsed,memory:{}}],events,metrics:{exchanges:0},gates:{},clocks:{environment:elapsed,ecology:elapsed,pending:0}});
 test('actual fresh state projection is read-only, compact and validates without advancing simulation',async()=>{
-  const state=createOzarkState(createOzarkWorldGeometry()),before=structuredClone(state);
+  const state=createOzarkState(createOzarkWorldGeometry(),{communicationSeed:P.communicationSeed}),before=structuredClone(state);
   const reference=attachVisualReferenceLearning({state,pixelSensor:{capture(){throw new Error('No sensor/behavior invocation allowed');}}});
   const context={window:{__ozarkWorld:{fullSnapshot:()=>structuredClone(state),communicationSnapshot:()=>reference.snapshot()}},Date,Number,Object};
   const source='('+projectOrdinaryReference.toString().replace("await import('./src/config.js')","({CONFIG:{fixedStep:1/60}})")+')()';

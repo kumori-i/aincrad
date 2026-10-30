@@ -511,12 +511,21 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   };
 }
 
+function newCommunicationSeed() {
+  // Fresh communication randomness is independent of the fixed physical world
+  // seed and of every persisted policy stream. Tests may supply an exact seed.
+  if (typeof globalThis.crypto?.getRandomValues !== 'function')
+    fail('secure communication seed unavailable');
+  return globalThis.crypto.getRandomValues(new Uint32Array(1))[0];
+}
+
 /** Start a new Ozark world without touching either historical save slot. */
-export function createOzarkState(geometry) {
+export function createOzarkState(geometry, {communicationSeed} = {}) {
   assertGeometry(geometry);
   const mode = freshOzarkWorldMode(geometry);
   if (!mode) fail('unsupported fresh world geometry');
   const seed = OZARK_WORLD_PROFILE.seed;
+  const referenceSeed=communicationSeed===undefined?newCommunicationSeed():communicationSeed;
   const agents = AGENT_IDS.map(id => {
     const actor = createNpc({ id, mode: 'discovery', seed });
     actor.position = { ...geometry.agentSpawns[id] };
@@ -532,19 +541,19 @@ export function createOzarkState(geometry) {
     playerBody: { wetness: 0, effort: 0, stamina: 100, health: 100 },
     elapsed: 0, distance: 0, agents, npc: agents[0], environment,
     community: createCommunity(), selectedAgentId: 'aster', waypoint: null,
-    ...createFreshReferencePersistence(),
+    ...createFreshReferencePersistence(referenceSeed),
   };
   expectedRawByState.set(state, null);
   return state;
 }
 
 /** An invalid occupied Ozark slot pauses play; its exact bytes remain intact. */
-export function loadOzarkSave(storage, geometry) {
+export function loadOzarkSave(storage, geometry, {communicationSeed} = {}) {
   try {
     assertGeometry(geometry);
     const raw = storage.getItem(OZARK_SAVE_KEY);
     if (raw === null) return {
-      state: createOzarkState(geometry), exists: false, blocked: false, error: null,
+      state: createOzarkState(geometry, {communicationSeed}), exists: false, blocked: false, error: null,
     };
     if (typeof raw !== 'string' || raw.length === 0 || raw.length > 16 * 1024 * 1024) {
       fail('the saved bytes are missing or exceed the supported size');

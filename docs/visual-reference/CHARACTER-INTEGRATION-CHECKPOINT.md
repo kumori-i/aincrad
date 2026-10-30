@@ -151,3 +151,21 @@ without duplicate learning. Repeated screenshots, saves and inspection must
 not draw RNG or train. The exact tested source tree, host architecture and
 screenshots need inspection before publication. The full unmodified
 publication-helper source check/build must also pass at the final release gate.
+
+## Release addendum — PR #70 (2026-10-30)
+
+The sections above preserve the local, unpublished checkpoint as written at
+that stage. PR #70 was subsequently merged into main at
+`73919284bc2213a869b20328d553043a13be25f3` (tree
+`6562804d5cafcbb6bca9e039b00d162c152dd77f`; renderer fingerprint
+`6512fa05d555c9ba817b742a2dbf47d9ecd51314dbe2d0d4698ebf894ee634e5`).
+All 11 premerge and seven postmerge workflows passed. Independent inspection
+verified the packaged bytes and Linux/macOS native Canvas, paid-action,
+Conversation screenshot and save/reopen evidence. Those controlled engineering
+fixtures demonstrate actual sampled strings and own-view listener and sender
+updates, including a mismatch and cancelled pending authority. They do not
+establish a stable vocabulary, independent-run naming diversity, ordinary
+exchange rates, grammar, generalization or survival gains. In that release,
+new worlds still used the fixed communication seed `211`; the subsequent
+fresh-seed change addresses independent starts without changing saved learning
+or the numeric protocol.

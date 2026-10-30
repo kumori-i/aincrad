@@ -16,7 +16,7 @@ const geometry=createOzarkWorldGeometry();
 const empty=()=>({capture:()=>new Map()});
 function numeric(){return {paused:false,capture(n,state){if(this.paused)return new Map();return new Map([...state.environment.ecology.plants,...state.environment.ecology.materials].map(o=>[o.id,{features:Array(48).fill(.5),pixels:Array(768).fill(127),at:n.elapsed,epoch:n.epoch}]));}};}
 function attached({diagnostics=true}={}){
-  const state=createOzarkState(geometry);
+  const state=createOzarkState(geometry,{communicationSeed:211});
   for(const [i,n]of state.agents.entries()){n.seed=n.rng=(211^(i?0x9e3779b9:0x15a4e35))>>>0;bindOzarkWorldAgent(n,geometry,state);}
   const pixelSensor=numeric(),learning=attachCommunicationLearning({state,pixelSensor,diagnostics});
   const runtime=new PopulationRuntime(state,{cardinal:false,experimentalDiscovery:learning.hooks});
@@ -50,8 +50,27 @@ function assertFreshWorldParity(left,right){
     'Independent fresh trials keep distinct nonsemantic world identities');
   assert.deepEqual(comparableWorld(left),comparableWorld(right));
 }
+function withHistoricalFreshSeed(run){
+  // The immutable v1 experiment fixture calls the fresh-world factory without
+  // an option. Supply its historical seed at the entropy boundary while still
+  // letting each world draw a distinct UUID; compare all other state fields.
+  const descriptor=Object.getOwnPropertyDescriptor(globalThis,'crypto');
+  const original=globalThis.crypto,secureDraw=original.getRandomValues.bind(original);
+  let seedDraws=0;
+  Object.defineProperty(globalThis,'crypto',{configurable:true,value:{
+    getRandomValues(view){
+      if(view instanceof Uint32Array&&view.length===1){seedDraws++;view[0]=211;return view;}
+      return secureDraw(view);
+    },
+  }});
+  try{const result=run();assert.equal(seedDraws,1,'One declared communication seed per fresh trial');return result;}
+  finally{Object.defineProperty(globalThis,'crypto',descriptor);}
+}
 function scenario(factory,options={}){
-  const pixelSensor=numeric(),exp=factory({geometry,pixelSensor,...options});exp.pixelSensor??=pixelSensor;
+  const pixelSensor=numeric(),make=()=>factory({geometry,pixelSensor,...options});
+  const exp=factory===frozenExperiment||factory===createCommunicationExperiment?
+    withHistoricalFreshSeed(make):make();
+  exp.pixelSensor??=pixelSensor;
   try{
     const h=helpers(exp);h.source();const choices=h.choices(),bridge=exp.runtime.controller(h.receiver.id).experimentalDiscovery;
     const selected=bridge.choose(h.receiver,choices);assert.ok(Number.isInteger(selected));const action=choices[selected].action;

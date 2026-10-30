@@ -64,6 +64,11 @@ reset or replaced individuals begin without acquired character training. The
 existing confirmed **Reset world** flow remains the way to start fresh; this
 development does not delete user saves.
 
+Ordinary fresh and reset worlds draw a new communication seed while the physical
+Ozark seed stays fixed. Reopening keeps the saved seed, models and RNG continuations.
+Identical letter strings can still occur by chance; a new seed does not by
+itself give a string a stable meaning.
+
 Prewritten English speech, human journal instructions, agent notes, peer
 teaching/warnings and model naming remain disabled in the main world. Old names,
 messages and reports are archival. Personally earned techniques and real physical
@@ -71,7 +76,7 @@ observation remain. Food handoffs use supplied nonverbal consent, not learned
 words or food facts. Existing worlds may retain personally earned effects of old
 advice, so they are not language-naive starts.
 
-This integration is undergoing exact-source and native Linux/macOS engineering
+This integration passed exact-source and native Linux/macOS engineering
 verification. A completed update is not evidence of stable vocabulary, grammar,
 generalization, improved survival or a measured ordinary learning rate. The
 [historical communication protocol](docs/communication-bridge/PROTOCOL.md) and

@@ -236,7 +236,9 @@ export function evaluateOzarkWaterStart(seed, seconds = 300, onFinalRawSave = nu
   assert(Number.isSafeInteger(seconds) && seconds >= 1 && seconds <= 1800);
   const geometry = createOzarkWorldGeometry();
   const disk = storage();
-  const state = createOzarkState(geometry);
+  // Preserve the baseline's historical communication start while actor start
+  // seeds vary. This evaluator is not an ordinary fresh-world launcher.
+  const state = createOzarkState(geometry, { communicationSeed: 211 });
   for (const npc of state.agents) {
     assert.deepEqual(npc.position, geometry.agentSpawns[npc.id]);
     npc.seed = seed;

@@ -20,7 +20,7 @@ const geometry=createOzarkWorldGeometry();
 function fixture({unique=true,legacyGround=false}={}){
   let visible=true;
   const g=Object.freeze({...geometry,groundAt:legacyGround?point=>geometry.observe(point).ground:geometry.groundAt,lineOfSight:(...args)=>visible&&geometry.lineOfSight(...args)});
-  const state=createOzarkState(g),[a,b]=state.agents,e=state.environment;
+  const state=createOzarkState(g,{communicationSeed:211}),[a,b]=state.agents,e=state.environment;
   state.elapsed=e.elapsed=e.ecology.elapsed=60;
   const source=e.ecology.plants.find(p=>p.kind==='apple_tree'&&p.quantity>0&&
     (!unique||e.ecology.plants.filter(o=>Math.hypot(o.position.x-p.position.x,o.position.y-p.position.y)<=12).length===1)&&

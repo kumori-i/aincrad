@@ -12,7 +12,7 @@ import {lookupEcologyObject} from '../src/ecology.js';
 
 const geometry=createOzarkWorldGeometry();
 function fixture({attach=attachVisualReferenceLearning,reverseTicks=false}={}){
-  const state=createOzarkState(geometry),[sender,listener]=state.agents;
+  const state=createOzarkState(geometry,{communicationSeed:211}),[sender,listener]=state.agents;
   for(const actor of state.agents){bindOzarkWorldAgent(actor,geometry,state);observeNpc(actor,state.environment);}
   const categories=new Map(senseReferenceObjects(sender,state).bindings.map((id,index)=>[id,index%2]));
   const pixelSensor={suppressedSender:false,listenerOffset:0,senderOverrides:new Map(),
