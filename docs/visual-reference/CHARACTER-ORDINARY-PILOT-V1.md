@@ -163,7 +163,7 @@ The prepare-only runner `scripts/prepare-character-ordinary-pilot.mjs` creates
 source inventory, generated observer and candidate receipt artifacts without
 starting Electron. Its execution mode requires a separate external reviewed
 receipt and a new attempt-1 GitHub branch-create event. No workflow activates
-it in this checkpoint, and no pilot has run. The later one-time workflow must
+it in this checkpoint, and no pilot has run. The one-time workflow must
 verify the externally approved exact
 commit/tree, source inventory and hashes, built renderer fingerprint, Linux x64
 host, unprivileged sandboxed Electron preferences, isolated profile, fixed
@@ -172,6 +172,21 @@ seeds, default start and normal speed before ordinary progression. It must use a
 manual dispatch, fallback trigger or rerun. The parent will review the written
 protocol and exact instrumentation source before any pilot dispatch. No runner
 or workflow is activated by this document.
+
+Activation preparation uses a separate root-only `receipt.json` Git tree on
+`experiments/character-ordinary-pilot-v1-receipt`. After the workflow is merged,
+the parent freezes the final source commit, runs `--prepare-only` there, reviews
+the manifest and hashes, and creates that receipt-data ref prospectively. The
+receipt records the frozen source commit/tree and the six reviewed hashes; it
+cannot record its own receipt-data commit. The workflow fetches that ref once,
+records the resolved commit and raw receipt SHA-256, and passes the bounded
+receipt file from runner temporary storage to the existing execution guard.
+The activation branch `experiments/character-ordinary-pilot-v1-once` is created
+only after receipt review. A read-only Actions history check must find only the
+current create run for that branch; a prior failed or prelaunch attempt also
+consumes activation, including after branch deletion and recreation. Receipt
+ref creation itself does not meet the activation job condition. No push, PR or
+manual dispatch event launches the pilot.
 
 The existing Linux/macOS character-message native engineering fixture separately
 checks the new passive measurement counters, actual paid Canvas actions and
