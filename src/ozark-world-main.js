@@ -16,6 +16,7 @@ import { installWorldReset } from './world-reset-ui.js';
 import { installCommunicationInspector } from './communication-inspector.js';
 import { attachVisualReferenceLearning } from './visual-reference-attachment.js';
 import { initialReferenceRandomStates } from './visual-reference-random.js';
+import { createFreshCharacterMessages } from './visual-reference-save.js';
 import { createCommunicationPixelSensor } from './communication-pixels.js';
 import { saveFailureMessage } from './save-failure-message.js';
 import { createVisualReferenceSaveGate } from './visual-reference-save-gate.js';
@@ -54,8 +55,8 @@ function stopCommunication() {
   communicationLearning = null;
   referenceSaveGate.retire(previous);
   communicationError=referenceSaveGate.isBlocked()?
-    'Symbol learning stopped after an error. Current learned memory could not be verified; ordinary saving is blocked to protect it.':
-    'Symbol learning stopped after an error. Completed visual associations are retained for saving; survival continues.';
+    'Character-message learning stopped after an error. Current learned memory could not be verified; ordinary saving is blocked to protect it.':
+    'Character-message learning stopped after an error. Completed private learning is retained for saving; survival continues.';
   notify(communicationError, 12);
 }
 function communicate(method, ...args) {
@@ -153,7 +154,7 @@ if (loaded.blocked) {
   let sensor = null;
   try {
     sensor = createCommunicationPixelSensor(document);
-    communicationLearning = attachVisualReferenceLearning({ state, pixelSensor: sensor });
+    communicationLearning = attachVisualReferenceLearning({ state, pixelSensor: sensor, protocol: 'sequence' });
   } catch {
     sensor?.dispose(); stopCommunication();
   }
@@ -200,7 +201,7 @@ function begin() {
   show('hud');
   keys.clear(); $('world').focus({ preventScroll: true });
   clock.reset(performance.now() / 1000);
-  if (!loaded.exists) notify('Aster and Mira begin exploring. Press N to talk with them or read their journals.');
+  if (!loaded.exists) notify('Aster and Mira begin exploring. Press N to inspect their observations and character messages.');
   return true;
 }
 function closePanel() {
@@ -509,11 +510,14 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
           // Deliberate engineering negative control on a blank disposable test
           // profile. Stream arithmetic fixes a wrong first exploratory choice;
           // no saved world, association, body or ordinary route is altered.
-          if(state.visualReference?.seed!==211||state.visualReference.learners.some(row=>row.anchors.length||row.partners.length))
+          if(state.visualReference?.seed!==211||state.visualReference.learners.some(row=>row.anchors.length||row.partners.length)||
+              state.characterMessages?.learners.some(row=>row.sender.emissions||row.sender.updates||
+                row.partners.some(partner=>partner.listener.demonstrations)))
             throw new Error('Negative control requires a fresh blank reference learner');
           communicationLearning.dispose();
           state.visualReference={...state.visualReference,seed:212,random:initialReferenceRandomStates(212)};
-          communicationLearning=attachVisualReferenceLearning({state,pixelSensor:createCommunicationPixelSensor(document),seed:212});
+          state.characterMessages=createFreshCharacterMessages(state.worldLineage,state.visualReference);
+          communicationLearning=attachVisualReferenceLearning({state,pixelSensor:createCommunicationPixelSensor(document),seed:212,protocol:'sequence'});
         }
         const readAssociation=communicationLearning.createNativeAssociationAuditReader();
         const auditAssociation=()=>{

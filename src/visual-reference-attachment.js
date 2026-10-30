@@ -1,5 +1,6 @@
-// Private visual associations grounded only in canonical observed demonstrations.
-// One main-world optional channel; never owns the clock, population or bodily credit.
+// Physical reference transactions. Main-world character policies learn only
+// from canonical own-view observations; archival association fixtures retain
+// their former protocol. This channel owns no clock, population or bodily credit.
 import { createIndicationPermit, createListenerResponsePermit, retireIndicationPermit, discoveryActionCompletion, successfulDiscoveryActionCompletion, referenceGeometry } from './discovery-actions.js';
 import { requestNpcIndication, cancelNpcAction } from './npc.js';
 import { senseReferenceObjects, resolveIndication, visibleIndicationGeometry, observeIndication } from './visual-reference-perception.js';
@@ -9,7 +10,9 @@ import { isSleeping } from './biology.js';
 import { CONFIG } from './config.js';
 import { createVisualReferenceMemory } from './visual-reference-memory.js';
 import { createReferenceRandomStream, initialReferenceRandomStates, REFERENCE_RANDOM_PROTOCOL } from './visual-reference-random.js';
-import { validateReferencePersistence } from './visual-reference-save.js';
+import { nextCharacterRandom, CHARACTER_RANDOM_PROTOCOL } from './character-message-core.js';
+import { createCharacterMessageLearner } from './character-message-runtime.js';
+import { validateCharacterPersistence } from './visual-reference-save.js';
 import { markVisualReferenceAttached } from './visual-reference-save-registration.js';
 
 export const REFERENCE_LIMITS=Object.freeze({timeout:12,cooldown:12,featureDistance:.08,observationSeconds:.5,maxObservationStep:CONFIG.fixedStep,segmentLength:24,maxEvents:256});
@@ -28,12 +31,15 @@ function identity(n){return {actor:n,epoch:n.epoch,discovery:n.discovery,physiol
 function unchanged(n,w){return n===w.actor&&n.epoch===w.epoch&&n.discovery===w.discovery&&n.physiology===w.physiology&&n.scene===w.scene&&n.position.x===w.position.x&&n.position.y===w.position.y;}
 function cropValid(c,n){return c&&c.epoch===n.epoch&&Number.isFinite(c.at)&&c.at<=n.elapsed&&n.elapsed-c.at<=1.1&&c.features?.length===48&&c.features.every(v=>Number.isFinite(v)&&v>=0&&v<=1)&&c.pixels?.length===768;}
 
-export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.visualReference?.seed??211}){
+export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.visualReference?.seed??211,protocol='legacy'}){
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
   if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
+  if(!['legacy','sequence'].includes(protocol))throw new TypeError('Unknown private reference protocol');
   // The save codec verifies both sides of the world/individual lineage before
   // any new opaque token is issued. Only data crosses this boundary.
-  const restored=validateReferencePersistence(state?.worldLineage,state?.visualReference);
+  const envelope={worldLineage:state?.worldLineage,visualReference:state?.visualReference};
+  if(Object.hasOwn(state??{},'characterMessages'))envelope.characterMessages=state.characterMessages;
+  const restored=validateCharacterPersistence(envelope,{allowV1Migration:true});
   if(restored.visualReference.seed!==seed)throw new TypeError('Reference symbol seed differs from the saved world');
   const worldId=restored.worldLineage.instanceId,savedRandom=restored.visualReference.random;
   const pairRandom=createReferenceRandomStream({seed,purpose:'pair',state:savedRandom.pair}),
@@ -44,8 +50,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   const choiceRandom=savedRandom.choice===initialReferenceRandomStates(seed).choice?
     createReferenceRandomStream({seed,purpose:'choice'}):
     createReferenceRandomStream({seed,purpose:'choice',state:savedRandom.choice});
+  const sequenceRandom={...restored.characterMessages.random};
+  const drawSequence=purpose=>{const draw=nextCharacterRandom(sequenceRandom[purpose]);
+    sequenceRandom[purpose]=draw.state;return draw.value;};
   const sessions=new Set(),busy=new Map(),cooldowns=new WeakMap(),actions=new WeakMap(),events=[],gates={},identities=new Map(),correctionRights=new WeakSet(),feedbackByActor=new Map();
-  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0,feedbackMatched:0,feedbackMismatched:0,feedbackCensored:0};
+  const metrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,positive:0,negative:0,relief:0,discomfort:0,effortExpiry:0,opportunities:0,anchorsAllocated:0,matchedChoices:0,exploratoryChoices:0,correctionAttempts:0,evidenceAdditions:0,supportUpdates:0,conflicts:0,correctionAbstentions:0,feedbackMatched:0,feedbackMismatched:0,feedbackCensored:0,sequenceListenerUpdates:0,sequenceSenderUpdates:0,sequenceAmbiguousLabels:0,sequenceListenerRejected:0};
   let disposed=false,nextId=1,nextIdentity=restored.worldLineage.nextSerial,
     auditReaderIssued=false,auditEnabled=false,auditRecord=null;
   const bump=(key)=>{gates[key]=Math.min(Number.MAX_SAFE_INTEGER,(gates[key]||0)+1);};
@@ -75,7 +84,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     const retiredIds=new Set();
     for(const [actor,entry]of identities)if(!present.has(actor)||entry.agentId!==actor.id||
         entry.discovery!==actor.discovery||entry.physiology!==actor.physiology){
-      retiredIds.add(entry.agentId);identities.delete(actor);feedbackByActor.delete(actor);
+      retiredIds.add(entry.agentId);entry.character.dispose();identities.delete(actor);feedbackByActor.delete(actor);
     }
     // Session rows carry names, not durable incarnation keys. Do not show a
     // retired person's events as the replacement person's conversation.
@@ -89,24 +98,34 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       if(nextIdentity>0xffffffff)throw new RangeError('Reference actor serials are exhausted');
       const serial=nextIdentity++;
       identities.set(actor,{token:Object.freeze({}),agentId:actor.id,serial,discovery:actor.discovery,physiology:actor.physiology,
-        epoch:actor.epoch,memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial})});
+        epoch:actor.epoch,memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial}),
+        character:createCharacterMessageLearner({seed,ownerSerial:serial})});
     }
     // Completed response samples are session evidence. Bodily interruption
     // erases them without erasing personally acquired associations.
-    for(const [actor,entry]of identities)if(entry.epoch!==actor.epoch){feedbackByActor.clear();entry.epoch=actor.epoch;}
-    for(const [actor,entry]of identities)entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
+    for(const [actor,entry]of identities)if(entry.epoch!==actor.epoch){feedbackByActor.clear();entry.character.cancelPending();entry.epoch=actor.epoch;}
+    for(const [actor,entry]of identities){
+      const peers=[...identities].filter(([other])=>other!==actor).map(([,other])=>other);
+      entry.memory.reconcilePartners(peers.map(other=>other.token));
+      entry.character.reconcilePartners(peers.map(other=>({token:other.token,agentId:other.agentId,serial:other.serial})));
+    }
   }
   const originalActors=new Map(state.agents.map(actor=>[actor.id,actor]));
   if(originalActors.size!==2||!['aster','mira'].every(id=>originalActors.has(id)))
     throw new TypeError('Reference actors do not match the saved world');
   for(const saved of restored.worldLineage.agents){
     const actor=originalActors.get(saved.agentId);
+    const character=restored.characterMessages.learners.find(row=>row.agentId===saved.agentId);
     identities.set(actor,{token:Object.freeze({}),agentId:saved.agentId,serial:saved.serial,
       discovery:actor.discovery,physiology:actor.physiology,epoch:actor.epoch,
-      memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:saved.serial})});
+      memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:saved.serial}),
+      character:createCharacterMessageLearner({seed,ownerSerial:saved.serial,restored:character})});
   }
-  for(const [actor,entry]of identities)
-    entry.memory.reconcilePartners([...identities].filter(([other])=>other!==actor).map(([,other])=>other.token));
+  for(const [actor,entry]of identities){
+    const peers=[...identities].filter(([other])=>other!==actor).map(([,other])=>other);
+    entry.memory.reconcilePartners(peers.map(other=>other.token));
+    entry.character.reconcilePartners(peers.map(other=>({token:other.token,agentId:other.agentId,serial:other.serial})));
+  }
   const byId=new Map([...identities].map(([actor,entry])=>[actor.id,entry]));
   for(const saved of restored.visualReference.learners){
     const owner=byId.get(saved.agentId);
@@ -124,6 +143,20 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   function correct(t){
     if(!correctionRights.delete(t))return;
     metrics.correctionAttempts++;
+    if(protocol==='sequence'){
+      // Only the final listener crop and the two copied original listener
+      // candidate crops reach this learner. Engine IDs and critic stay here.
+      let result;
+      try{result=t.receiverMemory.character.learnDemonstration(
+        t.senderMemory.token,t.message,t.orderedOwnFeatures,t.demonstration.features);}
+      catch{result={updated:false,label:null,reason:'numeric-listener-rejected'};}
+      t.event.listenerUpdate=result.updated;
+      t.event.correction=result.reason;
+      if(result.updated){metrics.sequenceListenerUpdates++;metrics.updates++;}
+      else if(result.reason==='ambiguous-own-view')metrics.sequenceAmbiguousLabels++;
+      else metrics.sequenceListenerRejected++;
+      return;
+    }
     // No target identity, critic correctness, sender pixels or bodily outcome
     // crosses this boundary. This is the listener's own final visible crop.
     const outcome=t.receiverMemory.memory.observe(t.senderMemory.token,t.symbol,t.demonstration.features);
@@ -135,16 +168,29 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   }
   function finishResponse(t,status,reason,crop=null){
     if(t.terminal)return;
+    if(protocol==='sequence'){
+      if(crop){
+        const signal=status==='matched'?'match':'mismatch';
+        let result;
+        try{result=t.senderMemory.character.settleMessage(t.messageHandle,t.receiverMemory.token,signal);}
+        catch{t.senderMemory.character.cancelMessage(t.messageHandle);
+          result={updated:false,reason:'numeric-sender-rejected'};}
+        if(result.updated){t.event.senderUpdate=true;metrics.sequenceSenderUpdates++;}
+        else{crop=null;status='censored';reason=result.reason;}
+      }else t.senderMemory.character.cancelMessage(t.messageHandle);
+    }
     retireIndicationPermit(t.responsePermit);
     t.terminal=true;sessions.delete(t);busy.delete(t.sender);busy.delete(t.receiver);
     t.event.feedbackStatus=status;t.event.feedbackReason=reason;t.event.endedAt=state.elapsed;
     if(crop){
       const signal=status==='matched'?'match':'mismatch';
-      const row=Object.freeze({eventId:t.event.id,symbol:t.symbol,signal,
-        features:Object.freeze(crop.features.slice()),at:crop.at});
-      const queue=feedbackByActor.get(t.sender)||[];
-      queue.push(row);if(queue.length>SENDER_FEEDBACK_LIMITS.maxPending)queue.shift();
-      feedbackByActor.set(t.sender,queue);
+      if(protocol==='legacy'){
+        const row=Object.freeze({eventId:t.event.id,symbol:t.symbol,signal,
+          features:Object.freeze(crop.features.slice()),at:crop.at});
+        const queue=feedbackByActor.get(t.sender)||[];
+        queue.push(row);if(queue.length>SENDER_FEEDBACK_LIMITS.maxPending)queue.shift();
+        feedbackByActor.set(t.sender,queue);
+      }
       metrics[status==='matched'?'feedbackMatched':'feedbackMismatched']++;
     }else{feedbackByActor.clear();metrics.feedbackCensored++;bump(`response:${reason}`);}
     clearResponse(t);t.responsePermit=null;
@@ -154,6 +200,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   function finish(t,status,reason){
     if(t.terminal)return;
     if(t.demonstrationCompleted){finishResponse(t,'censored',reason);return;}
+    if(protocol==='sequence')t.senderMemory.character.cancelMessage(t.messageHandle);
     retireIndicationPermit(t.permit);
     t.terminal=true;sessions.delete(t);busy.delete(t.sender);busy.delete(t.receiver);
     t.event.status=status;t.event.reason=reason;t.event.endedAt=state.elapsed;
@@ -277,6 +324,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   // Trusted fresh-profile engineering installer only. This cannot make a
   // decision, train memory, select a favorable event or alter any random stream.
   function createNativeAssociationAuditReader(){
+    if(protocol==='sequence')return null; // Legacy retrieval has no sequence meaning.
     if(disposed||auditReaderIssued)return null;
     auditReaderIssued=true;auditEnabled=true;let consumed=false;
     return ()=>{
@@ -335,26 +383,57 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
         const pair=[candidates[i],candidates[j]];
         if(rms(pair[0].own.features,pair[1].own.features)<REFERENCE_LIMITS.featureDistance||rms(pair[0].other.features,pair[1].other.features)<REFERENCE_LIMITS.featureDistance)continue;
+        if(protocol==='sequence'){pairs.push({pair});continue;}
         // Pure preflight includes BOTH alternatives and consumes no RNG.
         const preflight=senderMemory.memory.planPair(pair.map(c=>c.other.features));
         if(preflight.ok)pairs.push({pair,plan:preflight.plan});else bump(`sender:${preflight.reason}`);
       }
       if(!pairs.length){bump('no-feasible-distinguishable-pair');return null;}
-      const planned=pairs[Math.floor(pairRandom()*pairs.length)],pair=planned.pair;
-      const committed=senderMemory.memory.commitPair(planned.plan);
-      if(!committed.ok){bump(`sender:${committed.reason}`);return null;}
-      metrics.anchorsAllocated+=committed.allocated;
-      // Both encountered anchors commit before the uniform referent; no redraw.
-      const targetIndex=Math.floor(targetRandom()*2),target=pair[targetIndex],symbol=committed.symbols[targetIndex];
-      const ordered=orderRandom()<.5?pair.slice():pair.slice().reverse();
-      const choice=receiverMemory.memory.choose(senderMemory.token,symbol,ordered.map(c=>c.own.features));
-      const confident=choice.index===0||choice.index===1;
-      const selected=ordered[confident?choice.index:Math.floor(choiceRandom()*2)];
-      if(confident)metrics.matchedChoices++;else metrics.exploratoryChoices++;
-      bump(`choice:${choice.reason}`);
+      let pair,target,symbol=null,message=null,messageHandle=null,ordered,selected,choiceMode,choiceReason;
+      if(protocol==='sequence'){
+        pair=pairs[Math.floor(drawSequence('pair')*pairs.length)].pair;
+        // The target remains independent of message and choice. A failed
+        // later stage never redraws this pair or target.
+        target=pair[Math.floor(drawSequence('target')*2)];
+        ordered=drawSequence('order')<.5?pair.slice():pair.slice().reverse();
+        const sampled=senderMemory.character.sampleMessage(receiverMemory.token,target.other.features);
+        if(!sampled){bump('sender:pending-sequence');return null;}
+        message=sampled.message;messageHandle=sampled.handle;
+        let choice;
+        try{choice=receiverMemory.character.choose(senderMemory.token,message,
+          ordered.map(candidate=>candidate.own.features));}
+        catch{senderMemory.character.cancelMessage(messageHandle);bump('listener:numeric-choice-rejected');return null;}
+        if(!choice){senderMemory.character.cancelMessage(messageHandle);bump('listener:stale-partner');return null;}
+        selected=ordered[choice.index];choiceMode=choice.mode;choiceReason=choice.mode;
+        if(choice.mode==='uniform-untrained')metrics.exploratoryChoices++;
+        bump(`choice:${choice.mode}`);
+      }else{
+        const planned=pairs[Math.floor(pairRandom()*pairs.length)];pair=planned.pair;
+        const committed=senderMemory.memory.commitPair(planned.plan);
+        if(!committed.ok){bump(`sender:${committed.reason}`);return null;}
+        metrics.anchorsAllocated+=committed.allocated;
+        // Both encountered anchors commit before the uniform referent; no redraw.
+        target=pair[Math.floor(targetRandom()*2)];symbol=committed.symbols[pair.indexOf(target)];
+        ordered=orderRandom()<.5?pair.slice():pair.slice().reverse();
+        const choice=receiverMemory.memory.choose(senderMemory.token,symbol,ordered.map(c=>c.own.features));
+        const confident=choice.index===0||choice.index===1;
+        selected=ordered[confident?choice.index:Math.floor(choiceRandom()*2)];
+        if(confident)metrics.matchedChoices++;else metrics.exploratoryChoices++;
+        choiceMode=confident?'association-match':'uniform-exploration';choiceReason=choice.reason;
+        bump(`choice:${choice.reason}`);
+      }
       const action=Object.freeze({type:'inspect_object',targetId:selected.id});
-      const event={id:nextId++,emittedAt:state.elapsed,senderId:sender.id,receiverId:receiver.id,tokens:[Math.floor(symbol/8),symbol%8],status:'choice',action:'inspect_object',reward:null,senderPixels:target.other.pixels.slice(),receiverPixels:selected.own.pixels.slice(),senderObservedAt:target.other.at,receiverObservedAt:selected.own.at,phase:'private-visual-association',choiceMode:confident?'association-match':'uniform-exploration',choiceReason:choice.reason};
-      const t={sender,receiver,senderMemory,receiverMemory,symbol,senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,intendedFeatures:Object.freeze(target.other.features.slice()),choiceRequest:action,stage:'choice',startedAt:state.elapsed,event,terminal:false,contiguous:0,observedId:null,responseContiguous:0,responseObservedId:null};
+      const event={id:nextId++,emittedAt:state.elapsed,senderId:sender.id,receiverId:receiver.id,
+        tokens:protocol==='sequence'?Array.from(message,letter=>letter.charCodeAt(0)-97):[Math.floor(symbol/8),symbol%8],
+        ...(protocol==='sequence'?{message,listenerUpdate:false,senderUpdate:false}:{}),
+        status:'choice',action:'inspect_object',reward:null,senderPixels:target.other.pixels.slice(),receiverPixels:selected.own.pixels.slice(),senderObservedAt:target.other.at,receiverObservedAt:selected.own.at,
+        phase:protocol==='sequence'?'private-character-message':'private-visual-association',choiceMode,choiceReason};
+      const t={sender,receiver,senderMemory,receiverMemory,symbol,message,messageHandle,
+        orderedOwnFeatures:protocol==='sequence'?Object.freeze(ordered.map(candidate=>Object.freeze(candidate.own.features.slice()))):null,
+        senderIdentity:identity(sender),receiverIdentity:identity(receiver),candidates:pair.map(x=>({id:x.id,position:x.position})),
+        auditOrder:auditEnabled?ordered.map(c=>c.id):null,targetId:target.id,selectedId:selected.id,
+        intendedFeatures:Object.freeze(target.other.features.slice()),choiceRequest:action,stage:'choice',startedAt:state.elapsed,
+        event,terminal:false,contiguous:0,observedId:null,responseContiguous:0,responseObservedId:null};
       sessions.add(t);busy.set(sender,t);busy.set(receiver,t);actions.set(action,t);cooldowns.set(receiver,receiver.elapsed);metrics.exchanges++;
       events.push(event);if(events.length>REFERENCE_LIMITS.maxEvents)events.shift();return action;
     },
@@ -387,7 +466,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     const actors=['aster','mira'].map(id=>state.agents.find(actor=>actor.id===id));
     const agents=actors.map(actor=>({agentId:actor.id,serial:identities.get(actor).serial}));
     return {
-      worldLineage:{version:1,instanceId:worldId,nextSerial:nextIdentity,agents},
+      worldLineage:{version:2,instanceId:worldId,nextSerial:nextIdentity,agents},
       visualReference:{version:1,worldId,seed,protocol:REFERENCE_RANDOM_PROTOCOL,
         random:{pair:pairRandom.state(),target:targetRandom.state(),
           order:orderRandom.state(),choice:choiceRandom.state()},
@@ -399,6 +478,10 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
             return {agentId:partner.agentId,serial:partner.serial};
           })};
         })},
+      characterMessages:{version:2,worldId,protocol:CHARACTER_RANDOM_PROTOCOL,
+        random:{pair:sequenceRandom.pair,target:sequenceRandom.target,order:sequenceRandom.order},
+        learners:actors.map(actor=>({agentId:actor.id,serial:identities.get(actor).serial,
+          ...identities.get(actor).character.exportPersistence()}))},
     };
   }
   function inspectPersistedAssociation({listenerId,senderId,symbol,candidateFeatures}={}){
@@ -409,9 +492,10 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     if(!listener||!sender)return null;
     return listener.memory.choose(sender.token,symbol,candidateFeatures);
   }
-  // A future sender policy can consume only its own bounded visual feedback.
-  // No critic result, listener crop, object identity or bodily reward is here.
+  // Legacy diagnostic queue only. The sequence sender settles directly through
+  // its private one-use handle and never trains from this weak tuple.
   function takeSenderFeedback(sender){
+    if(protocol==='sequence')return []; // The one-use handle already settled directly.
     if(disposed||!currentIdentities()||[...identities].some(([actor,entry])=>entry.epoch!==actor.epoch)){
       feedbackByActor.clear();return [];
     }
@@ -421,7 +505,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
   }
   return {hooks,createNativeAssociationAuditReader,exportPersistence,inspectPersistedAssociation,takeSenderFeedback,
     beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},
-    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');feedbackByActor.clear();},
-    snapshot(){const stale=!currentIdentities(),feedbackCurrent=!stale&&[...identities].every(([actor,entry])=>entry.epoch===actor.epoch);return {phase:'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:stale?0:sessions.size,gates:{...gates},senderFeedback:feedbackCurrent?structuredClone([...feedbackByActor.values()].flat().map(({eventId,signal,features,at})=>({eventId,signal,features,at}))):[],learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot()})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Sender feedback is transient local visual similarity, not critic correctness. Retained examples are not autonomous language, abstraction or survival-benefit evidence.'}};},
-    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');feedbackByActor.clear();disposed=true;pixelSensor.dispose?.();}};
+    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');for(const entry of identities.values())entry.character.cancelPending();feedbackByActor.clear();},
+    snapshot(){const stale=!currentIdentities(),feedbackCurrent=!stale&&[...identities].every(([actor,entry])=>entry.epoch===actor.epoch);return {phase:protocol==='sequence'?'private-character-message':'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:feedbackCurrent?sessions.size:0,gates:{...gates},senderFeedback:feedbackCurrent?structuredClone([...feedbackByActor.values()].flat().map(({eventId,signal,features,at})=>({eventId,signal,features,at}))):[],learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot(),...(protocol==='sequence'?{character:entry.character.snapshot()}: {})})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':protocol==='sequence'?'Actual sampled character messages; listener models train only from own-view paid demonstrations and sender models only from completed own-view replies. No English meaning, abstraction or survival benefit is established.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Sender feedback is transient local visual similarity, not critic correctness. Retained examples are not autonomous language, abstraction or survival-benefit evidence.'}};},
+    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');for(const entry of identities.values())entry.character.dispose();feedbackByActor.clear();disposed=true;pixelSensor.dispose?.();}};
 }

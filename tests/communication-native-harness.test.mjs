@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
 import {renderLearningView} from '../src/learning-view.js';
+import {createCharacterMessageLearner} from '../src/character-message-runtime.js';
 import {createVisualReferenceMemory} from '../src/visual-reference-memory.js';
 import {beginSurvivalDecision,noteSurvivalDecision,finishSurvivalDecision,survivalDecisionSnapshot} from '../src/survival-decision-observer.js';
 
@@ -30,7 +31,7 @@ test('communication native preparation stays isolated and never claims native ex
     const sandbox={require:stub,process:{argv:['runner','--phase=exercise']},console,setTimeout:()=>1,clearTimeout(){}};
     const registration="require(path.join(context.application, 'desktop/main.cjs'));";
     assert(source.includes(registration));
-    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateAssociationDisclosure;globalThis.emptyMemoryAssert=assertEmptyPrivateAssociations;globalThis.observerAssert=assertSurvivalObserver;globalThis.observerReadOnlyAssert=assertObserverReadOnly;globalThis.presentObserver=presentSurvivalObserver;'+registration),sandbox);
+    vm.runInNewContext(source.replace(registration,'globalThis.disclosureAssert=assertPrivateCharacterDisclosure;globalThis.emptyMemoryAssert=assertFreshCharacterLearning;globalThis.observerAssert=assertSurvivalObserver;globalThis.observerReadOnlyAssert=assertObserverReadOnly;globalThis.presentObserver=presentSurvivalObserver;'+registration),sandbox);
     // Execute the actual generated helper against current rendered observer text.
     // This small DOM contract is not native rendering evidence.
     class Node {
@@ -39,15 +40,27 @@ test('communication native preparation stays isolated and never claims native ex
       get text(){return this.textContent+' '+this.children.map(child=>child.text).join(' ');}
     }
     const document={createElement(tag){return new Node(tag,this);}},root=new Node('div',document);
-    const fresh={phase:'private-visual-association',elapsed:0,exchanges:0,updates:0,pending:0,observed:0,evidenceAdditions:0,correctionAttempts:0,supportUpdates:0,conflicts:0,latest:null,observationEvents:[],
-      learners:['aster','mira'].map(agentId=>({agentId,...createVisualReferenceMemory().snapshot()}))};
+    const names=['aster','mira'],characters=names.map((_,index)=>createCharacterMessageLearner({seed:211,ownerSerial:index+1}));
+    for(let index=0;index<2;index++)characters[index].reconcilePartners([{token:{},agentId:names[1-index],serial:2-index}]);
+    const fresh={phase:'private-character-message',elapsed:0,exchanges:0,updates:0,pending:0,observed:0,evidenceAdditions:0,correctionAttempts:0,supportUpdates:0,conflicts:0,
+      sequenceListenerUpdates:0,sequenceSenderUpdates:0,sequenceAmbiguousLabels:0,sequenceListenerRejected:0,
+      latest:null,observationEvents:[],ledger:[],senderFeedback:[],
+      learners:names.map((agentId,index)=>({agentId,identity:index+1,...createVisualReferenceMemory().snapshot(),character:characters[index].snapshot()}))};
     renderLearningView(root,fresh,'aster');
     assert.doesNotThrow(()=>sandbox.disclosureAssert(root.text));
+    for(const phrase of ['Letter strings below are exact emissions with no supplied English translation.',
+      'private character models and bounded own-view examples save locally per individual.',
+      'Legacy symbol associations remain archival.',
+      'The emitted letters and recipient actions below are observations, not English object names or proof of understanding.',
+      'Sender feedback is own-view visual similarity, not bodily reward.',
+      'These do not train or name the character messages.'])
+      assert.throws(()=>sandbox.disclosureAssert(root.text.replace(phrase,'')),{code:'ERR_ASSERTION'},phrase);
+    assert(root.text.includes('No character message involving this agent yet.'), 'Fresh main world has no fabricated dialogue');
     assert.throws(()=>sandbox.disclosureAssert('Bodies and memories save locally. Communication weights restart on app reopen.'),{code:'ERR_ASSERTION'});
     const checkMemory=value=>vm.runInNewContext('emptyMemoryAssert('+JSON.stringify(value)+')',sandbox);
     assert.doesNotThrow(()=>checkMemory(fresh));
     for(const corrupt of [
-      value=>{value.phase='physical-reference-no-learning';},
+      value=>{value.phase='private-visual-association';},
       value=>{value.learners[0].counts.examples=1;},
       value=>{value.learners[0].anchors.push({symbol:1,features:[]});},
       value=>{value.learners[0].partners.push({slot:0,entries:[]});},
@@ -55,8 +68,24 @@ test('communication native preparation stays isolated and never claims native ex
       value=>{delete value.learners[0].partners;},
       value=>{delete value.learners;},
       value=>{value.learners.pop();},
+      value=>{value.learners[1].identity=value.learners[0].identity;},
+      value=>{delete value.learners[0].character;},
+      value=>{value.learners[0].character.senderUpdates=1;},
+      value=>{value.learners[0].character.listenerUpdates=1;},
+      value=>{value.learners[0].character.uniqueDemonstrations=1;},
+      value=>{value.learners[0].character.replayUses=1;},
+      value=>{value.learners[0].character.partnerBanks[0].partnerId='aster';},
+      value=>{value.learners[0].character.partnerBanks[0].partnerSerial=99;},
+      value=>{value.learners[0].character.partnerBanks[0].retainedExamples=1;},
+      value=>{value.learners[0].character.partnerBanks[0].trained=true;},
       value=>{value.observationEvents.push({status:'observed'});},
+      value=>{value.ledger.push({status:'observed'});},
+      value=>{value.senderFeedback.push({signal:'match'});},
       value=>{value.pending=1;},
+      value=>{value.sequenceListenerUpdates=1;},
+      value=>{value.sequenceSenderUpdates=1;},
+      value=>{value.sequenceAmbiguousLabels=1;},
+      value=>{value.sequenceListenerRejected=1;},
     ]){const changed=structuredClone(fresh);corrupt(changed);assert.throws(()=>checkMemory(changed),{code:'ERR_ASSERTION'});}
 
     // Execute actual generated observer assertions and DOM helper against the
@@ -95,9 +124,9 @@ test('communication native preparation stays isolated and never claims native ex
       'Main world advances while inspector is open', 'Native Escape pauses the one main world',
       'Normal save works while inspector is open', 'Closing inspector preserves main learners',
       'Inspector reopen retains learning rather than creating agents',
-      'Private association counts restart empty', 'Main clock resumes saved time, not experiment time',
-      'Explicit reset creates fresh ordinary world', 'Reset clears pending reference transactions',
-      'Fresh private anchors are concretely empty','Fresh private partner examples are concretely empty',
+      'Fresh individual has one private untrained partner bank', 'Main clock resumes saved time, not experiment time',
+      'Explicit reset creates fresh ordinary world', 'Reset clears pending character transactions',
+      'Archival private anchors remain empty','Archival private partner examples remain empty',
       'Session-only diagnostics restart empty','Ordinary bounded interval produced actual diagnostic records',
       "auditSurvivalObserver(win,'initial',true)","auditSurvivalObserver(win,'reopen',true)","auditSurvivalObserver(win,'reset',true)","auditSurvivalObserver(win,'paused')",
       'captureWithReadiness({', 'win.webContents.sendInputEvent', 'prefs.sandbox, true',

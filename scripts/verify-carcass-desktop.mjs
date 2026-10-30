@@ -234,7 +234,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(checkpoint.snapshot.elapsed, actual.elapsed);
       const disk = JSON.parse(checkpoint.raw), expected = fixture.expectedRestored;
       await fs.writeFile(path.join(context.output, stage + '-runtime-checkpoint.json'), checkpoint.raw);
-      assert.equal(disk.version, 12); assert.deepEqual(disk.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1 });
+      assert.equal(disk.version, 12); assert.deepEqual(disk.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1, characterMessages: 2 });
       assert.deepEqual(disk.environment, expected.environment, 'Finite ecology, clocks, stocks, IDs and ownership must survive the runtime load/save');
       const savedActor = disk.agents.find(row => row.id === 'aster');
       assert.equal(savedActor.active, null);

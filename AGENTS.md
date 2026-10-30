@@ -25,19 +25,34 @@ No new reference task or reward change is part of this transition. Removing sema
 channels changes complete agent behavior, so historical studies are not evidence
 for this new configuration; future experiments need a new reviewed frozen protocol.
 
-## Shared visual reference — current branch verification stage
+## Character messages — current branch verification stage
 
-Phase A established paid post-choice schematic direction cues and listener-local
-geometry parsing in the same main world. Phase B adds private bounded exemplar
-associations; see docs/visual-reference/PHASE-B.md. Keep phase-A proof historical.
-No release claims beyond actual exact-source/native evidence: this is supplied
-metric memory, not learned abstractions or autonomous language. Historical protocol
-fixtures stay immutable. Bounded private visual associations persist with each
-individual in a valid current-world save; fresh/reset worlds and replaced
-individuals begin without them. Session events and unfinished gesture authority
-do not persist. The optional channel must never compete with urgent
-survival decisions or restore the old bodily-credit learner. Native engineering
-fixtures remain isolated, bounded and explicitly non-autonomous.
+The main Ozark world uses one optional paid visual reference channel. The
+current branch adds private recurrent `a`–`z` sender/listener policies to that
+same channel. No English definitions, trained lab checkpoint or pretrained model
+enters those policies. A sender's exact sampled trajectory has a private one-use
+handle, and listener training needs the original received sequence plus its own
+retained candidate crops and final demonstrated crop. Observer correctness and
+object IDs never supply the label or reward. Legacy integer anchors/examples
+remain inspectable archival evidence and cannot train the new models.
+
+Keep the existing geometry, paid actions, 12-second deadline and urgent care
+priority. New sequence admission removes legacy anchor-capacity constraints,
+so older symbol exchange rates are not a direct comparison. New schema-12 saves
+carry a mandatory `features.characterMessages:2` marker and complete v2
+communication envelope. Exact historical three-feature saves migrate in memory
+only when the communication extension is absent or a complete valid v1 pair.
+Retained legacy memory and its four RNG states remain unchanged. Pending
+authority and observer events do not persist.
+Fresh/reset worlds and replaced individuals begin without acquired training.
+
+Phase A, Phase B and sender-feedback records remain historical; do not rerun
+their scientific cohort or change immutable fixtures. Exact-source review and
+actual Linux/macOS native Canvas, paid-action, save/reopen proof are required
+before a release claim. Engineering fixtures remain isolated, bounded and
+explicitly non-autonomous. Sparse ordinary exchanges establish no vocabulary,
+composition, generalization or survival benefit. The optional channel must
+never compete with urgent survival or restore the old bodily-credit learner.
 
 ## Authority and boundaries
 

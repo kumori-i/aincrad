@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
+import { conversationViewportEvidence, waitForCaptureFrames } from './native-capture-readiness.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile, currentRouteSnapshot, assertCurrentRoute,
   installEmptyCurrentSlot } from './carcass-native-contract.mjs';
 import { createRenewableSharingFixture } from './renewable-sharing-native-fixture.mjs';
@@ -42,6 +43,8 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const currentRouteSnapshot = ${currentRouteSnapshot.toString()};
 const assertCurrentRoute = ${assertCurrentRoute.toString()};
 const installEmptyCurrentSlot = ${installEmptyCurrentSlot.toString()};
+const conversationViewportEvidence = ${conversationViewportEvidence.toString()};
+const waitForCaptureFrames = ${waitForCaptureFrames.toString()};
 let running = false, closeObserved = false, allowQuit = false, quitRequests = 0;
 const rendererEvents = [], closeEvents = [];
 const deadline = setTimeout(() => { console.error('Renewable native QA timed out: ' + phase); app.exit(1); }, 600000);
@@ -58,13 +61,18 @@ async function waitFor(win, expression) {
   }
   throw new Error('Missing native hook: ' + expression);
 }
-async function capture(win, name) {
+async function capture(win, name, conversation = false) {
   await waitFor(win, 'window.__ozarkWorld.detailReady()');
+  let viewport = null;
+  if (conversation) {
+    await win.webContents.executeJavaScript('(' + waitForCaptureFrames.toString() + ')()');
+    viewport = await win.webContents.executeJavaScript('(' + conversationViewportEvidence.toString() + ')(document,window)');
+  }
   await delay(100);
   const image = await win.webContents.capturePage(), png = image.toPNG();
   assert.ok(png.length > 10000);
   await fs.writeFile(path.join(context.output, name), png);
-  return { file: name, bytes: png.length, ...image.getSize() };
+  return { file: name, bytes: png.length, ...image.getSize(), ...(viewport ? {conversationViewport:viewport} : {}) };
 }
 async function writePhase(win) {
   assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('aincrad.world.v2')"), null);
@@ -134,11 +142,11 @@ async function reopenPhase(win) {
     if(!reference||reference.exchanges!==0||reference.pending!==0||reference.updates!==0||
       !Array.isArray(reference.observationEvents)||reference.observationEvents.length!==0)
       throw new Error('Reopen must not invent reference activity from physical sharing');
-    if(!text.includes('No reference attempt involving this agent yet.'))throw new Error('Learning view must show the current empty reference state');
+    if(!text.includes('No character message involving this agent yet.'))throw new Error('Learning view must show the current empty character-message state');
     if(!text.includes('Observer annotations, not agent speech.'))throw new Error('Learning view must separate observer labels from agent language');
     return {text,reference,character:document.getElementById('npc-name').textContent};
   }).toString() + ')(' + JSON.stringify(transfer.receiverId) + ')');
-  screenshots.push(await capture(win, '02-restored-learning-no-invented-dialogue.png'));
+  screenshots.push(await capture(win, '02-restored-learning-no-invented-dialogue.png', true));
   assert.equal(await win.webContents.executeJavaScript('window.__ozarkWorld.preview("shore")'), true);
   screenshots.push(await capture(win, '03-restored-renewable-watershed.png'));
   assert.deepEqual(await win.webContents.executeJavaScript('window.__ozarkWorld.fullSnapshot()'), before, 'Camera previews must remain read-only');

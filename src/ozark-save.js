@@ -20,7 +20,7 @@ import { createOzarkEcology, validateOzarkEcology } from './ozark-ecology.js';
 import { createCommunity, validateCommunity } from './social.js';
 import { retainedProofIntegrityError } from './proof-retention.js';
 import { ozarkWaterSource } from './ozark-water-sources.js';
-import { createFreshReferencePersistence, validateReferencePersistence } from './visual-reference-save.js';
+import { createFreshReferencePersistence, validateCharacterPersistence } from './visual-reference-save.js';
 import { currentVisualReferenceExport } from './visual-reference-save-registration.js';
 
 export const OZARK_SAVE_KEY = 'aincrad.world.v2';
@@ -33,7 +33,8 @@ const ENVELOPE_KEYS = Object.freeze([
   'player', 'playerBody', 'elapsed', 'distance', 'agents', 'environment',
   'community', 'selectedAgentId', 'waypoint',
 ]);
-const REFERENCE_ENVELOPE_KEYS = Object.freeze(['worldLineage', 'visualReference']);
+const LEGACY_REFERENCE_ENVELOPE_KEYS = Object.freeze(['worldLineage', 'visualReference']);
+const REFERENCE_ENVELOPE_KEYS = Object.freeze([...LEGACY_REFERENCE_ENVELOPE_KEYS, 'characterMessages']);
 const BODY_KEYS = Object.freeze(['wetness', 'effort', 'stamina', 'health']);
 // These are authored/physical data. Derived body projections, discovery practice
 // counts and explicit interrupted-advice transformations are validated separately.
@@ -417,8 +418,19 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   if (!mode || !ozarkGeometryMatchesMode(geometry, mode))
     fail('unsupported version, feature combination or structural geometry');
   const { finiteAquatic } = mode;
+  const markedCharacters = Object.hasOwn(raw.features,'characterMessages');
+  // A historical envelope is readable for migration only. Every new write
+  // must carry the current marker and all three complete learner sections.
+  if (!restoring && !markedCharacters)
+    fail('historical feature combination cannot be written as a current save');
   const hasReference = REFERENCE_ENVELOPE_KEYS.some(key=>Object.hasOwn(raw || {},key));
-  const keys = [...ENVELOPE_KEYS,...(hasReference?REFERENCE_ENVELOPE_KEYS:[]),
+  const hasCharacters = Object.hasOwn(raw || {},'characterMessages');
+  // The mandatory current feature marker sits outside the three learner fields.
+  // Historical feature triples may migrate only from no extension or genuine v1.
+  if (markedCharacters ? !hasReference || !hasCharacters : hasCharacters)
+    fail('character message feature marker does not match its learner envelope');
+  const keys = [...ENVELOPE_KEYS,...(hasReference?LEGACY_REFERENCE_ENVELOPE_KEYS:[]),
+    ...(hasCharacters?['characterMessages']:[]),
     ...(Object.hasOwn(raw || {}, 'npc')?['npc']:[])];
   if (!exactKeys(raw, keys) ||
       raw.geometryIdentity !== OZARK_WORLD_PROFILE.identity ||
@@ -444,9 +456,11 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
       AGENT_IDS.some(id => !records.has(id))) fail('both original agents are required');
   const agents = AGENT_IDS.map(id =>
     checkActor(records.get(id), id, raw.elapsed, geometry, restoring));
-  // Only the complete absence of this optional schema-12 extension migrates.
-  // A partial, malformed or unsupported learner section protects saved bytes.
-  const reference=hasReference ? validateReferencePersistence(raw.worldLineage,raw.visualReference) : null;
+  // Historical feature triples may migrate from either no extension or the
+  // genuine v1 pair. Current marked saves require the complete v2 trio.
+  const reference=hasReference ? validateCharacterPersistence({worldLineage:raw.worldLineage,
+    visualReference:raw.visualReference,...(hasCharacters?{characterMessages:raw.characterMessages}:{})},
+    {allowV1Migration:!hasCharacters}) : null;
   const environment = validateEnvironment(raw.environment, {
     elapsed: raw.elapsed, mode: 'discovery', connectedEcology: false,
     ecologyValidator: (rawEcology, context = {}) =>
@@ -569,7 +583,9 @@ export function writeOzarkSave(storage, state, geometry, {referencePersistence}=
     // previous data too: an override cannot hide a malformed authored section.
     if(referencePersistence!==undefined){
       if(!exactKeys(referencePersistence,REFERENCE_ENVELOPE_KEYS))fail('invalid reference export shape');
-      validateReferencePersistence(state.worldLineage,state.visualReference);
+      validateCharacterPersistence({worldLineage:state.worldLineage,visualReference:state.visualReference,
+        ...(Object.hasOwn(state,'characterMessages')?{characterMessages:state.characterMessages}:{})},
+        {allowV1Migration:false});
       if(referencePersistence.worldLineage?.instanceId!==state.worldLineage.instanceId)
         fail('reference export changed the world instance');
     }

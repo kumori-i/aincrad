@@ -1,11 +1,11 @@
-import {validateReferencePersistence} from './visual-reference-save.js';
+import {validateCharacterPersistence} from './visual-reference-save.js';
 
 // Owns the last completed private learner checkpoint after an optional-channel
 // failure. No method advances learning or changes the world. A failed capture
 // permanently blocks ordinary saves until the user explicitly resets the world.
 export function createVisualReferenceSaveGate(){
   let blocked=false,retired=null,retained=null;
-  const validate=exported=>validateReferencePersistence(exported?.worldLineage,exported?.visualReference);
+  const validate=exported=>validateCharacterPersistence(exported);
   function retire(learner){
     try{
       if(!learner)throw new Error('Reference learner unavailable');

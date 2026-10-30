@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { buildApplication } from './build.mjs';
-import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
+import { captureWithReadiness, waitForCaptureFrames, conversationViewportEvidence } from './native-capture-readiness.mjs';
 import { canonicalApplicationRoot, nativeSourceIdentity, captureNativeChild, archiveNativeProfile } from './carcass-native-contract.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -34,7 +34,7 @@ const harness = join(output, 'runner.cjs');
 const phases = ['exercise', 'reopen', 'reset'];
 
 // Runs in Electron main. Real application owns protocol, profile and security.
-function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames) {
+function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames, conversationViewportEvidence) {
   const { app, session, ipcMain } = require('electron');
   const modelRequests={decide:0,name:0};
   const register=ipcMain.handle.bind(ipcMain);
@@ -53,9 +53,15 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     for (let i = 0; i < 1000; i++) { if (await evaluate(win, expression)) return; await delay(50); }
     throw new Error('Condition missing: ' + expression);
   }
-  async function capture(win, name) {
+  async function capture(win, name, conversation = false) {
     const { png, metadata } = await captureWithReadiness({
-      prepare: async () => { const value = await evaluate(win, '(' + waitForCaptureFrames.toString() + ')()'); await delay(100); return value; },
+      prepare: async () => {
+        const value = await evaluate(win, '(' + waitForCaptureFrames.toString() + ')()');
+        await delay(100);
+        if (conversation) value.conversationViewport = await evaluate(win,
+          '(' + conversationViewportEvidence.toString() + ')(document,window)');
+        return value;
+      },
       capture: () => win.webContents.capturePage(),
       retain: async (bytes, attempt) => { const prefix = path.join(context.output, name + '.attempt-' + attempt.attempt); if (bytes) await fs.writeFile(prefix + '.png', bytes); await fs.writeFile(prefix + '.json', JSON.stringify(attempt, null, 2)); },
     });
@@ -64,26 +70,45 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
   const raw = win => evaluate(win, "localStorage.getItem('aincrad.world.v2')");
   const click = (win, id) => evaluate(win, 'document.getElementById(' + JSON.stringify(id) + ').click()');
   function escape(win) { win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'ESC' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'ESC' }); }
-  // Current main-world contracts, not the archived experimental weight learner.
-  function assertPrivateAssociationDisclosure(text) {
-    assert.match(text, /Observer annotations, not agent speech/);
-    assert.match(text, /private visual associations save locally per individual.*after app reopen/i);
-    assert.match(text, /fresh or reset worlds and replacement individuals start empty/i);
-    assert.match(text, /Reference matching is not bodily relief or sickness/);
-    assert.doesNotMatch(text, /Communication weights restart/);
+  // Current main-world character protocol, with archival symbol associations.
+  function assertPrivateCharacterDisclosure(text) {
+    for (const phrase of [
+      'Observer annotations, not agent speech. Letter strings below are exact emissions with no supplied English translation.',
+      'private character models and bounded own-view examples save locally per individual.',
+      'Legacy symbol associations remain archival. Fresh or reset worlds and replacement individuals begin untrained.',
+      'The emitted letters and recipient actions below are observations, not English object names or proof of understanding.',
+      'Sender feedback is own-view visual similarity, not bodily reward.',
+      'Private character learning', 'Retained legacy symbol associations (archival)',
+      'These do not train or name the character messages.',
+    ]) assert(text.includes(phrase), 'Actual character-message disclosure: ' + phrase);
+    assert.doesNotMatch(text, /private visual associations save locally|Communication weights restart/i);
   }
-  const durableLearners=snapshot=>snapshot.learners.map(({agentId,identity,anchors,partners,counts})=>
-    ({agentId,identity,anchors,partners,counts}));
-  function assertEmptyPrivateAssociations(snapshot) {
-    assert.equal(snapshot.phase, 'private-visual-association', 'Current main uses private exemplar associations');
-    for (const key of ['exchanges','updates','pending','observed','evidenceAdditions','correctionAttempts','supportUpdates','conflicts']) assert.equal(snapshot[key], 0, 'Fresh private association metric: ' + key);
-    assert.equal(snapshot.latest, null); assert.deepEqual(snapshot.observationEvents, []);
-    assert(Array.isArray(snapshot.learners)); assert.equal(snapshot.learners.length, 2);
-    assert.equal(new Set(snapshot.learners.map(learner => learner.agentId)).size, 2);
+  const durableLearners=snapshot=>snapshot.learners.map(({agentId,identity,anchors,partners,counts,character})=>
+    ({agentId,identity,anchors,partners,counts,character}));
+  function assertEmptyLegacyAssociations(snapshot) {
     for (const learner of snapshot.learners) {
-      assert.deepEqual(learner.counts, {anchors:0,partners:0,entries:0,examples:0,conflicts:0}, 'Private association counts restart empty');
-      assert.deepEqual(learner.anchors, [], 'Fresh private anchors are concretely empty');
-      assert.deepEqual(learner.partners, [], 'Fresh private partner examples are concretely empty');
+      assert.deepEqual(learner.counts, {anchors:0,partners:0,entries:0,examples:0,conflicts:0}, 'Archival symbol association counts remain empty');
+      assert.deepEqual(learner.anchors, [], 'Archival private anchors remain empty');
+      assert.deepEqual(learner.partners, [], 'Archival private partner examples remain empty');
+    }
+  }
+  function assertFreshCharacterLearning(snapshot) {
+    assert.equal(snapshot.phase, 'private-character-message', 'Current main uses private character messages');
+    for (const key of ['exchanges','updates','pending','observed','evidenceAdditions','correctionAttempts','supportUpdates','conflicts',
+      'sequenceListenerUpdates','sequenceSenderUpdates','sequenceAmbiguousLabels','sequenceListenerRejected'])
+      assert.equal(snapshot[key], 0, 'Fresh character-message metric: ' + key);
+    assert.equal(snapshot.latest, null); assert.deepEqual(snapshot.observationEvents, []);
+    assert.deepEqual(snapshot.ledger, []); assert.deepEqual(snapshot.senderFeedback, []);
+    assert(Array.isArray(snapshot.learners)); assert.equal(snapshot.learners.length, 2);
+    assert.deepEqual(new Set(snapshot.learners.map(learner => learner.agentId)), new Set(['aster','mira']));
+    assert.equal(new Set(snapshot.learners.map(learner => learner.identity)).size, 2);
+    assertEmptyLegacyAssociations(snapshot);
+    for (const learner of snapshot.learners) {
+      assert(Number.isSafeInteger(learner.identity) && learner.identity > 0, 'Individual incarnation is concrete');
+      const partner=snapshot.learners.find(row=>row.agentId!==learner.agentId);
+      assert.deepEqual(learner.character, {senderUpdates:0,listenerUpdates:0,uniqueDemonstrations:0,replayUses:0,
+        partnerBanks:[{partnerId:partner.agentId,partnerSerial:partner.identity,retainedExamples:0,trained:false}]},
+      'Fresh individual has one private untrained partner bank');
     }
   }
   // Copied actual observer data, never a policy input or a reconstructed learner.
@@ -130,7 +155,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
   }
   function assertObserverReadOnly(before,after) {
     assert.deepEqual(after.world,before.world,'Observer tabs/disclosures/scrolling preserve full world and actor RNG');
-    assert.deepEqual(after.reference,before.reference,'Observer UI preserves private reference state');
+    assert.deepEqual(after.reference,before.reference,'Observer UI preserves private character and archival state');
     assert.deepEqual(after.observer,before.observer,'Observer UI never creates decisions or counters');
     assert.equal(after.saved,before.saved,'Observer UI never writes ordinary saved bytes');
   }
@@ -156,10 +181,10 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     const rendered=await evaluate(win,'('+presentSurvivalObserver.toString()+')()');
     assertSurvivalObserver(data,before,rendered,empty);
     if(!empty)assert(data.records.length>0,'Ordinary bounded interval produced actual diagnostic records, not successful-food evidence');
-    await capture(win,'survival-'+name+'-body.png');
+    await capture(win,'survival-'+name+'-body.png',true);
     if(!empty){
       assert.equal(await evaluate(win,"(()=>{const row=document.querySelector('#journal-messages [data-survival-decision]');if(!row)return false;row.scrollIntoView({block:'start'});return true;})()"),true);
-      await capture(win,'survival-'+name+'-decisions.png');
+      await capture(win,'survival-'+name+'-decisions.png',true);
     }
     await evaluate(win,"(()=>{const summary=document.querySelector('#journal-messages [data-survival-diagnostics] summary');summary.click();summary.click();document.getElementById('npc-tab-character').click();document.getElementById('npc-tab-conversation').click();document.getElementById('close-npc').click();document.getElementById('open-communication').click();return true;})()");
     const repeated=await evaluate(win,'('+presentSurvivalObserver.toString()+')()');assert.deepEqual(repeated,rendered,'Repeated existing UI controls preserve actual annotations');
@@ -204,12 +229,12 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
         'Explicit reset creates a distinct world identity');
       for (const agent of world.agents) { assert.equal(agent.elapsed, 0); assert.equal(agent.discovery.experiments.length, 0); assert.equal(agent.discovery.effects.length, 0); }
       const fresh = await learning(); assert(fresh);
-      assert.equal(fresh.elapsed, 0); assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0, 'Reset clears pending reference transactions');
-      assertEmptyPrivateAssociations(fresh);
+      assert.equal(fresh.elapsed, 0); assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0, 'Reset clears pending character transactions');
+      assertFreshCharacterLearning(fresh);
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication');
       await auditSurvivalObserver(win,'reset',true);
-      await capture(win, 'reset-fresh-inspector.png');
+      await capture(win, 'reset-fresh-inspector.png', true);
       await fs.writeFile(path.join(context.output, 'reset-checkpoint.json'), JSON.stringify({ world, learning: fresh }, null, 2));
       return;
     }
@@ -220,23 +245,25 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
       const fresh = await learning(); assert(fresh, 'Main-world learner attaches before start');
       assert.equal(fresh.elapsed, previous.learning.elapsed, 'Main clock resumes saved time, not experiment time');
       assert.equal(fresh.exchanges, 0); assert.equal(fresh.updates, 0); assert.equal(fresh.pending, 0);
-      assert.deepEqual(fresh.observationEvents,[],'Reopen does not restore an in-flight visual-reference session');
+      assert.deepEqual(fresh.observationEvents,[],'Reopen does not restore an in-flight character-message session');
       assert.deepEqual(durableLearners(fresh),durableLearners(previous.learning),
-        'Independent reopen preserves any personally acquired private association and assigned symbols');
+        'Independent reopen preserves individual character learning and archival associations');
+      assertEmptyLegacyAssociations(fresh);
       await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause()');
       await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
-      assertPrivateAssociationDisclosure(await disclosure());
+      assertPrivateCharacterDisclosure(await disclosure());
       await auditSurvivalObserver(win,'reopen',true);
-      await capture(win, 'independent-reopen.png'); return;
+      await capture(win, 'independent-reopen.png', true); return;
     }
     assert.equal(await raw(win), null, 'Disposable profile starts empty');
     await evaluate(win, 'window.__ozarkWorld.start();window.__ozarkWorld.pause();window.__ozarkWorld.save()');
     const before = await raw(win); assert(before && JSON.parse(before));
     const ordinary = await evaluate(win, 'window.__ozarkWorld.snapshot()'); assert(ordinary.paused);
     const beforeLearning = await learning(); assert(beforeLearning);
+    assertFreshCharacterLearning(beforeLearning);
     await click(win, 'open-communication'); await waitFor(win, "!document.getElementById('npc-panel').classList.contains('hidden') && document.getElementById('npc-panel').dataset.journalTab==='conversation'");
-    assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves reference transactions, RNG and private memory');
-    assertPrivateAssociationDisclosure(await disclosure());
+    assert.deepEqual(await learning(), beforeLearning, 'Opening inspector preserves character transactions, RNG and private memory');
+    assertPrivateCharacterDisclosure(await disclosure());
     await auditSurvivalObserver(win,'initial',true);
     assert.equal(await evaluate(win, "document.getElementById('journal-form').classList.contains('hidden')"), true);
     assert.equal(await evaluate(win, "document.getElementById('communication-dialog').open"), false, 'Shortcut uses the same NPC panel, not a second modal');
@@ -244,12 +271,12 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     assert.equal(await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics]').open"),true);
     await delay(1200);
     assert.equal(await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics]').open"),true,'Same-tab diagnostics stays expanded across observer refreshes');
-    await capture(win, 'ready.png');
+    await capture(win, 'ready.png', true);
     escape(win);
     await waitFor(win, "!window.__ozarkWorld.snapshot().paused");
     await waitFor(win, "window.__ozarkWorld.snapshot().elapsed>=2");
     assert.equal(await evaluate(win, "document.querySelector('#journal-messages [data-learning-diagnostics]').open"),true,'Running main-world updates preserve expanded diagnostics');
-    await capture(win, 'running.png');
+    await capture(win, 'running.png', true);
     // Cross the normal autosave interval while the one real world advances.
     await delay(10500);
     assert.notEqual(await raw(win), before, 'Inspector does not suppress ordinary autosave writes');
@@ -280,7 +307,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     await click(win, 'open-communication');
     assert.equal(await raw(win), checkpoint, 'Paused inspector leaves the ordinary save unchanged');
     await fs.writeFile(path.join(context.output, 'ordinary-checkpoint.json'), JSON.stringify({ raw: checkpoint, learning: retained, ordinary: await evaluate(win, 'window.__ozarkWorld.snapshot()') }, null, 2));
-    await capture(win, 'paused-inspector-before-close.png');
+    await capture(win, 'paused-inspector-before-close.png', true);
   }
   app.on('browser-window-created', (_event, win) => {
     activeWindow = win;
@@ -311,7 +338,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
 }
 let closed = true, nativeProcessesStarted = 0;
 try {
-  await writeFile(harness, '(' + installNativeRunner.toString() + ')(' + JSON.stringify(context) + ',' + captureWithReadiness.toString() + ',' + waitForCaptureFrames.toString() + ');\n');
+  await writeFile(harness, '(' + installNativeRunner.toString() + ')(' + JSON.stringify(context) + ',' + captureWithReadiness.toString() + ',' + waitForCaptureFrames.toString() + ',' + conversationViewportEvidence.toString() + ');\n');
   const harnessSha256 = createHash('sha256').update(await readFile(harness)).digest('hex');
   const prepared = { ...context, harness, harnessSha256, phases, nativeExecutionPerformed: false, sandboxBypassFlags: [], excludedCoverage: ['Screenshots require visual inspection.', 'This validates main-world inspector integration and save behavior, not learned survival benefit.'] };
   await writeFile(join(output, 'prepared.json'), JSON.stringify(prepared, null, 2));

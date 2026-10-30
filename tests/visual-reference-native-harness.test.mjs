@@ -9,7 +9,7 @@ import {EventEmitter} from 'node:events';
 import vm from 'node:vm';
 import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
 
-test('private-association native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
+test('character-message native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
   const output=await mkdtemp(join(tmpdir(),'visual-reference-harness-contract-'));let passed=false;
   try{
     const result=spawnSync(process.execPath,['scripts/verify-visual-reference-desktop.mjs','--prepare-only'],{encoding:'utf8',timeout:120000,
@@ -53,8 +53,11 @@ test('private-association native preparation is isolated, sandbox-preserving and
     const changed=structuredClone(restored);changed.agents[0].memory.experience[0].type='fabricated';
     assert.throws(()=>runHistory(changed),{code:'ERR_ASSERTION'},'Existing canonical history must remain exact');
     const learners=[
-      {agentId:'aster',identity:1,anchors:[{symbol:3,features:[.1]}],partners:[],counts:{anchors:1,examples:0}},
-      {agentId:'mira',identity:2,anchors:[],partners:[{slot:0,entries:[{symbol:3,examples:[[.2]],support:1,conflicted:false}]}],counts:{anchors:0,examples:1}},
+      {agentId:'aster',identity:1,anchors:[{symbol:3,features:[.1]}],partners:[],counts:{anchors:1,examples:0},
+        character:{senderUpdates:0,listenerUpdates:0,uniqueDemonstrations:0,replayUses:0,partnerBanks:[]}},
+      {agentId:'mira',identity:2,anchors:[],partners:[{slot:0,entries:[{symbol:3,examples:[[.2]],support:1,conflicted:false}]}],counts:{anchors:0,examples:1},
+        character:{senderUpdates:0,listenerUpdates:1,uniqueDemonstrations:1,replayUses:0,
+          partnerBanks:[{partnerId:'aster',partnerSerial:1,retainedExamples:1,trained:true}]}},
     ];
     const emptyMetrics={exchanges:0,completed:0,observed:0,correct:0,censored:0,updates:0,
       feedbackMatched:0,feedbackMismatched:0,feedbackCensored:0,senderFeedback:[],
@@ -64,21 +67,35 @@ test('private-association native preparation is isolated, sandbox-preserving and
       'assertRetainedLearning('+JSON.stringify(reference)+','+JSON.stringify(saved)+',"test reopen")',sandbox);
     assert.doesNotThrow(()=>runRetained(emptyMetrics,{report:{reference:original}}),
       'First reopen retains one private example without replayed metrics');
-    assert.doesNotThrow(()=>runRetained(emptyMetrics,{report:{reference:emptyMetrics}}),
-      'Second reopen can validate against the first reopen snapshot with latest null');
-    const lost=structuredClone(emptyMetrics);lost.learners[1].partners=[];lost.learners[1].counts.examples=0;
+    const secondReport={report:{reference:emptyMetrics,checks:{secondLabel:{demonstrations:1,optimizerSteps:1,replayUses:0}}}};
+    assert.doesNotThrow(()=>runRetained(emptyMetrics,secondReport),
+      'Second reopen validates the saved report and exact physical example, optimizer, and replay counts');
+    const lost=structuredClone(emptyMetrics);lost.learners[1].character.uniqueDemonstrations=0;
     assert.throws(()=>runRetained(lost,{report:{reference:original}}),{code:'ERR_ASSERTION'},
       'A lost example fails the generated native assertion');
+    for(const field of ['uniqueDemonstrations','listenerUpdates','replayUses']){
+      const wrong=structuredClone(emptyMetrics);wrong.learners[1].character[field]++;
+      assert.throws(()=>runRetained(wrong,{report:{reference:wrong,checks:secondReport.report.checks}}),{code:'ERR_ASSERTION'},
+        'Second reopen rejects an extra '+field+' even when the saved learner summary agrees');
+    }
     for(const contract of ['Install fixture on actual fresh main population','Fixture owns the sole manual clock','Fresh fixture installer is one-use',
       'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-action bytes',
       'Repeated reopen cannot duplicate interruption or revive authority','Loaded profile cannot obtain fresh fixture authority',
-      'Application uses exact isolated disposable test profile','retains the learned private associations',
+      'Application uses exact isolated disposable test profile','retains private learned sequence state and legacy association history',
       "assertRetainedLearning(reference,saved,'First independent reopen')",
-      "assertRetainedLearning(reference,{report:{reference:saved.reference}},'Second independent reopen')",
-      'referencePersistenceProbe(','retrieves the demonstrated symbol from retained memory',
-      'Message changes actual-memory eligibility, not a sampled policy action',
+      "assertRetainedLearning(reference,saved,'Second independent reopen')",
+      'assertReopenedCharacter(','private numeric listener must remain candidate-order equivariant',
+      'No vocabulary, grammar, generalization',
+      'The numeric listener label must use exactly the received string',
+      'One authentic paid sender-local outcome must update only its original on-policy sender once',
+      'Second optional listener choice unavailable after cooldown',
+      'second-listener-label-audit.json','secondListenerPhysicalDemonstrations',
+      'characterMessages','modelStateSha256','[data-character-message="true"]',
+      '04b0-exact-message-and-paid-recipient-action.png',
+      'Copied original paid inspection receipt cannot create a new indication permit',
+      'Second independent reopen retains exact live model weights, counters and RNG states',
       'Opening Learning may change only observer selection, not the world','Learning open/capture/close leaves reference snapshot exact',
-      '04b-learning-own-association-counters.png','04c-learning-own-demonstration-provenance.png','association-learning-view.json','association-retrieval-audit.json','timestampedPairSha256','captureWithReadiness({','prefs.sandbox,true'])assert(source.includes(contract),contract);
+      '04b-learning-character-counters.png','04c-learning-own-demonstration-provenance.png','character-learning-view.json','character-model-audit.json','timestampedPairSha256','captureWithReadiness({','prefs.sandbox,true'])assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
     const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
@@ -109,7 +126,10 @@ test('response lifecycle native preparation keeps a separate profile and three-p
       'Original paid choice must be wrong','The paid reply points to the original choice',
       '05-second-paid-listener-response-before-save.png','listener-response',
       'Independent reopen reads exact saved mid-action bytes','Repeated reopen cannot duplicate interruption or revive authority',
-      'assertRetainedLearning(reference,saved','no resurrected sender feedback'])
+      'assertRetainedLearning(reference,saved','no resurrected sender feedback',
+      'Recorded sender feedback must agree with sender-only actual Canvas RMS',
+      'no second sender update','second-listener-label-audit.json',
+      'secondListenerPhysicalDemonstrations','secondListenerOptimizerSteps','secondListenerReplayUses'])
       assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
@@ -128,10 +148,11 @@ async function fixtureHook(overrides={}){
     population:{state},communicationLearning:{dispose(){context.disposed++;},censorPending(){context.censored++;},createNativeAssociationAuditReader(){let read=false;return()=>{if(read)return null;read=true;context.audited++;return {copied:true};};}},storage:{getItem(){return null;}},
     OZARK_SAVE_KEY:'aincrad.world.v2',CONFIG:{fixedStep:1/60},geometry:{},renderer:{},keys:{clear(){context.cleared++;}},
     initialReferenceRandomStates,document:{},createCommunicationPixelSensor(){context.sensors++;return {capture(){return new Map();}};},
-    attachVisualReferenceLearning({state:attachedState,pixelSensor,seed}){context.reattached++;assert.equal(attachedState,context.state);assert(pixelSensor);assert.equal(seed,212);return context.replacementReference;},
+    createFreshCharacterMessages(lineage,visualReference){assert.equal(lineage,context.state.worldLineage);assert.equal(visualReference.seed,212);return {version:2,seed:212};},
+    attachVisualReferenceLearning({state:attachedState,pixelSensor,seed,protocol}){context.reattached++;assert.equal(attachedState,context.state);assert(pixelSensor);assert.equal(seed,212);assert.equal(protocol,'sequence');return context.replacementReference;},
     advancePlayer(dt){assert.equal(dt,1/60);state.elapsed+=dt;},save(explicit,bypass){assert.equal(explicit,false);assert.equal(bypass,true);context.saved++;return true;},cleared:0,censored:0,saved:0,audited:0,disposed:0,sensors:0,reattached:0,...overrides};
   context.replacementReference={censorPending(){context.censored++;},createNativeAssociationAuditReader(){let read=false;return()=>{if(read)return null;read=true;return {seed:212};};}};
-  const hook=Function('context',`let {location,started,loaded,state,population,communicationLearning,storage,OZARK_SAVE_KEY,CONFIG,geometry,renderer,keys,advancePlayer,save,initialReferenceRandomStates,attachVisualReferenceLearning,createCommunicationPixelSensor,document}=context;let referenceFixtureOwner=null;return {install:${installer},owner:()=>referenceFixtureOwner};`)(context);
+  const hook=Function('context',`let {location,started,loaded,state,population,communicationLearning,storage,OZARK_SAVE_KEY,CONFIG,geometry,renderer,keys,advancePlayer,save,initialReferenceRandomStates,createFreshCharacterMessages,attachVisualReferenceLearning,createCommunicationPixelSensor,document}=context;let referenceFixtureOwner=null;return {install:${installer},owner:()=>referenceFixtureOwner};`)(context);
   return {hook,context,source};
 }
 
@@ -178,6 +199,7 @@ test('negative-control seed is confined to a blank disposable fixture and preser
   assert.equal(context.disposed,1);assert.equal(context.sensors,1);assert.equal(context.reattached,1);
   assert.equal(context.state.visualReference.seed,212);
   assert.deepEqual(context.state.visualReference.random,initialReferenceRandomStates(212));
+  assert.deepEqual(context.state.characterMessages,{version:2,seed:212});
   assert.deepEqual(context.state.worldLineage,originalLineage);
   assert.deepEqual(context.state.agents,originalAgents);
   assert.equal(controls.reference,context.replacementReference);
@@ -187,6 +209,10 @@ test('negative-control seed is confined to a blank disposable fixture and preser
   await assert.rejects(occupied.hook.install(()=>true,{negativeControlSeed:212}),/fresh blank reference learner/);
   assert.equal(occupied.context.disposed,0);assert.equal(occupied.context.state.visualReference.seed,211);
   assert.equal(occupied.hook.owner().failed,true);
+  const trained=await fixtureHook();trained.context.state.characterMessages={learners:[
+    {sender:{emissions:1,updates:0},partners:[]}]};
+  await assert.rejects(trained.hook.install(()=>true,{negativeControlSeed:212}),/fresh blank reference learner/);
+  assert.equal(trained.context.disposed,0);assert.equal(trained.context.state.visualReference.seed,211);
 });
 
 test('actual fixture clock fails closed after installer/step errors and rejects reentrant stepping',async()=>{
