@@ -7,8 +7,8 @@ import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction,collapseNpc} from '../src/npc.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
-import {successfulDiscoveryActionCompletion} from '../src/discovery-actions.js';
-import {senseReferenceObjects} from '../src/visual-reference-perception.js';
+import {successfulDiscoveryActionCompletion,referenceGeometry} from '../src/discovery-actions.js';
+import {senseReferenceObjects,visibleIndicationGeometry,resolveIndication} from '../src/visual-reference-perception.js';
 import {createFreshCharacterMessages} from '../src/visual-reference-save.js';
 import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
 
@@ -172,6 +172,69 @@ test('passive ordinary measurement separates optional checks, feasible pairs, pa
   assert.equal(measure.counts.senderUpdates,1);
   assert.equal(measure.counts.responseCensors,0);
   assert.equal(measure.events[0].feedbackStatus,'mismatched');
+  f.attachment.dispose();
+});
+
+test('first failed peer gate is observer-only and leaves a later paid choice unchanged',()=>{
+  const f=fixture(),before=f.attachment.exportPersistence(),world=structuredClone(f.state);
+  f.sender.active={request:{type:'rest'}};
+  assert.equal(f.attachment.hooks.optionalAction(f.listener),null);
+  f.sender.active=null;
+  const measured=f.attachment.measurementSnapshot();
+  assert.equal(measured.counts.optionalChecks,1);
+  assert.equal(measured.admissionGates['no-peer'],1);
+  assert.equal(measured.admissionGates['no-peer:active'],1);
+  assert.deepEqual(f.attachment.exportPersistence(),before,'A rejected peer check draws no policy RNG');
+  assert.deepEqual(f.state,world,'The diagnostic does not change the world');
+  assert.equal(f.attachment.hooks.optionalAction(f.listener)?.type,'inspect_object',
+    'A subsequent ordinary choice remains available');
+  f.attachment.dispose();
+});
+
+test('one-way reverse geometry records one subcause while retaining listener learning',()=>{
+  const f=fixture(),senderSight=senseReferenceObjects(f.sender,f.state),
+    receiverSight=senseReferenceObjects(f.listener,f.state);
+  assert(senderSight.complete&&receiverSight.complete);
+  const oneWay=receiverSight.bindings.flatMap((id,index)=>{
+    const senderIndex=senderSight.bindings.indexOf(id);
+    if(senderIndex<0)return [];
+    const position=receiverSight.objects[index].position,
+      forward=referenceGeometry(f.sender.position,position,f.sender.scene,1);
+    if(!forward||!visibleIndicationGeometry(f.listener,forward)||
+        resolveIndication(forward,receiverSight.objects).index!==index)return [];
+    const reverse=referenceGeometry(f.listener.position,position,f.listener.scene,1);
+    return reverse&&visibleIndicationGeometry(f.sender,reverse)&&
+      resolveIndication(reverse,senderSight.objects).index===senderIndex?[]:[id];
+  }).slice(0,2);
+  assert.equal(oneWay.length,2,'The declared initial engineering geometry has two one-way referents');
+  const capture=f.pixelSensor.capture.bind(f.pixelSensor);
+  f.pixelSensor.capture=actor=>{
+    const crops=capture(actor);
+    for(const [id,crop]of crops){
+      const index=oneWay.indexOf(id);
+      if(index<0){crops.delete(id);continue;}
+      const value=index===0?.2:.8;
+      crops.set(id,{...crop,features:Array(48).fill(value),pixels:Array(768).fill(value*255)});
+    }
+    return crops;
+  };
+  f.begin();
+  const senderBefore=senderData(f.attachment),listenerBefore=listenerData(f.attachment);
+  f.demonstrate();
+  const event=f.event(),measured=f.attachment.measurementSnapshot(),
+    causes=Object.entries(measured.admissionGates).filter(([key])=>key.startsWith('response-preflight:'));
+  assert.equal(event.status,'observed');
+  assert.equal(event.feedbackStatus,'censored');
+  assert.equal(event.feedbackReason,'response-not-resolvable');
+  assert.equal(event.listenerUpdate,true);
+  assert.equal(event.senderUpdate,false);
+  assert.equal(measured.counts.validListenerDemonstrations,1);
+  assert.equal(measured.counts.paidReplyStarts,0);
+  assert.equal(measured.admissionGates['response:response-not-resolvable'],1);
+  assert.equal(causes.length,1);
+  assert.equal(causes[0][1],1);
+  assert.deepEqual(senderData(f.attachment).model,senderBefore.model);
+  assert.notDeepEqual(listenerData(f.attachment).model,listenerBefore.model);
   f.attachment.dispose();
 });
 
@@ -497,7 +560,9 @@ test('pending sender trajectory is absent after strict save/reopen; completed li
 });
 
 test('repeated snapshot, legacy feedback reads and strict saves cannot draw or train pending models',()=>{
-  const f=fixture();f.begin();
+  const f=fixture();f.sender.active={request:{type:'rest'}};
+  assert.equal(f.attachment.hooks.optionalAction(f.listener),null);
+  f.sender.active=null;f.begin();
   const before=f.attachment.exportPersistence().characterMessages,world=structuredClone(f.state);
   const values=new Map(),storage={getItem:key=>values.get(key)??null,
     setItem:(key,value)=>values.set(key,value)};
@@ -507,11 +572,13 @@ test('repeated snapshot, legacy feedback reads and strict saves cannot draw or t
     assert.equal(measurement.counts.emissions,1);
     measurement.counts.emissions=999;
     measurement.admissionGates.optional=999;
+    measurement.admissionGates['no-peer:active']=999;
     measurement.events[0].message='forged';
     measurement.actors[0].body.hunger='forged';
     assert.equal(f.attachment.measurementSnapshot().events[0].message,snapshot.latest.message,
       'The compact measurement is a defensive copy');
     assert.notEqual(f.attachment.measurementSnapshot().admissionGates.optional,999);
+    assert.equal(f.attachment.measurementSnapshot().admissionGates['no-peer:active'],1);
     assert.equal(snapshot.pending,1);
     assert.deepEqual(f.attachment.takeSenderFeedback(f.sender),[]);
     const exportNow=f.attachment.exportPersistence();
@@ -550,6 +617,9 @@ test('disabling only passive measurement preserves full world, model, replay and
   const rows=[];
   for(const attach of [attachVisualReferenceLearning,withoutMeasurement]){
     const f=fixture({attach});
+    f.sender.active={request:{type:'rest'}};
+    assert.equal(f.attachment.hooks.optionalAction(f.listener),null);
+    f.sender.active=null;
     f.begin();f.demonstrate();f.respond('mismatch');
     const first=f.attachment.snapshot().latest;
     assert.equal(first.feedbackStatus,'mismatched');
