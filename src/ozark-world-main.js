@@ -31,7 +31,10 @@ const storage = window.localStorage;
 let geometry, loaded;
 try {
   geometry = createOzarkWorldGeometry();
-  loaded = loadOzarkSave(storage, geometry);
+  // The isolated native reference fixture declares its historical blank seed.
+  // Occupied slots ignore this option and retain their validated continuations.
+  loaded = loadOzarkSave(storage, geometry,
+    {communicationSeed: location.search === '?test=1' ? 211 : undefined});
 } catch (error) {
   hide('world-loading'); show('recovery-panel');
   text('recovery-title', 'The world could not finish loading.');

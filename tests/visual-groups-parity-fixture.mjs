@@ -23,7 +23,7 @@ const {createOzarkState}=await import('../src/ozark-save.js');
 const {bindOzarkWorldAgent}=await import('../src/ozark-agent-world.js');
 const {PopulationRuntime}=await import('../src/population.js');
 const {visualGroups}=await import('../src/visual-group-memory.js');
-const g=createOzarkWorldGeometry(),state=createOzarkState(g);
+const g=createOzarkWorldGeometry(),state=createOzarkState(g,{communicationSeed:211});
 for(const n of state.agents)bindOzarkWorldAgent(n,g,state);
 const runtime=new PopulationRuntime(state,{communicationMode:'legacy',cardinal:false});
 const started=performance.now();

@@ -3,8 +3,8 @@ import { OZARK_SAVE_KEY, createOzarkState, writeOzarkSave, loadOzarkSave } from 
 // Preparation does not touch storage or authorize ordinary save writes. Only
 // known presentation preferences survive; test conditions and learning overrides
 // belong to the old world, not the user's application/model configuration.
-export function prepareFreshWorld(geometry, previous = null) {
-  const fresh = createOzarkState(geometry);
+export function prepareFreshWorld(geometry, previous = null, {communicationSeed} = {}) {
+  const fresh = createOzarkState(geometry, {communicationSeed});
   for (const actor of fresh.agents) {
     const preference = previous?.agents?.find(old => old.id === actor.id)?.rescuePresentation;
     if (preference === 'quiet' || preference === 'divine') actor.rescuePresentation = preference;

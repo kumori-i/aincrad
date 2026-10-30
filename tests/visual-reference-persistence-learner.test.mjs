@@ -102,7 +102,7 @@ test('malformed memory restoration is atomic and never accepts a copied peer lab
 });
 
 test('attachment binds retained evidence to exact live actor provenance and exports purely',()=>{
-  const state=createOzarkState(createOzarkWorldGeometry());
+  const state=createOzarkState(createOzarkWorldGeometry(),{communicationSeed:211});
   const sender=createVisualReferenceMemory({symbolSeed:211,symbolIdentity:1});
   const listener=createVisualReferenceMemory({symbolSeed:211,symbolIdentity:2});
   const senderToken=Object.freeze({});listener.reconcilePartners([senderToken]);
