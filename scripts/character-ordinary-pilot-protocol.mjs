@@ -10,6 +10,7 @@ export const CHARACTER_ORDINARY_PILOT_PROTOCOL=Object.freeze({
   maxIpcBytes:256*1024,maxEvents:256,maxCensorReasons:64,maxGateKeys:64,
   counter:2147483647,overshootSeconds:2,stopGraceMs:5000,
   activationRef:'experiments/character-ordinary-pilot-v1-once',
+  receiptRef:'experiments/character-ordinary-pilot-v1-receipt',
   workflow:'Ordinary character-message pilot — approved once',platform:'linux',architecture:'x64',
 });
 

@@ -67,6 +67,7 @@ test('prospective constants declare one bounded ordinary trajectory',()=>{
   assert.equal(P.stopGraceMs,5000);assert.equal(P.platform,'linux');
   assert.equal(P.architecture,'x64');
   assert.equal(P.activationRef,'experiments/character-ordinary-pilot-v1-once');
+  assert.equal(P.receiptRef,'experiments/character-ordinary-pilot-v1-receipt');
   assert.equal(CHARACTER_PILOT_COUNT_KEYS.length,21);
 });
 

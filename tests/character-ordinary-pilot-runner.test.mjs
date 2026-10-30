@@ -22,7 +22,9 @@ const hashes=Object.fromEntries(['sourceManifestSha256','protocolSha256','runner
   .map((key,index)=>[key,(index+1).toString(16).repeat(64)]));
 const env={GITHUB_ACTIONS:'true',GITHUB_WORKFLOW:P.workflow,GITHUB_EVENT_NAME:'create',
   GITHUB_REF:'refs/heads/'+P.activationRef,GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:'41000000000',
-  GITHUB_SHA:'a'.repeat(40),DISPLAY:':91'};
+  GITHUB_SHA:'a'.repeat(40),DISPLAY:':91',
+  AINCRAD_CHARACTER_PILOT_RECEIPT_REF:'refs/heads/'+P.receiptRef,
+  AINCRAD_CHARACTER_PILOT_RECEIPT_COMMIT:'c'.repeat(40)};
 const event={ref_type:'branch',ref:P.activationRef};
 const identity={commit:'a'.repeat(40),tree:'b'.repeat(40),worktreeStatus:''};
 const receipt={schema:1,approved:true,protocol:P.id,activationRef:P.activationRef,
@@ -34,7 +36,10 @@ test('activation requires exact external receipt, one create event, clean source
   assert.deepEqual(validateCharacterPilotActivation(env,event,identity,receipt,
     {...hashes,receiptSha256:'f'.repeat(64)},host),{
     verified:true,commit:identity.commit,tree:identity.tree,ref:env.GITHUB_REF,
-    runId:env.GITHUB_RUN_ID,attempt:'1',receiptSha256:'f'.repeat(64)});
+    runId:env.GITHUB_RUN_ID,attempt:'1',
+    receiptRef:env.AINCRAD_CHARACTER_PILOT_RECEIPT_REF,
+    receiptCommit:env.AINCRAD_CHARACTER_PILOT_RECEIPT_COMMIT,
+    receiptSha256:'f'.repeat(64)});
   const rejected=[
     [env,event,identity,{...receipt,approved:false},hashes,host],
     [env,event,identity,{...receipt,extra:true},hashes,host],
@@ -44,6 +49,10 @@ test('activation requires exact external receipt, one create event, clean source
     [{...env,GITHUB_EVENT_NAME:'push'},event,identity,receipt,hashes,host],
     [{...env,GITHUB_REF:'refs/heads/main'},event,identity,receipt,hashes,host],
     [{...env,GITHUB_SHA:'c'.repeat(40)},event,identity,receipt,hashes,host],
+    [{...env,AINCRAD_CHARACTER_PILOT_RECEIPT_REF:'refs/heads/main'},
+      event,identity,receipt,hashes,host],
+    [{...env,AINCRAD_CHARACTER_PILOT_RECEIPT_COMMIT:'bad'},
+      event,identity,receipt,hashes,host],
     [{...env,DISPLAY:'',WAYLAND_DISPLAY:''},event,identity,receipt,hashes,host],
     [env,{...event,ref_type:'tag'},identity,receipt,hashes,host],
     [env,{...event,ref:'main'},identity,receipt,hashes,host],

@@ -81,6 +81,9 @@ export function validateCharacterPilotActivation(env,event,identity,receipt,hash
   assert.equal(event.ref,P.activationRef);assert.equal(env.GITHUB_REF,'refs/heads/'+P.activationRef);
   assert.equal(env.GITHUB_RUN_ATTEMPT,'1');assert.match(env.GITHUB_RUN_ID||'',/^[1-9][0-9]*$/);
   assert(hex40(env.GITHUB_SHA));assert.equal(identity.commit,env.GITHUB_SHA);
+  assert.equal(env.AINCRAD_CHARACTER_PILOT_RECEIPT_REF,'refs/heads/'+P.receiptRef);
+  assert(hex40(env.AINCRAD_CHARACTER_PILOT_RECEIPT_COMMIT),
+    'Exact resolved receipt-data commit required');
   assert.equal(identity.commit,receipt.commit);assert.equal(identity.tree,receipt.tree);
   assert.equal(identity.worktreeStatus,'','Native pilot source must be clean');
   assert.equal(host.platform,'linux');assert.equal(host.arch,'x64');assert.notEqual(host.uid,0);
@@ -88,7 +91,10 @@ export function validateCharacterPilotActivation(env,event,identity,receipt,hash
   for(const key of ['sourceManifestSha256','protocolSha256','runnerSha256','generatedRunnerSha256',
     'runtimeFingerprint','rendererManifestSha256'])assert.equal(hashes[key],receipt[key],key+' differs from reviewed receipt');
   return {verified:true,commit:identity.commit,tree:identity.tree,ref:env.GITHUB_REF,
-    runId:env.GITHUB_RUN_ID,attempt:env.GITHUB_RUN_ATTEMPT,receiptSha256:hashes.receiptSha256};
+    runId:env.GITHUB_RUN_ID,attempt:env.GITHUB_RUN_ATTEMPT,
+    receiptRef:env.AINCRAD_CHARACTER_PILOT_RECEIPT_REF,
+    receiptCommit:env.AINCRAD_CHARACTER_PILOT_RECEIPT_COMMIT,
+    receiptSha256:hashes.receiptSha256};
 }
 
 export async function readExternalCharacterPilotReceipt(path){
@@ -284,6 +290,10 @@ export async function main(args=process.argv.slice(2),env=process.env){
   if(execute){
     assert(typeof env.AINCRAD_CHARACTER_PILOT_RECEIPT_PATH==='string',
       'External reviewed receipt is required before native preparation');
+    assert.equal(env.AINCRAD_CHARACTER_PILOT_RECEIPT_REF,'refs/heads/'+P.receiptRef,
+      'Expected separate receipt-data ref required');
+    assert(hex40(env.AINCRAD_CHARACTER_PILOT_RECEIPT_COMMIT),
+      'Exact resolved receipt-data commit required');
     const receiptPath=resolve(env.AINCRAD_CHARACTER_PILOT_RECEIPT_PATH);
     assert(!receiptPath.startsWith(ROOT+'/'),'Reviewed receipt must be outside the source tree');
     ({receipt,sha256:receiptSha256}=await readExternalCharacterPilotReceipt(receiptPath));
