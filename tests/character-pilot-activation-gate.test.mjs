@@ -177,7 +177,12 @@ test('hung Actions API request aborts within its short per-request deadline',asy
   let aborted=false;
   await assert.rejects(readCharacterPilotRunHistory({token:'synthetic-read-token',
     requestTimeoutMs:5,fetchImpl:(_url,{signal})=>new Promise((_resolve,reject)=>{
-      signal.addEventListener('abort',()=>{aborted=true;reject(signal.reason);},{once:true});
+      // AbortSignal.timeout has an unreferenced timer. Keep this synthetic
+      // request alive so an isolated test process can witness its abort.
+      const fallback=setTimeout(()=>reject(Error('Mock request outlived its deadline')),1000);
+      signal.addEventListener('abort',()=>{
+        clearTimeout(fallback);aborted=true;reject(signal.reason);
+      },{once:true});
     })}),/TimeoutError|timed out/i);
   assert.equal(aborted,true);
 });
