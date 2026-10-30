@@ -1,6 +1,6 @@
 # Aincrad
 
-A local-first, original pixel-art desktop simulation with **one world: the Ozark watershed**. Explore its structured habitats while Aster and Mira perceive nearby objects, act, experience consequences and exchange experimental numeric symbols. The application opens directly into this world, without an original-world selector or a separate fishing map.
+A local-first, original pixel-art desktop simulation with **one world: the Ozark watershed**. Explore its structured habitats while Aster and Mira perceive nearby objects, act, experience consequences and attempt experimental character messages about visible objects. The application opens directly into this world, without an original-world selector or a separate fishing map.
 
 ## Run locally
 
@@ -25,53 +25,44 @@ held-out message-ablation controls; harness delivery is not a language claim.
 The [v2 follow-up](docs/pixel-language-v2/README.md) adds contrastive color/shape
 episodes, broader appearances and a predeclared multi-seed replication test.
 
-## One world: survival and visual-reference development
+## Character messages in the same survival world
 
-This branch is developing **private visual associations** in the same main Ozark
-world: one population, clock and ordinary survival learning. Agents retain bounded
-own-view examples, assign stable arbitrary symbols to visual anchors, and learn
-partner-specific symbol associations only after genuinely observed, paid post-choice
-indications. Unknown or ambiguous meanings still lead to uniform exploratory choices.
-This is an engineered associative baseline, not a demonstrated autonomous language,
-abstract visual concepts, grammar, creativity or improved survival.
+The main optional channel now samples one to six `a`–`z` letters from each
+sender's own current object crop. No English words, object definitions, grammar,
+pretrained language model or trained lab checkpoint are supplied. A listener
+chooses between two objects using its private model for that sender; before its
+first valid own-view demonstration it chooses uniformly. The listener's paid
+inspection and the sender's paid visible indication can produce one own-view
+training example. A later optional paid listener reply can give the sender one
+match or mismatch update from its **own** fresh sight. Unseen, ambiguous or
+interrupted actions provide no invented training signal. Urgent survival remains
+upstream, with one population and one clock.
 
-The [sender-visible response slice](docs/visual-reference/SENDER-FEEDBACK.md)
-lets the listener optionally indicate its original paid inspection choice after
-the sender's demonstration. A completed reply can give the sender a temporary
-own-view visual similarity signal. Agents still do not generate learned letter
-sequences, and this signal does not establish understanding. The original
-exchange keeps its existing candidate checks. The reply is offered only when
-its gesture can be resolved in the sender's current sight; an unavailable
-reply leaves the listener's completed association intact.
+The original physical reference work is retained in the [Phase A](docs/visual-reference/PHASE-A.md),
+[Phase B](docs/visual-reference/PHASE-B.md) and [sender feedback](docs/visual-reference/SENDER-FEEDBACK.md)
+records. Its assigned integer-symbol anchors and examples remain archival,
+inspectable private evidence in continuing valid saves. New character models
+start untrained and never train from those old examples. Character messages
+remove the old anchor-capacity admission rule, so their available object pairs
+are not directly comparable with earlier ordinary symbol runs. The same
+target-independent geometry, own-view distinguishability, paid actions,
+12-second deadline and survival interruptions remain.
 
-Open a character's **Learning** tab, or pause with Escape and use **Learning
-inspector** as a shortcut to that same tab. It shows copied crops, actual paid
-actions, observed/censored reference attempts, association evidence and separate
-reference correctness. It distinguishes new examples, repeated support, conflicts,
-confident matches and exploration; these are not positive/negative bodily outcomes.
-English annotations are observer labels, not speech, definitions or translations.
-Closing the panel changes neither the main clock nor the transaction. There is
-no separate playable experiment world or 1800-second cutoff.
+Open a character's **Conversation** tab, or pause with Escape and use **Learning
+inspector**. It shows exact emitted letters, actual recipient action receipts,
+copied own-view crops and separate listener/sender updates. English annotations
+are for the human observer, not translations or messages sent to agents.
+Opening, saving and closing the view cannot draw policy randomness or train a
+model. Events are session-only; pending gesture and message authority do not
+survive reopening.
 
-[The retained physical-stage evidence](docs/visual-reference/PHASE-A.md) include a supplied
-24-unit schematic direction cue, local geometry parser, all-visible distractors,
-conservative sensory-cap rejection, canonical paid work, and consecutive sampled
-1/60-second observation intervals. Those are engineered scaffolding, not learned
-visual concepts or creativity. Urgent survival decisions remain upstream. There
-is no bodily-reward update or competing old symbol/action-credit learner in the
-main attachment. Historical automated fixtures retain their original channel.
-
-[Phase B rules and limits](docs/visual-reference/PHASE-B.md) describe the bounded
-private memory and its evidence gates. Existing bodies and memories save normally.
-Each individual's acquired visual anchors and partner-specific examples are saved
-with a valid current world and can be used after an independent reopen. Fresh or
-reset worlds and replacement individuals begin without those associations. An
-unfinished gesture, correction right and session event history cannot revive on
-reopen. If communication stops, completed memory is retained only when it can be
-safely exported; otherwise ordinary saves are blocked to protect the stored world.
-No trained lab weights or Ollama are used. The existing explicitly confirmed
-**Reset world** flow starts fresh bodies and memories; this development does not
-delete user saves.
+Strict current-world saves keep the old visual associations and their four RNG
+continuations intact while adding bounded private character weights, examples,
+counters and separate RNG states. Valid old visual-reference saves migrate
+read-only to untrained models; malformed current data blocks overwrite. Fresh,
+reset or replaced individuals begin without acquired character training. The
+existing confirmed **Reset world** flow remains the way to start fresh; this
+development does not delete user saves.
 
 Prewritten English speech, human journal instructions, agent notes, peer
 teaching/warnings and model naming remain disabled in the main world. Old names,
@@ -80,16 +71,11 @@ observation remain. Food handoffs use supplied nonverbal consent, not learned
 words or food facts. Existing worlds may retain personally earned effects of old
 advice, so they are not language-naive starts.
 
-Native physical proof and exact-source review must precede Phase B's private
-experience-backed associations. No successful language, grammar, improved
-survival or sample-efficiency claim follows from this stage. Future behavioral
-comparisons require a new frozen protocol. The [historical protocol](docs/communication-bridge/PROTOCOL.md)
-and Python lab evidence are unchanged; their trained networks are never imported.
-
-The [first six-trial results](docs/communication-bridge/RESULTS.md) found no
-demonstrated survival benefit: two seed pairs had no exchanges, and the third
-had identical recorded outcome ledgers and terminal body aggregates with
-messages enabled or erased. Online weight updates are not proof of shared words.
+This integration is undergoing exact-source and native Linux/macOS engineering
+verification. A completed update is not evidence of stable vocabulary, grammar,
+generalization, improved survival or a measured ordinary learning rate. The
+[historical communication protocol](docs/communication-bridge/PROTOCOL.md) and
+lab results remain unchanged; no new autonomous cohort was run.
 
 ## One physical world
 
@@ -154,10 +140,10 @@ uses actual failed walking and recent personal travel, without guaranteeing esca
 Food sharing uses supplied nonverbal requests, offers and consent. A real timed
 handoff still requires a visible held item, locality, capacity, voluntary acceptance
 and a paid grasp. No message grants nutrition or firsthand knowledge. The
-**Learning** tab separates these motor gestures from actual numeric-symbol events
+**Learning** tab separates these motor gestures from actual character-message events
 and English observer/debug narration. There is no English agent conversation or
 active human instruction entry in the main world. Ollama is not needed for the
-current offline survival or physical-reference verification.
+current offline survival or character-message channel.
 
 ### Historical communication mechanisms — disabled in the main world
 

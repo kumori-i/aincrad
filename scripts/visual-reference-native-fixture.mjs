@@ -1,4 +1,4 @@
-/** Engineering-only, deliberate private-association exercise of the actual main state and
+/** Engineering-only, deliberate character-message exercise of the actual main state and
  * PopulationRuntime. It neither creates a population nor owns a second clock. */
 export function visualReferenceEvidence(state) {
   return structuredClone({elapsed:state.elapsed,player:state.player,playerBody:state.playerBody,
@@ -13,22 +13,22 @@ export function visualReferenceEvidence(state) {
  * accepted only by Node preparation tests; native runs use the real Canvas sensor. */
 export async function installVisualReferenceFixture(context,moduleBase,projectEvidence) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
-  const {observeNpc,requestNpcAction,requestNpcIndication,cancelNpcAction}=await use('npc');
-  const {createIndicationPermit,publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,referenceGeometry}=await use('discovery-actions');
+  const {observeNpc,requestNpcAction,cancelNpcAction}=await use('npc');
+  const {publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,referenceGeometry}=await use('discovery-actions');
   const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry}=await use('visual-reference-perception');
   const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
   const {npcEffortCost}=await use('npc-effort-funding');
-  const {VISUAL_REFERENCE_MEMORY_LIMITS}=await use('visual-reference-memory');
-  const {validateReferencePersistence}=await use('visual-reference-save');
+  const {classifyOwnDemonstration,listenerDistribution}=await use('character-message-core');
+  const {validateCharacterPersistence}=await use('visual-reference-save');
   const {loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
-  const {state,populationState,reference,geometry,renderer,step,fixedStep,checkpoint:saveCheckpoint,auditAssociation}=context;
+  const {state,populationState,reference,geometry,renderer,step,fixedStep,checkpoint:saveCheckpoint}=context;
   const require=(value,message)=>{if(!value)throw new Error(message);};
   const near=(a,b,label)=>require(Math.abs(a-b)<1e-7,`${label}: ${a} != ${b}`);
   require(state===populationState&&state.elapsed===0&&state.agents.length===2,'Expected fresh actual main state/population');
   near(fixedStep,1/60,'Actual main fixed step');
-  require(reference?.snapshot().phase==='private-visual-association','Expected actual private-association attachment');
+  require(reference?.snapshot().phase==='private-character-message','Expected actual private character-message attachment');
   const [sender,listener]=state.agents;
   if(context.responseScenario===true){
     // Explicit engineering geometry, never an ordinary-world opportunity or
@@ -44,9 +44,17 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const sensor=context.auditSensor||createCommunicationPixelSensor(document);
   const actualCanvas=!context.auditSensor;
   const audit=[],responseAudit=[],steps=[],checks={};
-  let choiceActive,indicationActive,responseActive,pendingActive,pendingPermit,privateTargetId,choiceProof,indicationProof,baseline,responseBaseline;
+  let choiceActive,indicationActive,responseActive,pendingActive,privateTargetId,choiceProof,indicationProof,baseline,responseBaseline;
   let secondStarted=false,secondChoiceActive=null,secondDemoActive=null;
   let phase='ready';
+  const characterState=()=>reference.exportPersistence().characterMessages;
+  const ownerState=id=>characterState().learners.find(row=>row.agentId===id);
+  const partnerState=(ownerId,partnerId)=>ownerState(ownerId).partners.find(row=>row.agentId===partnerId).listener;
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const beforeCharacters=structuredClone(characterState());
+  const originalSender=beforeCharacters.learners.find(row=>row.agentId===sender.id).sender;
+  const originalListener=beforeCharacters.learners.find(row=>row.agentId===listener.id).partners[0].listener;
+  let admissionCrops=null;
   const holdUntil=state.elapsed+20;
   // Bounded deliberate command scheduling, NOT bodily holds: the same ordinary
   // population still integrates every environment, ecology and body fixed step.
@@ -75,16 +83,19 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const responsePose=()=>publicIndicationGeometry(listener);
   const associationState=()=>{
     const s=reference.snapshot(),completed=!!successfulDiscoveryActionCompletion(sender,indicationActive),expected=completed?1:0;
-    require(s.positive===0&&s.negative===0&&s.relief===0&&s.discomfort===0,'Association evidence cannot pay a bodily reward');
+    require(s.positive===0&&s.negative===0&&s.relief===0&&s.discomfort===0,'Character learning cannot pay a bodily reward');
     require(s.observationEvents.every(e=>e.reward===null),'No reference reward');
     require(s.learners.length===2,'Expected the same two private main-world memories');
     const own=s.learners.find(n=>n.agentId===listener.id);
-    if(!secondStarted)require(s.updates===expected&&s.evidenceAdditions===expected&&s.correctionAttempts===expected&&
-      s.supportUpdates===0&&s.conflicts===0&&own.counts.entries===expected&&own.counts.examples===expected,
-      'Exactly one listener own-view exemplar may appear, only after canonical paid indication completion');
-    else require(s.correctionAttempts>=1&&own.counts.examples>=1&&s.evidenceAdditions>=1,
+    const bank=own.character?.partnerBanks?.find(row=>row.partnerId===sender.id);
+    if(!secondStarted)require(own.character?.listenerUpdates===expected&&
+      own.character?.uniqueDemonstrations===expected&&bank?.retainedExamples===expected&&
+      own.counts.entries===0&&own.counts.examples===0,
+      'Exactly one numeric listener example may appear only after canonical paid indication completion; legacy memory stays archival');
+    else require(own.character?.listenerUpdates>=1&&own.character?.uniqueDemonstrations>=1&&bank?.retainedExamples>=1,
       'A second transaction cannot erase the already earned listener example');
-    require(Array.isArray(s.senderFeedback)&&s.senderFeedback.length<=1,'Sender feedback must be bounded and session-only');
+    require(Array.isArray(s.senderFeedback)&&s.senderFeedback.length===0,
+      'Character messages must never expose a replayable sender feedback queue');
     return s;
   };
   const tick=()=>{
@@ -137,12 +148,21 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(phase==='ready'&&!pose(),'Before choice there must be no paid cue');
     const action=reference.hooks.optionalAction(listener);
     require(action?.type==='inspect_object','Initial real Canvas observations did not admit a distinguishable pair');
+    admissionCrops=sensor.capture(listener,state);
     const result=requestNpcAction(listener,action,state.environment);choiceActive=listener.active;
     reference.hooks.performed(listener,action,result,choiceActive);
     require(result.code==='ACTION_STARTED'&&choiceActive,'Deliberate listener inspect did not start');
     require(!pose(),'An unfinished listener choice cannot produce a cue');
-    require(reference.snapshot().latest.choiceMode==='uniform-exploration'&&reference.snapshot().latest.choiceReason==='unknown-symbol','Actual first policy action must use empty-memory uniform exploration');
-    checks.preDemonstration={receiverExamples:0,choiceMode:'uniform-exploration',choiceReason:'unknown-symbol',eligibleDistribution:[.5,.5]};
+    const event=reference.snapshot().latest,senderPolicy=ownerState(sender.id).sender,
+      listenerPolicy=partnerState(listener.id,sender.id);
+    require(event.choiceMode==='uniform-untrained'&&/^[a-z]{1,6}$/.test(event.message),
+      'Actual first policy action must use an emitted character string and untrained uniform listener choice');
+    require(senderPolicy.emissions===1&&senderPolicy.updates===0&&same(senderPolicy.model,originalSender.model)&&
+      listenerPolicy.demonstrations===0&&listenerPolicy.optimizerSteps===0&&
+      same(listenerPolicy.model,originalListener.model),
+      'Emitting a message and choosing a candidate cannot train either policy');
+    checks.preDemonstration={receiverExamples:0,choiceMode:'uniform-untrained',message:event.message,
+      eligibleDistribution:[.5,.5],senderEmissions:1,senderWeightsUnchanged:true,listenerWeightsUnchanged:true};
     phase='choice';return status();
   }
   function completeChoice(){
@@ -203,7 +223,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const replyCensored=snapshot.pending===0&&snapshot.latest.feedbackStatus==='censored';
     require(snapshot.observed===1&&snapshot.latest.status==='observed'&&
       (context.responseScenario===true?replyAvailable:replyAvailable||replyCensored),
-    'Actual attachment lost the paid association or an eligible optional reply');
+    'Actual attachment lost the paid character demonstration or an eligible optional reply');
     checks.replyAvailable=replyAvailable;
     if(replyCensored)checks.replyCensorReason=snapshot.latest.feedbackReason;
     require(snapshot.senderFeedback.length===0,'Sender cannot receive feedback before a listener response');
@@ -215,12 +235,31 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(JSON.stringify(sender.inventory)===JSON.stringify(baseline.inventory)&&sender.discovery.experiments.length===baseline.experiments,'Indication fabricated acquisition or experiment');
     checks.payment={canonicalWorkSeconds:indicationProof.worked,expectedActionEffortKcal:expectedEffort,totalMetabolizedKcal:metabolized,
       availableEnergyChange:sender.physiology.availableEnergyKcal-baseline.available,includesOrdinaryMetabolism:true};
-    const own=snapshot.learners.find(n=>n.agentId===listener.id),entry=own.partners[0]?.entries[0];
+    const own=snapshot.learners.find(n=>n.agentId===listener.id),policy=partnerState(listener.id,sender.id),
+      senderPolicy=ownerState(sender.id).sender,entry=policy.examples[0];
     const finalOwnFeatures=poolCommunicationPixels(snapshot.latest.demonstrationPixels);
-    require(entry?.examples.length===1&&JSON.stringify(entry.examples[0])===JSON.stringify(finalOwnFeatures),'Stored exemplar must equal the listener final observed demonstration, not sender pixels');
-    require(entry.symbol===snapshot.latest.tokens[0]*8+snapshot.latest.tokens[1]&&snapshot.latest.correction==='new-exemplar','Own exemplar must bind the actually received numeric symbol');
-    checks.ownAssociation={evidenceAdditions:1,correctionAttempts:1,receiverExamples:1,symbol:entry.symbol,features:finalOwnFeatures,
-      provenance:'listener final personally observed demonstration crop; one canonical completion'};
+    const currentOwn=sensor.capture(listener,state).get(privateTargetId);
+    require(currentOwn?.pixels?.length===768&&same(currentOwn.features,finalOwnFeatures),
+      'The completed own demonstration must still be an actual current Canvas crop');
+    require(entry?.message===snapshot.latest.message&&entry.candidates?.length===2&&
+      entry.label===classifyOwnDemonstration(entry.candidates,finalOwnFeatures)&&
+      [0,1].includes(entry.label)&&snapshot.latest.listenerUpdate===true,
+      'The numeric listener label must use exactly the received string, original own candidate views and final own crop');
+    const admitted=[...admissionCrops.values()].map(crop=>crop.features);
+    require(entry.candidates.every(candidate=>admitted.some(view=>same(view,candidate))),
+      'Both retained candidate vectors must come from actual original listener Canvas crops');
+    require(policy.demonstrations===1&&policy.replayUses===0&&policy.optimizerSteps===1&&
+      own.character.uniqueDemonstrations===1&&own.character.listenerUpdates===1&&
+      !same(policy.model,originalListener.model)&&same(senderPolicy.model,originalSender.model)&&
+      senderPolicy.updates===0,
+      'Exactly one completed demonstration updates only the private listener model before any reply');
+    const modelDistribution=listenerDistribution(policy.model,entry.message,entry.candidates,{hasDemonstration:true});
+    require(modelDistribution.probabilities.length===2&&modelDistribution.probabilities.every(Number.isFinite),
+      'Trained listener distribution must be finite on its actual own-view example');
+    checks.listenerLearning={uniqueDemonstrations:1,replayUses:0,optimizerSteps:1,retainedExamples:1,
+      message:entry.message,label:entry.label,finalOwnFeatures,actualCanvas,
+      candidateViewsFromOriginalCanvas:true,senderWeightsUnchangedBeforeResponse:true,
+      provenance:'Original own candidate Canvas crops and final personally observed demonstration crop; one canonical paid completion'};
     checks.sameMainPopulation=true;checks.actualFixedStep=1/60;checks.canonicalOwnDemonstrationOnly=true;
     phase=replyAvailable?'indication-complete':'completed';return status();
   }
@@ -261,9 +300,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(proof?.type==='indicate_object','No canonical successful listener response');near(proof.worked,1.8,'Paid listener response work');
     near(state.elapsed-responseBaseline.at,1.8,'Real main listener response duration');
     require(!pose()&&!responsePose(),'Completion must remove both public cues');
-    const snapshot=associationState(),feedback=snapshot.senderFeedback[0],feedbackStatus=snapshot.latest.feedbackStatus;
-    const sampled=feedback?.eventId===snapshot.latest.id&&
-      ((feedback.signal==='match'&&feedbackStatus==='matched')||(feedback.signal==='mismatch'&&feedbackStatus==='mismatched'));
+    const snapshot=associationState(),feedbackStatus=snapshot.latest.feedbackStatus;
+    const sampled=feedbackStatus==='matched'||feedbackStatus==='mismatched';
     require(snapshot.observed===1&&snapshot.pending===0&&
       (context.responseScenario===true?sampled&&feedbackStatus==='mismatched':sampled||feedbackStatus==='censored'),
     'Completed response must yield a paid local sample or an explicit censored outcome');
@@ -272,12 +310,27 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     if(sampled){
       require(finalSender?.pixels?.length===768&&finalSender.features?.length===48&&finalListener?.features?.length===48,
         'Sampled response needs final fresh Canvas views');
-      require(JSON.stringify(feedback.features)===JSON.stringify(finalSender.features)&&
-        JSON.stringify(feedback.features)===JSON.stringify(poolCommunicationPixels(finalSender.pixels)),
-        'Feedback must contain the sender crop from the final paid response world state');
-      require(feedback.at<=sender.elapsed+1e-8&&sender.elapsed-feedback.at<=fixedStep+1e-8,
-        'Sender feedback must come from the final current paid step');
-    }else require(snapshot.senderFeedback.length===0,'Censored reply cannot yield a sender training sample');
+      require(same(finalSender.features,poolCommunicationPixels(finalSender.pixels))&&
+        finalSender.at<=sender.elapsed+1e-8&&sender.elapsed-finalSender.at<=fixedStep+1e-8,
+        'Sender-local feedback must use the final fresh paid-step Canvas crop');
+    }
+    require(snapshot.senderFeedback.length===0,'Character training must not leave a replayable feedback queue');
+    const intended=poolCommunicationPixels(snapshot.latest.senderPixels),localDistance=finalSender?.features?.length===48?
+      Math.sqrt(intended.reduce((sum,value,index)=>sum+(value-finalSender.features[index])**2,0)/48):null;
+    if(sampled)require(localDistance!==null&&
+      (feedbackStatus==='matched'?localDistance<=.04:localDistance>=.08),
+      'Recorded sender feedback must agree with sender-only actual Canvas RMS');
+    const senderPolicy=ownerState(sender.id).sender,listenerPolicy=partnerState(listener.id,sender.id);
+    if(sampled){
+      require(snapshot.latest.senderUpdate===true&&senderPolicy.updates===1&&senderPolicy.revision===1&&
+        senderPolicy.emissions===1&&!same(senderPolicy.model,originalSender.model)&&
+        Math.abs(senderPolicy.baseline-(feedbackStatus==='matched'?.05:-.05))<1e-12,
+        'One authentic paid sender-local outcome must update only its original on-policy sender once');
+    }else require(snapshot.latest.senderUpdate!==true&&senderPolicy.updates===0&&
+      senderPolicy.baseline===0&&same(senderPolicy.model,originalSender.model),
+      'A censored response must leave sender weights and baseline exact');
+    require(listenerPolicy.demonstrations===1&&listenerPolicy.optimizerSteps===1,
+      'The later reply cannot revoke or duplicate completed listener learning');
     require(responseAudit.length>=100,'Missing repeated sender-side response perception');
     for(let i=1;i<responseAudit.length;i++)near(responseAudit[i].at-responseAudit[i-1].at,fixedStep,'Consecutive sender response perceptions');
     const expectedEffort=npcEffortCost(1.8,.25),metabolized=listener.physiology.totals.metabolizedKcal-responseBaseline.metabolized;
@@ -287,57 +340,74 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     checks.responsePayment={canonicalWorkSeconds:proof.worked,expectedActionEffortKcal:expectedEffort,
       totalMetabolizedKcal:metabolized,availableEnergyChange:listener.physiology.availableEnergyKcal-responseBaseline.available,
       includesOrdinaryMetabolism:true};
-    if(sampled)checks.senderFeedback={...feedback,actualCanvas,senderObservedFeatures:finalSender.features.slice(),
+    if(sampled)checks.senderFeedback={signal:feedbackStatus==='matched'?'match':'mismatch',
+      localDistance,actualCanvas,senderObservedFeatures:finalSender.features.slice(),
       senderCurrentFeatures:finalSender.features.slice(),
       listenerComparisonFeatures:finalListener.features.slice(),senderOnly:true,
       interpretation:'One sender-local visible-crop similarity signal from a completed paid listener gesture; no hidden correctness or bodily reward'};
     else checks.responseCensorReason=snapshot.latest.feedbackReason;
+    checks.senderLearning={updated:sampled,updates:senderPolicy.updates,baseline:senderPolicy.baseline,
+      changedParameters:!same(senderPolicy.model,originalSender.model),
+      listenerLearningRetained:listenerPolicy.optimizerSteps===1,
+      feedbackStatus,scope:'Only canonical sender-local fresh Canvas feedback can update the frozen sampled trajectory'};
     phase='completed';return status();
   }
   function inspectAssociation(){
-    require(phase==='completed'&&!checks.retrievalDiagnostic,'Audit exactly one completed real demonstration');
-    const beforeWorld=JSON.stringify(project()),beforeReference=JSON.stringify(reference.snapshot());
-    const evidence=auditAssociation();
-    require(evidence?.viewSource==='fresh-listener-current-canvas','Missing one-shot actual-memory fresh-view diagnostic');
-    require(evidence.eventId===reference.snapshot().latest.id&&evidence.symbol===checks.ownAssociation.symbol,'Diagnostic must use the first actual completed message');
-    near(evidence.at,listener.elapsed,'Current diagnostic time');
-    require(evidence.candidateViews?.length===2,'Expected same two current listener candidates');
-    for(const view of evidence.candidateViews){
-      near(view.at,listener.elapsed,'Fresh listener view time');
-      require(view.pixels?.length===768&&view.features?.length===48,'Expected actual own Canvas view');
-      require(JSON.stringify(view.features)===JSON.stringify(poolCommunicationPixels(view.pixels)),'Numeric audit features must come from copied own pixels');
-    }
-    require(JSON.stringify(evidence.demonstration.features)===JSON.stringify(checks.ownAssociation.features),'Audit must inspect actual acquired own evidence');
-    require([0,1].includes(evidence.known.index)&&evidence.known.reason==='unique-match','Current same-view known message must uniquely retrieve acquired evidence');
-    const distances=evidence.candidateViews.map(view=>Math.sqrt(view.features.reduce((sum,value,index)=>sum+(value-checks.ownAssociation.features[index])**2,0)/48));
-    require(evidence.known.distances.length===2&&evidence.reversed.distances.length===2,'Actual memory must expose both candidate distances');
-    for(let index=0;index<2;index++){near(evidence.known.distances[index],distances[index],'Actual-memory distance to the acquired own example');near(evidence.reversed.distances[1-index],distances[index],'Reversed actual-memory distance');}
-    require(distances.filter(distance=>distance<=VISUAL_REFERENCE_MEMORY_LIMITS.match).length===1&&
-      distances[evidence.known.index]<=VISUAL_REFERENCE_MEMORY_LIMITS.match&&
-      distances[1-evidence.known.index]>=distances[evidence.known.index]+VISUAL_REFERENCE_MEMORY_LIMITS.margin,'Known-message eligibility must obey supplied match and margin, not hidden correctness');
-    require(evidence.reversed.index===1-evidence.known.index&&evidence.reversed.reason==='unique-match','Reversed current candidates must reverse eligible index');
-    require(evidence.absent&&evidence.absent.symbol!==evidence.symbol&&evidence.absent.choice.index===null&&evidence.absent.choice.reason==='unknown-symbol','Absent message must abstain from confident retrieval');
-    const distributions={known:evidence.known.index===0?[1,0]:[0,1],absent:[.5,.5],reversed:evidence.reversed.index===0?[1,0]:[0,1]};
-    require(auditAssociation()===null,'Diagnostic handle must be consumed, not a repeatable choice API');
-    require(JSON.stringify(project())===beforeWorld&&JSON.stringify(reference.snapshot())===beforeReference,'Read-only retrieval diagnostic changed main state, histories, memory or transaction metrics');
-    checks.retrievalDiagnostic={...evidence,eligibleDistributions:distributions,readOnly:true,
-      interpretation:'Actual-memory same-scene fresh-view message-dependent retrieval eligibility only; no sampled or later policy action, vocabulary discrimination, generalization or survival benefit'};
+    require(phase==='completed'&&!checks.modelAudit,'Audit exactly one completed real sequence');
+    const beforeWorld=JSON.stringify(project()),beforeReference=JSON.stringify(reference.snapshot()),
+      beforeCharacter=JSON.stringify(characterState());
+    const policy=partnerState(listener.id,sender.id),example=policy.examples[0];
+    require(example?.message===checks.listenerLearning.message,'The read-only policy query uses the actual retained sequence');
+    const candidateViews=example.candidates.map(features=>{
+      const crop=[...admissionCrops.values()].find(view=>same(view.features,features));
+      require(crop?.pixels?.length===768&&crop.features?.length===48,'Query candidates must have actual original Canvas crops');
+      require(same(poolCommunicationPixels(crop.pixels),features),'Query features must equal pixels from original listener Canvas');
+      return {at:crop.at,features:crop.features.slice(),pixels:crop.pixels.slice()};
+    });
+    const known=listenerDistribution(policy.model,example.message,example.candidates,{hasDemonstration:true});
+    const reversed=listenerDistribution(policy.model,example.message,example.candidates.slice().reverse(),{hasDemonstration:true});
+    const untrained=listenerDistribution(policy.model,example.message,example.candidates,{hasDemonstration:false});
+    for(let index=0;index<2;index++)near(known.probabilities[index],reversed.probabilities[1-index],
+      'Candidate-order-equivariant listener distribution');
+    require(same(untrained.probabilities,[.5,.5]),'Untrained gate must remain exactly uniform');
+    require(JSON.stringify(project())===beforeWorld&&JSON.stringify(reference.snapshot())===beforeReference&&
+      JSON.stringify(characterState())===beforeCharacter,
+      'Read-only numeric query changed main state, private weights, RNG or transaction metrics');
+    checks.modelAudit={message:example.message,label:example.label,candidateViews,
+      ownDemonstrationFeatures:checks.listenerLearning.finalOwnFeatures,
+      known,reversed,untrained,readOnly:true,
+      interpretation:'Current private numeric model on original own Canvas candidates; scores do not establish word meaning, later policy success or generalization'};
     return status();
   }
   function pendingForSave(){
-    require(phase==='completed','Complete primary reference before interruption fixture');
-    const result=requestNpcAction(listener,{type:'inspect_object',targetId:privateTargetId},state.environment),active=listener.active;
-    require(result.code==='ACTION_STARTED','Second deliberate inspect rejected');
-    until(()=>listener.active!==active,'Second paid inspection did not finish');
-    require(successfulDiscoveryActionCompletion(listener,active),'Second inspection lacks canonical proof');
-    pendingPermit=createIndicationPermit(sender,listener,active,privateTargetId);require(pendingPermit,'Second paid inspect did not authorize canonical indication');
-    require(requestNpcIndication(sender,pendingPermit,state.environment).code==='ACTION_STARTED','Second canonical indication rejected');
-    pendingActive=sender.active;for(let i=0;i<12;i++)tick();require(pose(),'Pending saved cue did not become paid/visible');
+    require(phase==='completed'&&checks.modelAudit,'Complete primary sequence and read-only audit before interruption fixture');
+    secondStarted=true;
+    while(state.elapsed<12.1-1e-8)tick();
+    const choice=reference.hooks.optionalAction(listener);
+    require(choice?.type==='inspect_object','Second optional listener choice unavailable after cooldown');
+    const started=requestNpcAction(listener,choice,state.environment);secondChoiceActive=listener.active;
+    reference.hooks.performed(listener,choice,started,secondChoiceActive);
+    require(started?.code==='ACTION_STARTED'&&secondChoiceActive,'Second canonical inspect did not start');
+    until(()=>listener.active!==secondChoiceActive,'Second paid listener inspection did not finish');
+    const inspected=successfulDiscoveryActionCompletion(listener,secondChoiceActive);
+    require(inspected?.type==='inspect_object'&&inspected.targetId===choice.targetId,'Second inspection has no original paid selection proof');
+    const demonstration=reference.hooks.optionalAction(sender);
+    require(demonstration?.type==='indicate_object','Second sender demonstration unavailable');
+    require(reference.hooks.performOptional(sender,demonstration)?.code==='ACTION_STARTED','Second paid sender demonstration did not start');
+    secondDemoActive=sender.active;pendingActive=secondDemoActive;privateTargetId=secondDemoActive.request.targetId;
+    for(let i=0;i<12;i++)tick();
+    const pending=reference.snapshot();
+    require(pose()&&pending.pending===1&&pending.latest.status==='indicating'&&
+      pending.latest.message&&pending.latest.listenerUpdate!==true&&pending.latest.senderUpdate!==true,
+      'A partly paid second sequence must preserve its private pending trajectory without training');
+    checks.pendingSenderMessage={message:pending.latest.message,paidSeconds:discoveryActionPaidSeconds(sender,pendingActive),
+      pending:pending.pending,listenerUpdate:false,senderUpdate:false};
     phase='pending-save';return status();
   }
   function pendingResponseForSave(){
-    require(phase==='completed'&&checks.retrievalDiagnostic,'Complete and audit the first reference before the response lifecycle fixture');
-    require(reference.snapshot().senderFeedback.length===1,'The first completed response must have one ephemeral sample');
+    require(phase==='completed'&&checks.modelAudit,'Complete and audit the first sequence before the response lifecycle fixture');
+    require(ownerState(sender.id).sender.updates===1&&reference.snapshot().senderFeedback.length===0,
+      'The first completed paid response must update the private sender once without a replayable queue');
     secondStarted=true;
     while(state.elapsed<12.1-1e-8)tick();
     const choice=reference.hooks.optionalAction(listener);
@@ -369,10 +439,11 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     for(let i=0;i<12;i++)tick();
     const pending=reference.snapshot();
     require(responsePose()&&pending.pending===1&&pending.latest.feedbackStatus==='responding'&&
-      pending.senderFeedback.length===1,'Partly paid response must remain visible and supply no second feedback');
+      pending.senderFeedback.length===0&&ownerState(sender.id).sender.updates===1,
+      'Partly paid response must remain visible and supply no second sender update');
     checks.pendingResponse={originalInspectedId:secondChoiceActive.request.targetId,
       demonstrationId:secondDemoActive.request.targetId,paidSeconds:discoveryActionPaidSeconds(listener,pendingActive),
-      firstFeedbackCount:pending.senderFeedback.length,pending:pending.pending,
+      firstSenderUpdates:ownerState(sender.id).sender.updates,pending:pending.pending,
       feedbackStatus:pending.latest.feedbackStatus};
     require(checks.pendingResponse.paidSeconds>0&&checks.pendingResponse.paidSeconds<1.8,
       'Saved response must have genuine partial paid work');
@@ -380,35 +451,43 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   }
   function checkpoint(storage){
     require(['pending-save','pending-response-save'].includes(phase),'Expected paid live indication at save');
-    const before=JSON.stringify(reference.snapshot()),persisted=reference.exportPersistence();
-    require(JSON.stringify(reference.snapshot())===before,'Persistence export changed private memory or pending metrics');
+    const before=JSON.stringify(reference.snapshot()),persisted=reference.exportPersistence(),
+      beforeCharacter=JSON.stringify(persisted.characterMessages);
+    require(JSON.stringify(reference.snapshot())===before&&JSON.stringify(characterState())===beforeCharacter,
+      'Persistence export changed private weights, random states or pending metrics');
     if(!saveCheckpoint())return null;
     const raw=storage.getItem(OZARK_SAVE_KEY);require(raw,'Main save did not write current bytes');
-    const document=JSON.parse(raw),canonical=validateReferencePersistence(persisted.worldLineage,persisted.visualReference);
+    const document=JSON.parse(raw),canonical=validateCharacterPersistence(persisted);
     require(JSON.stringify(document.worldLineage)===JSON.stringify(canonical.worldLineage)&&
-      JSON.stringify(document.visualReference)===JSON.stringify(canonical.visualReference),
-    'Canonical checkpoint omitted or changed the pure private-memory export');
-    require(JSON.stringify(reference.snapshot())===before,'Save changed private memory or pending metrics');
+      JSON.stringify(document.visualReference)===JSON.stringify(canonical.visualReference)&&
+      JSON.stringify(document.characterMessages)===JSON.stringify(canonical.characterMessages),
+    'Canonical checkpoint omitted or changed the pure private character-message export');
+    require(JSON.stringify(reference.snapshot())===before&&JSON.stringify(characterState())===beforeCharacter,
+      'Save changed private weights, random states or pending metrics');
     const loaded=loadOzarkSave({getItem:key=>key===OZARK_SAVE_KEY?raw:null},geometry);
     require(!loaded.blocked,'Canonical save failed strict reload');
     const responseCase=phase==='pending-response-save';
     const result={raw,expectedRestored:projectEvidence(loaded.state),report:status(),serializedActive:structuredClone(pendingActive),
-      serializedPermit:responseCase?{}:{...pendingPermit},serializedDemonstrationActive:responseCase?structuredClone(secondDemoActive):null,
+      serializedInspectionActive:structuredClone(secondChoiceActive),
+      serializedPermit:{},serializedDemonstrationActive:responseCase?structuredClone(secondDemoActive):null,
       pendingKind:responseCase?'listener-response':'sender-demonstration',
       fixtureDisclosure:responseCase?
-        'Fresh disposable main-world negative control with fixed communication seed 212 and explicitly authored Mira position (230,960), moved from (300,920) before any action. Aster remains at (276,760); ecology, bodies and resources are unchanged. This engineering geometry makes forward and reverse gestures numerically resolvable under the ordinary parser; it is not ordinary opportunity evidence, a favorable runtime redraw, or a scientific seed search. Independent target/order/exploration draws require a wrong original choice. Actual Canvas views, canonical paid inspection, sender correction and listener response show a sender-local mismatch after listener learning. A second optional full attachment transaction is saved and closed during its genuinely paid listener response; no second feedback is granted. The main environment, ecology and bodies continue at 1/60 second with only bounded decision scheduling.':
-        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication. The later optional reply is attempted only if independently resolvable; an unavailable reply censors feedback without erasing the acquired own-view association. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. The one-shot message-dependence query uses actual memory and fresh own views but is not a policy action or generalization claim. Second canonical paid sequence is saved mid-cue to test reopen interruption.'};
+        'Fresh disposable main-world character-message negative control with fixed historical communication seed 212 and explicitly authored Mira position (230,960), moved from (300,920) before any action. Aster remains at (276,760); ecology, bodies and resources are unchanged. This engineering geometry makes forward and reverse gestures numerically resolvable under the ordinary parser; it is not ordinary opportunity evidence, a favorable runtime redraw, or a scientific seed search. Separate predeclared target, order and uniform listener-choice draws yield a wrong original inspection. Actual Canvas views, canonical paid inspection, one listener model update, a paid listener response and one sender-local mismatch update are checked. A second optional sequence is saved and closed during its genuinely paid listener response; no duplicate feedback is granted. The main environment, ecology and bodies continue at 1/60 second with only bounded decision scheduling.':
+        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication with an actual sampled character string. The later optional reply is attempted only if independently resolvable; an unavailable reply censors sender feedback without erasing listener learning. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. A read-only numeric model query uses the original actual own Canvas views but is not a policy action or generalization claim. A second authentic sampled sequence is saved mid-cue to test pending trajectory interruption on reopen.'};
     for(let i=0;i<state.agents.length;i++)require(JSON.stringify(state.agents[i].position)===JSON.stringify(initialPositions[i]),'Fixture moved an actor');
     return result;
   }
   function interrupt(){
     require(['pending-save','pending-response-save'].includes(phase),'Expected pending cue');
     const responseCase=phase==='pending-response-save',actor=responseCase?listener:sender;
+    const beforeCharacter=JSON.stringify(characterState());
     const paid=discoveryActionPaidSeconds(actor,pendingActive);
     cancelNpcAction(actor,'NATIVE_FIXTURE_INTERRUPTION');
     require(!(responseCase?responsePose():pose())&&!successfulDiscoveryActionCompletion(actor,pendingActive),
       'Interruption fabricated completion or retained cue');
     reference.afterTick();
+    require(JSON.stringify(characterState())===beforeCharacter,
+      'Interrupting a pending paid sequence must not update weights, baseline or random states');
     if(responseCase)require(reference.snapshot().latest.feedbackStatus==='censored'&&reference.snapshot().senderFeedback.length===0,
       'Interrupted pending response cannot gain a second feedback event');
     checks.interruption={paidSeconds:paid,result:structuredClone(actor.lastResult),poseCleared:true,
@@ -417,13 +496,14 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   }
   return {project,status,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
     inspectAssociation,pendingForSave,pendingResponseForSave,checkpoint,interrupt,
+    characterExport:()=>structuredClone(characterState()),
     dispose(){sensor.dispose?.();}};
 }
 
 /** Read-only replay attempts on copies of the actual independently reopened
  * application's actors. They cannot alter the actual loaded main population. */
 export async function probeVisualReferenceReopen(moduleBase,state,serializedActive,serializedPermit,
-  {pendingKind='sender-demonstration',serializedDemonstrationActive=null}={}) {
+  {pendingKind='sender-demonstration',serializedInspectionActive=null,serializedDemonstrationActive=null}={}) {
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {createIndicationPermit,createListenerResponsePermit,publicIndicationGeometry,successfulDiscoveryActionCompletion}=await use('discovery-actions');
   const {requestNpcIndication,observeNpc}=await use('npc');
@@ -439,12 +519,19 @@ export async function probeVisualReferenceReopen(moduleBase,state,serializedActi
   for(const n of state.agents){bindOzarkWorldAgent(n,geometry,state);observeNpc(n,state.environment);}
   const responseCase=pendingKind==='listener-response';
   if(!responseCase&&pendingKind!=='sender-demonstration')throw new Error('Unknown pending native fixture authority');
+  if(serializedInspectionActive?.request?.type!=='inspect_object'||
+      serializedInspectionActive.request.targetId==null)
+    throw new Error('Missing copied original paid inspection receipt');
   const actor=responseCase?listener:sender;
   actor.active=structuredClone(serializedActive);const copiedActivePose=publicIndicationGeometry(actor);actor.active=null;
   const result={copiedActivePose,pose:publicIndicationGeometry(actor),completion:successfulDiscoveryActionCompletion(actor,serializedActive),
-    permit:responseCase?createListenerResponsePermit(listener,sender,serializedDemonstrationActive):
-      createIndicationPermit(sender,listener,serializedActive,serializedActive.request.targetId),
+    inspectionCompletion:successfulDiscoveryActionCompletion(listener,serializedInspectionActive),
+    inspectionPermit:createIndicationPermit(sender,listener,serializedInspectionActive,
+      responseCase?serializedDemonstrationActive?.request?.targetId:serializedActive.request.targetId),
+    responsePermit:responseCase?createListenerResponsePermit(listener,sender,serializedDemonstrationActive):null,
     copiedPermitResult:requestNpcIndication(actor,serializedPermit,state.environment),active:actor.active};
-  if(result.copiedActivePose||result.pose||result.completion||result.permit||result.copiedPermitResult.ok||result.active)throw new Error('Reopened data revived runtime indication authority');
+  if(result.copiedActivePose||result.pose||result.completion||result.inspectionCompletion||
+      result.inspectionPermit||result.responsePermit||result.copiedPermitResult.ok||result.active)
+    throw new Error('Reopened data revived runtime indication authority');
   return {...result,noRevivedAuthority:true,scope:'Fresh sight on copies of actual reopened state; no second clock or actual-main mutation'};
 }

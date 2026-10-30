@@ -37,7 +37,7 @@ test('fresh current exact aquatic envelope and stock survive schema roundtrip wi
   const { disk, state, raw } = canonicalFresh();
   assert.equal(OZARK_SAVE_VERSION, 12);
   assert.equal(raw.version, 12);
-  assert.deepEqual(raw.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1 });
+  assert.deepEqual(raw.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1, characterMessages: 2 });
   assert.equal(raw.environment.ecology.aquatic.version, 2);
   assert.ok(raw.environment.ecology.aquatic.fish.length > 0);
   const reopened = loadOzarkSave(disk, geometry);
@@ -64,6 +64,7 @@ test('version, feature, payload, physical location, and cross-array identity mis
     value => { value.version = 9; },
     value => { value.features = { plantLifecycle: 1 }; },
     value => { value.features.finiteAquatic = 3; },
+    value => { delete value.features.characterMessages; },
     value => { value.features.unrecognized = 1; },
     value => { delete value.environment.ecology.aquatic; },
     value => { value.environment.ecology.aquatic.fish[0].position = { ...geometry.spawn }; },

@@ -1,15 +1,24 @@
 // One supported world contract: Ozark terrain, physical structures, bounded renewable fish.
 // Incompatible historical slots are never read or rewritten by this runtime.
+const LEGACY_WORLD_FEATURES = Object.freeze({
+  plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1,
+});
 export const OZARK_CURRENT_WORLD_MODE = Object.freeze({
   version: 12,
-  features: Object.freeze({ plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1 }),
+  features: Object.freeze({ ...LEGACY_WORLD_FEATURES, characterMessages: 2 }),
   finiteAquatic: true, worldStructures: true,
 });
+function exactFeatures(features, expected) {
+  return features && typeof features === 'object' && !Array.isArray(features) &&
+    Reflect.ownKeys(features).length === Object.keys(expected).length &&
+    Object.keys(expected).every(key => Object.hasOwn(features,key) && features[key] === expected[key]);
+}
 export function ozarkWorldMode(state) {
-  const features = state?.features, expected = OZARK_CURRENT_WORLD_MODE.features;
-  return state?.version === 12 && features && typeof features === 'object' &&
-    !Array.isArray(features) && Reflect.ownKeys(features).length === 3 &&
-    Object.keys(expected).every(key => Object.hasOwn(features,key) && features[key] === expected[key]) ?
+  const features = state?.features;
+  // Historical schema-12 bytes are readable only for strict in-memory migration.
+  return state?.version === 12 &&
+    (exactFeatures(features,OZARK_CURRENT_WORLD_MODE.features) ||
+      exactFeatures(features,LEGACY_WORLD_FEATURES)) ?
     OZARK_CURRENT_WORLD_MODE : null;
 }
 export function ozarkGeometryMatchesMode(geometry, mode) {

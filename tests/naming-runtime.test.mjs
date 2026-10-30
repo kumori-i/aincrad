@@ -42,11 +42,14 @@ function confirm(f){f.advance(SOCIAL_RULES.speechCooldown+.2);f.step();assert.eq
 function assertSameExceptWorldInstance(left,right,label){
   assert.equal(left.worldLineage.instanceId,left.visualReference.worldId,'Left world keeps its two lineage tags bound');
   assert.equal(right.worldLineage.instanceId,right.visualReference.worldId,'Right world keeps its two lineage tags bound');
+  assert.equal(left.worldLineage.instanceId,left.characterMessages.worldId,'Left character state keeps its world binding');
+  assert.equal(right.worldLineage.instanceId,right.characterMessages.worldId,'Right character state keeps its world binding');
   assert.notEqual(left.worldLineage.instanceId,right.worldLineage.instanceId,'Independent fresh worlds have unique instance IDs');
   const normalize=world=>{
     const copy=structuredClone(world);
     copy.worldLineage.instanceId='<fresh-world-instance>';
     copy.visualReference.worldId='<fresh-world-instance>';
+    copy.characterMessages.worldId='<fresh-world-instance>';
     return copy;
   };
   assert.deepEqual(normalize(left),normalize(right),label);

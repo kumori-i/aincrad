@@ -30,6 +30,33 @@ When deleting old-world test files, preserve codec-independent proof mutation, d
 
 Publication/merge requires the exact reviewed source tree, terminal CI evidence and a verified resulting main tree. Historical reports in this directory are source-specific evidence, not an assertion that their retired worlds or workflows remain supported.
 
+## Main-world character-message verification
+
+The current main world samples literal `a`–`z` messages during the optional paid
+visual-reference transaction. `tests/character-message-core.test.mjs` checks
+finite-difference gradients across every parameter family, sampled EOS versus
+the forced six-letter cap, numerical stability, update direction, clipping and
+seed continuation. `tests/character-message-runtime.test.mjs` checks private
+ownership, identical strings with distinct one-use handles, stale/copy rejection,
+128-example replay, candidate permutation and exact restoration. The physical
+adapter suite checks canonical inspection/demonstration/reply receipts, authentic
+match and mismatch, critic/object-ID intervention, ambiguity, urgent interruption,
+timeout, identity replacement, pending-save cancellation and repeated read-only
+views/saves. Migration tests use an actual saved v1 paid transaction, preserve
+legacy examples and four RNG states, and require a marked current save's full
+v2 envelope even if all three communication sections are removed. Missing or
+malformed v2 sections block loading without rewriting occupied bytes.
+
+The Linux/macOS native engineering workflow must still use actual Canvas crops
+and paid actions to show the literal message, recipient action, listener and
+sender parameter changes, one mismatch, and a pending-message save/reopen with
+no duplicate learning. Its `--prepare-only` and synthetic Node fixture tests
+establish harness readiness only. Native screenshots must be inspected and the
+tested source tree reconciled with any proposed publication. No ordinary cohort
+or stable-vocabulary claim follows from those engineering scenes. The new
+sequence admission lacks the old symbol-capacity constraint, so historical
+exchange counts are not a direct rate comparison.
+
 ## Platform-specific evidence
 
 The desktop and three native capability workflows target Linux and macOS, never Windows. `test-results/host.json` records actual `process.platform`, `process.arch`, OS release, Node version, git commit/tree and worktree status. The renderer source fingerprint remains renderer-only: it is not proof of the desktop/harness source tree. Archive host metadata alongside native process logs and results; release verification must reconcile the tested tree with the published head.

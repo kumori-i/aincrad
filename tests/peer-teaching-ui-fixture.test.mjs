@@ -11,7 +11,7 @@ test('native teaching UI fixture contains earned sender proof and reloadable nai
   const fixture = await create(new URL('../', import.meta.url).href);
   assert.equal(fixture.saveKey, 'aincrad.world.v2');
   assert.equal(fixture.summary.version, 12);
-  assert.deepEqual(fixture.summary.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1 });
+  assert.deepEqual(fixture.summary.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1, characterMessages: 2 });
   assert.ok(fixture.summary.after.at > fixture.summary.before.at);
   assert.ok(fixture.summary.after.metabolizedKcal > fixture.summary.before.metabolizedKcal);
   assert.equal(fixture.summary.after.sourceQuantity, fixture.summary.before.sourceQuantity - 1);

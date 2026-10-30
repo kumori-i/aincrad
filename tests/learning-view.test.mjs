@@ -79,3 +79,39 @@ test('private association inspector distinguishes evidence, exploration and refe
   assert.match(root.text,/own post-choice demonstration/);
   assert.doesNotMatch(root.text,/positive|negative|no learning updates/);assert.deepEqual(snapshot,before);
 });
+
+test('character Conversation shows exact repeated emissions, canonical recipient actions, and separate legacy evidence',()=>{
+  const root=new Node('div',document),snapshot={phase:'private-character-message',elapsed:20,opportunities:5,exchanges:2,observed:1,correct:0,censored:0,pending:1,
+    learners:[{agentId:'mira',identity:2,counts:{anchors:2,entries:1,examples:1},character:{senderUpdates:1,listenerUpdates:2,uniqueDemonstrations:2,replayUses:3,partnerBanks:[{partnerId:'aster',partnerSerial:1,retainedExamples:2,trained:true}]}}],
+    observationEvents:[
+      {id:1,phase:'private-character-message',senderId:'aster',receiverId:'mira',message:'qaz',tokens:[1,2],status:'choice',action:'inspect_object',choiceMode:'uniform-untrained',listenerUpdate:false,senderUpdate:false},
+      {id:2,phase:'private-character-message',senderId:'aster',receiverId:'mira',message:'qaz',tokens:[6,7],status:'observed',action:'inspect_object',selectedActionId:42,choiceMode:'model-sample',listenerUpdate:true,senderUpdate:true,feedbackStatus:'mismatched',referenceCorrect:false},
+    ]};
+  const before=structuredClone(snapshot);
+  renderLearningView(root,snapshot,'mira');
+  const entries=root.children.filter(child=>child.dataset.learningEvent);
+  assert.equal(entries.length,2);
+  assert.deepEqual(entries.map(entry=>entry.children.find(child=>child.dataset.characterMessage)?.textContent),['qaz','qaz']);
+  assert.match(entries[0].text,/recipient completed paid inspect_object/);
+  assert.match(entries[0].text,/listener optimizer step: completed · sender optimizer step: completed/);
+  assert.match(entries[1].text,/completed inspection not recorded/);
+  assert.match(root.text,/2 unique valid labeled demonstrations · 3 prior-example replay uses · 2 listener optimizer steps · 1 sender optimizer steps/);
+  assert.match(root.text,/Retained legacy symbol associations \(archival\)/);
+  assert.match(root.text,/These do not train or name the character messages/);
+  assert.match(root.text,/Letter strings below are exact emissions with no supplied English translation/);
+  assert.doesNotMatch(entries.map(entry=>entry.text).join(' '),/1 · 2|6 · 7|qaz means|oak/);
+  renderLearningView(root,snapshot,'mira');
+  assert.equal(root.children.filter(child=>child.dataset.learningEvent).length,2);
+  assert.deepEqual(snapshot,before,'Repeated inspection is a read-only projection');
+});
+
+test('character Conversation rejects malformed display strings and does not invent completed actions',()=>{
+  const root=new Node('div',document),snapshot={phase:'private-character-message',elapsed:3,learners:[],observationEvents:[
+    {id:3,phase:'private-character-message',senderId:'aster',receiverId:'mira',message:'<script>',status:'choice',action:'inspect_object',selectedActionId:0},
+  ]};
+  renderLearningView(root,snapshot,'aster');
+  const entry=root.children.find(child=>child.dataset.learningEvent==='3');
+  assert.equal(entry.children.find(child=>child.dataset.characterMessage).textContent,'—');
+  assert.match(entry.text,/completed inspection not recorded/);
+  assert.doesNotMatch(root.text,/<script>|recipient completed paid/);
+});

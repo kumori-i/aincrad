@@ -34,68 +34,91 @@ The recipient may attempt taught steps without random rediscovery, using only a 
 
 Expiry, unavailable source and a failed physical attempt do not by themselves prove a food claim false. Own adverse or beneficial feedback supplies the relevant evidence. Restore must not reset ambiguous completed acquisitions into runnable advice. Human hints use the same reported-versus-experienced distinction and cannot resolve unknown animals through a private species table.
 
-`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: literal numeric symbols, copied emission-time crops, selected actions and pending/settled/interrupted receipts. English labels are observer-only annotations, not translations. Exact physiology is observer-only: the Learning tab distinguishes modeled satiety from available fuel and stored reserves. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. English deprecation changed total agent behavior. The subsequent visual-reference branch replaces the main optional channel; historical studies do not establish results for it. Future studies need a new frozen protocol.
+`npc-panel.js` exposes qualitative sensations and the main-world Learning tab: exact emitted character strings, copied emission-time crops, selected actions and pending/settled/interrupted receipts. Assigned numeric symbols remain inspectable archival evidence. English labels are observer-only annotations, not translations. Exact physiology is observer-only: the Learning tab distinguishes modeled satiety from available fuel and stored reserves. `communication-mode.js` owns immutable runtime authority outside all persisted actor/community data. Main populations and standalone controllers default to grounded communication: legacy English/naming producers and report/caution/journal consumers are disabled, including late model completions. Historical fixtures opt explicitly into legacy behavior; there is no user mode toggle. Archived data remains visible but inert. Own bodily outcomes, earned techniques and physical observation remain active. Physical handoffs use supplied nonverbal consent gestures without semantic food payloads. English deprecation changed total agent behavior. The subsequent visual-reference branch replaces the main optional channel; historical studies do not establish results for it. Future studies need a new frozen protocol.
 
-## Main-world visual reference and private associations
+## Main-world visual reference and character messages
 
 `visual-reference-attachment.js` owns one bounded reference transaction per actor,
 not a clock or population. `ozark-world-main.js` still calls `beforeTick`, advances
-the sole population/environment/body clock once, then calls `afterTick`. A new
-optional-action callback occurs only after ordinary bodily/safety/procedure gates.
-Only canonical observed post-choice demonstrations can update private associations. The
-historical `communication-attachment.js` delayed bodily-credit learner remains
-in historical automated fixtures only, never alongside the new main attachment.
+the sole population/environment/body clock once, then calls `afterTick`. An
+optional action runs only after ordinary bodily, safety and procedure gates.
+The main world selects the `sequence` protocol; explicit historical fixtures may
+select the archival `legacy` protocol. The old `communication-attachment.js`
+bodily-credit learner is never installed alongside either.
 
 Two distinguishable, mutually visible alternatives must both be geometrically
-resolvable before uniform referent selection. Separate RNGs govern pair, referent,
-order and uniform exploratory listener choice. A separate per-identity shuffled symbol
-inventory supplies stable arbitrary symbols; pure both-candidate anchor feasibility
-and atomic allocation precede the referent draw. The listener's paid
-inspection completion issues a one-use private indication permit. A subsequent
-sender optional slot executes fixed 1.8-second / .25-effort indication. Canonical
-runtime funding/success witnesses cannot be recreated from saved action-shaped
-objects. The public projection contains only a scene, numeric origin/tip and paid
-progress; its 24-unit schematic ground-plane segment is used identically by art
-and the listener-local geometry adapter.
+resolvable before a referent is selected. Independent new random streams govern
+pair, referent and order. The sender samples one to six lowercase letters from
+its own current 48-feature crop; the listener samples between its own two crops.
+It chooses exactly uniformly before a first valid demonstration from that
+sender incarnation. The old assigned-symbol inventory, anchor capacity and
+legacy pair admission belong only to archival fixtures. Removing those capacity
+gates changes the set of main-world opportunities relative to earlier symbol
+runs; their exchange rates are not directly comparable.
 
-`visual-reference-perception.js` uses ordinary local object sensing/LOS and rejects
-an exact 96-object raw cap as incomplete. Every visible projected distractor is
-considered. A supplied ±6-degree parser extrapolates at most 400 units without
-expanding sight or drawing a long target ray. The final .5 seconds must comprise
-consecutive actually sampled full 1/60-second funded intervals; first sight is a
-baseline, and missing/partial/ambiguous samples reset the measure. No sight is
-backdated into an assumed funded prefix. Reference correctness remains an observer
-critic, separate from perceived demonstration, learning and bodily benefit.
+`character-message-runtime.js` holds each individual's private sender weights,
+baseline, sample RNG and revision. Its listener model, choice/replay RNG and
+128-example FIFO are private for each actual partner incarnation. A sampled
+sender trajectory stays behind an opaque one-use handle bound to the owner,
+partner token and sender revision; a pending trajectory freezes sender updates.
+The physical attachment consumes the handle only at the authentic completed
+reply or cancellation boundary. A listener receives only the original heard
+sequence, its own two retained candidate crops and its final own demonstrated
+crop. Exactly one candidate must lie within RMS 0.04 with a strictly greater
+than 0.02 runner gap. Valid completed demonstrations train once with up to
+three uniformly sampled prior examples; ambiguity censors. Sender learning uses
+only its own fresh visual match/mismatch after the optional paid reply, with the
+baseline read before its one on-policy update. The observer's target identity,
+critic correctness and object IDs never enter either numeric model.
+
+The listener's paid inspection issues a private indication permit. The sender's
+indication and the later optional listener reply each use the existing 1.8-second,
+0.25-effort paid action within the unchanged 12-second transaction deadline.
+Reverse reply visibility is checked after the original demonstration, so a
+failed reply retains earned listener learning. Urgent care, timeout, collapse,
+replacement, disposal and reopen retire unfinished authority. Canonical
+runtime funding and success witnesses cannot be recreated from saved
+action-shaped objects. The public indication remains the same schematic
+24-unit segment and progress, shared by art and local geometry parsing.
+
+`visual-reference-perception.js` uses ordinary local sensing and line of sight;
+an exact 96-object raw cap is treated as incomplete. Every projected visible
+distractor is considered. The supplied ±6-degree parser extrapolates at most
+400 units without expanding sight. The final 0.5 seconds must comprise
+consecutive actually sampled full 1/60-second funded intervals. Missing,
+partial or ambiguous samples reset the measure; no sight is backdated.
+Reference correctness remains an observer-only critic.
 
 `communication-inspector.js` opens the same NPC Learning tab. `learning-view.js`
-labels supplied-metric private associations distinctly from abstract concepts or
-autonomous language. It separates evidence additions, support, conflicts, matched
-choices, exploration and reference correctness from bodily outcomes. At
-most 256 copied observer events are retained, with 32 per selected actor shown.
-English annotations are never agent speech or translations. Normal saves remain
-schema 12 and pending authority never restores. Scene/identity/position or urgent
-body changes censor sessions rather than inventing negative learning.
+shows the literal emitted string and completed recipient actions, with English
+observer notes separate from messages. It distinguishes unique valid physical
+demonstrations, replay uses and optimizer steps from the archival integer-symbol
+associations. At most 256 copied observer events are retained, with 32 per actor
+shown. Read-only views and saves do not draw policy RNG or train. Pending handles
+and observer events never persist.
 
-A fresh-profile, exact `?test=1` engineering installer can temporarily own bounded
-manual 1/60 steps for actual native proof. It cannot mix normal timers, begin, QA
-steps or ordinary saves; only its authenticated closure has a one-attempt explicit
-checkpoint exception for isolated mid-gesture reopen testing. No authority is
-persisted. See [Phase A boundaries](visual-reference/PHASE-A.md). Releasing the
-private-association baseline requires exact-source review, aggregate checks and
-actual native acquisition/retrieval/reopen proof. Future autonomous evaluation
-requires a separately reviewed frozen protocol.
+Current saves remain schema 12, with a mandatory `features.characterMessages:2`
+marker on new saves. The communication envelope has a v2 lineage marker and a
+strict `characterMessages` v2 section while its validated
+`visualReference` v1 subtree retains all old anchors, examples and four RNG
+continuations. Exact historical three-key-feature saves, including complete
+valid v1 communication sections, migrate in memory, read-only, to untrained
+separate models. A missing or partial marked v2 section blocks loading
+and preserves occupied bytes. Fresh/reset worlds and replacement individuals
+start without acquired character training; continuing individuals resume
+their own state. The existing pure current-export registration, compare-and-swap
+save gate and confirmed reset still apply.
 
-The physical-stage proof is retained at tree `76c5f31a6d9d692875641c2a441530b4f463e7b5`.
-`visual-reference-memory.js` owns immutable sender anchors and partner-specific
-listener exemplars using only each owner's own 48 pooled pixel features. Attachment
-identity tokens track actual actor/discovery/physiology objects, preserve ordinary
-recovery, and purge replacements before choices/updates. Pending correction is a
-private consumed-once capability minted only after canonical physical completion
-and fresh final own sight; critic IDs/correctness never enter memory APIs.
-Bounded private associations persist for each continuing individual in the strict
-current-world save. Fresh/reset worlds and replacement individuals start empty;
-unfinished gesture authority and observer events do not persist. See
-[Phase B rules](visual-reference/PHASE-B.md).
+A fresh-profile, exact `?test=1` engineering installer can temporarily own
+bounded manual 1/60 steps for native proof. It cannot mix normal timers,
+begin, QA steps or ordinary saves; only its authenticated closure has a
+one-attempt explicit checkpoint exception for isolated mid-gesture reopen
+testing. No authority is persisted. Actual Linux/macOS native Canvas and
+paid-action proof remains a separate gate for this integration. Prior phase
+boundaries remain in [Phase A](visual-reference/PHASE-A.md), [Phase B](visual-reference/PHASE-B.md)
+and [sender feedback](visual-reference/SENDER-FEEDBACK.md). Sparse ordinary
+exchanges establish no stable vocabulary, composition, generalization or
+survival improvement.
 
 ## Observation-driven inquiry
 

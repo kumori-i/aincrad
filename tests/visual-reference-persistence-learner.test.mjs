@@ -140,6 +140,8 @@ test('attachment binds retained evidence to exact live actor provenance and expo
     'Disposal cannot erase completed individual memory or rewind the continuation');
   state.worldLineage={...retired.worldLineage,nextSerial:0x100000000};
   state.visualReference=retired.visualReference;
+  state.characterMessages=retired.characterMessages;
+  state.characterMessages=retired.characterMessages;
   const exhausted=attachVisualReferenceLearning({state,pixelSensor:sensor});
   state.agents[1]=structuredClone(state.agents[1]);
   assert.throws(()=>exhausted.beforeTick(),/serials are exhausted/);

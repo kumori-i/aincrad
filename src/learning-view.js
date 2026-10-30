@@ -66,15 +66,21 @@ export function renderLearningView(parent, snapshot, agentId, error = '', gestur
   const restoreDiagnosticFocus=!!diagnostics && document.activeElement===diagnostics.summary;
   const restoreSurvivalFocus=document.activeElement===survivalViews.get(parent)?.summary;
   parent.replaceChildren();
-  add(parent,'p','Observer annotations, not agent speech. Symbols have no supplied English translation.','small');
-  add(parent,'p','Bodies, survival memories and private visual associations save locally per individual. Those associations can be used after app reopen; fresh or reset worlds and replacement individuals start empty. Events in this view are session-only.','small');
+  const characterMessages=snapshot?.phase==='private-character-message';
+  add(parent,'p',characterMessages?
+    'Observer annotations, not agent speech. Letter strings below are exact emissions with no supplied English translation.':
+    'Observer annotations, not agent speech. Symbols have no supplied English translation.','small');
+  add(parent,'p',characterMessages?
+    'Bodies, survival memories, private character models and bounded own-view examples save locally per individual. Legacy symbol associations remain archival. Fresh or reset worlds and replacement individuals begin untrained. Events in this view are session-only.':
+    'Bodies, survival memories and private visual associations save locally per individual. Those associations can be used after app reopen; fresh or reset worlds and replacement individuals start empty. Events in this view are session-only.','small');
   renderSurvivalObserver(parent,survival,restoreSurvivalFocus);
   if(!snapshot){parent.scrollTop=scrollTop;add(parent,'p',`Communication learning unavailable. ${String(error).slice(0,160)}`,'small');return;}
   add(parent,'p',`${count(snapshot.elapsed)} simulation seconds · same main-world clock`,'small');
   const associations=snapshot.phase==='private-visual-association';
-  const physicalReference=associations||snapshot.phase==='physical-reference-no-learning';
+  const physicalReference=characterMessages||associations||snapshot.phase==='physical-reference-no-learning';
   if(associations)add(parent,'p','Counts below cover this app session, including individuals later replaced. The private memory row describes the current individual.','small');
-  if(associations)add(parent,'p',`${count(snapshot.opportunities)} optional opportunities · ${count(snapshot.exchanges)} attempted messages · ${count(snapshot.observed)} canonical observed demonstrations · ${count(snapshot.correct)} reference matches · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending`,'small');
+  if(characterMessages)add(parent,'p',`${count(snapshot.opportunities)} optional opportunities · ${count(snapshot.exchanges)} attempted character messages · ${count(snapshot.observed)} canonical observed demonstrations · ${count(snapshot.correct)} independent reference matches · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending`,'small');
+  else if(associations)add(parent,'p',`${count(snapshot.opportunities)} optional opportunities · ${count(snapshot.exchanges)} attempted messages · ${count(snapshot.observed)} canonical observed demonstrations · ${count(snapshot.correct)} reference matches · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending`,'small');
   else add(parent,'p',physicalReference?`${count(snapshot.exchanges)} reference attempts · ${count(snapshot.observed)} observed demonstrations · ${count(snapshot.correct)} reference matches · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending · no learning updates`:`${count(snapshot.exchanges)} messages / action selections · ${count(snapshot.updates)} updates · ${count(snapshot.positive)} positive · ${count(snapshot.negative)} negative · ${count(snapshot.relief)} relief · ${count(snapshot.discomfort)} discomfort · ${count(snapshot.effortExpiry)} effort-only expiries · ${count(snapshot.censored)} censored · ${count(snapshot.pending)} pending`,'small');
   if(associations){
     add(parent,'p',`${count(snapshot.matchedChoices)} association-matched choices · ${count(snapshot.exploratoryChoices)} uniform exploratory choices · ${count(snapshot.correctionAttempts)} corrective observations · ${count(snapshot.evidenceAdditions)} new visual exemplars · ${count(snapshot.supportUpdates)} repeated support · ${count(snapshot.conflicts)} conflicts · ${count(snapshot.correctionAbstentions)} corrective abstentions`,'small');
@@ -86,17 +92,51 @@ export function renderLearningView(parent, snapshot, agentId, error = '', gestur
       for(const anchor of memory.anchors||[])add(parent,'p',`Own anchor symbol: ${Math.floor(anchor.symbol/8)} · ${anchor.symbol%8}`,'learning-symbols');
     }
   }
+  if(characterMessages){
+    const learner=snapshot.learners?.find(row=>row.agentId===agentId);
+    const character=learner?.character;
+    add(parent,'p','The emitted letters and recipient actions below are observations, not English object names or proof of understanding. Sender feedback is own-view visual similarity, not bodily reward.','small');
+    if(character){
+      add(parent,'h3','Private character learning');
+      add(parent,'p',`${count(character.uniqueDemonstrations)} unique valid labeled demonstrations · ${count(character.replayUses)} prior-example replay uses · ${count(character.listenerUpdates)} listener optimizer steps · ${count(character.senderUpdates)} sender optimizer steps`,'small');
+      for(const bank of (Array.isArray(character.partnerBanks)?character.partnerBanks:[]).slice(0,2))
+        add(parent,'p',`Partner ${String(bank.partnerId||'unknown').slice(0,64)} · incarnation ${count(bank.partnerSerial)} · ${count(bank.retainedExamples)} retained own-view examples · ${bank.trained===true?'trained from at least one valid demonstration':'uniform until a valid demonstration'}`,'small');
+    }
+    if(learner){
+      add(parent,'h3','Retained legacy symbol associations (archival)');
+      add(parent,'p',`${count(learner.counts?.anchors)} old own anchors · ${count(learner.counts?.entries)} old partner-symbol entries · ${count(learner.counts?.examples)} old own examples. These do not train or name the character messages.`,'small');
+    }
+  }
   if(snapshot.phase==='physical-reference-no-learning')add(parent,'p','Physical-reference verification: symbols and selections are arbitrary; association learning is not enabled. Paid inspections and visible post-choice indications are measured separately from bodily reward.','small');
   const actor=snapshot.agents?.find(a=>a.id===agentId);
   if(actor)add(parent,'p',`${actor.name||actor.id}: ${physicalReference?'Satiety':'food'} ${number(actor.hunger)}/100 · water ${number(actor.thirst)}/100 · energy ${number(actor.energy)}/100`,'small');
   const rows=(snapshot.observationEvents||[]).filter(e=>e.senderId===agentId||e.receiverId===agentId).slice(-32).reverse();
-  if(!rows.length)add(parent,'p',physicalReference?'No reference attempt involving this agent yet. Nearby mutually visible, distinguishable objects and an optional-action opportunity are required. No learned meaning is established.':'No symbol exchange involving this agent yet. A personal experience and nearby optional-action opportunity are required. No communication benefit is established.','small');
+  if(!rows.length)add(parent,'p',characterMessages?
+    'No character message involving this agent yet. Nearby mutually visible, distinguishable objects and an optional-action opportunity are required. No learned meaning is established.':
+    physicalReference?'No reference attempt involving this agent yet. Nearby mutually visible, distinguishable objects and an optional-action opportunity are required. No learned meaning is established.':
+      'No symbol exchange involving this agent yet. A personal experience and nearby optional-action opportunity are required. No communication benefit is established.','small');
   for(const event of rows){
     const entry=add(parent,'article','','journal-entry');entry.dataset.learningEvent=String(event.id);entry.dataset.learningStatus=event.status;
     add(entry,'p',`#${event.id} · ${number(event.emittedAt)}s · ${event.senderId} → ${event.receiverId}`,'message-meta');
-    const tokens=Array.isArray(event.tokens)&&event.tokens.length===2&&event.tokens.every(t=>Number.isInteger(t)&&t>=0&&t<8)?event.tokens.join(' · '):'—';
-    add(entry,'p',tokens,'learning-symbols');
-    add(entry,'p',`${event.status} · selected action: ${event.action}${event.reward===null||!Number.isFinite(event.reward)?'':` · measured reward ${event.reward.toFixed(3)}`}`,'small');
+    const characterEvent=characterMessages&&event.phase==='private-character-message';
+    if(characterMessages){
+      const message=characterEvent&&typeof event.message==='string'&&/^[a-z]{1,6}$/.test(event.message)?event.message:'—';
+      const shown=add(entry,'p',message,'learning-symbols');shown.dataset.characterMessage='true';
+      const completed=event.action==='inspect_object'&&Number.isSafeInteger(event.selectedActionId)&&event.selectedActionId>0;
+      const action=event.action==='inspect_object'?'inspect_object':'unavailable';
+      add(entry,'p',completed?
+        `${event.status} · recipient completed paid ${action}`:
+        `${event.status} · recipient action requested: ${action}; completed inspection not recorded`,'small');
+      if(characterEvent){
+        add(entry,'p',`${event.choiceMode==='uniform-untrained'?'Uniform untrained choice':event.choiceMode==='model-sample'?'Sampled private listener choice':'Choice mode unavailable'} · listener optimizer step: ${event.listenerUpdate===true?'completed':'none'} · sender optimizer step: ${event.senderUpdate===true?'completed':'none'}`,'small');
+        if(typeof event.referenceCorrect==='boolean')add(entry,'p',`Independent reference critic: ${event.referenceCorrect?'matched':'different'}. This observer check is not a model label.`,'small');
+        if(event.feedbackStatus)add(entry,'p',`Response status: ${event.feedbackStatus}. A settled match or mismatch measures sender-local visual similarity, not understanding or bodily reward.`,'small');
+      }
+    }else{
+      const tokens=Array.isArray(event.tokens)&&event.tokens.length===2&&event.tokens.every(t=>Number.isInteger(t)&&t>=0&&t<8)?event.tokens.join(' · '):'—';
+      add(entry,'p',tokens,'learning-symbols');
+      add(entry,'p',`${event.status} · selected action: ${event.action}${event.reward===null||!Number.isFinite(event.reward)?'':` · measured reward ${event.reward.toFixed(3)}`}`,'small');
+    }
     if(event.phase==='private-visual-association')add(entry,'p',`${event.choiceMode||'pending'} (${event.choiceReason||'unavailable'}) · observed correction: ${event.correction||'none'} · funded visible indication ${number(event.observedSeconds||0)}s${typeof event.referenceCorrect==='boolean'?` · independent reference critic: ${event.referenceCorrect?'matched':'different'}`:''}`,'small');
     if(event.phase==='private-visual-association'&&event.feedbackStatus)
       add(entry,'p',`Sender-local visible response: ${event.feedbackStatus}. This is visual similarity, not proof of understanding or bodily reward.`,'small');
@@ -108,7 +148,10 @@ export function renderLearningView(parent, snapshot, agentId, error = '', gestur
     }
     if(event.demonstrationPixels){const figure=add(crops,'figure','');const canvas=add(figure,'canvas','');canvas.width=canvas.height=16;canvas.setAttribute('aria-label','Listener’s own post-choice demonstration');paintCommunicationPixels(canvas,event.demonstrationPixels);add(figure,'figcaption',`Listener’s own post-choice demonstration · ${number(event.demonstrationObservedAt)}s`);}
   }
-  add(parent,'p',physicalReference?'Latest 32 involving this agent, from at most 256 retained session events. Crops are captured copies, not live sight. The short schematic direction cue, geometric parser, segmented crops, fixed matching rules and arbitrary symbol inventory are supplied structure—not learned concepts or grammar.':'Latest 32 involving this agent, from at most 256 retained session events. Crops are copies captured at emission, not current sight. Supplied segmentation, motor actions, gesture coordination and reward rules are scaffolding, not learned grammar. A negative update may be effort without relief, not sickness.','small');
+  add(parent,'p',characterMessages?
+    'Latest 32 involving this agent, from at most 256 retained session events. Crops are captured copies, not live sight. The letter policy can update from sparse own-view feedback; segmentation, physical indication, and visual matching remain supplied structure. No stable vocabulary, grammar, or survival benefit has been established.':
+    physicalReference?'Latest 32 involving this agent, from at most 256 retained session events. Crops are captured copies, not live sight. The short schematic direction cue, geometric parser, segmented crops, fixed matching rules and arbitrary symbol inventory are supplied structure—not learned concepts or grammar.':
+      'Latest 32 involving this agent, from at most 256 retained session events. Crops are copies captured at emission, not current sight. Supplied segmentation, motor actions, gesture coordination and reward rules are scaffolding, not learned grammar. A negative update may be effort without relief, not sickness.','small');
   const motors=gestures.filter(e=>e.senderId===agentId||e.recipientId===agentId).slice(-8);
   if(motors.length){add(parent,'h3','Supplied nonverbal coordination (not learned symbols)');for(const e of motors)add(parent,'p',`${number(e.at)}s · ${e.senderId} → ${e.recipientId}: ${e.gesture}${e.objectId?` · visible held item ${e.objectId}`:''}`,'small');}
   if(!diagnostics){

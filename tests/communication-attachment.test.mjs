@@ -38,9 +38,17 @@ function comparableWorld(state){
   const copy=structuredClone(state);
   // Fresh worlds created by separate trials must have distinct lineage IDs.
   // Keep every other physical, policy, RNG and learner field in this parity check.
+  assert.equal(copy.worldLineage.instanceId,copy.visualReference.worldId);
+  assert.equal(copy.worldLineage.instanceId,copy.characterMessages.worldId);
   copy.worldLineage.instanceId='<fresh-world-instance>';
   copy.visualReference.worldId='<fresh-world-instance>';
+  copy.characterMessages.worldId='<fresh-world-instance>';
   return copy;
+}
+function assertFreshWorldParity(left,right){
+  assert.notEqual(left.worldLineage.instanceId,right.worldLineage.instanceId,
+    'Independent fresh trials keep distinct nonsemantic world identities');
+  assert.deepEqual(comparableWorld(left),comparableWorld(right));
 }
 function scenario(factory,options={}){
   const pixelSensor=numeric(),exp=factory({geometry,pixelSensor,...options});exp.pixelSensor??=pixelSensor;
@@ -57,12 +65,12 @@ function scenario(factory,options={}){
 test('extracted finite wrapper preserves frozen protocol actions, physical states, receipts, RNG and weights',()=>{
   for(const enabled of [true,false]){
     const old=scenario(frozenExperiment,{enabled}),current=scenario(createCommunicationExperiment,{enabled});
-    assert.deepEqual(comparableWorld(current.state),comparableWorld(old.state));assert.deepEqual(current.snapshot,old.snapshot);
+    assertFreshWorldParity(current.state,old.state);assert.deepEqual(current.snapshot,old.snapshot);
   }
 });
 test('passive gate diagnostics on/off preserve exact paid actions, states, RNG, receipts and models',()=>{
   const on=scenario(()=>attached({diagnostics:true})),off=scenario(()=>attached({diagnostics:false}));
-  assert.deepEqual(comparableWorld(on.state),comparableWorld(off.state));assert.deepEqual(on.snapshot,off.snapshot);
+  assertFreshWorldParity(on.state,off.state);assert.deepEqual(on.snapshot,off.snapshot);
   assert.ok(on.gates.eligible>0);assert.ok(Object.values(off.gates).every(x=>x===0));
 });
 test('attachment never owns clock, survival seed, runtime or save and is not capped at 1800 seconds',()=>{

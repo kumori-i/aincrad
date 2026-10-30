@@ -20,7 +20,7 @@ assert(process.argv.slice(2).every(arg=>['--prepare-only','--response-scenario']
   process.argv.filter(arg=>arg==='--prepare-only').length<=1&&
   process.argv.filter(arg=>arg==='--response-scenario').length<=1,'Only bounded preparation and response scenario options are supported');
 if(!prepareOnly){
-  assert(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_WORKFLOW==='Visual reference association native acceptance','Native execution requires the approved engineering CI workflow');
+  assert(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_WORKFLOW==='Character message native acceptance','Native execution requires the approved engineering CI workflow');
   assert(['linux','darwin'].includes(process.platform),'Linux/macOS only');
   assert(process.getuid?.()!==0,'Native QA requires an unprivileged sandboxed runtime');
   assert(process.platform!=='linux'||process.env.DISPLAY||process.env.WAYLAND_DISPLAY,'Authorized supported display required');
@@ -53,8 +53,8 @@ function installRunner(context,helpers){
   const evaluate=(win,source)=>{stage=source.slice(0,140);return win.webContents.executeJavaScript(source);};
   const snapshot=win=>evaluate(win,'('+visualReferenceEvidence.toString()+')(window.__ozarkWorld.fullSnapshot())');
   const raw=win=>evaluate(win,"localStorage.getItem('aincrad.world.v2')");
-  const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts})=>
-    ({agentId,identity,anchors,partners,counts}));
+  const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts,character})=>
+    ({agentId,identity,anchors,partners,counts,character}));
   function assertRetainedLearning(reference,saved,label){
     assert.equal(reference.pending,0,label+' must not resume a transaction');
     for(const key of ['exchanges','completed','observed','correct','censored','updates','correctionAttempts','evidenceAdditions','supportUpdates','conflicts',
@@ -62,37 +62,26 @@ function installRunner(context,helpers){
       assert.equal(reference[key],0,label+' must not replay '+key);
     assert.deepEqual(reference.observationEvents,[],label+' has no resurrected event history');
     assert.deepEqual(reference.senderFeedback??[],[],label+' has no resurrected sender feedback');
-    assert.deepEqual(durableLearners(reference),durableLearners(saved.report.reference),label+' retains the learned private associations');
-    const learned=saved.report.reference.learners.find(row=>row.counts.examples>=1);
-    assert(learned,'Saved listener own-view example is required');
-    assert.equal(reference.learners.find(row=>row.agentId===learned.agentId)?.counts.examples,learned.counts.examples,
-      label+' retains the listener own-view example');
+    assert.deepEqual(durableLearners(reference),durableLearners(saved.report.reference),label+' retains private learned sequence state and legacy association history');
+    const learned=saved.report.reference.learners.find(row=>row.character?.uniqueDemonstrations>=1);
+    assert(learned,'Saved listener own-view numeric example is required');
+    assert.equal(reference.learners.find(row=>row.agentId===learned.agentId)?.character.uniqueDemonstrations,
+      learned.character.uniqueDemonstrations,label+' retains unique completed listener demonstrations');
   }
-  async function assertReopenedRetrieval(win,saved,label){
-    const audit=JSON.parse(await fs.readFile(path.join(context.output,'association-retrieval-audit.json'),'utf8'));
-    const expected=context.responseScenario?
-      JSON.parse(await fs.readFile(path.join(context.output,'association-post-second-retrieval.json'),'utf8')):
-      {known:audit.known,reversed:audit.reversed,absent:audit.absent.choice};
-    const observed=saved.report.reference.observationEvents.find(event=>event.status==='observed');
-    assert(observed,'Saved canonical observed correction is required');
-    const base={listenerId:observed.receiverId,senderId:observed.senderId};
-    const candidates=audit.candidateViews.map(view=>view.features);
-    const beforeWorld=await snapshot(win),beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeRaw=await raw(win);
-    const probe=async(symbol,candidateFeatures)=>evaluate(win,
-      'window.__ozarkWorld.referencePersistenceProbe('+JSON.stringify({...base,symbol,candidateFeatures})+')');
-    assert.deepEqual(await probe(audit.symbol,candidates),expected.known,
-      label+(context.responseScenario?' retains the exact post-second known-symbol query':' retrieves the demonstrated symbol from retained memory'));
-    assert.deepEqual(await probe(audit.symbol,candidates.slice().reverse()),expected.reversed,
-      label+(context.responseScenario?' retains the exact post-second reversed query':' follows reversed own views'));
-    assert.deepEqual(await probe(audit.absent.symbol,candidates),expected.absent,label+' retains the preclose absent-symbol query result');
-    assert.deepEqual(await snapshot(win),beforeWorld,label+' retrieval leaves the world unchanged');
-    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,label+' retrieval leaves learner memory and metrics unchanged');
-    assert.equal(await raw(win),beforeRaw,label+' retrieval cannot write save bytes');
-    return {known:expected.known,reversed:expected.reversed,absent:expected.absent,readOnly:true};
+  async function assertReopenedCharacter(win,saved,label){
+    const beforeWorld=await snapshot(win),beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),
+      beforeRaw=await raw(win),persisted=JSON.parse(beforeRaw).characterMessages;
+    assert.deepEqual(persisted,JSON.parse(saved.raw).characterMessages,label+' retains exact bounded private character models and RNG continuations');
+    assert.deepEqual(await snapshot(win),beforeWorld,label+' repeated world inspection is read-only');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,
+      label+' repeated model inspection is read-only');
+    assert.equal(await raw(win),beforeRaw,label+' inspection cannot write save bytes');
+    return {characterStateSha256:createHash('sha256').update(JSON.stringify(persisted)).digest('hex'),readOnly:true};
   }
   async function waitFor(win,expression){for(let i=0;i<1200;i++){if(await evaluate(win,expression))return;await delay(50);}throw new Error('Condition missing: '+expression);}
   async function capture(win,name){
-    const before=await snapshot(win);
+    const before=await snapshot(win),beforeCharacter=await evaluate(win,
+      'window.__visualReferenceFixture?.characterExport?.()??null');
     await waitFor(win,'window.__ozarkWorld.detailReady()');
     const {png,metadata}=await captureWithReadiness({
       prepare:async()=>{const ready=await evaluate(win,'('+waitForCaptureFrames.toString()+')()');await delay(100);return ready;},
@@ -102,6 +91,8 @@ function installRunner(context,helpers){
     assert(png.length>10000,'Actual native canvas capture must be nonempty');
     await fs.writeFile(path.join(context.output,name),png);screenshots.push({name,...metadata});
     assert.deepEqual(await snapshot(win),before,'Native screenshot readiness/rendering is read-only');
+    assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture?.characterExport?.()??null'),beforeCharacter,
+      'Native screenshot readiness/rendering cannot sample letters, draw RNG or train either model');
   }
   // Serialized observer-only DOM controls; never starts the clock or a policy.
   function presentAssociationLearning(receiverId){
@@ -116,39 +107,62 @@ function installRunner(context,helpers){
     const counters=[...messages.querySelectorAll('p')].find(node=>node.textContent.includes('canonical observed demonstrations'));
     if(!counters)throw Error('Missing actual reference counter row');
     counters.scrollIntoView({block:'start'});
-    return {text:messages.textContent,selected:select.value,visible:!panel.classList.contains('hidden'),
+    return {text:messages.textContent,messages:[...messages.querySelectorAll('[data-character-message="true"]')].map(node=>node.textContent),
+      selected:select.value,visible:!panel.classList.contains('hidden'),
       tab:panel.dataset.journalTab,character:document.getElementById('npc-name').textContent};
   }
   async function captureAssociationLearning(win){
     const beforeWorld=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
     const beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
-    const receiver=beforeReference.learners.find(memory=>memory.counts.examples===1);
-    assert(receiver,'Actual acquiring listener must exist before UI inspection');
+    const beforeCharacter=await evaluate(win,'window.__visualReferenceFixture.characterExport()');
+    const receiver=beforeReference.learners.find(memory=>memory.character?.uniqueDemonstrations===1);
+    assert(receiver,'Actual acquiring numeric listener must exist before UI inspection');
     const learning=await evaluate(win,'('+presentAssociationLearning.toString()+')('+JSON.stringify(receiver.agentId)+')');
     assert.equal(learning.selected,receiver.agentId);assert.equal(learning.visible,true);assert.equal(learning.tab,'conversation');
-    for(const text of ['Observer annotations, not agent speech.','1 canonical observed demonstrations',
-      '0 association-matched choices','1 uniform exploratory choices','1 corrective observations','1 new visual exemplars',
-      '1 partner-symbol entries','1 own demonstrated examples','Reference matching is not bodily relief or sickness.',
-      'uniform-exploration (unknown-symbol)','observed correction: new-exemplar',
+    const original=beforeReference.observationEvents[0];
+    assert.match(original.message,/^[a-z]{1,6}$/);
+    assert(learning.messages.includes(original.message),'Conversation must render the exact sampled string as an isolated message node');
+    const visibleMessage=await evaluate(win,`(()=>{
+      const panel=document.getElementById('journal-messages');
+      const entry=panel.querySelector('article[data-learning-event="${original.id}"]');
+      const message=entry?.querySelector('[data-character-message="true"]');
+      const action=[...(entry?.querySelectorAll('p')||[])].find(node=>node.textContent.includes('recipient completed paid inspect_object'));
+      if(!entry||!message||message.textContent!==${JSON.stringify(original.message)}||!action)return false;
+      const frame=panel.getBoundingClientRect();
+      const a=message.getBoundingClientRect(),b=action.getBoundingClientRect();
+      panel.scrollTop+=(a.top+b.bottom)/2-(frame.top+frame.bottom)/2;
+      const within=node=>{const r=node.getBoundingClientRect();return r.top>=frame.top&&r.bottom<=frame.bottom;};
+      return within(message)&&within(action);
+    })()`);
+    assert.equal(visibleMessage,true,'Exact sampled message and completed paid recipient action must be visible together');
+    await capture(win,'04b0-exact-message-and-paid-recipient-action.png');
+    for(const text of ['Observer annotations, not agent speech.','no supplied English translation',
+      '1 canonical observed demonstrations','Private character learning',
+      '1 unique valid labeled demonstrations','0 prior-example replay uses','1 listener optimizer steps',
+      'Retained legacy symbol associations (archival)','recipient completed paid inspect_object',
+      'listener optimizer step: completed','trained from at least one valid demonstration',
       'Listener’s own post-choice demonstration'])assert(learning.text.includes(text),text);
-    assert.match(learning.text,/private visual associations.*reopen/i,'Learning must describe retained private memory');
+    assert.match(learning.text,/private character models.*save locally/i,'Learning must describe retained private models');
     assert(!learning.text.includes('measured reward'),'Observer reference counts cannot imply bodily reward');
     if(context.responseScenario){
-      assert(learning.text.includes('independent reference critic: different'),'Wrong original choice must remain visible as observer-only critic evidence');
-      assert(learning.text.includes('Sender-local visible response: mismatched'),'Learning view must display the actual sender-local mismatch');
+      assert(learning.text.includes('Independent reference critic: different'),'Wrong original choice must remain visible as observer-only critic evidence');
+      assert(learning.text.includes('Response status: mismatched'),'Learning view must display the actual sender-local mismatch');
+      assert(learning.text.includes('sender optimizer step: completed'),'Learning view must show only the actual sender update');
     }
     const displayedWorld=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
     assert.deepEqual({...displayedWorld,selectedAgentId:beforeWorld.selectedAgentId},beforeWorld,'Opening Learning may change only observer selection, not the world');
-    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,'Learning view cannot mutate association memory or metrics');
-    await capture(win,'04b-learning-own-association-counters.png');
+    assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,'Learning view cannot mutate character learning or metrics');
+    assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeCharacter,
+      'Learning view cannot draw character RNG or train from inspection');
+    await capture(win,'04b-learning-character-counters.png');
     assert.equal(await evaluate(win,`(()=>{const crop=document.getElementById('journal-messages').querySelector('[aria-label="Listener’s own post-choice demonstration"]');if(!crop)return false;crop.scrollIntoView({block:'center'});return true;})()`),true);
     await capture(win,'04c-learning-own-demonstration-provenance.png');
     if(context.responseScenario){
       const visible=await evaluate(win,`(()=>{
         const panel=document.getElementById('journal-messages');
         const lines=[...panel.querySelectorAll('article.journal-entry p')];
-        const critic=lines.find(node=>node.textContent.includes('independent reference critic: different'));
-        const response=lines.find(node=>node.textContent.includes('Sender-local visible response: mismatched'));
+        const critic=lines.find(node=>node.textContent.includes('Independent reference critic: different'));
+        const response=lines.find(node=>node.textContent.includes('Response status: mismatched'));
         if(!critic||!response)return false;
         const frame=panel.getBoundingClientRect(),a=critic.getBoundingClientRect(),b=response.getBoundingClientRect();
         panel.scrollTop+=(a.top+b.bottom)/2-(frame.top+frame.bottom)/2;
@@ -162,7 +176,9 @@ function installRunner(context,helpers){
     await evaluate(win,`(()=>{const select=document.getElementById('npc-select');select.value=${JSON.stringify(beforeWorld.selectedAgentId)};select.dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('close-npc').click();return true;})()`);
     assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),beforeWorld,'Closing Learning restores observer selection with exact unchanged full world');
     assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,'Learning open/capture/close leaves reference snapshot exact');
-    await fs.writeFile(path.join(context.output,'association-learning-view.json'),JSON.stringify({...learning,readOnly:true,
+    assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeCharacter,
+      'Learning open/capture/close leaves private model weights and RNG exact');
+    await fs.writeFile(path.join(context.output,'character-learning-view.json'),JSON.stringify({...learning,readOnly:true,
       temporaryObserverSelectionOnly:true,restoredSelectedAgentId:beforeWorld.selectedAgentId,at:beforeWorld.elapsed},null,2));
   }
   async function exercise(win){
@@ -186,7 +202,11 @@ function installRunner(context,helpers){
     await fs.writeFile(path.join(context.output,'visible-parser-audit.json'),JSON.stringify(status,null,2));
     await capture(win,'03-during-paid-public-direction-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.completeIndication()');
-    assert.equal(status.pose,null);assert.equal(status.reference.observed,1);assert.equal(status.reference.updates,1);assert.equal(status.reference.evidenceAdditions,1);
+    assert.equal(status.pose,null);assert.equal(status.reference.observed,1);
+    assert.equal(status.reference.latest.listenerUpdate,true);
+    assert.equal(status.checks.listenerLearning.uniqueDemonstrations,1);
+    assert.equal(status.checks.listenerLearning.optimizerSteps,1);
+    assert.equal(status.checks.listenerLearning.actualCanvas,true);
     assert.deepEqual(status.reference.senderFeedback,[]);
     const replyAvailable=status.checks.replyAvailable;
     assert.equal(typeof replyAvailable,'boolean','Actual response geometry must be audited after listener learning');
@@ -210,10 +230,11 @@ function installRunner(context,helpers){
       assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
       if(status.reference.latest.feedbackStatus==='censored'){
         assert.equal(context.responseScenario,false,'Authored response profile must produce its required mismatch');
-        assert.deepEqual(status.reference.senderFeedback,[],'A paid but censored reply gives no training sample');
+        assert.equal(status.checks.senderLearning.updated,false,'A paid but censored reply gives no sender update');
       }else{
         assert(['matched','mismatched'].includes(status.reference.latest.feedbackStatus));
-        assert.equal(status.reference.senderFeedback.length,1);
+        assert.equal(status.reference.latest.senderUpdate,true);
+        assert.equal(status.checks.senderLearning.updates,1);
         assert.equal(status.checks.senderFeedback.actualCanvas,true);assert.equal(status.checks.senderFeedback.senderOnly,true);
       }
       await capture(win,'04a2-after-listener-response-no-cue.png');
@@ -221,11 +242,10 @@ function installRunner(context,helpers){
       assert.equal(status.responsePose,null,'No reply pose or paid response may exist after geometry censorship');
       await capture(win,'04a2-unavailable-listener-response-no-cue.png');
     }
-    const firstSymbol=status.reference.latest.tokens[0]*8+status.reference.latest.tokens[1];
-    const firstEntry=status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.partners
-      .flatMap(partner=>partner.entries).find(entry=>entry.symbol===firstSymbol);
-    assert.equal(firstEntry?.examples.length,1,'First listener own-view example must be available before later actions');
-    const firstExample=firstEntry.examples[0].slice();
+    const firstMessage=status.reference.latest.message;
+    assert.match(firstMessage,/^[a-z]{1,6}$/);
+    assert.equal(status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.uniqueDemonstrations,1,
+      'First valid listener own-view sequence example must survive later actions');
     if(context.responseScenario){
       assert.equal(status.reference.latest.referenceCorrect,false,'Original paid choice must be wrong before the corrective demonstration');
       assert.notEqual(status.privateWitness.choice.targetId,status.privateWitness.indication.targetId,
@@ -233,59 +253,58 @@ function installRunner(context,helpers){
       assert.equal(status.privateWitness.responseTargetId,status.privateWitness.choice.targetId,
         'The paid reply points to the original choice, even after listener corrective learning');
       assert.equal(status.reference.latest.feedbackStatus,'mismatched');
-      assert.equal(status.reference.senderFeedback[0].signal,'mismatch');
-      assert.equal(status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.counts.examples,1,
-        'Listener must already have acquired the correction when it replies with its original choice');
-      assert.deepEqual(status.reference.senderFeedback[0].features,status.checks.senderFeedback.senderCurrentFeatures,
-        'Negative feedback uses the sender own current Canvas crop');
+      assert.equal(status.reference.latest.senderUpdate,true);
+      assert.equal(status.checks.senderFeedback.signal,'mismatch');
+      assert.equal(status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.uniqueDemonstrations,1,
+        'Listener must already have learned from its own crop when it replies with the original choice');
+      assert(Math.abs(status.checks.senderLearning.baseline+.05)<1e-12);
       await fs.writeFile(path.join(context.output,'wrong-original-choice.json'),JSON.stringify({
         originalChoice:status.privateWitness.choice,target:status.privateWitness.indication,
         responseTargetId:status.privateWitness.responseTargetId,
-        listenerExamples:status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.counts.examples,
-        senderFeedback:status.reference.senderFeedback[0],senderCurrentFeatures:status.checks.senderFeedback.senderCurrentFeatures,
+        message:firstMessage,listenerDemonstrations:status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.uniqueDemonstrations,
+        senderFeedback:status.checks.senderFeedback,senderCurrentFeatures:status.checks.senderFeedback.senderCurrentFeatures,
         source:'genuine paid actions and actual Canvas in a fixed engineering negative control'},null,2));
     }
     await fs.writeFile(path.join(context.output,'first-response-outcome.json'),JSON.stringify(status,null,2));
     status=await evaluate(win,'window.__visualReferenceFixture.inspectAssociation()');
-    const associationAudit=status.checks.retrievalDiagnostic;
-    assert.equal(associationAudit.readOnly,true);
-    assert.deepEqual(associationAudit.eligibleDistributions.absent,[.5,.5]);
-    assert.notDeepEqual(associationAudit.eligibleDistributions.known,associationAudit.eligibleDistributions.absent,'Message changes actual-memory eligibility, not a sampled policy action');
-    const timestampedPairSha256=createHash('sha256').update(JSON.stringify(associationAudit.candidateViews)).digest('hex');
-    await fs.writeFile(path.join(context.output,'association-retrieval-audit.json'),JSON.stringify({...associationAudit,timestampedPairSha256},null,2));
+    const modelAudit=status.checks.modelAudit;
+    assert.equal(modelAudit.readOnly,true);
+    assert.equal(modelAudit.message,firstMessage);
+    assert.deepEqual(modelAudit.untrained.probabilities,[.5,.5]);
+    for(let i=0;i<2;i++)assert(Math.abs(modelAudit.known.probabilities[i]-modelAudit.reversed.probabilities[1-i])<1e-12,
+      'The private numeric listener must remain candidate-order equivariant');
+    const timestampedPairSha256=createHash('sha256').update(JSON.stringify(modelAudit.candidateViews)).digest('hex');
+    await fs.writeFile(path.join(context.output,'character-model-audit.json'),JSON.stringify({...modelAudit,timestampedPairSha256},null,2));
     await captureAssociationLearning(win);
+    const beforeRefusedSave=await evaluate(win,'window.__visualReferenceFixture.characterExport()');
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),false,'Ordinary save/UI cannot persist a fixture-owned world');
     assert.equal(await raw(win),null,'Only the one-shot explicit fixture checkpoint may write');
+    assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeRefusedSave,
+      'Refused ordinary save cannot draw character RNG or update either model');
     status=await evaluate(win,'window.__visualReferenceFixture.'+(context.responseScenario?'pendingResponseForSave':'pendingForSave')+'()');
     if(context.responseScenario){
       assert.equal(status.phase,'pending-response-save');assert(status.responsePose);
       assert.equal(status.reference.latest.feedbackStatus,'responding');
       assert.equal(status.reference.pending,1);
-      assert.equal(status.reference.senderFeedback.length,1,'A partly paid second response grants no second feedback');
+      assert.equal(status.reference.senderFeedback.length,0,'A partly paid second response grants no replayable feedback queue');
       assert.equal(status.checks.pendingResponse.originalInspectedId,status.privateWitness.responseTargetId);
-      const retained=status.reference.learners.find(row=>row.agentId===status.reference.observationEvents[0].receiverId)?.partners
-        .flatMap(partner=>partner.entries).find(entry=>entry.symbol===firstSymbol);
-      assert(retained?.examples.some(example=>JSON.stringify(example)===JSON.stringify(firstExample)),
-        'Second exchange and pending response must preserve the first completed own-view exemplar');
+      const retained=status.reference.learners.find(row=>row.agentId===status.reference.observationEvents[0].receiverId)?.character;
+      assert(retained?.uniqueDemonstrations>=1&&retained?.partnerBanks?.some(bank=>bank.retainedExamples>=1),
+        'Second exchange and pending response must preserve the first completed own-view numeric example');
       await capture(win,'05-second-paid-listener-response-before-save.png');
-      // The second authentic correction can add support or an exemplar. Record
-      // the current read-only query result before close, then demand exact
-      // persistence across both reopens without assuming its old distribution.
-      const sourceEvent=status.reference.observationEvents[0],base={listenerId:sourceEvent.receiverId,senderId:sourceEvent.senderId},
-        candidateFeatures=associationAudit.candidateViews.map(view=>view.features);
-      const query=(symbol,features)=>evaluate(win,'window.__ozarkWorld.referencePersistenceProbe('+
-        JSON.stringify({...base,symbol,candidateFeatures:features})+')');
-      const beforeWorld=await snapshot(win),beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
-      const postSecond={known:await query(associationAudit.symbol,candidateFeatures),
-        reversed:await query(associationAudit.symbol,candidateFeatures.slice().reverse()),
-        absent:await query(associationAudit.absent.symbol,candidateFeatures),
-        scope:'Read-only current memory after second full correction and before mid-response save'};
-      assert.deepEqual(await snapshot(win),beforeWorld,'Post-second retrieval cannot change the world');
+      const beforeWorld=await snapshot(win),beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),
+        beforeModel=await evaluate(win,'window.__visualReferenceFixture.characterExport()');
+      assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeModel,
+        'Repeated private model export cannot draw RNG or train');
+      assert.deepEqual(await snapshot(win),beforeWorld,'Post-second inspection cannot change the world');
       assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,
-        'Post-second retrieval cannot change private memory or feedback');
-      await fs.writeFile(path.join(context.output,'association-post-second-retrieval.json'),JSON.stringify(postSecond,null,2));
+        'Post-second inspection cannot change private memory or feedback');
+      await fs.writeFile(path.join(context.output,'character-post-second-export.json'),JSON.stringify({model:beforeModel,readOnly:true},null,2));
     }else{assert(status.pose);await capture(win,'05-second-paid-indication-before-save.png');}
+    const beforePendingSave=await evaluate(win,'window.__visualReferenceFixture.characterExport()');
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),false);
+    assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforePendingSave,
+      'Refused pending save cannot change private model or pending RNG continuation');
     const checkpoint=await evaluate(win,'window.__visualReferenceFixture.checkpoint(localStorage)');
     assert(checkpoint,'Authenticated one-shot checkpoint must persist actual main state');
     assert.equal(checkpoint.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
@@ -313,15 +332,21 @@ function installRunner(context,helpers){
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
     assert.equal(reference.learners.length,2);
     assertRetainedLearning(reference,saved,'First independent reopen');
-    const retrieval=await assertReopenedRetrieval(win,saved,'First independent reopen');
+    const modelAudit=await assertReopenedCharacter(win,saved,'First independent reopen');
     const replay=await evaluate(win,'('+probeVisualReferenceReopen.toString()+')(document.baseURI,window.__ozarkWorld.fullSnapshot(),'+
       JSON.stringify(saved.serializedActive)+','+JSON.stringify(saved.serializedPermit)+','+
-      JSON.stringify({pendingKind:saved.pendingKind,serializedDemonstrationActive:saved.serializedDemonstrationActive})+')');
+      JSON.stringify({pendingKind:saved.pendingKind,serializedInspectionActive:saved.serializedInspectionActive,
+        serializedDemonstrationActive:saved.serializedDemonstrationActive})+')');
     assert.equal(replay.noRevivedAuthority,true);
+    assert.equal(replay.inspectionCompletion,null,'Copied original paid inspection receipt cannot complete after reopen');
+    assert.equal(replay.inspectionPermit,null,'Copied original paid inspection receipt cannot create a new indication permit');
     assert.deepEqual(await snapshot(win),restored,'Read-only copied-state replay audit cannot mutate reopened main');
     await capture(win,'07-independent-reopen-no-authority.png');
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true);
-    await fs.writeFile(path.join(context.output,'after-checkpoint.json'),JSON.stringify({raw:await raw(win),expectedRestored:restored,replay,reference,retrieval,
+    const resavedRaw=await raw(win);
+    assert.deepEqual(JSON.parse(resavedRaw).characterMessages,JSON.parse(saved.raw).characterMessages,
+      'First ordinary save after reopen retains exact private model weights, counters and RNG states without pending authority');
+    await fs.writeFile(path.join(context.output,'after-checkpoint.json'),JSON.stringify({raw:resavedRaw,expectedRestored:restored,replay,reference,modelAudit,
       report:saved.report,
       pendingKind:saved.pendingKind,fixtureDisclosure:saved.fixtureDisclosure,screenshots:[...saved.screenshots,...screenshots]},null,2));
     await session.defaultSession.flushStorageData();
@@ -334,9 +359,13 @@ function installRunner(context,helpers){
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
     assertRetainedLearning(reference,{report:{reference:saved.reference}},'Second independent reopen');
-    const retrieval=await assertReopenedRetrieval(win,saved,'Second independent reopen');
-    assert.deepEqual(retrieval,saved.retrieval,'Repeated reopen preserves the same message-dependent retrieval');
-    const associationAudit=JSON.parse(await fs.readFile(path.join(context.output,'association-retrieval-audit.json'),'utf8'));
+    const modelAudit=await assertReopenedCharacter(win,saved,'Second independent reopen');
+    assert.deepEqual(modelAudit,saved.modelAudit,'Repeated reopen preserves exact model state and inspection purity');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true,
+      'Second independent reopen must export its actual loaded private models');
+    assert.deepEqual(JSON.parse(await raw(win)).characterMessages,JSON.parse(saved.raw).characterMessages,
+      'Second independent reopen retains exact live model weights, counters and RNG states');
+    const characterAudit=JSON.parse(await fs.readFile(path.join(context.output,'character-model-audit.json'),'utf8'));
     const firstEvent=saved.report.reference.observationEvents[0],replyAvailable=saved.report.checks.replyAvailable;
     const paidReplySeconds=saved.report.checks.responsePayment?.canonicalWorkSeconds??0;
     await capture(win,'08-repeated-reopen-no-duplicate-interruption.png');
@@ -348,27 +377,32 @@ function installRunner(context,helpers){
       replyAvailable,replyFeedbackStatus:firstEvent.feedbackStatus,paidListenerResponseSeconds:paidReplySeconds,
       replyUnavailableCensored:!replyAvailable&&firstEvent.feedbackStatus==='censored',
       paidReplyCensored:replyAvailable&&firstEvent.feedbackStatus==='censored',
-      actualCanvasCrops:true,consecutiveListenerGeometryAudit:true,
+      actualCanvasCrops:true,exactEmittedCharacterString:firstEvent.message,
+      consecutiveListenerGeometryAudit:true,
       consecutiveSenderResponseGeometryAudit:paidReplySeconds>0,privateCanonicalWitnessOnly:true,
-      canonicalOwnDemonstrationAssociation:true,associationEvidenceAdditions:saved.report.reference.evidenceAdditions,readOnlyActualMemoryRetrieval:true,
+      canonicalOwnDemonstrationLearning:true,
+      uniquePhysicalDemonstrations:saved.report.reference.learners.find(row=>row.agentId===firstEvent.receiverId)?.character.uniqueDemonstrations,
+      listenerOptimizerSteps:saved.report.reference.learners.find(row=>row.agentId===firstEvent.receiverId)?.character.listenerUpdates,
+      senderOptimizerSteps:saved.report.reference.learners.find(row=>row.agentId===firstEvent.senderId)?.character.senderUpdates,
+      readOnlyPrivateModelInspection:true,modelStateSha256:modelAudit.characterStateSha256,
       ephemeralSenderFeedback:saved.report.reference.senderFeedback.length,
       senderOnlyFreshResponseCrop:!!saved.report.checks.senderFeedback?.senderOnly,noFeedbackOnReopen:true,
       actualLearningTabCaptured:true,learningPanelReadOnly:true,
       ...(context.responseScenario?{
-        initialRetrievalEligibleDistributions:associationAudit.eligibleDistributions,
-        postSecondMemoryQueriesPersistedExact:true,
-      }:{retrievalEligibleDistributions:associationAudit.eligibleDistributions,
-        restoredMemoryRetrievalOnRecordedOwnViews:true}),
-      timestampedCandidatePairSha256:associationAudit.timestampedPairSha256,
-      noBodilyReward:true,reopenRetainsIndividualAssociation:true,
+        modelCandidatePermutationEquivariant:true,
+        postSecondPrivateModelExportPersistedExact:true,
+      }:{modelCandidatePermutationEquivariant:true,
+        restoredPrivateModelOnRecordedOwnViews:true}),
+      timestampedCandidatePairSha256:characterAudit.timestampedPairSha256,
+      noBodilyReward:true,reopenRetainsIndividualLearning:true,
       noClosedTimeProgression:true,noRevivedAuthority:true,noDuplicateInterruption:true,
       savedMidListenerResponse:context.responseScenario,noSecondFeedbackAfterReopen:context.responseScenario,
       nativeWrongOriginalChoiceMismatched:context.responseScenario,
       savedMidSenderDemonstration:!context.responseScenario,
       screenshots:[...saved.screenshots,...screenshots],fixtureDisclosure:saved.fixtureDisclosure,
       scope:context.responseScenario?
-        'Fixed seed-212 engineering negative control with authored initial Mira position (230,960), wrong original paid inspection, completed correction and sender-local actual-Canvas mismatch. A second full optional exchange is saved during the genuinely paid listener response; isolated reopen and second reopen discard that response permit and any pending or completed sender feedback, preserving private associations. This is not ordinary initial geometry, a sampled later policy action, generalization, autonomous cohort, scientific-seed sweep or survival-benefit evidence.':
-        'Bounded engineering-only deliberate original-position main-world actions and native pixels prove the canonical own-demo association. The reverse reply is offered only when actual sender geometry permits it; its result may be paid visual feedback or censored with no sample or added reply cost. Private memory remains across isolated native close/reopen. Post-reopen retrieval queries use genuine listener Canvas views recorded before close; they do not capture new views after reopen. No sampled later policy action, vocabulary discrimination, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
+        'Fixed historical seed-212 engineering negative control with authored initial Mira position (230,960), wrong original paid inspection, one listener update and sender-local actual-Canvas mismatch update. A second full optional exchange is saved during the genuinely paid listener response; isolated reopen and second reopen discard pending authority without duplicating any update, preserving private model weights and replay. This is not ordinary initial geometry, generalization, autonomous cohort, scientific-seed sweep or survival-benefit evidence.':
+        'Bounded engineering-only deliberate original-position main-world actions and native pixels show a sampled character string, original own-view listener example and one model update. The reverse reply is offered only when actual sender geometry permits; unavailable replies censor sender learning without erasing listener learning. The second authentic sampled sequence is saved mid-paid sender indication and cannot revive its authority after close/reopen. No vocabulary, grammar, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
   }
   async function closeNormally(win){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Engineering fixture must never start an independent wall-clock loop');
@@ -419,8 +453,8 @@ try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
     nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:responseScenario?
-      'engineering-only fixed wrong-choice negative control with authored Mira position (230,960); actual Canvas mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
-      'engineering-only original-position own-demo association; optional sender-visible reply can be censored when geometry is unavailable; paid sender-cue close/reopen and read-only retrieval; no cohort or generalization'};
+      'engineering-only fixed historical seed 212 wrong-choice negative control with authored Mira position (230,960); actual Canvas listener and sender updates, mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
+      'engineering-only original-position actual Canvas own-demo character learning; optional sender-visible reply can be censored when geometry is unavailable; pending sampled message close/reopen and read-only model inspection; no cohort or generalization'};
   await writeFile(join(output,'prepared.json'),JSON.stringify(prepared,null,2));
   if(prepareOnly)console.log(JSON.stringify(prepared));
   else{
