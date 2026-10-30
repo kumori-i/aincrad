@@ -40,7 +40,7 @@ test('native sharing reopen assertion executes against current Learning DOM and 
   const end=source.indexOf('}).toString()',start);
   assert.ok(start>=0&&end>start);
   const inline=source.slice(start,end+1);
-  const reference={phase:'private-visual-association',elapsed:42,exchanges:0,pending:0,updates:0,observationEvents:[]};
+  const reference={phase:'private-character-message',elapsed:42,exchanges:0,pending:0,updates:0,observationEvents:[]};
   const root=new Node('div',document);
   const render=()=>renderLearningView(root,reference,'mira');
   const elements={
@@ -54,7 +54,8 @@ test('native sharing reopen assertion executes against current Learning DOM and 
   const run=Function('window','document','Event','return ('+inline+')')(
     {__ozarkWorld:{communicationSnapshot:()=>reference}},fakeDocument,class Event{});
   const result=run('mira');
-  assert.match(result.text,/No reference attempt involving this agent yet/);
+  assert.match(result.text,/No character message involving this agent yet/);
+  assert.doesNotMatch(result.text,/No reference attempt involving this agent yet/);
   assert.match(result.text,/Observer annotations, not agent speech/);
   assert.equal(result.reference,reference);
   for(const key of ['exchanges','pending','updates']){
@@ -63,7 +64,7 @@ test('native sharing reopen assertion executes against current Learning DOM and 
   reference.observationEvents=[{senderId:'other',receiverId:'another'}];
   assert.throws(()=>run('mira'),/must not invent reference activity/,'Hidden foreign-agent events must fail too');
   reference.observationEvents=[];reference.phase='historical-symbol-path';
-  assert.throws(()=>run('mira'),/current empty reference state/,'Old empty wording is not the current main path');
+  assert.throws(()=>run('mira'),/current empty character-message state/,'Old empty wording is not the current main path');
 });
 
 test('private association inspector distinguishes evidence, exploration and reference correctness without bodily reward claims',()=>{
