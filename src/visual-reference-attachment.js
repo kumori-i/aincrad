@@ -38,6 +38,36 @@ function observerBody(n){
     collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks};
 }
 
+/** Preserve the optional gate's left-to-right evaluation. A failed predicate
+ * does not imply anything about later predicates that were never read. */
+export function findReferencePeer(agents,receiver,busy){
+  let firstFailure=null;
+  const fail=reason=>{firstFailure??=reason;return false;};
+  const sender=agents.find(n=>n!==receiver&&
+    (awake(n)||fail('not-awake'))&&(!urgent(n)||fail('urgent'))&&
+    (!n.active||fail('active'))&&(!busy.has(n)||fail('busy'))&&
+    (n.scene===receiver.scene||fail('other-scene'))&&
+    (Math.hypot(n.position.x-receiver.position.x,n.position.y-receiver.position.y)<=250||fail('too-far'))&&
+    (actorLineOfSight(receiver,receiver.position,n.position)||fail('occluded')));
+  return {sender,firstFailure:sender?null:firstFailure??'missing'};
+}
+
+/** Classify only the original reverse checks, in their original order. No
+ * second sight, gesture or parser query is made for observer diagnostics. */
+export function reverseReferenceFailure(sender,sight,index,reply,
+  visible=visibleIndicationGeometry,resolve=resolveIndication){
+  if(!sight.complete)return 'sender-sight-incomplete';
+  if(index<0)return 'selected-absent';
+  if(!reply)return 'reverse-geometry-unavailable';
+  if(!visible(sender,reply))return 'reverse-gesture-invisible';
+  const resolved=resolve(reply,sight.objects);
+  if(resolved.index===index)return null;
+  if(resolved.reason==='ambiguous')return 'reverse-ambiguous';
+  if(resolved.reason==='no-visible-referent')return 'reverse-no-referent';
+  if(resolved.reason==='resolved')return 'reverse-other-referent';
+  return 'reverse-invalid-resolution';
+}
+
 export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.visualReference?.seed??211,protocol='legacy'}){
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
   if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
@@ -279,9 +309,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     const senderSight=senseReferenceObjects(t.sender,state);
     const senderIndex=senderSight.bindings.indexOf(t.selectedId);
     const reply=selected&&referenceGeometry(t.receiver.position,selected.position,t.receiver.scene,1);
-    if(!senderSight.complete||senderIndex<0||!reply||!visibleIndicationGeometry(t.sender,reply)||
-        resolveIndication(reply,senderSight.objects).index!==senderIndex){
-      finishResponse(t,'censored','response-not-resolvable');return;
+    const reverseFailure=reverseReferenceFailure(t.sender,senderSight,senderIndex,reply);
+    if(reverseFailure){
+      finishResponse(t,'censored','response-not-resolvable');
+      if(measurement)bump(`response-preflight:${reverseFailure}`);
+      return;
     }
     t.responsePermit=createListenerResponsePermit(t.receiver,t.sender,t.indicationActive);
     if(!t.responsePermit){finishResponse(t,'censored','response-not-authorized');return;}
@@ -421,8 +453,8 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       }
       if(!awake(receiver)||urgent(receiver)||receiver.active)return null;
       if(receiver.elapsed-(cooldowns.get(receiver)??-Infinity)<REFERENCE_LIMITS.cooldown){bump('cooldown');return null;}
-      const sender=state.agents.find(n=>n!==receiver&&awake(n)&&!urgent(n)&&!n.active&&!busy.has(n)&&n.scene===receiver.scene&&Math.hypot(n.position.x-receiver.position.x,n.position.y-receiver.position.y)<=250&&actorLineOfSight(receiver,receiver.position,n.position));
-      if(!sender){bump('no-peer');return null;}
+      const {sender,firstFailure}=findReferencePeer(state.agents,receiver,busy);
+      if(!sender){bump('no-peer');if(measurement)bump(`no-peer:${firstFailure}`);return null;}
       const own=senseReferenceObjects(receiver,state),other=senseReferenceObjects(sender,state);
       if(!own.complete||!other.complete){bump('incomplete-sight');return null;}
       const ownCrops=pixelSensor.capture(receiver,state),otherCrops=pixelSensor.capture(sender,state),candidates=[];
