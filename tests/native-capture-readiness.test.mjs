@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
-import { captureWithReadiness, waitForCaptureFrames } from '../scripts/native-capture-readiness.mjs';
+import { captureWithReadiness, waitForCaptureFrames, conversationViewportEvidence } from '../scripts/native-capture-readiness.mjs';
 
 const image = (size, empty = false) => ({ toPNG: () => Buffer.alloc(size, 7),
   getSize: () => ({ width: 1280, height: 800 }), isEmpty: () => empty });
@@ -85,6 +85,70 @@ test('readiness waits for optional refinement and two frames without ticking or 
     assert.equal((await ready()).readyState, 'complete');
     assert.deepEqual(events, aquatic ? ['refine', 'frame', 'frame'] : ['frame', 'frame']);
     assert.deepEqual(state, before);
+  }
+});
+
+function conversationDOM() {
+  const area = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
+  const nodes = new Map(), state = { covered: false, world: { elapsed: 42, learned: 1, saved: 'exact' } };
+  const node = (id, bounds, parent = null) => {
+    const value = { id, nodeType: 1, parentElement: parent, bounds, dataset: {}, hidden: false,
+      classList: { contains(name) { return name === 'hidden' && value.hidden; } },
+      getBoundingClientRect() { return this.bounds; },
+      contains(other) { for (let current = other; current; current = current.parentElement) if (current === this) return true; return false; },
+      getAttribute() { return null; }, querySelectorAll() { return []; }, querySelector() { return null; } };
+    nodes.set(id, value); return value;
+  };
+  const app = node('app', area(0, 0, 1280, 800)); app.dataset.inspecting = 'true';
+  const panel = node('npc-panel', area(900, 20, 1260, 780), app); panel.dataset.journalTab = 'conversation';
+  const tab = node('npc-tab-conversation', area(930, 80, 1200, 120), panel);
+  tab.getAttribute = name => name === 'aria-pressed' ? 'true' : null;
+  const section = node('journal-conversation', area(920, 140, 1240, 740), panel);
+  const journal = node('journal-messages', area(930, 180, 1230, 600), section);
+  const entry = node('entry', area(940, 200, 1220, 390), journal); entry.dataset.learningEvent = '1';
+  const emitted = node('emitted', area(960, 230, 1100, 250), entry); emitted.textContent = 'abc';
+  const action = node('action', area(950, 280, 1190, 320), entry); action.textContent = 'recipient completed paid inspect_object';
+  journal.querySelectorAll = selector => selector === 'article[data-learning-event]' ? [entry] : [];
+  entry.querySelector = selector => selector === '[data-character-message="true"]' ? emitted : null;
+  entry.querySelectorAll = selector => selector === 'p' ? [action] : [];
+  for (const id of ['world-loading', 'pause-panel', 'recovery-panel']) node(id, area(0, 0, 1280, 800), app).hidden = true;
+  const document = { getElementById: id => nodes.get(id) ?? null,
+    elementFromPoint(x, y) {
+      if (state.covered) return nodes.get('pause-panel');
+      for (const candidate of [emitted, action, tab, journal, section, panel, app]) {
+        const b = candidate.bounds;
+        if (x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) return candidate;
+      }
+      return null;
+    } };
+  const window = { innerWidth: 1280, innerHeight: 800,
+    getComputedStyle: element => ({ display: element.hidden ? 'none' : 'block', visibility: 'visible', opacity: '1' }) };
+  return { nodes, state, document, window, entry, emitted, action };
+}
+
+test('serialized Conversation readiness requires the visible exact message and recipient action without changing state', () => {
+  const dom = conversationDOM(), before = structuredClone(dom.state.world);
+  const inspect = vm.runInNewContext('(' + conversationViewportEvidence.toString() + ')');
+  const evidence = inspect(dom.document, dom.window, { eventId: 1, message: 'abc', actionText: 'recipient completed paid inspect_object' });
+  assert.deepEqual({ ...evidence.panel }, { left: 900, right: 1260, top: 20, bottom: 780, width: 360, height: 760 });
+  assert.equal(evidence.message.left, 960); assert.equal(evidence.action.bottom, 320);
+  assert.deepEqual(dom.state.world, before);
+});
+
+test('Conversation readiness rejects covered, hidden, offscreen and stale-message captures', () => {
+  const inspect = vm.runInNewContext('(' + conversationViewportEvidence.toString() + ')');
+  const witness = { eventId: 1, message: 'abc', actionText: 'recipient completed paid inspect_object' };
+  for (const breakView of [
+    dom => { dom.nodes.get('npc-panel').hidden = true; },
+    dom => { dom.nodes.get('journal-conversation').hidden = true; },
+    dom => { dom.nodes.get('pause-panel').hidden = false; },
+    dom => { dom.nodes.get('journal-messages').bounds.right = 1400; },
+    dom => { dom.state.covered = true; },
+    dom => { dom.emitted.textContent = 'xyz'; },
+    dom => { dom.action.bounds.top = 620; dom.action.bounds.bottom = 650; },
+  ]) {
+    const dom = conversationDOM(); breakView(dom);
+    assert.throws(() => inspect(dom.document, dom.window, witness));
   }
 });
 

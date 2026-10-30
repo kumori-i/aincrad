@@ -19,7 +19,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
   const {npcEffortCost}=await use('npc-effort-funding');
-  const {classifyOwnDemonstration,listenerDistribution}=await use('character-message-core');
+  const {CHARACTER_CORE,classifyOwnDemonstration,listenerDistribution}=await use('character-message-core');
   const {validateCharacterPersistence}=await use('visual-reference-save');
   const {loadOzarkSave,OZARK_SAVE_KEY}=await use('ozark-save');
   const {bindOzarkWorldAgent}=await use('ozark-agent-world');
@@ -408,10 +408,15 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(phase==='completed'&&checks.modelAudit,'Complete and audit the first sequence before the response lifecycle fixture');
     require(ownerState(sender.id).sender.updates===1&&reference.snapshot().senderFeedback.length===0,
       'The first completed paid response must update the private sender once without a replayable queue');
+    const beforeSecondListener=structuredClone(partnerState(listener.id,sender.id));
+    require(beforeSecondListener.demonstrations===1&&beforeSecondListener.optimizerSteps===1&&
+      beforeSecondListener.replayUses===0&&beforeSecondListener.examples.length===1,
+      'Second label audit must start from exactly one retained physical demonstration');
     secondStarted=true;
     while(state.elapsed<12.1-1e-8)tick();
     const choice=reference.hooks.optionalAction(listener);
     require(choice?.type==='inspect_object','Second optional listener choice unavailable after cooldown');
+    const secondAdmissionCrops=sensor.capture(listener,state);
     const started=requestNpcAction(listener,choice,state.environment);secondChoiceActive=listener.active;
     reference.hooks.performed(listener,choice,started,secondChoiceActive);
     require(started?.code==='ACTION_STARTED'&&secondChoiceActive,'Second canonical inspect did not start');
@@ -427,8 +432,63 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const demonstrated=successfulDiscoveryActionCompletion(sender,secondDemoActive);
     require(demonstrated?.type==='indicate_object','Second sender demonstration has no successful paid proof');
     near(demonstrated.worked,1.8,'Second sender demonstration work');
-    require(reference.snapshot().latest.feedbackStatus==='awaiting-response'&&reference.snapshot().pending===1,
+    const afterPaidCharacter=characterState();
+    const secondReference=reference.snapshot(),secondEvent=secondReference.latest,
+      secondPolicy=partnerState(listener.id,sender.id),secondOwn=secondReference.learners.find(row=>row.agentId===listener.id)?.character,
+      finalCrop=sensor.capture(listener,state).get(privateTargetId);
+    require(secondEvent.feedbackStatus==='awaiting-response'&&secondReference.pending===1,
       'Second completed demonstration must leave an optional listener response pending');
+    require(finalCrop?.pixels?.length===768&&finalCrop.features?.length===CHARACTER_CORE.features&&
+      secondEvent.demonstrationPixels?.length===768&&same(finalCrop.features,poolCommunicationPixels(finalCrop.pixels))&&
+      same(finalCrop.features,poolCommunicationPixels(secondEvent.demonstrationPixels))&&
+      finalCrop.at<=listener.elapsed+1e-8&&listener.elapsed-finalCrop.at<=fixedStep+1e-8,
+      'Second final own demonstration must be the fresh actual listener Canvas crop');
+    const updated=secondEvent.listenerUpdate===true;
+    require(updated||secondEvent.listenerUpdate===false&&secondEvent.correction==='ambiguous-own-view',
+      'Second paid demonstration must yield a valid own-view label or explicit visual ambiguity');
+    const secondExample=updated?secondPolicy.examples[1]:null;
+    const candidateFeatures=secondExample?.candidates??(secondChoiceActive.request.targetId!==privateTargetId?
+      [secondChoiceActive.request.targetId,privateTargetId].map(id=>secondAdmissionCrops.get(id)?.features):null);
+    const candidatePixels=candidateFeatures?.map(features=>[...secondAdmissionCrops.values()].find(crop=>same(crop.features,features))?.pixels);
+    require(!candidateFeatures||candidateFeatures.length===2&&candidateFeatures.every(features=>features?.length===CHARACTER_CORE.features)&&
+      candidatePixels.every((pixels,index)=>pixels?.length===768&&
+        same(poolCommunicationPixels(pixels),candidateFeatures[index])),
+      'Second candidate vectors must come from the original listener Canvas admission');
+    const classificationAvailable=!!candidateFeatures;
+    const distances=candidateFeatures?.map(features=>Math.sqrt(features.reduce((sum,value,index)=>
+      sum+(value-finalCrop.features[index])**2,0)/CHARACTER_CORE.features))??null;
+    const classified=candidateFeatures?classifyOwnDemonstration(candidateFeatures,finalCrop.features):null;
+    if(updated){
+      require(secondExample.message===secondEvent.message&&secondExample.label===classified&&
+        distances[classified]<=CHARACTER_CORE.demonstrationMatch&&
+        distances[1-classified]-distances[classified]>CHARACTER_CORE.demonstrationGap&&
+        secondPolicy.demonstrations===2&&secondPolicy.optimizerSteps===2&&secondPolicy.examples.length===2&&
+        secondPolicy.replayUses===1&&secondOwn.uniqueDemonstrations===2&&secondOwn.listenerUpdates===2&&
+        !same(secondPolicy.model,beforeSecondListener.model),
+      'Exactly two valid physical demonstrations must yield two listener updates and one bounded prior replay');
+    }else{
+      require(secondPolicy.demonstrations===1&&secondPolicy.optimizerSteps===1&&secondPolicy.examples.length===1&&
+        secondPolicy.replayUses===0&&secondOwn.uniqueDemonstrations===1&&secondOwn.listenerUpdates===1&&
+        same(secondPolicy.model,beforeSecondListener.model)&&
+        secondPolicy.replayState===beforeSecondListener.replayState&&
+        same(secondPolicy.examples,beforeSecondListener.examples)&&
+        (!candidateFeatures||classified===null),
+      'Ambiguous own-view demonstration must leave listener weights, replay and physical counters unchanged');
+    }
+    checks.secondLabel={scope:'Read-only audit after a second canonical paid indication; no test label enters the learner',
+      actualCanvas,secondMessage:secondEvent.message,updated,reason:secondEvent.correction,
+      classificationAvailable,
+      candidateSource:updated?'retained-own-candidate-example':candidateFeatures?'distinct-choice-and-target-own-crops':'private-pair-unavailable-after-censorship',
+      candidateFeatures:candidateFeatures?.map(features=>features.slice())??null,
+      candidatePixels:candidatePixels?.map(pixels=>pixels.slice())??null,
+      finalOwnFeatures:finalCrop.features.slice(),finalOwnPixels:finalCrop.pixels.slice(),distances,
+      classifiedLabel:classified,demonstrations:secondPolicy.demonstrations,
+      optimizerSteps:secondPolicy.optimizerSteps,replayUses:secondPolicy.replayUses,
+      retainedExamples:secondPolicy.examples.length,
+      modelChanged:!same(secondPolicy.model,beforeSecondListener.model),
+      replayStateChanged:secondPolicy.replayState!==beforeSecondListener.replayState};
+    require(same(characterState(),afterPaidCharacter),
+      'Read-only second Canvas label audit cannot sample, train or alter private character state');
     const reply=reference.hooks.optionalAction(listener);
     require(reply?.type==='indicate_object','Second optional listener response unavailable');
     require(reference.hooks.performOptional(listener,reply)?.code==='ACTION_STARTED','Second paid listener response did not start');
@@ -441,6 +501,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(responsePose()&&pending.pending===1&&pending.latest.feedbackStatus==='responding'&&
       pending.senderFeedback.length===0&&ownerState(sender.id).sender.updates===1,
       'Partly paid response must remain visible and supply no second sender update');
+    require(same(characterState(),afterPaidCharacter),
+      'Partly paid response cannot repeat listener learning or update either private model before completion');
     checks.pendingResponse={originalInspectedId:secondChoiceActive.request.targetId,
       demonstrationId:secondDemoActive.request.targetId,paidSeconds:discoveryActionPaidSeconds(listener,pendingActive),
       firstSenderUpdates:ownerState(sender.id).sender.updates,pending:pending.pending,

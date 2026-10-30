@@ -9,7 +9,7 @@ import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {buildApplication} from './build.mjs';
-import {captureWithReadiness,waitForCaptureFrames} from './native-capture-readiness.mjs';
+import {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence} from './native-capture-readiness.mjs';
 import {canonicalApplicationRoot,nativeSourceIdentity,captureNativeChild,archiveNativeProfile,currentRouteSnapshot,assertCurrentRoute} from './carcass-native-contract.mjs';
 import {assertStructuralRestoredHistory} from './structural-movement-native-contract.mjs';
 import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen} from './visual-reference-native-fixture.mjs';
@@ -41,7 +41,7 @@ context.phases=phases;
 function installRunner(context,helpers){
   const {app,session}=require('electron'),assert=require('node:assert/strict');
   const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto');
-  const {captureWithReadiness,waitForCaptureFrames,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
+  const {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
     visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen}=helpers;
   const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
   assert(context.phases.includes(phase));
@@ -67,6 +67,16 @@ function installRunner(context,helpers){
     assert(learned,'Saved listener own-view numeric example is required');
     assert.equal(reference.learners.find(row=>row.agentId===learned.agentId)?.character.uniqueDemonstrations,
       learned.character.uniqueDemonstrations,label+' retains unique completed listener demonstrations');
+    const second=saved.report.checks?.secondLabel;
+    if(second){
+      const listener=reference.learners.find(row=>row.agentId===learned.agentId)?.character;
+      assert.equal(listener?.uniqueDemonstrations,second.demonstrations,
+        label+' retains the exact second own-view physical demonstration count');
+      assert.equal(listener?.listenerUpdates,second.optimizerSteps,
+        label+' retains the exact second own-view optimizer count');
+      assert.equal(listener?.replayUses,second.replayUses,
+        label+' retains the exact bounded replay count');
+    }
   }
   async function assertReopenedCharacter(win,saved,label){
     const beforeWorld=await snapshot(win),beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),
@@ -79,12 +89,17 @@ function installRunner(context,helpers){
     return {characterStateSha256:createHash('sha256').update(JSON.stringify(persisted)).digest('hex'),readOnly:true};
   }
   async function waitFor(win,expression){for(let i=0;i<1200;i++){if(await evaluate(win,expression))return;await delay(50);}throw new Error('Condition missing: '+expression);}
-  async function capture(win,name){
+  async function capture(win,name,conversation=null){
     const before=await snapshot(win),beforeCharacter=await evaluate(win,
       'window.__visualReferenceFixture?.characterExport?.()??null');
     await waitFor(win,'window.__ozarkWorld.detailReady()');
     const {png,metadata}=await captureWithReadiness({
-      prepare:async()=>{const ready=await evaluate(win,'('+waitForCaptureFrames.toString()+')()');await delay(100);return ready;},
+      prepare:async()=>{
+        const ready=await evaluate(win,'('+waitForCaptureFrames.toString()+')()');await delay(100);
+        if(conversation)ready.conversationViewport=await evaluate(win,
+          '('+conversationViewportEvidence.toString()+')(document,window,'+JSON.stringify(conversation)+')');
+        return ready;
+      },
       capture:()=>win.webContents.capturePage(),
       retain:async(bytes,attempt)=>{const prefix=path.join(context.output,name+'.attempt-'+attempt.attempt);if(bytes)await fs.writeFile(prefix+'.png',bytes);await fs.writeFile(prefix+'.json',JSON.stringify({phase,...attempt},null,2));},
     });
@@ -135,7 +150,8 @@ function installRunner(context,helpers){
       return within(message)&&within(action);
     })()`);
     assert.equal(visibleMessage,true,'Exact sampled message and completed paid recipient action must be visible together');
-    await capture(win,'04b0-exact-message-and-paid-recipient-action.png');
+    await capture(win,'04b0-exact-message-and-paid-recipient-action.png',
+      {eventId:original.id,message:original.message,actionText:'recipient completed paid inspect_object'});
     for(const text of ['Observer annotations, not agent speech.','no supplied English translation',
       '1 canonical observed demonstrations','Private character learning',
       '1 unique valid labeled demonstrations','0 prior-example replay uses','1 listener optimizer steps',
@@ -154,9 +170,9 @@ function installRunner(context,helpers){
     assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,'Learning view cannot mutate character learning or metrics');
     assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeCharacter,
       'Learning view cannot draw character RNG or train from inspection');
-    await capture(win,'04b-learning-character-counters.png');
+    await capture(win,'04b-learning-character-counters.png',{});
     assert.equal(await evaluate(win,`(()=>{const crop=document.getElementById('journal-messages').querySelector('[aria-label="Listener’s own post-choice demonstration"]');if(!crop)return false;crop.scrollIntoView({block:'center'});return true;})()`),true);
-    await capture(win,'04c-learning-own-demonstration-provenance.png');
+    await capture(win,'04c-learning-own-demonstration-provenance.png',{});
     if(context.responseScenario){
       const visible=await evaluate(win,`(()=>{
         const panel=document.getElementById('journal-messages');
@@ -170,7 +186,7 @@ function installRunner(context,helpers){
         return within(critic)&&within(response);
       })()`);
       assert.equal(visible,true,'The correction critic and sensory mismatch must both be visible in the native screenshot');
-      await capture(win,'04d-wrong-original-choice-after-correction.png');
+      await capture(win,'04d-wrong-original-choice-after-correction.png',{});
     }
     assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),displayedWorld,'Learning screenshots and scrolling cannot advance time or mutate the world');
     await evaluate(win,`(()=>{const select=document.getElementById('npc-select');select.value=${JSON.stringify(beforeWorld.selectedAgentId)};select.dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('close-npc').click();return true;})()`);
@@ -283,6 +299,23 @@ function installRunner(context,helpers){
       'Refused ordinary save cannot draw character RNG or update either model');
     status=await evaluate(win,'window.__visualReferenceFixture.'+(context.responseScenario?'pendingResponseForSave':'pendingForSave')+'()');
     if(context.responseScenario){
+      const second=status.checks.secondLabel;
+      assert(second?.actualCanvas&&/^[a-z]{1,6}$/.test(second.secondMessage),
+        'Second own-view label audit must use the actual sampled message and final Canvas crop');
+      if(second.classificationAvailable){
+        assert.equal(second.updated,second.classifiedLabel===0||second.classifiedLabel===1,
+          'An available second candidate pair must agree with its independent numeric label');
+        assert.equal(second.candidateFeatures.length,2);
+        assert.equal(second.candidatePixels.length,2);
+      }else{
+        assert.equal(second.updated,false,'A valid second label must retain its original candidate pair');
+        assert.equal(second.classifiedLabel,null,'No pair means no independent numeric classification');
+        assert.equal(second.candidateSource,'private-pair-unavailable-after-censorship');
+      }
+      assert.equal(second.demonstrations,second.updated?2:1);
+      assert.equal(second.optimizerSteps,second.updated?2:1);
+      assert.equal(second.replayUses,second.updated?1:0);
+      await fs.writeFile(path.join(context.output,'second-listener-label-audit.json'),JSON.stringify(second,null,2));
       assert.equal(status.phase,'pending-response-save');assert(status.responsePose);
       assert.equal(status.reference.latest.feedbackStatus,'responding');
       assert.equal(status.reference.pending,1);
@@ -358,7 +391,7 @@ function installRunner(context,helpers){
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Repeated reopen cannot duplicate interruption or revive authority');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     const reference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()');
-    assertRetainedLearning(reference,{report:{reference:saved.reference}},'Second independent reopen');
+    assertRetainedLearning(reference,saved,'Second independent reopen');
     const modelAudit=await assertReopenedCharacter(win,saved,'Second independent reopen');
     assert.deepEqual(modelAudit,saved.modelAudit,'Repeated reopen preserves exact model state and inspection purity');
     assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true,
@@ -394,6 +427,11 @@ function installRunner(context,helpers){
       }:{modelCandidatePermutationEquivariant:true,
         restoredPrivateModelOnRecordedOwnViews:true}),
       timestampedCandidatePairSha256:characterAudit.timestampedPairSha256,
+      ...(context.responseScenario?{secondListenerOwnViewLabel:saved.report.checks.secondLabel?.classifiedLabel??null,
+        secondListenerOwnViewUpdated:saved.report.checks.secondLabel?.updated??false,
+        secondListenerPhysicalDemonstrations:saved.report.checks.secondLabel?.demonstrations??null,
+        secondListenerOptimizerSteps:saved.report.checks.secondLabel?.optimizerSteps??null,
+        secondListenerReplayUses:saved.report.checks.secondLabel?.replayUses??null}:{}),
       noBodilyReward:true,reopenRetainsIndividualLearning:true,
       noClosedTimeProgression:true,noRevivedAuthority:true,noDuplicateInterruption:true,
       savedMidListenerResponse:context.responseScenario,noSecondFeedbackAfterReopen:context.responseScenario,
@@ -443,7 +481,7 @@ function installRunner(context,helpers){
   require(path.join(context.application,'desktop/main.cjs'));
 }
 
-const helpers={captureWithReadiness,waitForCaptureFrames,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
+const helpers={captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
   visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen};
 // Serialized helper expressions are created outside installRunner, so their
 // imported assertion dependency must exist in the generated outer scope.

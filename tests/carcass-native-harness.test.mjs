@@ -30,12 +30,17 @@ test('serialized current route contract rejects retired bridges, choosers and in
  const assertRoute=vm.runInNewContext('('+assertCurrentRoute.toString()+')');
  const valid={url:'aincrad://app/index.html?test=1',hook:true,retiredWorldBridge:false,
   retiredProfileBridge:false,chooserPresent:false,snapshot:{blocked:false,started:false,
-   version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1}}};
+   version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2}}};
  assertRoute(valid);
  for(const patch of [{hook:false},{retiredWorldBridge:true},{retiredProfileBridge:true},
   {chooserPresent:true},{url:'aincrad://app/index.html?ozarkWorld=1'},
   {snapshot:{...valid.snapshot,version:10}},{snapshot:{...valid.snapshot,blocked:true}}])
    assert.throws(()=>assertRoute({...valid,...patch}));
+ for(const features of [
+  {plantLifecycle:1,finiteAquatic:2,worldStructures:1},
+  {...valid.snapshot.features,characterMessages:1},
+  {...valid.snapshot.features,unexpectedFeature:1},
+ ]) assert.throws(()=>assertRoute({...valid,snapshot:{...valid.snapshot,features}}));
 });
 
 test('only the application root is canonicalized; the temp profile spelling is retained', async () => {

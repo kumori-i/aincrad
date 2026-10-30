@@ -20,7 +20,7 @@ const durable=reference=>reference.learners.map(({agentId,identity,anchors,partn
 const senderData=value=>value.characterMessages.learners.find(row=>row.agentId==='aster').sender;
 const listenerData=value=>value.characterMessages.learners.find(row=>row.agentId==='mira').partners[0].listener;
 
-async function setup({seed=211,responseScenario=false}={}){
+async function setup({seed=211,responseScenario=false,ambiguousSecond=false}={}){
   const geometry=createOzarkWorldGeometry(),state=createOzarkState(geometry);
   if(seed!==state.visualReference.seed){
     state.visualReference={...state.visualReference,seed,random:initialReferenceRandomStates(seed)};
@@ -32,7 +32,8 @@ async function setup({seed=211,responseScenario=false}={}){
     const visible=senseReferenceObjects(actor,state);
     return new Map(visible.bindings.map((id,index)=>{
       const category=categories.get(id)??index%2;
-      const pixels=Array(768).fill(actor===state.agents[0]?(category?204:26):(category?178:51));
+      const changedFinalOwnView=ambiguousSecond&&actor===state.agents[1]&&state.elapsed>=13.9-1e-8;
+      const pixels=Array(768).fill(changedFinalOwnView?100:actor===state.agents[0]?(category?204:26):(category?178:51));
       return [id,{features:poolCommunicationPixels(pixels),pixels,at:actor.elapsed,epoch:actor.epoch}];
     }));
   },dispose(){}};
@@ -200,11 +201,45 @@ test('serialized seed-212 negative control saves a paid pending reply after a ge
       f.fixture.inspectAssociation();
       const pending=f.fixture.pendingResponseForSave();
       assert.equal(pending.phase,'pending-response-save');
+      assert.equal(pending.checks.secondLabel.actualCanvas,false);
+      assert.equal(pending.checks.secondLabel.updated,true);
+      assert([0,1].includes(pending.checks.secondLabel.classifiedLabel));
+      assert.equal(pending.checks.secondLabel.demonstrations,2);
+      assert.equal(pending.checks.secondLabel.optimizerSteps,2);
+      assert.equal(pending.checks.secondLabel.replayUses,1);
+      assert.deepEqual(pending.checks.secondLabel.candidatePixels.map(poolCommunicationPixels),
+        pending.checks.secondLabel.candidateFeatures);
       assert(pending.responsePose);
       assert.equal(pending.reference.latest.feedbackStatus,'responding');
       assert.equal(pending.reference.pending,1);
       assert.equal(pending.reference.senderFeedback.length,0);
       assert.equal(senderData(f.reference.exportPersistence()).updates,1);
+      const saved=f.fixture.checkpoint(f.storage);
+      assert(saved);assert.equal(saved.pendingKind,'listener-response');
+      await assertReopen(f,saved);
+    }finally{f.dispose();}
+  });
+
+test('second synthetic own-view ambiguity censors only listener learning before a paid pending reply',
+  {timeout:180000},async()=>{
+    const f=await setup({seed:212,responseScenario:true,ambiguousSecond:true});
+    try{
+      firstPaidExchange(f);
+      f.fixture.beginResponse();f.fixture.visibleResponse();f.fixture.completeResponse();
+      f.fixture.inspectAssociation();
+      const before=listenerData(f.reference.exportPersistence());
+      const pending=f.fixture.pendingResponseForSave(),audit=pending.checks.secondLabel,
+        after=listenerData(f.reference.exportPersistence());
+      assert.equal(pending.reference.latest.correction,'ambiguous-own-view');
+      assert.equal(audit.actualCanvas,false);
+      assert.equal(audit.updated,false);
+      assert.equal(audit.classifiedLabel,null);
+      assert.equal(audit.demonstrations,1);
+      assert.equal(audit.optimizerSteps,1);
+      assert.equal(audit.replayUses,0);
+      assert.deepEqual(after.model,before.model);
+      assert.deepEqual(after.examples,before.examples);
+      assert.equal(after.replayState,before.replayState);
       const saved=f.fixture.checkpoint(f.storage);
       assert(saved);assert.equal(saved.pendingKind,'listener-response');
       await assertReopen(f,saved);

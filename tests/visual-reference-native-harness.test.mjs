@@ -67,22 +67,29 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       'assertRetainedLearning('+JSON.stringify(reference)+','+JSON.stringify(saved)+',"test reopen")',sandbox);
     assert.doesNotThrow(()=>runRetained(emptyMetrics,{report:{reference:original}}),
       'First reopen retains one private example without replayed metrics');
-    assert.doesNotThrow(()=>runRetained(emptyMetrics,{report:{reference:emptyMetrics}}),
-      'Second reopen can validate against the first reopen snapshot with latest null');
+    const secondReport={report:{reference:emptyMetrics,checks:{secondLabel:{demonstrations:1,optimizerSteps:1,replayUses:0}}}};
+    assert.doesNotThrow(()=>runRetained(emptyMetrics,secondReport),
+      'Second reopen validates the saved report and exact physical example, optimizer, and replay counts');
     const lost=structuredClone(emptyMetrics);lost.learners[1].character.uniqueDemonstrations=0;
     assert.throws(()=>runRetained(lost,{report:{reference:original}}),{code:'ERR_ASSERTION'},
       'A lost example fails the generated native assertion');
+    for(const field of ['uniqueDemonstrations','listenerUpdates','replayUses']){
+      const wrong=structuredClone(emptyMetrics);wrong.learners[1].character[field]++;
+      assert.throws(()=>runRetained(wrong,{report:{reference:wrong,checks:secondReport.report.checks}}),{code:'ERR_ASSERTION'},
+        'Second reopen rejects an extra '+field+' even when the saved learner summary agrees');
+    }
     for(const contract of ['Install fixture on actual fresh main population','Fixture owns the sole manual clock','Fresh fixture installer is one-use',
       'Native audit uses actual current Canvas crops','Independent reopen reads exact saved mid-action bytes',
       'Repeated reopen cannot duplicate interruption or revive authority','Loaded profile cannot obtain fresh fixture authority',
       'Application uses exact isolated disposable test profile','retains private learned sequence state and legacy association history',
       "assertRetainedLearning(reference,saved,'First independent reopen')",
-      "assertRetainedLearning(reference,{report:{reference:saved.reference}},'Second independent reopen')",
+      "assertRetainedLearning(reference,saved,'Second independent reopen')",
       'assertReopenedCharacter(','private numeric listener must remain candidate-order equivariant',
       'No vocabulary, grammar, generalization',
       'The numeric listener label must use exactly the received string',
       'One authentic paid sender-local outcome must update only its original on-policy sender once',
       'Second optional listener choice unavailable after cooldown',
+      'second-listener-label-audit.json','secondListenerPhysicalDemonstrations',
       'characterMessages','modelStateSha256','[data-character-message="true"]',
       '04b0-exact-message-and-paid-recipient-action.png',
       'Copied original paid inspection receipt cannot create a new indication permit',
@@ -121,7 +128,8 @@ test('response lifecycle native preparation keeps a separate profile and three-p
       'Independent reopen reads exact saved mid-action bytes','Repeated reopen cannot duplicate interruption or revive authority',
       'assertRetainedLearning(reference,saved','no resurrected sender feedback',
       'Recorded sender feedback must agree with sender-only actual Canvas RMS',
-      'no second sender update'])
+      'no second sender update','second-listener-label-audit.json',
+      'secondListenerPhysicalDemonstrations','secondListenerOptimizerSteps','secondListenerReplayUses'])
       assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);

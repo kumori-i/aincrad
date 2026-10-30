@@ -6,6 +6,73 @@ export async function waitForCaptureFrames() {
   return { readyState: document.readyState, visibilityState: document.visibilityState };
 }
 
+/** Serialized into native QA runners after frame readiness. This inspects only
+ * the rendered DOM viewport; the retained PNG still needs visual inspection. */
+export function conversationViewportEvidence(document, window, { eventId = null, message = null, actionText = null } = {}) {
+  const find = id => {
+    const node = document.getElementById(id);
+    if (!node) throw new Error('Conversation capture is missing ' + id);
+    return node;
+  };
+  const app = find('app'), panel = find('npc-panel'), tab = find('npc-tab-conversation'),
+    section = find('journal-conversation'), journal = find('journal-messages');
+  if (app.dataset.inspecting !== 'true' || panel.classList.contains('hidden') ||
+      panel.dataset.journalTab !== 'conversation' || tab.getAttribute('aria-pressed') !== 'true' ||
+      section.classList.contains('hidden')) throw new Error('Conversation capture is not on the active inspector tab');
+  for (const id of ['world-loading', 'pause-panel', 'recovery-panel']) {
+    const overlay = document.getElementById(id);
+    if (overlay && window.getComputedStyle(overlay).display !== 'none')
+      throw new Error('Conversation capture is covered by ' + id);
+  }
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  if (![viewport.width, viewport.height].every(value => Number.isFinite(value) && value > 0))
+    throw new Error('Conversation capture has no finite viewport');
+  const rect = (node, label) => {
+    for (let current = node; current && current.nodeType === 1; current = current.parentElement) {
+      const style = window.getComputedStyle(current);
+      if (style.display === 'none' || style.visibility !== 'visible' || !(Number(style.opacity) > 0))
+        throw new Error('Conversation capture hides ' + label);
+    }
+    const { left, right, top, bottom, width, height } = node.getBoundingClientRect();
+    if (![left, right, top, bottom, width, height].every(Number.isFinite) ||
+        width <= 0 || height <= 0 || left < 0 || top < 0 || right > viewport.width || bottom > viewport.height)
+      throw new Error('Conversation capture places ' + label + ' outside the viewport');
+    return { left, right, top, bottom, width, height };
+  };
+  const contains = (outer, inner) => inner.left >= outer.left && inner.right <= outer.right &&
+    inner.top >= outer.top && inner.bottom <= outer.bottom;
+  const hit = (node, bounds, label) => {
+    const x = (bounds.left + bounds.right) / 2, y = (bounds.top + bounds.bottom) / 2;
+    if (!node.contains(document.elementFromPoint(x, y)))
+      throw new Error('Conversation capture has an obscured ' + label);
+  };
+  const panelRect = rect(panel, 'inspector panel'), tabRect = rect(tab, 'Conversation tab'),
+    sectionRect = rect(section, 'Conversation section'), journalRect = rect(journal, 'message journal');
+  if (![tabRect, sectionRect, journalRect].every(bounds => contains(panelRect, bounds)))
+    throw new Error('Conversation capture places its contents outside the inspector');
+  hit(panel, panelRect, 'inspector panel'); hit(tab, tabRect, 'Conversation tab');
+  hit(journal, journalRect, 'message journal');
+  const result = { viewport, panel: panelRect, tab: tabRect, journal: journalRect };
+  if (eventId !== null || message !== null || actionText !== null) {
+    if (!Number.isSafeInteger(eventId) || eventId < 0 || !/^[a-z]{1,6}$/.test(message) ||
+        typeof actionText !== 'string' || !actionText)
+      throw new Error('Conversation capture has an invalid message witness');
+    const entry = [...journal.querySelectorAll('article[data-learning-event]')]
+      .find(node => node.dataset.learningEvent === String(eventId));
+    const emitted = entry?.querySelector('[data-character-message="true"]');
+    const action = [...(entry?.querySelectorAll('p') || [])]
+      .find(node => node.textContent.includes(actionText));
+    if (!emitted || emitted.textContent !== message || !action)
+      throw new Error('Conversation capture lost the exact message or recipient action');
+    const emittedRect = rect(emitted, 'sampled message'), actionRect = rect(action, 'recipient action');
+    if (!contains(journalRect, emittedRect) || !contains(journalRect, actionRect))
+      throw new Error('Conversation capture scrolled the message or action out of view');
+    hit(emitted, emittedRect, 'sampled message'); hit(action, actionRect, 'recipient action');
+    result.message = emittedRect; result.action = actionRect;
+  }
+  return result;
+}
+
 /** Self-contained for serialization into the isolated Electron main runner.
  * Retry only small/empty images, never fixture actions or assertion failures.
  * A stalled renderer/capture fails at the overall deadline; late results cannot
