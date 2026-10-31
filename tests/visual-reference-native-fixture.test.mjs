@@ -20,7 +20,7 @@ const durable=reference=>reference.learners.map(({agentId,identity,anchors,partn
 const senderData=value=>value.characterMessages.learners.find(row=>row.agentId==='aster').sender;
 const listenerData=value=>value.characterMessages.learners.find(row=>row.agentId==='mira').partners[0].listener;
 
-async function setup({seed=211,responseScenario=false,ambiguousSecond=false}={}){
+async function setup({seed=211,responseScenario=false,ambiguityScenario=false,ambiguousSecond=false}={}){
   const geometry=createOzarkWorldGeometry(),state=createOzarkState(geometry);
   if(seed!==state.visualReference.seed){
     state.visualReference={...state.visualReference,seed,random:initialReferenceRandomStates(seed)};
@@ -41,6 +41,8 @@ async function setup({seed=211,responseScenario=false,ambiguousSecond=false}={})
   const population=new PopulationRuntime(state,{cardinal:false,experimentalDiscovery:reference.hooks});
   const step=()=>{reference.beforeTick();state.elapsed+=1/60;population.tick(1/60);reference.afterTick();};
   const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  const originalPlants=ambiguityScenario?structuredClone(state.environment.ecology.plants):null,
+    originalLedger=ambiguityScenario?structuredClone(state.environment.ecology.ledger):null;
   let saved=false;
   const checkpoint=()=>{
     if(saved)return false;
@@ -48,9 +50,14 @@ async function setup({seed=211,responseScenario=false,ambiguousSecond=false}={})
     return writeOzarkSave(storage,state,geometry,{referencePersistence:reference.exportPersistence()});
   };
   const fixture=await serialized(installVisualReferenceFixture)({state,populationState:population.state,reference,
-    geometry,step,fixedStep:1/60,responseScenario,auditSensor:sensor,checkpoint},
+    geometry,step,fixedStep:1/60,responseScenario,ambiguityScenario,auditSensor:sensor,checkpoint},
     new URL('../',import.meta.url),serialized(visualReferenceEvidence));
-  return {geometry,state,sensor,reference,population,storage,fixture,
+  if(ambiguityScenario){
+    // Synthetic pixels only: the pre-action authored scene has two distinct
+    // candidate classes. Native CI must establish this with actual Canvas.
+    categories.set('object:501',0);categories.set('object:505',1);
+  }
+  return {geometry,state,sensor,reference,population,storage,fixture,originalPlants,originalLedger,
     dispose(){fixture.dispose();reference.dispose();population.dispose();}};
 }
 
@@ -141,16 +148,12 @@ test('serialized sequence fixture retains paid listener learning and discards a 
       assert.deepEqual(senderData(f.reference.exportPersistence()).model,senderData(initial).model);
       assert.deepEqual(f.reference.exportPersistence().visualReference,initial.visualReference,
         'Sequence exchange cannot advance the four legacy streams or relabel anchors');
-      if(complete.checks.replyAvailable){
-        f.fixture.beginResponse();
-        assert(f.fixture.visibleResponse().responsePose);
-        const settled=f.fixture.completeResponse();
-        assert.equal(settled.reference.pending,0);
-        assert(settled.checks.responsePayment.expectedActionEffortKcal>0);
-      }else{
-        assert.equal(complete.reference.latest.feedbackStatus,'censored');
-        assert.equal(complete.reference.latest.feedbackReason,'response-not-resolvable');
-      }
+      assert.equal(complete.checks.replyAvailable,true);
+      f.fixture.beginResponse();
+      assert(f.fixture.visibleResponse().responsePose);
+      const settled=f.fixture.completeResponse();
+      assert.equal(settled.reference.pending,0);
+      assert(settled.checks.responsePayment.expectedActionEffortKcal>0);
       const before=f.reference.exportPersistence(),world=f.fixture.project();
       const audit=f.fixture.inspectAssociation().checks.modelAudit;
       assert.equal(audit.readOnly,true);
@@ -171,6 +174,92 @@ test('serialized sequence fixture retains paid listener learning and discards a 
       await assertReopen(f,saved);
     }finally{f.dispose();}
   });
+
+test('fixed authored native vantage makes an actually paid reply ambiguous without sender training (synthetic pixels)',
+  {timeout:180000},async()=>{
+    const f=await setup({ambiguityScenario:true});
+    try{
+      const placed=f.fixture.status().checks.authoredAmbiguity;
+      assert.deepEqual(placed.senderPlaced,{x:-12943,y:3595});
+      assert.deepEqual(placed.listenerPlaced,{x:-12827,y:3543});
+      assert.equal(placed.forwardCandidateCount,2);
+      assert.deepEqual(placed.forwardCandidateIds,['object:501','object:505']);
+      assert.deepEqual(placed.objectSwap.bramble,{id:'object:504',kind:'bramble',
+        original:{x:-12876.9761711114,y:3676.0703545399747},
+        placed:{x:-12637.114480087068,y:3800.9655602960443}});
+      assert.deepEqual(placed.objectSwap.tree,{id:'object:505',kind:'apple_tree',
+        original:{x:-12637.114480087068,y:3800.9655602960443},
+        placed:{x:-12876.9761711114,y:3676.0703545399747}});
+      const expectedPlants=structuredClone(f.originalPlants);
+      expectedPlants.find(plant=>plant.id==='object:504').position=placed.objectSwap.bramble.placed;
+      expectedPlants.find(plant=>plant.id==='object:505').position=placed.objectSwap.tree.placed;
+      assert.deepEqual(f.state.environment.ecology.plants,expectedPlants,
+        'Only positions of two existing rendered plants may change in the engineering fixture');
+      assert.deepEqual(f.state.environment.ecology.ledger,f.originalLedger,'Fixture adds no resources');
+      const beforeWorld=f.fixture.project(),beforeReference=f.reference.snapshot(),beforePersistence=f.reference.exportPersistence(),
+        admission=f.fixture.admissionAudit();
+      assert.equal(admission.actualCanvas,false);
+      assert.equal(admission.sight.listenerComplete,true);
+      assert.equal(admission.sight.senderComplete,true);
+      assert.equal(admission.genericGates.peerFound,true);
+      assert.equal(admission.validForwardCandidates,2);
+      assert.equal(admission.pairCount,1);assert.equal(admission.qualifiedPairs,1);
+      assert.deepEqual(admission.pairs[0].ids,['object:501','object:505']);
+      assert(admission.pairs[0].ownRms>=admission.featureDistance&&
+        admission.pairs[0].senderRms>=admission.featureDistance);
+      assert(Object.values(admission.pure).every(Boolean));
+      assert.deepEqual(f.fixture.admissionAudit(),admission,'Repeated pre-action audits cannot draw learner RNG');
+      assert.deepEqual(f.fixture.project(),beforeWorld);
+      assert.deepEqual(f.reference.snapshot(),beforeReference);
+      assert.deepEqual(f.reference.exportPersistence(),beforePersistence);
+      const original=f.reference.exportPersistence(),complete=firstPaidExchange(f);
+      assert.equal(complete.reference.latest.listenerUpdate,true);
+      assert.equal(complete.checks.listenerLearning.uniqueDemonstrations,1);
+      f.fixture.beginResponse();
+      const visible=f.fixture.visibleResponse();
+      assert(visible.responsePose);
+      assert.equal(visible.responseAudit.at(-1).reason,'ambiguous');
+      const settled=f.fixture.completeResponse(),sender=senderData(f.reference.exportPersistence());
+      assert.equal(settled.reference.latest.feedbackStatus,'censored');
+      assert.equal(settled.reference.latest.feedbackReason,'response-ambiguous');
+      assert.equal(settled.reference.pending,0);
+      assert.equal(settled.responsePose,null);
+      assert(Math.abs(settled.checks.responsePayment.canonicalWorkSeconds-1.8)<1e-7);
+      assert(settled.checks.responseAmbiguity.paidVisibleSamples>=30);
+      assert.equal(settled.checks.responseAmbiguity.actualSenderObservation,true);
+      assert.equal(settled.checks.senderLearning.updated,false);
+      assert.equal(sender.updates,0);
+      assert.equal(sender.baseline,0);
+      assert.deepEqual(sender.model,senderData(original).model);
+      assert.equal(listenerData(f.reference.exportPersistence()).demonstrations,1);
+      assert.equal(listenerData(f.reference.exportPersistence()).optimizerSteps,1);
+      assert.deepEqual(settled.reference.senderFeedback,[]);
+    }finally{f.dispose();}
+  });
+
+test('pre-action audit separates missing Canvas crops from below-threshold numeric pairs without sampling a message',async()=>{
+  const f=await setup({ambiguityScenario:true});
+  try{
+    const before=f.reference.exportPersistence(),capture=f.sensor.capture;
+    f.sensor.capture=actor=>actor===f.state.agents[0]?new Map():capture(actor);
+    const missing=f.fixture.admissionAudit();
+    assert.equal(missing.validForwardCandidates,0);
+    assert.equal(missing.qualifiedPairs,0);
+    assert(missing.rows.some(row=>row.numericForward&&row.senderCrop.present===false));
+    assert(Object.values(missing.pure).every(Boolean));
+    const pixels=Array(768).fill(77),features=poolCommunicationPixels(pixels);
+    f.sensor.capture=actor=>new Map([...capture(actor)].map(([id,crop])=>[id,{...crop,pixels,features}]));
+    const indistinct=f.fixture.admissionAudit();
+    assert.equal(indistinct.validForwardCandidates,2);
+    assert.equal(indistinct.pairCount,1);
+    assert.equal(indistinct.qualifiedPairs,0);
+    assert.equal(indistinct.pairs[0].ownRms,0);
+    assert.equal(indistinct.pairs[0].senderRms,0);
+    assert(Object.values(indistinct.pure).every(Boolean));
+    assert.deepEqual(f.reference.exportPersistence(),before);
+    assert.equal(f.reference.snapshot().exchanges,0);
+  }finally{f.dispose();}
+});
 
 test('serialized seed-212 negative control saves a paid pending reply after a genuine mismatch update (synthetic pixels)',
   {timeout:180000},async()=>{

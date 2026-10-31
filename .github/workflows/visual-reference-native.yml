@@ -53,16 +53,17 @@ jobs:
       - name: Install sandbox-preserving Linux display and window manager
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb openbox
-      - name: Linux paid sender cue and listener response close/reopen fixtures
+      - name: Linux paid sender cue, reply, ambiguity and close/reopen fixtures
         id: native_linux
         if: runner.os == 'Linux'
-        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs && node scripts/verify-visual-reference-desktop.mjs --response-scenario'
-      - name: macOS paid sender cue and listener response close/reopen fixtures
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs && node scripts/verify-visual-reference-desktop.mjs --response-scenario && node scripts/verify-visual-reference-desktop.mjs --ambiguity-scenario'
+      - name: macOS paid sender cue, reply, ambiguity and close/reopen fixtures
         id: native_macos
         if: runner.os == 'macOS'
         run: |
           node scripts/verify-visual-reference-desktop.mjs
           node scripts/verify-visual-reference-desktop.mjs --response-scenario
+          node scripts/verify-visual-reference-desktop.mjs --ambiguity-scenario
       - name: Record character-message engineering scope without claiming language acquisition
         if: always()
         shell: bash
@@ -73,7 +74,9 @@ jobs:
         run: |
           echo "Causal contracts: $FOCUSED_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
           echo "Native character-message and sender-response fixture: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-          echo "Two independent disposable profiles are configured to run three native processes each. The default profile retains original actor positions and checks an actual sampled character string, paid sender demonstration, one listener update from original and final own Canvas crops, optional reply censorship when reverse geometry is unavailable, and interruption of a second sampled message during its paid sender cue across close/reopen. The separate fixed historical seed-212 engineering negative control moves only Mira from (300,920) to (230,960) before action so both public gesture directions resolve under the ordinary parser. Its fixed new streams predict a wrong original uniform listener choice. It checks one listener model update and one sender-local actual-Canvas mismatch update after the listener replies with its ORIGINAL choice. Its second full optional exchange saves during the genuinely paid listener response; reopen must retain learned model weights and discard pending authority with no duplicate update. Both fixtures use actual main-population bodies/ecology at 1/60-second steps and supplied pixel pooling/geometry, with bounded decision scheduling when they run. Authored geometry and deliberate actions are engineering checks, not ordinary opportunity evidence, autonomous rates, word meaning, grammar, generalization or survival benefit. Inspect screenshots and parser/permit audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
+          echo "Three independent disposable profiles are configured. The default seed-211 original-position and fixed seed-212 wrong-choice profiles each run three native processes for actual Canvas learning, paid actions, interruption and close/reopen. The seed-212 profile moves Mira to (230,960) before action and requires a sender-local mismatch update after the listener replies with its original inspected choice." >> "$GITHUB_STEP_SUMMARY"
+          echo "The third seed-211 profile runs one native process with Aster (-12943,3595) and Mira (-12827,3543) placed before observation or action. Existing ripe bramble object:504 and apple tree object:505 exchange positions before observation; their rendering assets, actual Canvas pixel sensing and the ordinary 0.08 admission threshold remain unchanged. The paid listener reply must be continuously ambiguous in actual Aster sight, retain exactly one listener example and leave sender weights and baseline unchanged. A physically admitted reply may be censored after payment when sender perception is ambiguous." >> "$GITHUB_STEP_SUMMARY"
+          echo "All three are engineered main-world geometry and deliberate-action checks at 1/60-second steps, with bounded decision scheduling. They are not ordinary opportunity rates, autonomous learning, word meaning, grammar, generalization or survival evidence. Inspect screenshots and live parser audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -178,7 +178,10 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     t.contiguous=0;t.event.observedSeconds=0;t.observedId=null;t.demonstration=null;
     delete t.event.demonstrationPixels;delete t.event.demonstrationObservedAt;
   }
-  function clearResponse(t){t.responseContiguous=0;t.responseObservedId=null;t.responseCrop=null;}
+  function clearResponse(t){
+    t.responseContiguous=0;t.responseObservedId=null;t.responseCrop=null;
+    t.responseAmbiguousContiguous=0;t.responseObservation=null;
+  }
   function correct(t){
     if(!correctionRights.delete(t))return;
     metrics.correctionAttempts++;
@@ -302,18 +305,17 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     t.event.demonstratedObjectId=t.observedId;t.event.status='observed';t.event.reason='visible-post-choice-demonstration';
     correct(t);
     if(auditEnabled&&!auditRecord)auditRecord=t;
-    // Reply visibility is checked only after the listener has earned its own
-    // example. It must not remove an otherwise valid original pair, target,
-    // or choice from the ordinary exchange.
-    const selected=t.candidates.find(candidate=>candidate.id===t.selectedId);
-    const senderSight=senseReferenceObjects(t.sender,state);
-    const senderIndex=senderSight.bindings.indexOf(t.selectedId);
-    const reply=selected&&referenceGeometry(t.receiver.position,selected.position,t.receiver.scene,1);
-    const reverseFailure=reverseReferenceFailure(t.sender,senderSight,senderIndex,reply);
-    if(reverseFailure){
-      finishResponse(t,'censored','response-not-resolvable');
-      if(measurement)bump(`response-preflight:${reverseFailure}`);
-      return;
+    // Historical symbol fixtures retain their original reverse preflight.
+    // Character replies instead receive only physical action authority here:
+    // the sender can interpret a reply only from its own live, paid sight.
+    if(protocol==='legacy'){
+      const selected=t.candidates.find(candidate=>candidate.id===t.selectedId);
+      const senderSight=senseReferenceObjects(t.sender,state);
+      const senderIndex=senderSight.bindings.indexOf(t.selectedId);
+      const reply=selected&&referenceGeometry(t.receiver.position,selected.position,t.receiver.scene,1);
+      if(reverseReferenceFailure(t.sender,senderSight,senderIndex,reply)){
+        finishResponse(t,'censored','response-not-resolvable');return;
+      }
     }
     t.responsePermit=createListenerResponsePermit(t.receiver,t.sender,t.indicationActive);
     if(!t.responsePermit){finishResponse(t,'censored','response-not-authorized');return;}
@@ -356,7 +358,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         const proof=successfulDiscoveryActionCompletion(t.receiver,t.responseActive);
         if(!proof||proof.type!=='indicate_object'||Math.abs(proof.worked-1.8)>1e-8){finish(t,'censored','response-interrupted');continue;}
         t.event.responseActionId=proof.eventId;
-        if(t.responseContiguous+1e-8<REFERENCE_LIMITS.observationSeconds){finish(t,'censored','response-not-observed');continue;}
+        if(t.responseContiguous+1e-8<REFERENCE_LIMITS.observationSeconds){
+          const witnessed=protocol==='sequence'&&t.responseObservation==='ambiguous'&&
+            t.responseAmbiguousContiguous+1e-8>=REFERENCE_LIMITS.observationSeconds;
+          finish(t,'censored',witnessed?'response-ambiguous':'response-not-observed');continue;
+        }
         const crop=t.responseCrop;
         if(!crop||crop.epoch!==t.sender.epoch||Math.abs(crop.at-t.sender.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){finish(t,'censored','stale-response');continue;}
         const distance=rms(t.intendedFeatures,crop.features);
@@ -398,6 +404,15 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     // The chosen inspection target is actuator-only. The original sender gets
     // only the listener's visible pose and a fresh crop from its own sensor.
     const seen=observeIndication(t.sender,t.receiver,state);
+    if(protocol==='sequence'&&seen?.reason==='ambiguous'){
+      // This is sender-local perception of the actual funded public gesture,
+      // never the coordinator's hypothetical reverse preflight. It grants no
+      // feedback or action right and disappears with this session.
+      const continuing=t.responseObservation==='ambiguous'&&previousAt!==undefined;
+      t.responseContiguous=0;t.responseObservedId=null;t.responseCrop=null;
+      t.responseAmbiguousContiguous=continuing?t.responseAmbiguousContiguous+paidSeconds:0;
+      t.responseObservation='ambiguous';return;
+    }
     const id=seen?.objectId;
     const crop=id?pixelSensor.capture(t.sender,state).get(id):null;
     if(!id||!cropValid(crop,t.sender)||Math.abs(crop.at-t.sender.elapsed)>REFERENCE_LIMITS.maxObservationStep+1e-8){
@@ -405,7 +420,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     }
     if(t.responseObservedId!==id||previousAt===undefined)clearResponse(t);
     else t.responseContiguous+=paidSeconds;
-    t.responseObservedId=id;
+    t.responseObservedId=id;t.responseObservation='resolved';
     t.responseCrop=Object.freeze({features:Object.freeze(crop.features.slice()),at:crop.at,epoch:crop.epoch});
   }
   // Trusted fresh-profile engineering installer only. This cannot make a

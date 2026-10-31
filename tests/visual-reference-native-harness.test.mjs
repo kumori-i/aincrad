@@ -158,6 +158,54 @@ test('response lifecycle native preparation keeps a separate profile and three-p
   }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed response preparation retained at '+output);}
 });
 
+test('paid ambiguity native preparation is a separate single-process actual-Canvas gate without launching Electron',async()=>{
+  const output=await mkdtemp(join(tmpdir(),'visual-ambiguity-harness-contract-'));let passed=false;
+  try{
+    const result=spawnSync(process.execPath,['scripts/verify-visual-reference-desktop.mjs','--prepare-only','--ambiguity-scenario'],
+      {encoding:'utf8',timeout:120000,env:{...process.env,AINCRAD_VISUAL_REFERENCE_QA_OUTPUT:output}});
+    assert.equal(result.status,0,result.stderr);
+    const prepared=JSON.parse(result.stdout.trim());
+    assert.equal(prepared.responseScenario,false);assert.equal(prepared.ambiguityScenario,true);
+    assert.equal(prepared.nativeExecutionPerformed,false);
+    assert.deepEqual(prepared.phases,['ambiguity-exercise']);
+    assert.match(prepared.scope,/one actual Canvas paid ambiguous reply/);
+    assert.match(prepared.scope,/position swap of existing ripe bramble object:504 and apple tree object:505/);
+    await assert.rejects(access(join(prepared.output,'result.json')));
+    const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});
+    assert.equal(syntax.status,0,syntax.stderr);
+    const source=await readFile(prepared.harness,'utf8');
+    assert(source.includes('Existing ripe bramble object:504 and apple tree object:505 exchange positions'),
+      'Native result disclosure must describe the authored object swap');
+    const auditWrite=source.indexOf("'pre-action-admission-audit.json'"),choiceStart=source.indexOf(
+      "status=await evaluate(win,'window.__visualReferenceFixture.beginChoice()')");
+    assert(auditWrite>=0&&choiceStart>auditWrite,
+      'Generated native runner must retain the real-Canvas audit before the first paid choice');
+    const selectedExpression=source.match(/const fixtureContext=([^;]+);/)?.[1];
+    assert(selectedExpression,'Generated runner must select the renderer fixture context');
+    const selected=vm.runInNewContext(selectedExpression,{context:{responseScenario:false,ambiguityScenario:true}});
+    assert.equal(selected,'{...context,ambiguityScenario:true}',
+      'The generated native route must forward its ambiguity flag across the renderer callback boundary');
+    assert.deepEqual({...vm.runInNewContext('('+selected+')',{context:{freshRendererFixture:true}})},
+      {freshRendererFixture:true,ambiguityScenario:true});
+    for(const contract of ['Authored ambiguity positions must be physically occupiable',
+      'Every forward candidate must have an ambiguous reverse bearing',
+      "feedbackReason,'response-ambiguous'",'paidVisibleSamples>=30',
+      'canonicalWorkSeconds-1.8','senderWeightsAndBaselineUnchanged:true',
+      'noLingeringAuthority:status.reference.pending===0',
+      'Paid listener response did not finish','A censored ambiguity must follow a continuous actual paid sender-view interval',
+      'The renderer must receive and apply authored ambiguity placement before any paid action',
+      'Admission audit cannot draw character RNG or update weights',
+      'Both actors must have a genuinely distinct real-Canvas pair at the unchanged threshold',
+      'The actual Canvas pair must pass ordinary numeric admission'])
+      assert(source.includes(contract),contract);
+    const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
+    assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
+    const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
+    assert.match(workflow,/--ambiguity-scenario/);
+    passed=true;
+  }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed ambiguity preparation retained at '+output);}
+});
+
 async function fixtureHook(overrides={}){
   const source=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
   const start=source.indexOf('referenceFixture: async (install, options={}) => {');

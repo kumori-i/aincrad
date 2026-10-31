@@ -8,8 +8,10 @@ import {createOzarkState} from '../src/ozark-save.js';
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {observeNpc,requestNpcAction,requestNpcIndication,tickNpc} from '../src/npc.js';
 import {drawIndicationGeometry,drawNpc} from '../src/art.js';
+import {DISCOVERY_RULES} from '../src/discovery-config.js';
 import {REFERENCE_GEOMETRY_RULES,senseReferenceObjects,visibleIndicationGeometry,
   resolveIndication,perceiveReferenceGeometry,observeIndication} from '../src/visual-reference-perception.js';
+import {reverseReferenceFailure} from '../src/visual-reference-attachment.js';
 
 const object=(id,x,y)=>({id:`object:${id}`,kind:'grass',scene:'valley',position:{x,y},moisture:.5,biomassGrams:100});
 function fixture(objects=[object(1,100,0),object(2,0,100)],los=()=>true){
@@ -40,6 +42,51 @@ test('every third visible distractor participates; no pair-only or nearest-objec
   assert.equal(resolveIndication(f.segment,snapshot.objects).reason,'ambiguous');
   const perceived=perceiveReferenceGeometry(f.listener,f.sender,f.segment,f.state);
   assert.equal(perceived.index,null);assert.equal(perceived.objectId,null);assert.equal(perceived.reason,'ambiguous');
+});
+
+test('a real visible distractor can make only the reciprocal gesture ambiguous',()=>{
+  // These two objects share a bearing from Mira, but differ by more than six
+  // degrees from Aster. This is a declared geometry fixture, not a
+  // reconstruction of the frozen ordinary pilot's unavailable crops.
+  const f=fixture([object(1,30,0),object(2,45,-20),object(3,0,100)]);
+  const senderSight=senseReferenceObjects(f.sender,f.state),
+    listenerSight=senseReferenceObjects(f.listener,f.state);
+  assert(senderSight.complete&&listenerSight.complete);
+  assert.deepEqual(new Set(senderSight.bindings),new Set(listenerSight.bindings));
+  for(const id of ['object:1','object:2']){
+    const senderIndex=senderSight.bindings.indexOf(id),
+      listenerIndex=listenerSight.bindings.indexOf(id);
+    assert(senderIndex>=0&&listenerIndex>=0);
+    const target=senderSight.objects[senderIndex].position;
+    assert(Math.hypot(target.x-f.listener.position.x,target.y-f.listener.position.y)<
+      DISCOVERY_RULES.reach,'Both objects even fit the ordinary close reach');
+    const forward=referenceGeometry(f.sender.position,target,f.sender.scene,1);
+    const reverse=referenceGeometry(f.listener.position,target,f.listener.scene,1);
+    assert(visibleIndicationGeometry(f.listener,forward));
+    assert(visibleIndicationGeometry(f.sender,reverse));
+    assert.deepEqual(resolveIndication(forward,listenerSight.objects),
+      {index:listenerIndex,reason:'resolved'});
+    assert.deepEqual(resolveIndication(reverse,senderSight.objects),
+      {index:null,reason:'ambiguous'});
+    assert.equal(perceiveReferenceGeometry(f.listener,f.sender,forward,f.state).objectId,id);
+    assert.equal(perceiveReferenceGeometry(f.sender,f.listener,reverse,f.state).reason,'ambiguous');
+    assert.equal(reverseReferenceFailure(f.sender,senderSight,senderIndex,reverse),
+      'reverse-ambiguous');
+  }
+  // A different initial vantage creates parallax under the unchanged parser.
+  // An active reference transaction would censor this movement; it is not a
+  // free repair or a proposal to move an agent during existing authority.
+  f.listener.position={x:25,y:55};
+  const shifted=senseReferenceObjects(f.listener,f.state);
+  assert(shifted.complete);
+  for(const id of ['object:1','object:2']){
+    const target=senderSight.objects[senderSight.bindings.indexOf(id)].position;
+    assert(Math.hypot(target.x-f.listener.position.x,target.y-f.listener.position.y)<
+      DISCOVERY_RULES.reach);
+    const ray=referenceGeometry(f.listener.position,target,f.listener.scene,1);
+    assert(visibleIndicationGeometry(f.sender,ray));
+    assert.equal(perceiveReferenceGeometry(f.sender,f.listener,ray,f.state).objectId,id);
+  }
 });
 
 test('cone and extrapolated distance have exact declared boundaries without distance-coded segment',()=>{

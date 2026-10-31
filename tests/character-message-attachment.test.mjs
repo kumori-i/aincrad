@@ -7,8 +7,10 @@ import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction,collapseNpc} from '../src/npc.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
-import {successfulDiscoveryActionCompletion,referenceGeometry} from '../src/discovery-actions.js';
-import {senseReferenceObjects,visibleIndicationGeometry,resolveIndication} from '../src/visual-reference-perception.js';
+import {successfulDiscoveryActionCompletion,referenceGeometry,publicIndicationGeometry,discoveryActionPaidSeconds} from '../src/discovery-actions.js';
+import {senseReferenceObjects,visibleIndicationGeometry,resolveIndication,observeIndication} from '../src/visual-reference-perception.js';
+import {npcEffortCost} from '../src/npc-effort-funding.js';
+import {lookupEcologyObject} from '../src/ecology.js';
 import {createFreshCharacterMessages} from '../src/visual-reference-save.js';
 import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
 
@@ -17,13 +19,15 @@ const modelCopy=model=>Object.fromEntries(Object.entries(model).map(([name,value
 const senderData=(attachment,id='aster')=>attachment.exportPersistence().characterMessages.learners.find(row=>row.agentId===id).sender;
 const listenerData=(attachment,id='mira')=>attachment.exportPersistence().characterMessages.learners.find(row=>row.agentId===id).partners[0].listener;
 
-function fixture({seed=211,listenerOffset=0,attach=attachVisualReferenceLearning}={}){
+function fixture({seed=211,listenerOffset=0,attach=attachVisualReferenceLearning,senderLineOfSight=null}={}){
   const state=createOzarkState(geometry),[sender,listener]=state.agents;
   if(seed!==state.visualReference.seed){
     state.visualReference={...state.visualReference,seed,random:initialReferenceRandomStates(seed)};
     state.characterMessages=createFreshCharacterMessages(state.worldLineage,state.visualReference);
   }
-  for(const actor of state.agents){bindOzarkWorldAgent(actor,geometry,state);observeNpc(actor,state.environment);}
+  const senderWorld=senderLineOfSight?Object.freeze({...geometry,
+    lineOfSight:(from,to)=>senderLineOfSight(from,to,geometry.lineOfSight)}):geometry;
+  for(const actor of state.agents){bindOzarkWorldAgent(actor,actor===sender?senderWorld:geometry,state);observeNpc(actor,state.environment);}
   const categories=new Map(senseReferenceObjects(sender,state).bindings.map((id,index)=>[id,index%2]));
   const pixelSensor={listenerOffset,senderOverrides:new Map(),suppressSender:false,
     capture(actor){
@@ -191,7 +195,7 @@ test('first failed peer gate is observer-only and leaves a later paid choice unc
   f.attachment.dispose();
 });
 
-test('one-way reverse geometry records one subcause while retaining listener learning',()=>{
+test('one-way reverse geometry permits a real paid reply, then sender-local ambiguity censors feedback',()=>{
   const f=fixture(),senderSight=senseReferenceObjects(f.sender,f.state),
     receiverSight=senseReferenceObjects(f.listener,f.state);
   assert(senderSight.complete&&receiverSight.complete);
@@ -204,9 +208,9 @@ test('one-way reverse geometry records one subcause while retaining listener lea
         resolveIndication(forward,receiverSight.objects).index!==index)return [];
     const reverse=referenceGeometry(f.listener.position,position,f.listener.scene,1);
     return reverse&&visibleIndicationGeometry(f.sender,reverse)&&
-      resolveIndication(reverse,senderSight.objects).index===senderIndex?[]:[id];
+      resolveIndication(reverse,senderSight.objects).reason==='ambiguous'?[id]:[];
   }).slice(0,2);
-  assert.equal(oneWay.length,2,'The declared initial engineering geometry has two one-way referents');
+  assert.equal(oneWay.length,2,'The declared initial engineering geometry has two ambiguous reverse bearings');
   const capture=f.pixelSensor.capture.bind(f.pixelSensor);
   f.pixelSensor.capture=actor=>{
     const crops=capture(actor);
@@ -218,24 +222,190 @@ test('one-way reverse geometry records one subcause while retaining listener lea
     }
     return crops;
   };
-  f.begin();
-  const senderBefore=senderData(f.attachment),listenerBefore=listenerData(f.attachment);
+  const choice=f.begin();
+  const senderBefore=senderData(f.attachment),listenerBefore=listenerData(f.attachment),
+    randomBefore=f.attachment.exportPersistence().characterMessages.random;
   f.demonstrate();
   const event=f.event(),measured=f.attachment.measurementSnapshot(),
     causes=Object.entries(measured.admissionGates).filter(([key])=>key.startsWith('response-preflight:'));
   assert.equal(event.status,'observed');
-  assert.equal(event.feedbackStatus,'censored');
-  assert.equal(event.feedbackReason,'response-not-resolvable');
+  assert.equal(event.feedbackStatus,'awaiting-response');
   assert.equal(event.listenerUpdate,true);
   assert.equal(event.senderUpdate,false);
   assert.equal(measured.counts.validListenerDemonstrations,1);
   assert.equal(measured.counts.paidReplyStarts,0);
-  assert.equal(measured.admissionGates['response:response-not-resolvable'],1);
-  assert.equal(causes.length,1);
-  assert.equal(causes[0][1],1);
+  assert.equal(measured.counts.responseCensors,0);
+  assert.equal(causes.length,0,'Hypothetical sender-view resolution supplies no character-reply gate');
+  assert.equal(f.attachment.snapshot().pending,1);
+  const effortBefore=f.listener.physiology.totals.metabolizedKcal;
+  f.beginResponse();
+  const active=f.listener.active;
+  assert.equal(active.seconds,1.8);
+  assert.equal(active.request.targetId,choice.targetId,'Reply is bound to the original paid inspection');
+  assert.equal(publicIndicationGeometry(f.listener),null,'An unfunded reply has no public pose');
+  f.advance(.6);
+  assert(publicIndicationGeometry(f.listener));
+  assert.equal(observeIndication(f.sender,f.listener,f.state).reason,'ambiguous',
+    'Only the sender observes the actual funded public gesture');
+  assert(discoveryActionPaidSeconds(f.listener,active)>=.6-1e-8);
+  assert.equal(f.event().feedbackStatus,'responding');
+  assert.equal(f.event().senderUpdate,false);
+  f.advance(1.4);
+  const proof=successfulDiscoveryActionCompletion(f.listener,active),done=f.attachment.measurementSnapshot();
+  assert.equal(proof?.type,'indicate_object');
+  assert.equal(proof?.targetId,active.request.targetId);
+  assert(Math.abs(proof.worked-1.8)<1e-8);
+  assert.equal(publicIndicationGeometry(f.listener),null);
+  assert.equal(f.event().feedbackStatus,'censored');
+  assert.equal(f.event().feedbackReason,'response-ambiguous');
+  assert.equal(f.event().responseActionId,proof.eventId);
+  assert.equal(done.counts.paidReplyStarts,1);
+  assert.equal(done.counts.paidReplyCompletions,1);
+  assert.equal(done.counts.responseCensors,1);
+  assert.equal(done.counts.senderUpdates,0);
+  assert.equal(done.counts.visualMatches+done.counts.visualMismatches,0);
+  assert.equal(done.admissionGates['response:response-ambiguous'],1);
+  assert.equal(f.attachment.snapshot().pending,0);
+  assert(f.listener.physiology.totals.metabolizedKcal-effortBefore>=npcEffortCost(1.8,.25)-1e-8);
   assert.deepEqual(senderData(f.attachment).model,senderBefore.model);
+  assert.equal(senderData(f.attachment).baseline,senderBefore.baseline);
+  assert.equal(senderData(f.attachment).revision,senderBefore.revision);
+  assert.equal(senderData(f.attachment).updates,senderBefore.updates);
+  assert.deepEqual(f.attachment.exportPersistence().characterMessages.random,randomBefore);
   assert.notDeepEqual(listenerData(f.attachment).model,listenerBefore.model);
+  assert.equal(listenerData(f.attachment).demonstrations,1);
+  assert.equal(listenerData(f.attachment).optimizerSteps,1);
+  f.attachment.afterTick();f.attachment.afterTick();
+  assert.equal(f.attachment.measurementSnapshot().counts.paidReplyCompletions,1);
+  assert.equal(senderData(f.attachment).updates,0,'Repeated maintenance cannot replay the censored response');
   f.attachment.dispose();
+});
+
+function nonPairDistractorFixture(options={}){
+  // Fixed engineering geometry: these two ordinary objects each have a
+  // uniquely readable forward and reverse bearing before a third object is
+  // moved into Aster's live reply sight. The third object is never a candidate
+  // or a listener label. This does not reconstruct an ordinary pilot event.
+  const f=fixture({seed:211,...options}),pair=['object:666','object:673'];
+  const senderSight=senseReferenceObjects(f.sender,f.state),listenerSight=senseReferenceObjects(f.listener,f.state);
+  for(const id of pair){
+    const senderIndex=senderSight.bindings.indexOf(id),listenerIndex=listenerSight.bindings.indexOf(id);
+    assert(senderIndex>=0&&listenerIndex>=0);
+    const position=senderSight.objects[senderIndex].position,
+      forward=referenceGeometry(f.sender.position,position,f.sender.scene,1),
+      reverse=referenceGeometry(f.listener.position,position,f.listener.scene,1);
+    assert.equal(resolveIndication(forward,listenerSight.objects).index,listenerIndex);
+    assert.equal(resolveIndication(reverse,senderSight.objects).index,senderIndex);
+  }
+  const capture=f.pixelSensor.capture.bind(f.pixelSensor);
+  f.pixelSensor.capture=actor=>{
+    const crops=capture(actor);
+    for(const [id,crop] of crops){
+      const index=pair.indexOf(id);
+      if(index<0){crops.delete(id);continue;}
+      const value=index===0?.2:.8;
+      crops.set(id,{...crop,features:Array(48).fill(value),pixels:Array(768).fill(value*255)});
+    }
+    return crops;
+  };
+  const choice=f.begin();f.demonstrate();f.beginResponse();
+  const selected=lookupEcologyObject(f.state.environment.ecology,choice.targetId),
+    distractor=lookupEcologyObject(f.state.environment.ecology,'object:231'),
+    original={...distractor.position};
+  assert(!pair.includes(distractor.id));
+  const inject=()=>{
+    Object.assign(distractor.position,{x:f.listener.position.x+.85*(selected.position.x-f.listener.position.x),
+      y:f.listener.position.y+.85*(selected.position.y-f.listener.position.y)});
+    assert(senseReferenceObjects(f.sender,f.state).bindings.includes(distractor.id));
+  };
+  const remove=()=>Object.assign(distractor.position,original);
+  return {...f,choice,inject,remove};
+}
+
+test('a non-pair sender sight distractor cannot reuse an earlier unique reply crop',()=>{
+  const f=nonPairDistractorFixture(),before=senderData(f.attachment),listenerBefore=listenerData(f.attachment);
+  f.advance(1.2);
+  assert.equal(observeIndication(f.sender,f.listener,f.state).reason,'resolved');
+  f.inject();f.advance(.8);
+  assert.equal(f.event().feedbackStatus,'censored');
+  assert.equal(f.event().feedbackReason,'response-ambiguous');
+  assert.equal(f.event().senderUpdate,false);
+  assert.deepEqual(senderData(f.attachment),before);
+  assert.deepEqual(listenerData(f.attachment),listenerBefore);
+  assert.equal(f.attachment.measurementSnapshot().counts.paidReplyCompletions,1);
+  f.attachment.dispose();
+});
+
+test('a short final ambiguous interval cannot claim a continuous ambiguity witness',()=>{
+  const f=nonPairDistractorFixture(),before=senderData(f.attachment);
+  f.advance(1.5);f.inject();f.advance(.5);
+  assert.equal(f.event().feedbackStatus,'censored');
+  assert.equal(f.event().feedbackReason,'response-not-observed');
+  assert.deepEqual(senderData(f.attachment),before);
+  f.attachment.dispose();
+});
+
+test('a one-step sender sight break resets the otherwise long paid ambiguity interval',()=>{
+  let hidden=false,blocked=null;
+  const f=nonPairDistractorFixture({senderLineOfSight:(from,to,ordinary)=>
+    hidden&&blocked&&Math.hypot(to.x-blocked.x,to.y-blocked.y)<1e-8?false:ordinary(from,to)}),
+    senderBefore=senderData(f.attachment);
+  f.inject();f.advance(1.4);
+  const gesture=publicIndicationGeometry(f.listener);
+  assert(gesture);
+  blocked={x:(gesture.origin.x+gesture.tip.x)/2,y:(gesture.origin.y+gesture.tip.y)/2};
+  hidden=true;f.step();
+  assert.equal(observeIndication(f.sender,f.listener,f.state).reason,'gesture-not-visible');
+  hidden=false;f.advance(.4);
+  assert.equal(f.event().feedbackStatus,'censored');
+  assert.equal(f.event().feedbackReason,'response-not-observed');
+  assert.deepEqual(senderData(f.attachment),senderBefore);
+  assert.equal(f.attachment.measurementSnapshot().counts.paidReplyCompletions,1);
+  f.attachment.dispose();
+});
+
+test('a final fresh unique interval after paid ambiguity can settle the original sender trajectory',()=>{
+  const f=nonPairDistractorFixture(),before=senderData(f.attachment);
+  f.inject();f.advance(.6);
+  assert.equal(observeIndication(f.sender,f.listener,f.state).reason,'ambiguous');
+  f.remove();
+  assert.equal(observeIndication(f.sender,f.listener,f.state).reason,'resolved');
+  const intended=f.event().senderPixels[0]/255;
+  f.pixelSensor.senderOverrides.set(f.choice.targetId,intended);
+  f.advance(1.4);
+  assert.equal(f.event().feedbackStatus,'matched');
+  assert.equal(senderData(f.attachment).updates,before.updates+1);
+  assert.equal(listenerData(f.attachment).demonstrations,1);
+  f.attachment.dispose();
+});
+
+test('urgent care, deadline and missing fresh crop retire a paid ambiguous reply without credit',()=>{
+  for(const ending of ['urgent','deadline','missing-crop']){
+    const f=nonPairDistractorFixture(),senderBefore=senderData(f.attachment),
+      listenerBefore=listenerData(f.attachment),active=f.listener.active;
+    f.inject();f.advance(.6);
+    assert.equal(observeIndication(f.sender,f.listener,f.state).reason,'ambiguous');
+    if(ending==='urgent'){
+      f.sender.physiology.waterDeficitMl=2000;
+      f.attachment.beforeTick();
+    }else if(ending==='deadline'){
+      f.state.elapsed=f.event().emittedAt+12+CONFIG.fixedStep;
+      f.attachment.beforeTick();
+    }else{
+      f.remove();f.pixelSensor.suppressSender=true;f.advance(1.4);
+    }
+    assert.equal(f.event().feedbackStatus,'censored',ending);
+    assert.equal(f.event().feedbackReason,ending==='urgent'?'body-priority':
+      ending==='deadline'?'timeout':'response-not-observed',ending);
+    assert.equal(f.attachment.snapshot().pending,0,ending);
+    assert.equal(f.attachment.measurementSnapshot().counts.senderUpdates,0,ending);
+    assert.deepEqual(senderData(f.attachment),senderBefore,ending);
+    assert.deepEqual(listenerData(f.attachment),listenerBefore,ending);
+    assert.equal(f.listener.active,null,ending);
+    assert.equal(successfulDiscoveryActionCompletion(f.listener,active)?.type,
+      ending==='missing-crop'?'indicate_object':undefined,ending);
+    f.attachment.dispose();
+  }
 });
 
 test('ambiguous own-view label and interrupted reply stay outside the wrong-choice and sender-update counts',()=>{

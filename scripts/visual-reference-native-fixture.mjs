@@ -18,6 +18,11 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry}=await use('visual-reference-perception');
   const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
+  const {recentDiscoveryAim}=await use('discovery');
+  const {lookupEcologyObject,renderEcology}=await use('ecology');
+  const {REFERENCE_LIMITS,findReferencePeer}=await use('visual-reference-attachment');
+  const {bodySignals}=await use('interoception');
+  const {isSleeping}=await use('biology');
   const {npcEffortCost}=await use('npc-effort-funding');
   const {CHARACTER_CORE,classifyOwnDemonstration,listenerDistribution}=await use('character-message-core');
   const {validateCharacterPersistence}=await use('visual-reference-save');
@@ -30,6 +35,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   near(fixedStep,1/60,'Actual main fixed step');
   require(reference?.snapshot().phase==='private-character-message','Expected actual private character-message attachment');
   const [sender,listener]=state.agents;
+  let authoredObjectSwap=null;
   if(context.responseScenario===true){
     // Explicit engineering geometry, never an ordinary-world opportunity or
     // a runtime pair/target override. The unchanged default profile retains
@@ -39,6 +45,35 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(geometry.canOccupy(230,960),'Authored listener position must be physically occupiable');
     listener.position.x=230;listener.position.y=960;
     require(actorLineOfSight(listener,listener.position,sender.position),'Authored response actors must see each other');
+  }
+  if(context.ambiguityScenario===true){
+    // Engineering-only geometry: exchange positions of two existing ripe plants
+    // before observation. The tree's crown/trunk and the grass's blades use
+    // unchanged real art; no object, stock, crop or sensory value is invented.
+    require(context.responseScenario!==true&&sender.id==='aster'&&listener.id==='mira'&&
+      sender.position.x===276&&sender.position.y===760&&listener.position.x===300&&listener.position.y===920,
+    'Authored ambiguity fixture requires exact fresh actors');
+    require(geometry.canOccupy(-12943,3595)&&geometry.canOccupy(-12827,3543),
+      'Authored ambiguity positions must be physically occupiable');
+    const ecology=state.environment.ecology,
+      bramble=lookupEcologyObject(ecology,'object:504'),tree=lookupEcologyObject(ecology,'object:505');
+    require(ecology.seed===74193&&bramble?.kind==='bramble'&&bramble.stage==='ripe'&&
+      tree?.kind==='apple_tree'&&tree.stage==='ripe','Authored ambiguity requires the declared fresh ecology');
+    near(bramble.position.x,-12876.9761711114,'Original bramble x');
+    near(bramble.position.y,3676.0703545399747,'Original bramble y');
+    near(tree.position.x,-12637.114480087068,'Original tree x');
+    near(tree.position.y,3800.9655602960443,'Original tree y');
+    const brambleOriginal={...bramble.position},treeOriginal={...tree.position};
+    ecology.plants=ecology.plants.map(plant=>plant.id===bramble.id?
+      {...plant,position:{...treeOriginal}}:plant.id===tree.id?
+        {...plant,position:{...brambleOriginal}}:plant);
+    // Replacing the plants array also invalidates ecology's spatial index.
+    authoredObjectSwap={bramble:{id:bramble.id,kind:bramble.kind,original:brambleOriginal,placed:treeOriginal},
+      tree:{id:tree.id,kind:tree.kind,original:treeOriginal,placed:brambleOriginal}};
+    sender.position.x=-12943;sender.position.y=3595;
+    listener.position.x=-12827;listener.position.y=3543;
+    require(actorLineOfSight(listener,listener.position,sender.position),
+      'Authored ambiguity actors must see each other');
   }
   const initialPositions=state.agents.map(n=>({...n.position}));
   const sensor=context.auditSensor||createCommunicationPixelSensor(document);
@@ -77,10 +112,88 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       senderOriginal:{x:276,y:760},listenerOriginal:{x:300,y:920},listenerPlaced:{x:230,y:960},
       forwardAndReverseCandidateCount:forward,peerDistance:Math.hypot(listener.position.x-sender.position.x,listener.position.y-sender.position.y)};
   }
+  if(context.ambiguityScenario===true){
+    const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state);
+    require(own.complete&&other.complete,'Authored ambiguity requires complete ordinary sight');
+    const forwardIds=[];
+    for(let i=0;i<own.objects.length;i++){
+      const id=own.bindings[i],j=other.bindings.indexOf(id);if(j<0)continue;
+      const position=own.objects[i].position,cue=referenceGeometry(sender.position,position,sender.scene,1);
+      if(!cue||!visibleIndicationGeometry(listener,cue)||resolveIndication(cue,own.objects).index!==i)continue;
+      forwardIds.push(id);
+      const reply=referenceGeometry(listener.position,position,listener.scene,1);
+      require(reply&&visibleIndicationGeometry(sender,reply)&&resolveIndication(reply,other.objects).reason==='ambiguous',
+        'Every forward candidate must have an ambiguous reverse bearing in fresh sender sight');
+    }
+    require(forwardIds.length===2&&forwardIds.includes('object:501')&&forwardIds.includes('object:505'),
+      'Authored ambiguity geometry requires only the declared grass and tree candidates');
+    checks.authoredAmbiguity={scope:'Engineering-only positions of two existing ripe plants and both actors before observation/action; no object creation, crop override or ordinary opportunity claim',
+      senderOriginal:{x:276,y:760},listenerOriginal:{x:300,y:920},
+      senderPlaced:{...sender.position},listenerPlaced:{...listener.position},
+      objectSwap:authoredObjectSwap,forwardCandidateCount:forwardIds.length,forwardCandidateIds:forwardIds,
+      reverseResult:'ambiguous',
+      peerDistance:Math.hypot(listener.position.x-sender.position.x,listener.position.y-sender.position.y)};
+  }
   if(renderer){renderer.followNpc=true;renderer.followId=sender.id;renderer.targetZoom=2;renderer.snap(sender.position);}
   const project=()=>projectEvidence(state);
   const pose=()=>publicIndicationGeometry(sender);
   const responsePose=()=>publicIndicationGeometry(listener);
+  function admissionAudit(){
+    require(context.ambiguityScenario===true&&phase==='ready',
+      'Pre-action Canvas admission audit is confined to the fresh engineering ambiguity scenario');
+    const beforePersistence=JSON.stringify(reference.exportPersistence()),beforeReference=JSON.stringify(reference.snapshot()),
+      beforeElapsed=state.elapsed,beforePositions=JSON.stringify(state.agents.map(actor=>actor.position));
+    const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state),
+      ownCrops=sensor.capture(listener,state),otherCrops=sensor.capture(sender,state),
+      sprites=new Set(renderEcology(state.environment.ecology,sender.scene).map(sprite=>sprite.id));
+    const valid=(crop,actor)=>!!crop&&crop.epoch===actor.epoch&&Number.isFinite(crop.at)&&crop.at<=actor.elapsed&&
+      actor.elapsed-crop.at<=1.1&&crop.features?.length===48&&crop.features.every(value=>Number.isFinite(value)&&value>=0&&value<=1)&&
+      crop.pixels?.length===768;
+    const cropRow=(actor,id,crop)=>({present:!!crop,valid:valid(crop,actor),at:crop?.at??null,
+      epoch:crop?.epoch??null,observedAt:actor.discovery.observations[id]?.observedAt??null,
+      observationAge:actor.discovery.observations[id]?actor.elapsed-actor.discovery.observations[id].observedAt:null,
+      recentDirectAim:!!recentDiscoveryAim(actor,id),spriteInProjection:sprites.has(id)});
+    const candidates=[],rows=[];
+    for(let i=0;i<own.objects.length;i++){
+      const id=own.bindings[i],j=other.bindings.indexOf(id),a=ownCrops.get(id),b=otherCrops.get(id),
+        cue=j>=0?referenceGeometry(sender.position,own.objects[i].position,sender.scene,1):null,
+        visible=cue?!!visibleIndicationGeometry(listener,cue):false,
+        parsed=visible?resolveIndication(cue,own.objects):null,
+        numericForward=j>=0&&visible&&parsed?.index===i;
+      const row={id,kind:lookupEcologyObject(state.environment.ecology,id)?.kind??null,
+        listenerSightIndex:i,senderSightIndex:j,listenerCrop:cropRow(listener,id,a),senderCrop:cropRow(sender,id,b),
+        numericForward,geometryReason:parsed?.reason??(cue?'gesture-not-visible':'not-shared-or-no-geometry')};
+      if(rows.length<96)rows.push(row);
+      if(numericForward&&valid(a,listener)&&valid(b,sender))candidates.push({id,own:a.features,other:b.features});
+    }
+    const rms=(a,b)=>Math.sqrt(a.reduce((sum,value,index)=>sum+(value-b[index])**2,0)/a.length),pairs=[];
+    let pairCount=0,qualifiedPairs=0;
+    for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
+      const ownRms=rms(candidates[i].own,candidates[j].own),senderRms=rms(candidates[i].other,candidates[j].other),
+        qualified=ownRms>=REFERENCE_LIMITS.featureDistance&&senderRms>=REFERENCE_LIMITS.featureDistance;
+      pairCount++;if(qualified)qualifiedPairs++;
+      if(pairs.length<64)pairs.push({ids:[candidates[i].id,candidates[j].id],ownRms,senderRms,qualified});
+    }
+    const signals=bodySignals(listener),urgent=['ravenous','faint with hunger'].includes(signals.hunger)||
+      ['parched','desperate thirst'].includes(signals.thirst)||signals.energy==='depleted'||signals.pain==='severe',
+      peer=findReferencePeer(state.agents,listener,new Map()),ecology=state.environment.ecology;
+    return {scope:'Read-only pre-action engineering audit; no pair, target, message or listener choice is committed',
+      actualCanvas,elapsed:state.elapsed,featureDistance:REFERENCE_LIMITS.featureDistance,
+      genericGates:{receiverAwake:listener.lifecycle==='AWAKE'&&!isSleeping(listener),receiverUrgent:urgent,
+        receiverActive:!!listener.active,noExchangeYet:reference.snapshot().exchanges===0,
+        peerFound:peer.sender===sender,peerFirstFailure:peer.firstFailure,
+        peerDistance:Math.hypot(sender.position.x-listener.position.x,sender.position.y-listener.position.y),
+        peerLineOfSight:actorLineOfSight(listener,listener.position,sender.position)},
+      sight:{listenerComplete:own.complete,listenerReason:own.reason,listenerCount:own.objects.length,
+        senderComplete:other.complete,senderReason:other.reason,senderCount:other.objects.length},
+      crops:{listenerCount:ownCrops.size,senderCount:otherCrops.size},
+      rows,pairs,pairCount,validForwardCandidates:candidates.length,qualifiedPairs,
+      rowCap:96,pairCap:64,rowsTruncated:own.objects.length>rows.length,pairsTruncated:pairCount>pairs.length,
+      ecologySeed:ecology.seed,communicationSeed:reference.snapshot().seed,
+      pure:{referencePersistence:JSON.stringify(reference.exportPersistence())===beforePersistence,
+        referenceSnapshot:JSON.stringify(reference.snapshot())===beforeReference,
+        elapsed:state.elapsed===beforeElapsed,positions:JSON.stringify(state.agents.map(actor=>actor.position))===beforePositions}};
+  }
   const associationState=()=>{
     const s=reference.snapshot(),completed=!!successfulDiscoveryActionCompletion(sender,indicationActive),expected=completed?1:0;
     require(s.positive===0&&s.negative===0&&s.relief===0&&s.discomfort===0,'Character learning cannot pay a bodily reward');
@@ -220,12 +333,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(!pose(),'Completion must remove public cue');
     const snapshot=associationState();
     const replyAvailable=snapshot.pending===1&&snapshot.latest.feedbackStatus==='awaiting-response';
-    const replyCensored=snapshot.pending===0&&snapshot.latest.feedbackStatus==='censored';
-    require(snapshot.observed===1&&snapshot.latest.status==='observed'&&
-      (context.responseScenario===true?replyAvailable:replyAvailable||replyCensored),
-    'Actual attachment lost the paid character demonstration or an eligible optional reply');
+    require(snapshot.observed===1&&snapshot.latest.status==='observed'&&replyAvailable,
+      'A completed own-view demonstration must authorize a physical reply attempt');
     checks.replyAvailable=replyAvailable;
-    if(replyCensored)checks.replyCensorReason=snapshot.latest.feedbackReason;
     require(snapshot.senderFeedback.length===0,'Sender cannot receive feedback before a listener response');
     require(snapshot.latest.observedSeconds>=.5-1e-8,'Final consecutive paid perception was insufficient');
     require(audit.length>=100,'Missing repeated actual fixed-step listener perception');
@@ -261,7 +371,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       candidateViewsFromOriginalCanvas:true,senderWeightsUnchangedBeforeResponse:true,
       provenance:'Original own candidate Canvas crops and final personally observed demonstration crop; one canonical paid completion'};
     checks.sameMainPopulation=true;checks.actualFixedStep=1/60;checks.canonicalOwnDemonstrationOnly=true;
-    phase=replyAvailable?'indication-complete':'completed';return status();
+    phase='indication-complete';return status();
   }
   function beginResponse(){
     require(phase==='indication-complete'&&!pose()&&!responsePose(),'Expected learned demonstration and no unpaid response cue');
@@ -303,7 +413,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const snapshot=associationState(),feedbackStatus=snapshot.latest.feedbackStatus;
     const sampled=feedbackStatus==='matched'||feedbackStatus==='mismatched';
     require(snapshot.observed===1&&snapshot.pending===0&&
-      (context.responseScenario===true?sampled&&feedbackStatus==='mismatched':sampled||feedbackStatus==='censored'),
+      (context.responseScenario===true?sampled&&feedbackStatus==='mismatched':
+        context.ambiguityScenario===true?feedbackStatus==='censored'&&snapshot.latest.feedbackReason==='response-ambiguous':
+        sampled||feedbackStatus==='censored'),
     'Completed response must yield a paid local sample or an explicit censored outcome');
     const finalSender=sensor.capture(sender,state).get(responseActive.request.targetId);
     const finalListener=sensor.capture(listener,state).get(responseActive.request.targetId);
@@ -333,6 +445,16 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       'The later reply cannot revoke or duplicate completed listener learning');
     require(responseAudit.length>=100,'Missing repeated sender-side response perception');
     for(let i=1;i<responseAudit.length;i++)near(responseAudit[i].at-responseAudit[i-1].at,fixedStep,'Consecutive sender response perceptions');
+    if(snapshot.latest.feedbackReason==='response-ambiguous'){
+      const last=responseAudit.at(-1),trailing=[];
+      for(let i=responseAudit.length-1;i>=0&&responseAudit[i].reason==='ambiguous';i--)trailing.push(responseAudit[i]);
+      require(last&&state.elapsed-last.at<=fixedStep+1e-8&&
+        trailing.length>=Math.ceil(.5/fixedStep)&&
+        trailing.every(row=>row.numericResult?.reason==='ambiguous'&&row.localBinding===null&&row.senderFeatures===null),
+      'A censored ambiguity must follow a continuous actual paid sender-view interval, never a hypothetical preflight');
+      checks.responseAmbiguity={paidVisibleSamples:trailing.length,finalAuditAt:last.at,
+        noSenderCrop:true,actualSenderObservation:true};
+    }
     const expectedEffort=npcEffortCost(1.8,.25),metabolized=listener.physiology.totals.metabolizedKcal-responseBaseline.metabolized;
     require(expectedEffort>0&&metabolized>=expectedEffort-1e-8,'Listener response must have canonical metabolic debit');
     require(JSON.stringify(listener.inventory)===JSON.stringify(responseBaseline.inventory)&&
@@ -535,7 +657,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       pendingKind:responseCase?'listener-response':'sender-demonstration',
       fixtureDisclosure:responseCase?
         'Fresh disposable main-world character-message negative control with fixed historical communication seed 212 and explicitly authored Mira position (230,960), moved from (300,920) before any action. Aster remains at (276,760); ecology, bodies and resources are unchanged. This engineering geometry makes forward and reverse gestures numerically resolvable under the ordinary parser; it is not ordinary opportunity evidence, a favorable runtime redraw, or a scientific seed search. Separate predeclared target, order and uniform listener-choice draws yield a wrong original inspection. Actual Canvas views, canonical paid inspection, one listener model update, a paid listener response and one sender-local mismatch update are checked. A second optional sequence is saved and closed during its genuinely paid listener response; no duplicate feedback is granted. The main environment, ecology and bodies continue at 1/60 second with only bounded decision scheduling.':
-        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication with an actual sampled character string. The later optional reply is attempted only if independently resolvable; an unavailable reply censors sender feedback without erasing listener learning. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. A read-only numeric model query uses the original actual own Canvas views but is not a policy action or generalization claim. A second authentic sampled sequence is saved mid-cue to test pending trajectory interruption on reopen.'};
+        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication with an actual sampled character string. The later optional reply is physically attempted even if Aster cannot uniquely interpret its direction; a paid ambiguous observation, if present, censors sender feedback without erasing listener learning. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. A read-only numeric model query uses the original actual own Canvas views but is not a policy action or generalization claim. A second authentic sampled sequence is saved mid-cue to test pending trajectory interruption on reopen.'};
     for(let i=0;i<state.agents.length;i++)require(JSON.stringify(state.agents[i].position)===JSON.stringify(initialPositions[i]),'Fixture moved an actor');
     return result;
   }
@@ -556,7 +678,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       pendingKind:responseCase?'listener-response':'sender-demonstration'};
     require(paid>0&&paid<1.8,'Interruption must retain genuine partial paid work');phase='interrupted';return status();
   }
-  return {project,status,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
+  return {project,status,admissionAudit,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
     inspectAssociation,pendingForSave,pendingResponseForSave,checkpoint,interrupt,
     characterExport:()=>structuredClone(characterState()),
     dispose(){sensor.dispose?.();}};
