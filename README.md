@@ -60,8 +60,11 @@ Each actor also keeps a bounded, session-only numeric memory of public pointing
 poses it actually sees. A visible peer with no pose is distinct from an unseen
 peer or a hidden pose; gaps do not count as continuous observation. The memory
 contains relative geometry and the actor's own action context, not an object
-label, partner intention or correctness signal. It is perception scaffolding
-for future work, not learned gesture meaning or a clarification convention.
+label, partner intention or correctness signal. A separate private,
+session-only model predicts whether the actor will see a public pose or visible
+absence half a second later, using only uninterrupted own sight. It learns
+temporal sensor correlations and controls no action or character model; neither
+the memory nor prediction is learned gesture meaning or a clarification convention.
 
 Strict current-world saves keep the old visual associations and their four RNG
 continuations intact while adding bounded private character weights, examples,

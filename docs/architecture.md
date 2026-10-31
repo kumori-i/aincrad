@@ -101,9 +101,17 @@ the paid indication segment; food-sharing event labels are not public pose input
 Object bindings, private transactions, critic results and the other
 actor's learning state are excluded. Reads are actor-local defensive copies.
 Identity/epoch changes, session cancellation, disposal and reopen clear this session
-memory; saves and character weights do not contain it. No policy or learner
-consumes these rows yet, so this supplied sensorimotor memory establishes no
-learned request, gesture meaning, vocabulary or survival benefit.
+memory; saves and character weights do not contain it. Each individual also
+keeps a session-only logistic predictor of whether its own view will show a
+public pose or visible absence 30 consecutive fixed steps later. A future
+unknown or missing step censors the forecast. One frozen forecast is scored
+before one update; nonoverlapping windows, no replay and zero initialization
+require no random stream. The actor-local readout compares prequential scores
+with prior-rate and current-pose baselines and separates pose from absence and
+onsets from offsets. It is not connected to action selection, character-message
+learning or saves. These in-stream prequential scores are not a held-out or
+causal test. This supplied sensorimotor task establishes no learned
+request, gesture meaning, vocabulary or survival benefit.
 
 `communication-inspector.js` opens the same NPC Learning tab. `learning-view.js`
 shows the literal emitted string and completed recipient actions, with English

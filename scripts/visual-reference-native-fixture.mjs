@@ -190,6 +190,40 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     'Reading or changing a copied local gesture view altered the world, RNG, model or private history');
     return true;
   }
+  function localPrediction(observer){
+    const result=reference.readGesturePrediction(observer);
+    require(result&&result.limits?.horizonTicks===30&&result.limits?.replayCapacity===0&&
+      result.limits?.maximumUpdatesPerSecond===2,
+    'Actor-local predictor must use the declared bounded future horizon without replay');
+    for(const key of ['forecasts','validTargets','updates','censoredUnknown','censoredGap',
+      'targetPose','targetAbsent','onsets','offsets','stablePose','stableAbsent'])
+      require(Number.isSafeInteger(result[key])&&result[key]>=0,`Invalid local prediction count ${key}`);
+    require(typeof result.pending==='boolean'&&result.validTargets===result.updates&&
+      result.targetPose+result.targetAbsent===result.validTargets&&
+      result.onsets+result.stablePose===result.targetPose&&
+      result.offsets+result.stableAbsent===result.targetAbsent&&
+      result.forecasts>=result.validTargets,
+    'Local prediction counts must distinguish valid future sight from pending and censored windows');
+    for(const score of Object.values(result.scores))
+      require(Number.isFinite(score.brier)&&score.brier>=0&&Number.isFinite(score.logLoss)&&score.logLoss>=0,
+      'Prequential scores must be finite nonnegative aggregates');
+    require(!Object.keys(result).some(key=>['weights','features','targetId','partnerId','critic','reward'].includes(key)),
+      'Actor-local prediction readout exposed private input or privileged outcome data');
+    return result;
+  }
+  function localPredictionReadOnly(observer){
+    const beforeWorld=JSON.stringify(project()),beforeCharacter=JSON.stringify(characterState()),
+      beforePersistence=JSON.stringify(reference.exportPersistence()),
+      original=JSON.stringify(localPrediction(observer));
+    const copy=reference.readGesturePrediction(observer);
+    copy.forecasts=0;copy.scores.model.brier=-1;copy.scoresByTarget.pose.model.logLoss=-1;
+    copy.limits.horizonTicks=0;
+    require(JSON.stringify(localPrediction(observer))===original&&
+      JSON.stringify(project())===beforeWorld&&JSON.stringify(characterState())===beforeCharacter&&
+      JSON.stringify(reference.exportPersistence())===beforePersistence,
+    'Reading or changing copied local prediction totals altered the world, RNG or learner');
+    return true;
+  }
   function admissionAudit(){
     require(context.ambiguityScenario===true&&phase==='ready',
       'Pre-action Canvas admission audit is confined to the fresh engineering ambiguity scenario');
@@ -340,6 +374,12 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     checks.actorGestureMemory={paidChoiceVisibleAbsence:
       localGesture(listener,sender,'absent').visibility==='absent'&&
       localGesture(sender,listener,'absent').visibility==='absent'};
+    const listenerPrediction=localPrediction(listener),senderPrediction=localPrediction(sender);
+    require(listenerPrediction.targetAbsent>=1&&senderPrediction.targetAbsent>=1&&
+      listenerPrediction.targetPose===0&&senderPrediction.targetPose===0,
+    'The paid inspection must settle future visible absence for both actual actors before any public pose');
+    checks.actorGesturePrediction={choice:{listener:listenerPrediction,sender:senderPrediction},
+      defensiveReadPure:localPredictionReadOnly(listener)};
     checks.choiceCompletedBeforeIndication=true;phase='choice-complete';return status();
   }
   function beginIndication(){
@@ -363,6 +403,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     'Each actor must retain only its own action context during the funded pose');
     checks.actorGestureMemory.forward={paidPoseObserved:true,listenerLocal,senderLocal,
       defensiveReadPure:localGestureReadOnly(listener)};
+    checks.actorGesturePrediction.forwardMidpoint=localPrediction(listener);
     const crop=sensor.capture(listener,state).get(privateTargetId);
     require(crop?.pixels?.length===768&&crop.features?.length===48,'Missing actual current listener crop');
     checks.visibleCrop={actualCanvas,pixels:crop.pixels.slice(),features:crop.features.slice(),at:crop.at,epoch:crop.epoch};
@@ -400,6 +441,13 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(!pose(),'Completion must remove public cue');
     checks.actorGestureMemory.forwardEndedAsVisibleAbsence=
       localGesture(listener,sender,'absent').visibility==='absent';
+    const listenerPrediction=localPrediction(listener),beforePrediction=checks.actorGesturePrediction.choice.listener;
+    require(listenerPrediction.targetPose>beforePrediction.targetPose&&
+      listenerPrediction.onsets>beforePrediction.onsets&&
+      listenerPrediction.validTargets>beforePrediction.validTargets,
+    'The funded actual public cue must yield a delayed visible-pose target after the original absent forecast');
+    checks.actorGesturePrediction.forward={listener:listenerPrediction,sender:localPrediction(sender),
+      defensiveReadPure:localPredictionReadOnly(listener),actualPaidPose:true};
     const snapshot=associationState();
     const replyAvailable=snapshot.pending===1&&snapshot.latest.feedbackStatus==='awaiting-response';
     require(snapshot.observed===1&&snapshot.latest.status==='observed'&&replyAvailable,
@@ -464,6 +512,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     'Reply memory must retain each actor’s own action context only');
     checks.actorGestureMemory.reply={paidPoseObserved:true,senderLocal,listenerLocal,
       defensiveReadPure:localGestureReadOnly(sender)};
+    checks.actorGesturePrediction.replyMidpoint=localPrediction(sender);
     const id=responseActive.request.targetId,senderCrop=sensor.capture(sender,state).get(id),listenerCrop=sensor.capture(listener,state).get(id);
     const g=responsePose(),sensed=senseReferenceObjects(sender,state),index=sensed.bindings.indexOf(id);
     const resolved=index>=0&&resolveIndication(g,sensed.objects).index===index;
@@ -487,6 +536,13 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(!pose()&&!responsePose(),'Completion must remove both public cues');
     checks.actorGestureMemory.replyEndedAsVisibleAbsence=
       localGesture(sender,listener,'absent').visibility==='absent';
+    const senderPrediction=localPrediction(sender),beforePrediction=checks.actorGesturePrediction.forward.sender;
+    require(senderPrediction.targetPose>beforePrediction.targetPose&&
+      senderPrediction.onsets>beforePrediction.onsets&&
+      senderPrediction.validTargets>beforePrediction.validTargets,
+    'The funded reciprocal cue must settle a future actor-local pose target independently of feedback');
+    checks.actorGesturePrediction.reply={sender:senderPrediction,listener:localPrediction(listener),
+      defensiveReadPure:localPredictionReadOnly(sender),actualPaidPose:true};
     const snapshot=associationState(),feedbackStatus=snapshot.latest.feedbackStatus;
     const sampled=feedbackStatus==='matched'||feedbackStatus==='mismatched';
     require(snapshot.observed===1&&snapshot.pending===0&&
@@ -713,7 +769,10 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   function checkpoint(storage){
     require(['pending-save','pending-response-save'].includes(phase),'Expected paid live indication at save');
     const before=JSON.stringify(reference.snapshot()),persisted=reference.exportPersistence(),
-      beforeCharacter=JSON.stringify(persisted.characterMessages);
+      beforeCharacter=JSON.stringify(persisted.characterMessages),
+      predictionBefore=state.agents.map(actor=>localPrediction(actor));
+    require(predictionBefore.every(prediction=>prediction.pending),
+      'The saved mid-gesture checkpoint must discard actual pending actor-local forecasts on reopen');
     require(JSON.stringify(reference.snapshot())===before&&JSON.stringify(characterState())===beforeCharacter,
       'Persistence export changed private weights, random states or pending metrics');
     if(!saveCheckpoint())return null;
@@ -727,6 +786,11 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       document.characterMessages.learners.every(owner=>!Object.hasOwn(owner,'gesture')),
     'Strict ordinary save must exclude transient actor-local gesture rows');
     checks.actorGestureMemory.saveExcluded=true;
+    const savedText=JSON.stringify(document);
+    require(!/"(?:actorGesturePrediction|actorGesturePredictor|gesturePrediction|gesturePredictor)"/.test(savedText)&&
+      state.agents.every((actor,index)=>same(localPrediction(actor),predictionBefore[index])),
+    'Ordinary save must exclude session-only prediction state without advancing it');
+    checks.actorGesturePrediction.saveExcluded=true;
     require(JSON.stringify(document.worldLineage)===JSON.stringify(canonical.worldLineage)&&
       JSON.stringify(document.visualReference)===JSON.stringify(canonical.visualReference)&&
       JSON.stringify(document.characterMessages)===JSON.stringify(canonical.characterMessages),
@@ -749,7 +813,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   function interrupt(){
     require(['pending-save','pending-response-save'].includes(phase),'Expected pending cue');
     const responseCase=phase==='pending-response-save',actor=responseCase?listener:sender;
-    const beforeCharacter=JSON.stringify(characterState());
+    const beforeCharacter=JSON.stringify(characterState()),
+      beforePrediction=state.agents.map(owner=>localPrediction(owner));
     const paid=discoveryActionPaidSeconds(actor,pendingActive);
     cancelNpcAction(actor,'NATIVE_FIXTURE_INTERRUPTION');
     require(!(responseCase?responsePose():pose())&&!successfulDiscoveryActionCompletion(actor,pendingActive),
@@ -762,6 +827,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       'Cancelled paid action must immediately stop its public pose');
     require(reference.readGestureMemory(peer).records.some(row=>row.visibility==='pose'),
       'Cancellation at the same clock instant must retain genuinely seen rows until another real sample');
+    require(state.agents.every((owner,index)=>same(localPrediction(owner),beforePrediction[index])),
+      'A repeated afterTick at the same clock instant must not train or settle a future forecast');
+    checks.actorGesturePrediction.sameInstantCancellationPure=true;
     require(JSON.stringify(characterState())===beforeCharacter,
       'Interrupting a pending paid sequence must not update weights, baseline or random states');
     if(responseCase)require(reference.snapshot().latest.feedbackStatus==='censored'&&reference.snapshot().senderFeedback.length===0,

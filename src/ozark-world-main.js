@@ -560,6 +560,12 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     // poses, or learner inputs, and never creates a new observation.
     gestureMemoryEmpty: () => location.search === '?test=1' && state?.agents?.length === 2 &&
       state.agents.every(actor => communicationLearning?.readGestureMemory(actor)?.records.length === 0),
+    gesturePredictionEmpty: () => location.search === '?test=1' && state?.agents?.length === 2 &&
+      state.agents.every(actor => {
+        const prediction=communicationLearning?.readGesturePrediction(actor);
+        return prediction && !prediction.pending && prediction.forecasts === 0 &&
+          prediction.validTargets === 0 && prediction.updates === 0;
+      }),
     communicationMeasurementSnapshot: () => {
       if(location.search!=='?test=1')return null;
       const measurement=communicationLearning?.measurementSnapshot();

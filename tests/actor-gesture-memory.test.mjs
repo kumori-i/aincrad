@@ -11,7 +11,8 @@ import {sensePublicPeerGesture,senseReferenceObjects} from '../src/visual-refere
 import {publicIndicationGeometry} from '../src/discovery-actions.js';
 
 const geometry=createOzarkWorldGeometry();
-function fixture({enabled=true,listenerSight=null,state=createOzarkState(geometry,{communicationSeed:211})}={}){
+function fixture({enabled=true,predictionEnabled=true,listenerSight=null,
+  state=createOzarkState(geometry,{communicationSeed:211})}={}){
   const [sender,listener]=state.agents;
   const listenerWorld=listenerSight?Object.freeze({...geometry,
     lineOfSight:(from,to)=>listenerSight(from,to,geometry.lineOfSight)}):geometry;
@@ -28,7 +29,8 @@ function fixture({enabled=true,listenerSight=null,state=createOzarkState(geometr
         at:actor.elapsed,epoch:actor.epoch}];
     }));
   },dispose(){}};
-  const attachment=attachVisualReferenceLearning({state,pixelSensor,protocol:'sequence',gestureMemoryEnabled:enabled});
+  const attachment=attachVisualReferenceLearning({state,pixelSensor,protocol:'sequence',
+    gestureMemoryEnabled:enabled,gesturePredictionEnabled:predictionEnabled});
   const step=()=>{
     attachment.beforeTick();state.elapsed+=CONFIG.fixedStep;
     for(const actor of state.agents)tickNpc(actor,CONFIG.fixedStep,state.environment);
@@ -112,6 +114,62 @@ test('real paid public indication enters only the listener’s numeric local vie
   }finally{f.attachment.dispose();}
 });
 
+test('future local pose targets settle only after 30 actual consecutive main-world samples',()=>{
+  const f=fixture();
+  try{
+    assert.equal(f.attachment.readGesturePrediction(f.listener).forecasts,0);
+    f.step();
+    let prediction=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(prediction.pending,true);
+    assert.equal(prediction.validTargets,0);
+    for(let i=0;i<29;i++)f.step();
+    assert.equal(f.attachment.readGesturePrediction(f.listener).validTargets,0,
+      'The current frame and the first 29 future frames cannot label a forecast');
+    f.step();
+    prediction=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(prediction.validTargets,1);
+    assert.equal(prediction.targetAbsent,1);
+    assert.equal(prediction.updates,1);
+    f.start();
+    const before=f.attachment.readGesturePrediction(f.listener);
+    f.advance(.6);
+    prediction=f.attachment.readGesturePrediction(f.listener);
+    assert(prediction.targetPose>before.targetPose,
+      'A later personally visible paid public pose supplies a future target');
+    assert.equal(prediction.updates,prediction.validTargets);
+    assert(!('weights' in prediction)&&!('features' in prediction),
+      'The actor-local readout is aggregate, not a model or partner-data export');
+    const saved=JSON.stringify(f.attachment.exportPersistence());
+    prediction.scores.model.brier=999;
+    prediction.limits.horizonTicks=0;
+    assert.notEqual(f.attachment.readGesturePrediction(f.listener).scores.model.brier,999);
+    assert.equal(f.attachment.readGesturePrediction(f.listener).limits.horizonTicks,30);
+    assert.equal(JSON.stringify(f.attachment.exportPersistence()),saved,
+      'Prediction inspection cannot alter durable character or RNG state');
+  }finally{f.attachment.dispose();}
+});
+
+test('live actor-local unknown sight censors a pending forecast without labeling silence',()=>{
+  let hidden=false;
+  const f=fixture({listenerSight:(from,to,ordinary)=>hidden?false:ordinary(from,to)});
+  try{
+    f.step();
+    assert.equal(f.attachment.readGesturePrediction(f.listener).pending,true);
+    hidden=true;f.step();
+    const censored=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(f.attachment.readGestureMemory(f.listener).records.at(-1).visibility,'unknown');
+    assert.equal(censored.censoredUnknown,1);
+    assert.equal(censored.validTargets,0);
+    assert.equal(censored.updates,0);
+    assert.equal(censored.targetAbsent,0,'Unknown sight must never be a negative target');
+    hidden=false;f.step();
+    for(let i=0;i<30;i++)f.step();
+    const visible=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(visible.targetAbsent,1,'Only restored continuous sight can label visible absence');
+    assert.equal(visible.updates,1);
+  }finally{f.attachment.dispose();}
+});
+
 test('peer occlusion and a partly hidden paid segment are unknown, and break continuity',()=>{
   let hiddenPeer=false,hiddenSegment=null;
   const f=fixture({listenerSight:(from,to,ordinary)=>{
@@ -125,16 +183,24 @@ test('peer occlusion and a partly hidden paid segment are unknown, and break con
     const pose=publicIndicationGeometry(f.sender);
     assert(pose);
     // The segment is checked at integer positions; its midpoint is a sampled point.
+    const beforeOcclusion=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(beforeOcclusion.pending,true);
     hiddenSegment={x:(pose.origin.x+pose.tip.x)/2,y:(pose.origin.y+pose.tip.y)/2};
     f.step();
     let row=f.attachment.readGestureMemory(f.listener).records.at(-1);
     assert.equal(row.visibility,'unknown');assert(row.peer);
+    let prediction=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(prediction.censoredUnknown,beforeOcclusion.censoredUnknown+1);
+    assert.equal(prediction.validTargets,beforeOcclusion.validTargets,
+      'A partly hidden paid segment cannot become a future absence label');
     hiddenSegment=null;f.step();
     row=f.attachment.readGestureMemory(f.listener).records.at(-1);
     assert.equal(row.visibility,'pose');assert.equal(row.continuousVisible,false);
     hiddenPeer=true;f.step();
     row=f.attachment.readGestureMemory(f.listener).records.at(-1);
     assert.equal(row.visibility,'unknown');assert.equal(row.peer,null);
+    prediction=f.attachment.readGesturePrediction(f.listener);
+    assert.equal(prediction.censoredUnknown,beforeOcclusion.censoredUnknown+2);
     hiddenPeer=false;f.step();
     row=f.attachment.readGestureMemory(f.listener).records.at(-1);
     assert.equal(row.visibility,'absent','The ordinary transaction was interrupted by lost peer sight');
@@ -181,52 +247,68 @@ test('interrupted actions, identity changes, censor, disposal and reopen erase o
     assert.equal(reopened.blocked,false);
     const reopenedAttachment=fixture({state:reopened.state}).attachment;
     assert.deepEqual(reopenedAttachment.readGestureMemory(reopened.state.agents[1]).records,[]);
+    assert.equal(reopenedAttachment.readGesturePrediction(reopened.state.agents[1]).forecasts,0);
     reopenedAttachment.dispose();
     f.sender.epoch++;
     assert.equal(f.attachment.readGestureMemory(f.listener),null,'A stale epoch fails closed before reconciliation');
     f.attachment.beforeTick();
     assert.deepEqual(f.attachment.readGestureMemory(f.listener).records,[]);
+    assert.equal(f.attachment.readGesturePrediction(f.listener).validTargets,0);
     f.step();
     f.listener.discovery=structuredClone(f.listener.discovery);
     assert.equal(f.attachment.readGestureMemory(f.sender),null,'A replaced peer cannot leak old rows');
     f.attachment.beforeTick();
     assert.deepEqual(f.attachment.readGestureMemory(f.sender).records,[]);
+    assert.equal(f.attachment.readGesturePrediction(f.sender).forecasts,0);
     f.step();f.attachment.censorPending();
     assert.deepEqual(f.attachment.readGestureMemory(f.sender).records,[]);
+    assert.equal(f.attachment.readGesturePrediction(f.sender).forecasts,0);
   }finally{f.attachment.dispose();}
   assert.equal(f.attachment.readGestureMemory(f.listener),null);
+  assert.equal(f.attachment.readGesturePrediction(f.listener),null);
 });
 
 test('hostile observer copies and repeated reads cannot change action, RNG or learner continuation',()=>{
   const original=createOzarkState(geometry,{communicationSeed:211});
   const comparison=createOzarkState(geometry,{communicationSeed:211});
-  for(const key of ['worldLineage','visualReference','characterMessages'])
-    comparison[key]=structuredClone(original[key]);
-  const a=fixture({state:original}),b=fixture({enabled:false,state:comparison});
+  const predictorDisabled=createOzarkState(geometry,{communicationSeed:211});
+  for(const state of [comparison,predictorDisabled])
+    for(const key of ['worldLineage','visualReference','characterMessages'])
+      state[key]=structuredClone(original[key]);
+  const a=fixture({state:original}),b=fixture({enabled:false,state:comparison}),
+    c=fixture({predictionEnabled:false,state:predictorDisabled}),all=[a,b,c];
   try{
-    for(let i=0;i<12;i++){a.step();b.step();}
-    a.start();b.start();
+    for(let i=0;i<12;i++)for(const f of all)f.step();
+    for(const f of all)f.start();
     for(let i=0;i<130;i++){
-      a.step();b.step();
+      for(const f of all)f.step();
       const snapshot=a.attachment.readGestureMemory(a.listener);
       if(snapshot.records.length){snapshot.records.at(-1).self.actionActive=99;snapshot.records.length=0;}
+      const prediction=a.attachment.readGesturePrediction(a.listener);
+      if(prediction){prediction.scores.model.logLoss=999;prediction.pending=false;}
       const observer=a.attachment.measurementSnapshot();
       if(observer?.events.length){observer.events[0].referenceCorrect=false;observer.events[0].targetId='hostile';}
     }
-    const replyA=a.attachment.hooks.optionalAction(a.listener);
-    const replyB=b.attachment.hooks.optionalAction(b.listener);
-    assert.equal(replyA?.type,'indicate_object');assert.equal(replyB?.type,'indicate_object');
-    assert.equal(a.attachment.hooks.performOptional(a.listener,replyA).code,'ACTION_STARTED');
-    assert.equal(b.attachment.hooks.performOptional(b.listener,replyB).code,'ACTION_STARTED');
-    for(let i=0;i<130;i++){a.step();b.step();a.attachment.readGestureMemory(a.sender);}
+    for(const f of all){
+      const reply=f.attachment.hooks.optionalAction(f.listener);
+      assert.equal(reply?.type,'indicate_object');
+      assert.equal(f.attachment.hooks.performOptional(f.listener,reply).code,'ACTION_STARTED');
+    }
+    for(let i=0;i<130;i++){for(const f of all)f.step();a.attachment.readGestureMemory(a.sender);}
     assert.equal(a.attachment.measurementSnapshot().counts.senderUpdates,1,
       'Both listeners and the sender have now taken an authentic update path');
-    assert.deepEqual(a.attachment.exportPersistence(),b.attachment.exportPersistence(),
-      'Private memory cannot draw RNG or alter either learned model');
-    assert.deepEqual(a.attachment.measurementSnapshot(),b.attachment.measurementSnapshot());
-    assert.deepEqual(a.state,b.state,'Ordinary action and body state are unchanged');
+    for(const f of [b,c]){
+      assert.deepEqual(a.attachment.exportPersistence(),f.attachment.exportPersistence(),
+        'Private prediction cannot draw RNG or alter either learned model');
+      assert.deepEqual(a.attachment.measurementSnapshot(),f.attachment.measurementSnapshot());
+      assert.deepEqual(a.state,f.state,'Ordinary action and body state are unchanged');
+    }
     assert.equal(b.attachment.readGestureMemory(b.listener),null);
-  }finally{a.attachment.dispose();b.attachment.dispose();}
+    assert.equal(c.attachment.readGesturePrediction(c.listener),null);
+    assert(c.attachment.readGestureMemory(c.listener).records.length>0,
+      'The disabled predictor comparison still retains the original gesture memory');
+    assert(a.attachment.readGesturePrediction(a.listener).validTargets>0);
+  }finally{for(const f of all)f.attachment.dispose();}
 });
 
 test('a failed passive sight query discards gesture rows without stopping existing learning',()=>{
@@ -237,10 +319,12 @@ test('a failed passive sight query discards gesture rows without stopping existi
   }});
   try{
     f.step();assert.equal(f.attachment.readGestureMemory(f.listener).records.length,1);
+    assert.equal(f.attachment.readGesturePrediction(f.listener).pending,true);
     const before=f.attachment.exportPersistence();
     fail=true;
     assert.doesNotThrow(()=>f.attachment.afterTick());
     assert.deepEqual(f.attachment.readGestureMemory(f.listener).records,[]);
+    assert.equal(f.attachment.readGesturePrediction(f.listener).forecasts,0);
     assert.deepEqual(f.attachment.exportPersistence(),before);
   }finally{f.attachment.dispose();}
 });
