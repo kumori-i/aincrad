@@ -11,7 +11,7 @@ export const DRIVE_NAMES=['survival','safety','belonging','competence','understa
 const text=(value,max=240)=>typeof value==='string'?value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').slice(0,max):'';
 const number=(value,fallback=0,max=1e10)=>Number.isFinite(value)?Math.max(0,Math.min(max,value)):fallback;
 const point=value=>value&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Math.abs(value.x)<=24000&&Math.abs(value.y)<=24000?{x:value.x,y:value.y}:null;
-const PHYSICAL=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','inspect_object','grasp','release','pull','sample','strike','catch']);
+const PHYSICAL=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep','inspect_object','grasp','release','pull','sample','strike','catch','free_hand']);
 const SOCIAL=new Set([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note']);
 
 /** Motives, claims and intentions are persistent data, never executable instructions. */
@@ -79,6 +79,7 @@ export function cognitiveObservation(npc){const c=updateCognition(npc);return {d
 /** Validate against discovered data, never consult undiscovered world resources. */
 export function cognitiveAction(npc,raw,{restoring=false}={}){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)||!PHYSICAL.has(raw.type)&&!SOCIAL.has(raw.type))return null;const out={type:raw.type};
+  if(raw.type==='free_hand')return !restoring&&npc.mode==='discovery'&&ozarkPersistentWorldAgent(npc)&&Object.keys(raw).length===1?out:null;
   if(FOOD_SHARING_ACTIONS.includes(raw.type)){
     if(restoring||npc.mode!=='discovery')return null;
     for(const key of ['targetId','objectId','offerId','requestId'])if(raw[key]!==undefined){

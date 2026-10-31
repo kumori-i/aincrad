@@ -6,6 +6,7 @@ function survivalReturn(npc,code,value){survivalNote(npc,code);return value;}
 import { legacyCommunication } from './communication-mode.js';
 import { receivedMaterialCaution } from './food-warning.js';
 import { markNpcRunTravel } from './npc-effort-funding.js';
+import { freeHandExplorationChoice } from './free-hand-action.js';
 import { experiencedFoodSourceCaution } from './food-source-caution.js';
 import { witnessedMaterialCompletion } from './discovery-completion.js';
 import { ingestVisualSamples } from './visual-group-memory.js';
@@ -595,6 +596,10 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   // operation. Every bodily-care/procedure/safety gate above remains prior.
   // This callback is never stored in actor data or reconstructed from a save.
   if(typeof chooseOptional==='function'&&choices.length){const index=chooseOptional(choices);if(Number.isInteger(index)&&index>=0&&index<choices.length)return wrap(choices[index].action,'An experimental learned signal influenced this optional physical trial; its outcome remains untested.');}
+  // A small target-free motor trial competes only at the ordinary optional
+  // curiosity stage. Its fixed novelty bias is authored, not success credit.
+  const freeHand=freeHandExplorationChoice(npc);
+  if(freeHand)choices.push(freeHand);
   if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
   }finally{survivalObserve(closeSurvivalDecision,survivalScope);}

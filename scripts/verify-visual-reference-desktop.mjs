@@ -12,15 +12,18 @@ import {buildApplication} from './build.mjs';
 import {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence} from './native-capture-readiness.mjs';
 import {canonicalApplicationRoot,nativeSourceIdentity,captureNativeChild,archiveNativeProfile,currentRouteSnapshot,assertCurrentRoute} from './carcass-native-contract.mjs';
 import {assertStructuralRestoredHistory} from './structural-movement-native-contract.mjs';
-import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen} from './visual-reference-native-fixture.mjs';
+import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen} from './visual-reference-native-fixture.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url)),prepareOnly=process.argv.includes('--prepare-only'),
-  responseScenario=process.argv.includes('--response-scenario'),ambiguityScenario=process.argv.includes('--ambiguity-scenario');
-assert(process.argv.slice(2).every(arg=>['--prepare-only','--response-scenario','--ambiguity-scenario'].includes(arg))&&
+  responseScenario=process.argv.includes('--response-scenario'),ambiguityScenario=process.argv.includes('--ambiguity-scenario'),
+  motorScenario=process.argv.includes('--motor-scenario');
+assert(process.argv.slice(2).every(arg=>['--prepare-only','--response-scenario','--ambiguity-scenario','--motor-scenario'].includes(arg))&&
   process.argv.filter(arg=>arg==='--prepare-only').length<=1&&
   process.argv.filter(arg=>arg==='--response-scenario').length<=1&&
   process.argv.filter(arg=>arg==='--ambiguity-scenario').length<=1&&
-  !(responseScenario&&ambiguityScenario),'Only one bounded native scenario may be selected');
+  process.argv.filter(arg=>arg==='--motor-scenario').length<=1&&
+  Number(responseScenario)+Number(ambiguityScenario)+Number(motorScenario)<=1,
+  'Only one bounded native scenario may be selected');
 if(!prepareOnly){
   assert(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_WORKFLOW==='Character message native acceptance','Native execution requires the approved engineering CI workflow');
   assert(['linux','darwin'].includes(process.platform),'Linux/macOS only');
@@ -28,16 +31,16 @@ if(!prepareOnly){
   assert(process.platform!=='linux'||process.env.DISPLAY||process.env.WAYLAND_DISPLAY,'Authorized supported display required');
 }
 const outputRoot=resolve(process.env.AINCRAD_VISUAL_REFERENCE_QA_OUTPUT||
-  join(root,'test-results/visual-reference-native',responseScenario?'response':ambiguityScenario?'ambiguity':''));
+  join(root,'test-results/visual-reference-native',responseScenario?'response':ambiguityScenario?'ambiguity':motorScenario?'motor':''));
 await mkdir(outputRoot,{recursive:true});
 const output=await mkdtemp(join(outputRoot,'run-')),temporary=await mkdtemp(join(tmpdir(),'aincrad-visual-reference-'));
 const profile=join(temporary,'profile');
 for(const name of ['profile','home','config','cache'])await mkdir(join(temporary,name));
 const application=await canonicalApplicationRoot(output),built=await buildApplication(application);
-const context={output,profile,application,responseScenario,ambiguityScenario,
+const context={output,profile,application,responseScenario,ambiguityScenario,motorScenario,
   sourceIdentity:nativeSourceIdentity(root),sourceFingerprint:built.sourceFingerprint};
 if(!prepareOnly){assert.equal(context.sourceIdentity.commit,process.env.GITHUB_SHA,'Native CI must exercise the exact approved checkout SHA');assert.equal(context.sourceIdentity.worktreeStatus,'','Native CI requires a clean reviewed source tree');}
-const harness=join(output,'runner.cjs'),phases=ambiguityScenario?['ambiguity-exercise']:responseScenario?
+const harness=join(output,'runner.cjs'),phases=motorScenario?['motor-exercise','motor-reopen']:ambiguityScenario?['ambiguity-exercise']:responseScenario?
   ['response-exercise','response-reopen','response-verify']:['exercise','reopen','verify'];
 context.phases=phases;
 
@@ -45,13 +48,13 @@ function installRunner(context,helpers){
   const {app,session}=require('electron'),assert=require('node:assert/strict');
   const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto');
   const {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
-    visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen}=helpers;
+    visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen}=helpers;
   const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
   assert(context.phases.includes(phase));
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   let running=false,closed=false,allowQuit=false,stage='initializing';
   const events=[],screenshots=[],measurementChecks=[];
-  const deadline=setTimeout(()=>{console.error('Visual reference native deadline at '+stage);app.exit(1);},240000);
+  const deadline=setTimeout(()=>{console.error('Visual reference native deadline at '+stage);app.exit(1);},context.motorScenario?600000:240000);
   app.on('will-quit',event=>{if(!allowQuit)event.preventDefault();else{assert(closed);console.log('VISUAL_REFERENCE_NATIVE_WILL_QUIT '+phase);}});
   const evaluate=(win,source)=>{stage=source.slice(0,140);return win.webContents.executeJavaScript(source);};
   const snapshot=win=>evaluate(win,'('+visualReferenceEvidence.toString()+')(window.__ozarkWorld.fullSnapshot())');
@@ -240,19 +243,91 @@ function installRunner(context,helpers){
     await fs.writeFile(path.join(context.output,'character-learning-view.json'),JSON.stringify({...learning,readOnly:true,
       temporaryObserverSelectionOnly:true,restoredSelectedAgentId:beforeWorld.selectedAgentId,at:beforeWorld.elapsed},null,2));
   }
+  async function motorExercise(win){
+    const initial=await snapshot(win);
+    assert.deepEqual(initial.agents.map(actor=>actor.position),[{x:276,y:760},{x:300,y:920}],
+      'The renderer must retain both declared original actor positions');
+    let measured=await measurementPoint(win,'motor-fresh');
+    assert(Object.values(measured.counts).every(value=>value===0)&&measured.events.length===0,
+      'The target-free fixture begins with no character exchange or learning');
+    assert(measured.actors.every(actor=>actor.freeHandObserver?.nextEligibleAt>=120&&
+      actor.freeHandObserver.selectedAttempts===0&&actor.freeHandObserver.visibleSamples===0),
+    'Both fresh individuals must start behind their private 120-second motor delay');
+    let status=await evaluate(win,'window.__visualReferenceFixture.status()');
+    assert.equal(status.phase,'motor-ready');
+    assert.equal(status.checks.motorFresh?.firstAdmission,'FREE_HAND_COOLDOWN');
+    await capture(win,'motor-01-fresh-no-motion.png');
+    const wait=[];
+    for(let i=0;i<12;i++)wait.push(await evaluate(win,'window.__visualReferenceFixture.motorWait(600)'));
+    assert(Math.abs(wait.at(-1).elapsed-120)<1e-7&&wait.at(-1).steps===7200,
+      'The motor delay must elapse through exactly 7,200 real main-world fixed steps');
+    assert(wait.every(row=>row.observers.every(actor=>actor.selectedAttempts===0&&actor.visibleSamples===0)),
+      'Waiting alone cannot fabricate a motor selection or a peer pose');
+    assert.deepEqual((await snapshot(win)).agents.map(actor=>actor.position),
+      [{x:276,y:760},{x:300,y:920}],
+      'Real wait must retain original actor positions before paid motor admission');
+    measured=await measurementPoint(win,'motor-ready');
+    assert(Object.values(measured.counts).every(value=>value===0));
+    status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('aster')");
+    assert.equal(status.action.type,'free_hand');assert.equal(status.action.seconds,1.8);
+    assert.equal(status.pose,null,'Unfunded actor motion has no public pose');
+    status=await evaluate(win,"window.__visualReferenceFixture.visibleMotor('aster')");
+    assert.equal(status.actualCanvas,true);
+    assert.equal(status.peerLocal.visibility,'pose');
+    assert.equal(status.peerLocal.ownFreeHandActive,0);
+    assert.equal(status.ownLocal.ownFreeHandActive,1);
+    assert.equal(status.occluded?.visibility,'unknown');
+    assert.equal(status.memoryReadPure,true);assert.equal(status.predictionReadPure,true);
+    await fs.writeFile(path.join(context.output,'motor-first-paid-pose.json'),JSON.stringify(status,null,2));
+    await capture(win,'motor-02-aster-real-paid-segment.png');
+    status=await evaluate(win,'window.__visualReferenceFixture.completeFirstMotor()');
+    assert.equal(status.checks.motorFirstComplete?.result?.code,'FREE_HAND_MOVED');
+    assert(Math.abs(status.checks.motorFirstComplete.worked-1.8)<1e-7);
+    assert(Number.isFinite(status.checks.motorFirstComplete.effortKcal)&&
+      status.checks.motorFirstComplete.effortKcal>0&&
+      status.checks.motorFirstComplete.metabolizedKcal+1e-8>=status.checks.motorFirstComplete.effortKcal,
+      'Full effort cost is computed from and funded by the current body model');
+    assert.equal(status.checks.motorFirstComplete.characterUnchanged,true);
+    assert.equal(status.checks.motorFirstComplete.observer.selectedAttempts,1);
+    assert.equal(status.checks.motorFirstVisible.peerPrediction.onsets>=1,true);
+    measured=await measurementPoint(win,'motor-first-complete');
+    assert(Object.values(measured.counts).every(value=>value===0),
+      'Paid neutral motion cannot emit words or train either character learner');
+    status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('mira')");
+    assert.equal(status.action.type,'free_hand');assert.equal(status.pose,null);
+    status=await evaluate(win,"window.__visualReferenceFixture.visibleMotor('mira')");
+    assert.equal(status.peerLocal.visibility,'pose');assert.equal(status.ownLocal.ownFreeHandActive,1);
+    await capture(win,'motor-03-mira-partial-real-paid-segment.png');
+    const checkpoint=await evaluate(win,'window.__visualReferenceFixture.checkpointMotor(localStorage)');
+    assert.equal(checkpoint.pendingKind,'free-hand');
+    assert(checkpoint.report.checks.motorPending.paidSeconds>0&&
+      checkpoint.report.checks.motorPending.paidSeconds<1.8);
+    status=await evaluate(win,'window.__visualReferenceFixture.interruptMotor()');
+    assert.equal(status.checks.motorInterrupted.poseCleared,true);
+    assert.equal(status.checks.motorInterrupted.sameInstantReadPure,true);
+    assert.equal(await raw(win),checkpoint.raw,
+      'Cancelling the paid motion after checkpoint cannot rewrite occupied bytes');
+    measured=await measurementPoint(win,'motor-interrupted');
+    assert(Object.values(measured.counts).every(value=>value===0));
+    await fs.writeFile(path.join(context.output,'checkpoint.json'),JSON.stringify({...checkpoint,screenshots},null,2));
+    await evaluate(win,'window.__visualReferenceFixture.dispose();true');
+    await session.defaultSession.flushStorageData();
+  }
   async function exercise(win){
     assert.equal(await raw(win),null,'Fresh disposable profile must contain no current save');
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
     const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':
-      context.ambiguityScenario?'{...context,ambiguityScenario:true}':'context';
+      context.ambiguityScenario?'{...context,ambiguityScenario:true}':
+      context.motorScenario?'{...context,motorScenario:true}':'context';
     const install='window.__visualReferenceFixture=await window.__ozarkWorld.referenceFixture(context=>('+installVisualReferenceFixture.toString()+')('+fixtureContext+',document.baseURI,('+visualReferenceEvidence.toString()+')),'+
-      JSON.stringify(context.responseScenario?{negativeControlSeed:212}:{})+');return Boolean(window.__visualReferenceFixture)';
+      JSON.stringify(context.responseScenario?{negativeControlSeed:212}:context.motorScenario?{motorScenario:true}:{})+');return Boolean(window.__visualReferenceFixture)';
     assert.equal(await evaluate(win,'(async()=>{'+install+'})()'),true,'Install fixture on actual fresh main population');
     assert.equal(await evaluate(win,'window.__ozarkWorld.communicationSnapshot().seed'),context.responseScenario?212:211,
       'Native scenario must use its disclosed fresh communication stream');
     assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),false,'Fixture owns the sole manual clock; normal timer start is blocked');
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Fresh fixture installer is one-use');
     let status=await evaluate(win,'window.__visualReferenceFixture.status()');assert.equal(status.pose,null);
+    if(context.motorScenario)return motorExercise(win);
     if(context.ambiguityScenario){
       const placed=await snapshot(win);
       assert.deepEqual(placed.agents.map(actor=>actor.position),[{x:-12943,y:3595},{x:-12827,y:3543}],
@@ -568,6 +643,7 @@ function installRunner(context,helpers){
     await session.defaultSession.flushStorageData();
   }
   async function reopen(win){
+    if(context.motorScenario)return motorReopen(win);
     const saved=JSON.parse(await fs.readFile(path.join(context.output,'checkpoint.json'),'utf8'));
     assert.equal(saved.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
     assert.equal(await raw(win),saved.raw,'Independent reopen reads exact saved mid-action bytes');
@@ -603,6 +679,62 @@ function installRunner(context,helpers){
     await fs.writeFile(path.join(context.output,'after-checkpoint.json'),JSON.stringify({raw:resavedRaw,expectedRestored:restored,replay,reference,modelAudit,
       report:saved.report,
       pendingKind:saved.pendingKind,fixtureDisclosure:saved.fixtureDisclosure,screenshots:[...saved.screenshots,...screenshots]},null,2));
+    await session.defaultSession.flushStorageData();
+  }
+  async function motorReopen(win){
+    const saved=JSON.parse(await fs.readFile(path.join(context.output,'checkpoint.json'),'utf8'));
+    assert.equal(saved.pendingKind,'free-hand');
+    assert.equal(await raw(win),saved.raw,
+      'Independent motor reopen must read exact occupied mid-action bytes');
+    const restored=await snapshot(win);
+    assert.deepEqual(restored,saved.expectedRestored,
+      'Ordinary save migration must interrupt only the unfinished physical motor action');
+    assert(restored.agents.every(actor=>actor.active===null),
+      'No target-free action may remain active after independent reopen');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.gestureMemoryEmpty()'),true,
+      'Independent reopen cannot restore actor-local public gesture rows');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.gesturePredictionEmpty()'),true,
+      'Independent reopen cannot restore a frozen self-supervised forecast');
+    assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
+    assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,
+      'Occupied saved motor profile cannot obtain fresh fixture authority');
+    const measured=await measurementPoint(win,'motor-reopen');
+    assert(Object.values(measured.counts).every(value=>value===0)&&
+      measured.events.length===0&&measured.pending===0,
+      'A paid neutral motion cannot replay character events or learning on reopen');
+    for(const actor of measured.actors){
+      assert.equal(actor.freeHandObserver?.selectedAttempts,0);
+      assert.equal(actor.freeHandObserver?.visibleSamples,0);
+      assert.equal(actor.freeHandObserver?.eligibleDecisions,0);
+      assert(actor.freeHandObserver.nextEligibleAt>=restored.elapsed+120-1e-7,
+        'Each reopened actor independently waits another full motor cooldown');
+    }
+    const copied=await evaluate(win,'('+probeFreeHandReopen.toString()+')(document.baseURI,window.__ozarkWorld.fullSnapshot(),'+
+      JSON.stringify(saved.serializedActive)+')');
+    assert.deepEqual(copied,{copiedPose:null,copiedOwnAction:false,copiedPaidSeconds:0,
+      noRevivedAuthority:true},'A copied saved motor command cannot resurrect private paid authority');
+    assert.deepEqual(await snapshot(win),restored,'Copied-state authority probe cannot change the live world');
+    await capture(win,'motor-04-independent-reopen-no-authority.png');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true,
+      'Ordinary save after reopen must retain the actual interrupted world');
+    const resavedRaw=await raw(win);
+    assert.deepEqual(JSON.parse(resavedRaw).characterMessages,
+      JSON.parse(saved.raw).characterMessages,
+      'Neutral movement cannot alter private character weights, baselines, replay or RNG');
+    await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({
+      passed:true,nativeExecutionPerformed:false,sourceIdentity:context.sourceIdentity,
+      sourceFingerprint:context.sourceFingerprint,mainPopulationAndEcology:true,
+      originalActorPositions:true,realFixedStep:1/60,actualCanvas:true,
+      motorFirst:saved.report.checks.motorFirstComplete,
+      motorFirstVisible:saved.report.checks.motorFirstVisible,
+      motorSecondVisible:saved.report.checks.motorSecondVisible,
+      motorPending:saved.report.checks.motorPending,
+      copiedSavedAuthority:copied,independentReopenDelay:measured.actors.map(actor=>({
+        id:actor.id,...actor.freeHandObserver})),
+      noCharacterMessageOrLearning:true,screenshots:[...saved.screenshots,...screenshots],
+      fixtureDisclosure:saved.fixtureDisclosure,
+      scope:'Engineering-only, target-free funded motor movement in the main Ozark state: two original actors, unchanged ecology and real 120-second first delay. Aster fully pays one 1.8-second hand movement; Mira begins her independent first movement and is saved during paid partial work. Real peer sight and a read-only occlusion probe distinguish pose, visible absence and unknown. Independent reopen discards motor authority and local predictor history. The fixed curiosity and motor shape are supplied scaffolding, not a word, clarification request, learned response, ordinary encounter, survival benefit or language acquisition.'
+    },null,2));
     await session.defaultSession.flushStorageData();
   }
   async function verify(win){
@@ -706,7 +838,8 @@ function installRunner(context,helpers){
         assertCurrentRoute(await evaluate(win,'('+currentRouteSnapshot.toString()+')(window,document)'));
         assert.equal(await evaluate(win,"import('./src/build-info.js').then(module=>module.BUILD_SOURCE_FINGERPRINT)"),context.sourceFingerprint);
         const operation=phase.startsWith('response-')?phase.slice('response-'.length):
-          phase.startsWith('ambiguity-')?phase.slice('ambiguity-'.length):phase;
+          phase.startsWith('ambiguity-')?phase.slice('ambiguity-'.length):
+          phase.startsWith('motor-')?phase.slice('motor-'.length):phase;
         await ({exercise,reopen,verify}[operation])(win);await closeNormally(win);
       }catch(error){
         console.error(error);const failure={phase,stage,error:String(error?.stack||error),events};
@@ -720,7 +853,7 @@ function installRunner(context,helpers){
 }
 
 const helpers={captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
-  visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen};
+  visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen};
 // Serialized helper expressions are created outside installRunner, so their
 // imported assertion dependency must exist in the generated outer scope.
 const source="const assert = require('node:assert/strict');\n"+'('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';
@@ -728,7 +861,8 @@ let nativeProcessesClosed=true,nativeProcessesStarted=0;
 try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
-    nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:ambiguityScenario?
+    nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:motorScenario?
+      'engineering-only original-position main-world target-free funded motor action, fixed 120-simulation-second first delay through 7,200 real fixed steps, full Aster payment, Mira pending paid save and independent reopen; actual public pose and actor-local prediction, no assigned meaning, object or automatic response':ambiguityScenario?
       'engineering-only fixed seed-211 actor placement and reciprocal position swap of existing ripe bramble object:504 and apple tree object:505 before observation; one actual Canvas paid ambiguous reply must censor sender feedback without erasing the one listener example; no ordinary opportunity, cohort or generalization':responseScenario?
       'engineering-only fixed historical seed 212 wrong-choice negative control with authored Mira position (230,960); actual Canvas listener and sender updates, mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
       'engineering-only original-position actual Canvas own-demo character learning; a paid sender-visible reply can be censored by actual observation; pending sampled message close/reopen and read-only model inspection; no cohort or generalization'};

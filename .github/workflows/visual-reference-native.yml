@@ -18,6 +18,8 @@ on:
       - 'tests/character-message-*.test.mjs'
       - 'tests/learning-view.test.mjs'
       - 'tests/visual-indication-action.test.mjs'
+      - 'tests/actor-gesture-*.test.mjs'
+      - 'tests/free-hand-action.test.mjs'
       - 'package*.json'
   push:
     branches: [main]
@@ -49,21 +51,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-results
-          node --test tests/character-message-*.test.mjs tests/learning-view.test.mjs tests/visual-indication-action.test.mjs tests/visual-reference-*.test.mjs 2>&1 | tee test-results/visual-reference-focused.log
+          node --test tests/actor-gesture-*.test.mjs tests/free-hand-action.test.mjs tests/character-message-*.test.mjs tests/learning-view.test.mjs tests/visual-indication-action.test.mjs tests/visual-reference-*.test.mjs 2>&1 | tee test-results/visual-reference-focused.log
       - name: Install sandbox-preserving Linux display and window manager
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb openbox
-      - name: Linux paid sender cue, reply, ambiguity and close/reopen fixtures
+      - name: Linux paid sender cue, reply, ambiguity, neutral motor and close/reopen fixtures
         id: native_linux
         if: runner.os == 'Linux'
-        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs && node scripts/verify-visual-reference-desktop.mjs --response-scenario && node scripts/verify-visual-reference-desktop.mjs --ambiguity-scenario'
-      - name: macOS paid sender cue, reply, ambiguity and close/reopen fixtures
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-visual-reference-openbox.log" 2>&1 & node scripts/verify-visual-reference-desktop.mjs && node scripts/verify-visual-reference-desktop.mjs --response-scenario && node scripts/verify-visual-reference-desktop.mjs --ambiguity-scenario && node scripts/verify-visual-reference-desktop.mjs --motor-scenario'
+      - name: macOS paid sender cue, reply, ambiguity, neutral motor and close/reopen fixtures
         id: native_macos
         if: runner.os == 'macOS'
         run: |
           node scripts/verify-visual-reference-desktop.mjs
           node scripts/verify-visual-reference-desktop.mjs --response-scenario
           node scripts/verify-visual-reference-desktop.mjs --ambiguity-scenario
+          node scripts/verify-visual-reference-desktop.mjs --motor-scenario
       - name: Record character-message engineering scope without claiming language acquisition
         if: always()
         shell: bash
@@ -74,9 +77,10 @@ jobs:
         run: |
           echo "Causal contracts: $FOCUSED_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
           echo "Native character-message and sender-response fixture: Linux=$LINUX_OUTCOME; macOS=$MACOS_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-          echo "Three independent disposable profiles are configured. The default seed-211 original-position and fixed seed-212 wrong-choice profiles each run three native processes for actual Canvas learning, paid actions, interruption and close/reopen. The seed-212 profile moves Mira to (230,960) before action and requires a sender-local mismatch update after the listener replies with its original inspected choice." >> "$GITHUB_STEP_SUMMARY"
+          echo "Four independent disposable profiles are configured. The default seed-211 original-position and fixed seed-212 wrong-choice profiles each run three native processes for actual Canvas learning, paid actions, interruption and close/reopen. The seed-212 profile moves Mira to (230,960) before action and requires a sender-local mismatch update after the listener replies with its original inspected choice." >> "$GITHUB_STEP_SUMMARY"
           echo "The third seed-211 profile runs one native process with Aster (-12943,3595) and Mira (-12827,3543) placed before observation or action. Existing ripe bramble object:504 and apple tree object:505 exchange positions before observation; their rendering assets, actual Canvas pixel sensing and the ordinary 0.08 admission threshold remain unchanged. The paid listener reply must be continuously ambiguous in actual Aster sight, retain exactly one listener example and leave sender weights and baseline unchanged. A physically admitted reply may be censored after payment when sender perception is ambiguous." >> "$GITHUB_STEP_SUMMARY"
-          echo "All three are engineered main-world geometry and deliberate-action checks at 1/60-second steps, with bounded decision scheduling. They are not ordinary opportunity rates, autonomous learning, word meaning, grammar, generalization or survival evidence. Inspect screenshots and live parser audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
+          echo "The fourth seed-211 profile keeps both actors at original positions and changes no ecology. It advances 7,200 real fixed steps under bounded engineering command scheduling to the ordinary 120-second first motor eligibility, then checks one fully paid Aster hand motion and Mira's independent partially paid motion saved before cancellation. Native sight, Canvas capture, read-only occlusion and independent reopen must preserve character models while erasing motor authority and session-only gesture prediction. The motion has no assigned message or automatic response." >> "$GITHUB_STEP_SUMMARY"
+          echo "All four are engineered main-world geometry and deliberate-action checks at 1/60-second steps, with bounded decision scheduling. They are not ordinary opportunity rates, autonomous learning, word meaning, grammar, generalization or survival evidence. Inspect screenshots and live parser audits; file size alone is not semantic image review. Only the recorded host architecture is tested." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

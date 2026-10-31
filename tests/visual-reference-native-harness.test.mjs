@@ -215,6 +215,52 @@ test('paid ambiguity native preparation is a separate single-process actual-Canv
   }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed ambiguity preparation retained at '+output);}
 });
 
+test('target-free paid motor native preparation is a separate bounded two-process actual-Canvas gate without launching Electron',async()=>{
+  const output=await mkdtemp(join(tmpdir(),'visual-motor-harness-contract-'));let passed=false;
+  try{
+    const result=spawnSync(process.execPath,['scripts/verify-visual-reference-desktop.mjs','--prepare-only','--motor-scenario'],
+      {encoding:'utf8',timeout:120000,env:{...process.env,AINCRAD_VISUAL_REFERENCE_QA_OUTPUT:output}});
+    assert.equal(result.status,0,result.stderr);
+    const prepared=JSON.parse(result.stdout.trim());
+    assert.equal(prepared.motorScenario,true);assert.equal(prepared.responseScenario,false);
+    assert.equal(prepared.ambiguityScenario,false);assert.equal(prepared.nativeExecutionPerformed,false);
+    assert.deepEqual(prepared.phases,['motor-exercise','motor-reopen']);
+    assert.match(prepared.scope,/7,200 real fixed steps/);
+    assert.match(prepared.scope,/no assigned meaning/);
+    await assert.rejects(access(join(prepared.output,'result.json')));
+    const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});
+    assert.equal(syntax.status,0,syntax.stderr);
+    const source=await readFile(prepared.harness,'utf8');
+    const selectedExpression=source.match(/const fixtureContext=([^;]+);/)?.[1];
+    assert(selectedExpression,'Generated runner must explicitly forward the motor scenario');
+    const selected=vm.runInNewContext(selectedExpression,{context:{responseScenario:false,
+      ambiguityScenario:false,motorScenario:true}});
+    assert.equal(selected,'{...context,motorScenario:true}');
+    assert.deepEqual({...vm.runInNewContext('('+selected+')',{context:{freshRendererFixture:true}})},
+      {freshRendererFixture:true,motorScenario:true},
+      'The renderer must receive its authenticated scenario flag before the clock starts');
+    for(const contract of ["{motorScenario:true}","motorWait(600)",
+      "exactly 7,200 real main-world fixed steps","Original actors and ecology",
+      "First genuine paid hand motion did not finish","FREE_HAND_MOVED",
+      "Paid neutral motion cannot emit words or train either character learner",
+      "Controlled observer copy", "Target-free segment y",
+      "checkpointMotor(localStorage)","interruptMotor()",
+      "Independent motor reopen must read exact occupied mid-action bytes",
+      "Each reopened actor independently waits another full motor cooldown",
+      "copied saved motor command cannot resurrect private paid authority",
+      "motor-02-aster-real-paid-segment.png","motor-03-mira-partial-real-paid-segment.png",
+      "motor-04-independent-reopen-no-authority.png"])
+      assert(source.includes(contract),contract);
+    const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
+    assert.equal(archive.nativeExecutionPerformed,false);
+    assert.equal(archive.copiedAfterProcessesClosed,false);
+    const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
+    assert.match(workflow,/--motor-scenario/);
+    assert.match(workflow,/7,200 real fixed steps/);
+    passed=true;
+  }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed motor preparation retained at '+output);}
+});
+
 async function fixtureHook(overrides={}){
   const source=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
   const start=source.indexOf('referenceFixture: async (install, options={}) => {');
@@ -257,6 +303,7 @@ test('actual fresh-main fixture installer rejects other routes, existing profile
 
 test('negative-control seed is confined to a blank disposable fixture and preserves body and lineage',async()=>{
   const malformed=[null,[],{negativeControlSeed:211},{negativeControlSeed:'212'},
+    {motorScenario:false},{motorScenario:'true'},{motorScenario:true,extra:true},
     {negativeControlSeed:212,extra:true},{other:212},12];
   for(const options of malformed){
     const {hook,context}=await fixtureHook();let called=false;
@@ -291,6 +338,20 @@ test('negative-control seed is confined to a blank disposable fixture and preser
     {sender:{emissions:1,updates:0},partners:[]}]};
   await assert.rejects(trained.hook.install(()=>true,{negativeControlSeed:212}),/fresh blank reference learner/);
   assert.equal(trained.context.disposed,0);assert.equal(trained.context.state.visualReference.seed,211);
+});
+
+test('fresh motor-only fixture expands the real fixed-step cap without changing the ordinary fixture bound',async()=>{
+  const {hook,context}=await fixtureHook();let controls;
+  assert.equal(await hook.install(value=>{controls=value;return true;},{motorScenario:true}),true);
+  assert.equal(hook.owner().maxSteps,7500);
+  for(let i=0;i<7500;i++)assert.equal(controls.step(),true);
+  assert.equal(controls.step(),false);
+  assert(Math.abs(context.state.elapsed-125)<1e-7);
+  const ordinary=await fixtureHook();let regular;
+  assert.equal(await ordinary.hook.install(value=>{regular=value;return true;}),true);
+  assert.equal(ordinary.hook.owner().maxSteps,1200);
+  for(let i=0;i<1200;i++)assert.equal(regular.step(),true);
+  assert.equal(regular.step(),false);
 });
 
 test('actual fixture clock fails closed after installer/step errors and rejects reentrant stepping',async()=>{

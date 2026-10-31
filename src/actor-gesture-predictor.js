@@ -1,28 +1,32 @@
 // Session-only prediction of the next personally visible public pose. This
-// learner has no object, transaction, partner identity, reward or action input.
+// learner has no object, transaction, partner identity or reward input. Only
+// the actor's own current motor context can identify an action.
 import { CONFIG, NPC_RULES } from './config.js';
 
 export const ACTOR_GESTURE_PREDICTOR_RULES=Object.freeze({horizonTicks:30,
-  featureCount:11,learningRate:0.01,gradientClip:1});
+  featureCount:15,learningRate:0.01,gradientClip:1});
 const {horizonTicks,featureCount,learningRate,gradientClip}=ACTOR_GESTURE_PREDICTOR_RULES;
 const STEP=CONFIG.fixedStep,EPS=1e-8,SCORE_FLOOR=1e-12,MAX=Number.MAX_SAFE_INTEGER;
 const scalar=(n)=>Number.isFinite(n);
 const pair=(p)=>p&&scalar(p.dx)&&scalar(p.dy);
+const pose=(p)=>p&&pair(p.origin)&&pair(p.tip)&&scalar(p.progress)&&p.progress>0&&p.progress<=1;
 const unit=(n)=>Math.max(-1,Math.min(1,n));
 const boundedAdd=(a,b)=>Math.min(MAX,a+b);
 
 function checkedRow(row){
   if(!row||!scalar(row.at)||!['unknown','absent','pose'].includes(row.visibility)||
-    !row.self||![0,1].includes(row.self.actionActive)||
+    !row.self||![0,1].includes(row.self.actionActive)||![0,1].includes(row.self.freeHandActive)||
     row.self.poseProgress!==null&&(!scalar(row.self.poseProgress)||
-      row.self.poseProgress<=0||row.self.poseProgress>1))
+      row.self.poseProgress<=0||row.self.poseProgress>1)||
+    row.self.freeHandPose!==null&&(!row.self.freeHandActive||!pose(row.self.freeHandPose))||
+    row.self.freeHandPose!==null&&row.self.poseProgress!==row.self.freeHandPose.progress||
+    row.self.freeHandActive&&!row.self.actionActive)
     throw new TypeError('Invalid actor-local gesture row');
   if(row.visibility==='unknown'){
     if(row.pose!==null||row.peer!==null&&!pair(row.peer))
       throw new TypeError('Invalid unknown actor-local gesture row');
   }else if(!pair(row.peer)||row.visibility==='absent'&&row.pose!==null||
-    row.visibility==='pose'&&(!row.pose||!pair(row.pose.origin)||!pair(row.pose.tip)||
-      !scalar(row.pose.progress)||row.pose.progress<=0||row.pose.progress>1))
+    row.visibility==='pose'&&!pose(row.pose))
     throw new TypeError('Invalid visible actor-local gesture row');
   return row;
 }
@@ -32,6 +36,7 @@ export function actorGesturePredictionFeatures(input){
   const row=checkedRow(input);
   if(row.visibility==='unknown')return null;
   const pose=row.visibility==='pose'?row.pose:null;
+  const own=row.self.freeHandPose;
   const scale=NPC_RULES.visionRadius;
   return [pose?1:0,unit(row.peer.dx/scale),unit(row.peer.dy/scale),
     pose?unit((pose.origin.dx-row.peer.dx)/24):0,
@@ -39,7 +44,10 @@ export function actorGesturePredictionFeatures(input){
     pose?unit((pose.tip.dx-pose.origin.dx)/24):0,
     pose?unit((pose.tip.dy-pose.origin.dy)/24):0,
     pose?pose.progress:0,row.self.actionActive,
-    row.self.poseProgress===null?0:1,row.self.poseProgress??0];
+    row.self.poseProgress===null?0:1,row.self.poseProgress??0,
+    row.self.freeHandActive,own?.progress??0,
+    own?unit((own.tip.dx-own.origin.dx)/24):0,
+    own?unit((own.tip.dy-own.origin.dy)/24):0];
 }
 
 function checkedModel(weights,bias,x,y){

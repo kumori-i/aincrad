@@ -13,6 +13,7 @@ import { BIOLOGY_RULES, BIOLOGY_PROFILES, gameHours, simulationSeconds } from '.
 import { beginSleep, tickPhysiology, ingestWater, harmPhysiology, wakePhysiology, isSleeping, relievePhysiology, projectPhysiology } from './biology.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { requestDiscoveryIndication, requestSharedDiscoveryGrasp, requestDiscoveryAction, tickDiscoveryAction, takeDiscoveryActionFeedback, retireDiscoveryAction, discoveryActionPaidSeconds } from './discovery-actions.js';
+import { requestFreeHandAction, tickFreeHandAction, retireFreeHandAction, freeHandPaidSeconds, recognizedFreeHandAction } from './free-hand-action.js';
 import { ozarkAgentWorld, ozarkAgentSensation, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 const allowedActions=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','gather_food','eat','enter_shelter','exit_shelter','wait','rest','sleep']);
@@ -48,10 +49,11 @@ export function observeNpc(npc,environment={}){
 function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene){
   const active=npc.active;
   retireDiscoveryAction(npc,active);
+  retireFreeHandAction(npc,active);
   const handling=takeDiscoveryActionFeedback(npc,active);
   if(handling)result.handling=handling;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
-  if(active&&result.durationSeconds===undefined)result.durationSeconds=active.kind==='interaction'?discoveryActionPaidSeconds(npc,active):Math.max(0,npc.elapsed-active.startedAt);
+  if(active&&result.durationSeconds===undefined)result.durationSeconds=active.kind==='interaction'?discoveryActionPaidSeconds(npc,active):active.kind==='free-hand'?freeHandPaidSeconds(npc,active):Math.max(0,npc.elapsed-active.startedAt);
   if(active&&movementActions.has(active.request.type)&&ozarkAgentWorld(npc)){
     const expected=active.attemptedDistance||0,forward=active.forwardProgress||0;
     const ratio=expected>0?forward/expected:0;
@@ -80,6 +82,9 @@ export function requestNpcSharedGrasp(npc,donor,targetId,environment,consent){
 }
 export function cancelNpcAction(npc,code='PRIORITY_CHANGED'){
   const active=npc.active;if(!active)return false;
+  if(active.kind==='free-hand'&&!recognizedFreeHandAction(npc)){
+    retireFreeHandAction(npc,active);npc.active=null;return true;
+  }
   if(npc.mode==='discovery'&&active.request.type==='sleep')wakePhysiology(npc,'interrupted sleep');
   complete(npc,active.request,{ok:false,code,riskCost:Math.max(0,npc.riskCost-active.startRisk),distance:active.travelled||0},active.context,active.startPosition,active.startScene);return true;
 }
@@ -138,6 +143,7 @@ export function requestNpcAction(npc,raw,environment={}){
   if(npc.lifecycle!=='AWAKE')return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   if(npc.mode==='discovery'&&isSleeping(npc))return{ok:false,code:'ASLEEP'};
+  if(npc.mode==='discovery'&&raw?.type==='free_hand')return requestFreeHandAction(npc,raw);
   if(npc.mode==='discovery'&&DISCOVERY_RULES.allPrimitives.includes(raw?.type))return requestDiscoveryAction(npc,raw,environment,{complete});
   const request=cleanRequest(raw,npc),context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene;
   if(!request)return complete(npc,{type:'observe'},{ok:false,code:'INVALID_REQUEST'},context,startPosition);
@@ -419,6 +425,7 @@ function tickDiscoveryNpc(npc,dt,environment){
   if(!active)return;
   const losses={riskCost:Math.max(0,npc.riskCost-(active.startRisk||0))};
   if(active.kind==='interaction'){tickDiscoveryAction(npc,dt,environment,{complete});return;}
+  if(active.kind==='free-hand'){tickFreeHandAction(npc,dt,{complete});return;}
   if(active.request.type==='sleep'){
     if(!isSleeping(npc)){
       const finished=npc.physiology.sleep.wakeReason==='finished sleep';complete(npc,active.request,{ok:finished,code:finished?'SLEPT':'REST_INTERRUPTED',body:bodySignals(npc),wakeReason:npc.physiology.sleep.wakeReason,...losses},active.context,active.startPosition,active.startScene);npc.nextDecisionAt=npc.elapsed;

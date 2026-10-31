@@ -6,6 +6,7 @@ import { actorLineOfSight } from './perception.js';
 import { NPC_RULES } from './config.js';
 import { isSleeping } from './biology.js';
 import { publicIndicationGeometry } from './discovery-actions.js';
+import { ownFreeHandAction, publicFreeHandGeometry } from './free-hand-action.js';
 
 export const REFERENCE_GEOMETRY_RULES = Object.freeze({
   segmentLength:24, coneDegrees:6, extrapolationRange:400, peerRange:250,
@@ -112,8 +113,18 @@ export function observeIndication(listener,sender,state){
 export function sensePublicPeerGesture(observer,peer){
   const at=observer?.elapsed??null;
   const ownActionActive=observer?.active?1:0;
-  const ownPoseProgress=publicIndicationGeometry(observer)?.progress??null;
-  const self={actionActive:ownActionActive,poseProgress:ownPoseProgress};
+  const ownFreeHand=publicFreeHandGeometry(observer);
+  const ownPosition=observer?.position;
+  const ownRelative=p=>({dx:p.x-ownPosition.x,dy:p.y-ownPosition.y});
+  const ownCandidate=ownFreeHand&&point(ownPosition)?{
+    origin:ownRelative(ownFreeHand.origin),tip:ownRelative(ownFreeHand.tip),
+    progress:ownFreeHand.progress}:null;
+  const ownFreeHandPose=ownCandidate&&[
+    ownCandidate.origin.dx,ownCandidate.origin.dy,
+    ownCandidate.tip.dx,ownCandidate.tip.dy].every(Number.isFinite)?ownCandidate:null;
+  const self={actionActive:ownActionActive,
+    poseProgress:publicIndicationGeometry(observer)?.progress??ownFreeHandPose?.progress??null,
+    freeHandActive:Number(ownFreeHandAction(observer)),freeHandPose:ownFreeHandPose};
   const unknown={at,visibility:'unknown',peer:null,pose:null,self};
   if(!awake(observer)||!awake(peer)||observer===peer||observer.scene!==peer.scene||
     !point(observer.position)||!point(peer.position))return unknown;
@@ -121,7 +132,7 @@ export function sensePublicPeerGesture(observer,peer){
     !actorLineOfSight(observer,observer.position,peer.position))return unknown;
   const relative=p=>({dx:p.x-observer.position.x,dy:p.y-observer.position.y});
   const peerPosition=relative(peer.position);
-  const publicPose=publicIndicationGeometry(peer);
+  const publicPose=publicIndicationGeometry(peer)||publicFreeHandGeometry(peer);
   if(!publicPose)return {at,visibility:'absent',peer:peerPosition,pose:null,self};
   const visible=visibleIndicationGeometry(observer,publicPose);
   if(!visible)return {at,visibility:'unknown',peer:peerPosition,pose:null,self};

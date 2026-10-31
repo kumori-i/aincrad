@@ -7,8 +7,10 @@ import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction} from '../src/npc.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
 import {createActorGestureMemory} from '../src/actor-gesture-memory.js';
-import {sensePublicPeerGesture,senseReferenceObjects} from '../src/visual-reference-perception.js';
+import {actorGesturePredictionFeatures} from '../src/actor-gesture-predictor.js';
+import {sensePublicPeerGesture,senseReferenceObjects,observeIndication} from '../src/visual-reference-perception.js';
 import {publicIndicationGeometry} from '../src/discovery-actions.js';
+import {FREE_HAND_RULES,initializeFreeHandSession,publicFreeHandGeometry} from '../src/free-hand-action.js';
 
 const geometry=createOzarkWorldGeometry();
 function fixture({enabled=true,predictionEnabled=true,listenerSight=null,
@@ -55,7 +57,7 @@ test('bounded local rows distinguish unknown, visible absence and uninterrupted 
   const memory=createActorGestureMemory({capacity:3,ttlSeconds:1});
   const sample=(at,visibility)=>({at,visibility,
     peer:visibility==='unknown'?null:{dx:3,dy:4},pose:null,
-    self:{actionActive:0,poseProgress:null}});
+    self:{actionActive:0,poseProgress:null,freeHandActive:0,freeHandPose:null}});
   assert.equal(memory.record(sample(0,'unknown')),true);
   memory.record(sample(CONFIG.fixedStep,'absent'));
   memory.record(sample(2*CONFIG.fixedStep,'absent'));
@@ -81,6 +83,17 @@ test('bounded local rows distinguish unknown, visible absence and uninterrupted 
   assert(expired.expirations>=1);
   memory.clear();assert.deepEqual(memory.read(2.1).records,[]);
   assert.throws(()=>memory.record({...sample(2,'pose'),pose:{origin:{dx:0,dy:0},tip:{dx:1,dy:0},progress:NaN}}),/Invalid/);
+  const motor=sample(2.2,'absent');
+  motor.self={actionActive:1,poseProgress:.5,freeHandActive:1,
+    freeHandPose:{origin:{dx:0,dy:0},tip:{dx:0,dy:-24},progress:.5}};
+  assert.equal(memory.record(motor),true);
+  motor.self.freeHandPose.tip.dy=999;
+  const recorded=memory.read(2.2).records.at(-1);
+  assert.equal(recorded.self.freeHandPose.tip.dy,-24);
+  recorded.self.freeHandPose.tip.dy=999;
+  assert.equal(memory.read(2.2).records.at(-1).self.freeHandPose.tip.dy,-24);
+  assert.throws(()=>memory.record({...sample(2.3,'absent'),self:{...motor.self,
+    freeHandActive:0}}),/Invalid/);
 });
 
 test('real paid public indication enters only the listener’s numeric local view',()=>{
@@ -111,6 +124,62 @@ test('real paid public indication enters only the listener’s numeric local vie
     assert.equal(last.visibility,'absent','A finished pose is no longer public');
     assert(last.continuousVisible,'The visible pose-to-absence transition was observed');
     assert.equal(f.attachment.snapshot().observed,1);
+  }finally{f.attachment.dispose();}
+});
+
+test('funded target-free hand motion is public numeric pose but never an object indication',()=>{
+  let hidden=null;
+  const f=fixture({listenerSight:(_,to,ordinary)=>ordinary(_,to)&&
+    (!hidden||Math.hypot(to.x-hidden.x,to.y-hidden.y)>1e-8)});
+  try{
+    // This source fixture advances the eligibility clock only; the gesture
+    // itself must still complete through ordinary funded NPC ticks.
+    initializeFreeHandSession(f.sender);
+    f.state.elapsed=FREE_HAND_RULES.cooldownSeconds;
+    for(const actor of f.state.agents)actor.elapsed=f.state.elapsed;
+    f.state.environment.elapsed=f.state.elapsed;
+    f.state.environment.ecology.elapsed=f.state.elapsed;
+    assert.equal(requestNpcAction(f.sender,{type:'free_hand'},f.state.environment).code,'ACTION_STARTED');
+    assert.equal(publicFreeHandGeometry(f.sender),null,'Admission has not paid for a visible segment');
+    f.advance(.25);
+    const publicPose=publicFreeHandGeometry(f.sender);
+    assert(publicPose&&publicPose.progress>0);
+    assert.equal(publicIndicationGeometry(f.sender),null);
+    const received=f.attachment.readGestureMemory(f.listener).records.at(-1);
+    const own=f.attachment.readGestureMemory(f.sender).records.at(-1);
+    assert.equal(received.visibility,'pose');
+    assert.deepEqual(Object.keys(received.pose).sort(),['origin','progress','tip']);
+    assert.equal(received.pose.tip.dx,publicPose.tip.x-f.listener.position.x);
+    assert.equal(received.self.freeHandActive,0,'Peer action identity is not a sensory feature');
+    assert.equal(own.visibility,'absent');
+    assert.equal(own.self.freeHandActive,1);
+    assert.equal(own.self.freeHandPose.progress,publicPose.progress);
+    assert.equal(own.self.freeHandPose.tip.dx,publicPose.tip.x-f.sender.position.x);
+    const counts=()=>f.attachment.measurementSnapshot().actors.find(row=>row.id===f.listener.id).freeHandObserver;
+    const seen=counts();
+    assert(seen.visibleSamples>0,'Only actual locally visible funded samples are counted');
+    assert.deepEqual(counts(),seen,'Repeated observer reads cannot count a new sighting');
+    assert.deepEqual(actorGesturePredictionFeatures(own).slice(-4),[
+      1,publicPose.progress,
+      (publicPose.tip.x-publicPose.origin.x)/24,
+      (publicPose.tip.y-publicPose.origin.y)/24]);
+    assert.equal(observeIndication(f.listener,f.sender,f.state).reason,'invalid-gesture',
+      'The target-free pose cannot enter the object reference parser');
+    const copied=f.attachment.readGestureMemory(f.sender);
+    copied.records.at(-1).self.freeHandPose.tip.dx=999;
+    assert.notEqual(f.attachment.readGestureMemory(f.sender).records.at(-1).self.freeHandPose.tip.dx,999);
+    hidden={x:(publicPose.origin.x+publicPose.tip.x)/2,
+      y:(publicPose.origin.y+publicPose.tip.y)/2};
+    f.step();
+    const occluded=f.attachment.readGestureMemory(f.listener).records.at(-1);
+    assert.equal(occluded.visibility,'unknown');
+    assert(occluded.peer,'The peer remains visible although the paid segment is not');
+    assert.equal(counts().visibleSamples,seen.visibleSamples,'Occlusion is not a visible pose sample');
+    hidden=null;
+    cancelNpcAction(f.sender,'TEST_INTERRUPTION');f.step();
+    assert.equal(publicFreeHandGeometry(f.sender),null);
+    assert.equal(f.attachment.readGestureMemory(f.listener).records.at(-1).visibility,'absent');
+    assert.equal(counts().visibleSamples,seen.visibleSamples,'Visible absence is not a motion sample');
   }finally{f.attachment.dispose();}
 });
 

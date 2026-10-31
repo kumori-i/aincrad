@@ -4,6 +4,7 @@ import {createNpc} from '../src/npc-state.js';
 import {OZARK_WORLD_PROFILE} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {referenceGeometry,createIndicationPermit,publicIndicationGeometry} from '../src/discovery-actions.js';
+import {FREE_HAND_RULES,initializeFreeHandSession,publicFreeHandGeometry} from '../src/free-hand-action.js';
 import {createOzarkState} from '../src/ozark-save.js';
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {observeNpc,requestNpcAction,requestNpcIndication,tickNpc} from '../src/npc.js';
@@ -190,6 +191,34 @@ test('NPC sprite transforms cannot translate, scale or height-offset the public 
   drawNpc(context,sender,123);
   const expected=p=>[camera[0]*p.x+camera[2]*p.y+camera[4],camera[1]*p.x+camera[3]*p.y+camera[5]];
   assert.deepEqual(calls,[['moveTo',...expected(publicGeometry.origin)],['lineTo',...expected(publicGeometry.tip)]]);
+  assert.deepEqual(matrix,camera);assert.equal(stack.length,0);assert.deepEqual(state,before);
+});
+
+test('sprite draws the exact funded target-free segment without creating a reference pointer',()=>{
+  const world=createOzarkWorldGeometry(),state=createOzarkState(world),[actor,peer]=state.agents;
+  for(const n of state.agents){bindOzarkWorldAgent(n,world,state);observeNpc(n,state.environment);}
+  initializeFreeHandSession(actor);
+  state.elapsed=FREE_HAND_RULES.cooldownSeconds;
+  for(const n of state.agents)n.elapsed=state.elapsed;
+  state.environment.elapsed=state.elapsed;
+  state.environment.ecology.elapsed=state.elapsed;
+  assert.equal(requestNpcAction(actor,{type:'free_hand'},state.environment).code,'ACTION_STARTED');
+  assert.equal(publicFreeHandGeometry(actor),null);
+  tickNpc(actor,.1,state.environment);
+  const pose=publicFreeHandGeometry(actor);assert(pose);
+  assert.equal(publicIndicationGeometry(actor),null);
+  assert.equal(observeIndication(peer,actor,state).reason,'invalid-gesture');
+  const before=structuredClone(state),calls=[],stack=[];
+  let matrix=[1.7,0,0,1.7,-83,47];const camera=matrix.slice();
+  const mapped=(x,y)=>[matrix[0]*x+matrix[2]*y+matrix[4],matrix[1]*x+matrix[3]*y+matrix[5]];
+  const context={save(){stack.push(matrix.slice());},restore(){matrix=stack.pop();},
+    translate(x,y){matrix[4]+=matrix[0]*x+matrix[2]*y;matrix[5]+=matrix[1]*x+matrix[3]*y;},
+    scale(x,y){matrix[0]*=x;matrix[1]*=x;matrix[2]*=y;matrix[3]*=y;},
+    fillRect(){},beginPath(){},stroke(){},
+    moveTo(x,y){calls.push(['moveTo',...mapped(x,y)]);},lineTo(x,y){calls.push(['lineTo',...mapped(x,y)]);}};
+  drawNpc(context,actor,123);
+  const expected=p=>[camera[0]*p.x+camera[2]*p.y+camera[4],camera[1]*p.x+camera[3]*p.y+camera[5]];
+  assert.deepEqual(calls,[['moveTo',...expected(pose.origin)],['lineTo',...expected(pose.tip)]]);
   assert.deepEqual(matrix,camera);assert.equal(stack.length,0);assert.deepEqual(state,before);
 });
 

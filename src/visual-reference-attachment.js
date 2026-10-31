@@ -6,6 +6,7 @@ import { requestNpcIndication, cancelNpcAction } from './npc.js';
 import { senseReferenceObjects, resolveIndication, visibleIndicationGeometry, observeIndication, sensePublicPeerGesture } from './visual-reference-perception.js';
 import { createActorGestureMemory } from './actor-gesture-memory.js';
 import { createActorGesturePredictor } from './actor-gesture-predictor.js';
+import { noteFreeHandVisibleSample, readFreeHandObserver } from './free-hand-action.js';
 import { actorLineOfSight } from './perception.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
@@ -630,8 +631,11 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       for(const actor of state.agents){
         const peer=state.agents.find(other=>other!==actor);
         const entry=identities.get(actor),sample=sensePublicPeerGesture(actor,peer);
-        if(entry?.gesture.record(sample)&&gesturePredictionEnabled){
-          try{entry.predictor.observe(sample);}catch{entry.predictor.clear();}
+        if(entry?.gesture.record(sample)){
+          noteFreeHandVisibleSample(actor,peer,sample);
+          if(gesturePredictionEnabled){
+            try{entry.predictor.observe(sample);}catch{entry.predictor.clear();}
+          }
         }
       }
     }catch{
@@ -665,7 +669,8 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         pending:stale?null:sessions.size,identityPendingReconciliation:stale,
         actors:stale?[]:state.agents.map(actor=>({id:actor.id,identity:identities.get(actor).serial,
           scene:actor.scene,position:{...actor.position},body:observerBody(actor),
-          character:identities.get(actor).character.snapshot()})),
+          character:identities.get(actor).character.snapshot(),
+          freeHandObserver:readFreeHandObserver(actor)})),
         events:stale?[]:sample.events};
     },
     snapshot(){const stale=!currentIdentities(),feedbackCurrent=!stale&&[...identities].every(([actor,entry])=>entry.epoch===actor.epoch);return {phase:protocol==='sequence'?'private-character-message':'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:feedbackCurrent?sessions.size:0,gates:{...gates},senderFeedback:feedbackCurrent?structuredClone([...feedbackByActor.values()].flat().map(({eventId,signal,features,at})=>({eventId,signal,features,at}))):[],learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot(),...(protocol==='sequence'?{character:entry.character.snapshot()}: {})})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':protocol==='sequence'?'Actual sampled character messages; listener models train only from own-view paid demonstrations and sender models only from completed own-view replies. No English meaning, abstraction or survival benefit is established.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Sender feedback is transient local visual similarity, not critic correctness. Retained examples are not autonomous language, abstraction or survival-benefit evidence.'}};},

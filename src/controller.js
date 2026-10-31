@@ -15,6 +15,7 @@ import { discoveryDecision,discoveryObservation,processDiscoveryFeedback,contact
 import { isSleeping } from './biology.js';
 import { ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 import { setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates } from './discovery-candidates.js';
+import { initializeFreeHandSession, disposeFreeHandSession, recognizedFreeHandAction } from './free-hand-action.js';
 
 function random(npc){npc.rng=(Math.imul(npc.rng,1664525)+1013904223)>>>0;return npc.rng/4294967296;}
 const namingAwake=n=>n.lifecycle==='AWAKE'&&!isSleeping(n)&&!['rest','sleep','nap'].includes(n.active?.request?.type);
@@ -145,12 +146,12 @@ export class DesktopModelProvider {
   cancel(){Promise.resolve(this.bridge.cancel(this.npcId)).catch(()=>{});}
 }
 export class NpcController {
-  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false,experimentalDiscovery=null,communicationMode=social?.communicationMode||'grounded'}={}){defineCommunicationMode(this,communicationMode);bindCommunicationMode(npc,this.communicationMode);this.experimentalDiscovery=experimentalDiscovery;this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
+  constructor(npc,{provider=new LocalLearnerProvider(),environment={},social=null,discoveryFoodLearning=true,deferInitialObservation=false,experimentalDiscovery=null,communicationMode=social?.communicationMode||'grounded'}={}){defineCommunicationMode(this,communicationMode);bindCommunicationMode(npc,this.communicationMode);this.experimentalDiscovery=experimentalDiscovery;this.discoveryFoodLearning=discoveryFoodLearning!==false;this.social=social;this.npc=npc;this.provider=provider;this.fallback=new LocalLearnerProvider();this.environment=environment;this.pending=null;this.namingPending=null;this.namingLastAttemptAt=-Infinity;this.namingStatus={state:'idle'};this.readyDecision=null;this.generation=0;this.epoch=npc.epoch;this.senseAt=-1;this.failures=0;this.cooldownUntil=0;this.disposed=false;if(ozarkPersistentWorldAgent(npc))initializeFreeHandSession(npc);if(!deferInitialObservation){observeNpc(npc,environment);updateCognition(npc);}}
   setProvider(provider){this.cancel();this.provider=provider;this.failures=0;this.cooldownUntil=0;this.npc.nextDecisionAt=this.npc.elapsed;}
   cancel(){this.generation++;this.pending=null;if(this.namingPending)this.namingStatus={state:'cancelled',at:this.npc.elapsed};this.namingPending=null;this.readyDecision=null;this.provider.cancel?.();}
   setDiscoveryCandidateCapture(enabled){setDiscoveryCandidateCapture(this,enabled);}
   takeDiscoveryCandidateSnapshot(){return takeDiscoveryCandidateSnapshot(this);}
-  dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}
+  dispose(){disposeDiscoveryCandidateCapture(this);if(recognizedFreeHandAction(this.npc))cancelNpcAction(this.npc,'PRIORITY_CHANGED');else if(this.npc.active?.kind==='free-hand')this.npc.active=null;disposeFreeHandSession(this.npc);this.disposed=true;this.cancel();}
   selectSkill(){const c=skillCandidates(this.npc).sort((a,b)=>needPriorities(this.npc)[b.need]-needPriorities(this.npc)[a.need])[0];return c?{skill:c.skill,[c.parameter]:c.resourceId}:null;}
   startSkill(skill,resourceId){
     const n=this.npc,candidate=skillCandidates(n).find(c=>c.skill.id===skill?.id&&c.resourceId===resourceId);if(!candidate)return false;
@@ -257,7 +258,7 @@ export class NpcController {
     if(!accepted)recordEvent(this.npc,'provider',{code:'NAMING_PROPOSAL_NOT_ADOPTED',gameplayFailure:false});
   }
   tickDiscovery(dt){
-    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;}
+    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;if(ozarkPersistentWorldAgent(n))initializeFreeHandSession(n);}
     if(this.namingPending&&(!namingAwake(n)||!n.learning||n.elapsed<this.namingPending.request.observedAt||n.elapsed-this.namingPending.request.observedAt>60))this.cancel();
     if(isSleeping(n)||n.lifecycle!=='AWAKE')return;
     processDiscoveryFeedback(n,{foodLearning:this.discoveryFoodLearning,recordEffect:effect=>recordEvent(n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});
