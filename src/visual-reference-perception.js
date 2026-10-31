@@ -103,3 +103,28 @@ export function perceiveReferenceGeometry(listener,sender,geometry,state){
 export function observeIndication(listener,sender,state){
   return perceiveReferenceGeometry(listener,sender,publicIndicationGeometry(sender),state);
 }
+
+/** Actor-local public pose sensing. This deliberately stops before object
+ * resolution: neither a target binding nor the reference transaction is a
+ * sensory input. A visible peer with no rendered pose is observed absence;
+ * an unseen peer or partly hidden segment is unknown, never silence.
+ */
+export function sensePublicPeerGesture(observer,peer){
+  const at=observer?.elapsed??null;
+  const ownActionActive=observer?.active?1:0;
+  const ownPoseProgress=publicIndicationGeometry(observer)?.progress??null;
+  const self={actionActive:ownActionActive,poseProgress:ownPoseProgress};
+  const unknown={at,visibility:'unknown',peer:null,pose:null,self};
+  if(!awake(observer)||!awake(peer)||observer===peer||observer.scene!==peer.scene||
+    !point(observer.position)||!point(peer.position))return unknown;
+  if(distance(observer.position,peer.position)>NPC_RULES.visionRadius||
+    !actorLineOfSight(observer,observer.position,peer.position))return unknown;
+  const relative=p=>({dx:p.x-observer.position.x,dy:p.y-observer.position.y});
+  const peerPosition=relative(peer.position);
+  const publicPose=publicIndicationGeometry(peer);
+  if(!publicPose)return {at,visibility:'absent',peer:peerPosition,pose:null,self};
+  const visible=visibleIndicationGeometry(observer,publicPose);
+  if(!visible)return {at,visibility:'unknown',peer:peerPosition,pose:null,self};
+  return {at,visibility:'pose',peer:peerPosition,
+    pose:{origin:relative(visible.origin),tip:relative(visible.tip),progress:visible.progress},self};
+}

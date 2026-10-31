@@ -56,6 +56,13 @@ Opening, saving and closing the view cannot draw policy randomness or train a
 model. Events are session-only; pending gesture and message authority do not
 survive reopening.
 
+Each actor also keeps a bounded, session-only numeric memory of public pointing
+poses it actually sees. A visible peer with no pose is distinct from an unseen
+peer or a hidden pose; gaps do not count as continuous observation. The memory
+contains relative geometry and the actor's own action context, not an object
+label, partner intention or correctness signal. It is perception scaffolding
+for future work, not learned gesture meaning or a clarification convention.
+
 Strict current-world saves keep the old visual associations and their four RNG
 continuations intact while adding bounded private character weights, examples,
 counters and separate RNG states. Valid old visual-reference saves migrate

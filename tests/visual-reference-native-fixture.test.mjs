@@ -71,8 +71,13 @@ function firstPaidExchange(f){
   assert.equal(fixture.beginIndication().pose,null);
   const during=fixture.visible();
   assert(during.pose);assert.equal(during.checks.visibleCrop.actualCanvas,false);
+  assert.equal(during.checks.actorGestureMemory?.paidChoiceVisibleAbsence,true);
+  assert.equal(during.checks.actorGestureMemory.forward?.paidPoseObserved,true);
+  assert.equal(during.checks.actorGestureMemory.forward.defensiveReadPure,true);
+  assert.equal(during.checks.actorGestureMemory.controlledUnknown,true);
   const complete=fixture.completeIndication();
   assert.equal(complete.pose,null);
+  assert.equal(complete.checks.actorGestureMemory.forwardEndedAsVisibleAbsence,true);
   assert.equal(complete.reference.observed,1);
   assert.equal(complete.reference.latest.listenerUpdate,true);
   assert.equal(complete.checks.listenerLearning.optimizerSteps,1);
@@ -91,7 +96,9 @@ async function assertReopen(f,checkpoint){
   assert.equal(checkpoint.serializedInspectionActive.request.type,'inspect_object');
   assert.deepEqual(JSON.parse(checkpoint.raw).characterMessages,
     f.reference.exportPersistence().characterMessages,'Checkpoint retains exact private weights and RNG');
-  assert.equal(fixture.interrupt().checks.interruption.poseCleared,true);
+  const interrupted=fixture.interrupt();
+  assert.equal(interrupted.checks.interruption.poseCleared,true);
+  assert.equal(interrupted.checks.actorGestureMemory.interruptionPublicPoseAbsent,true);
   const loaded=loadOzarkSave(storage,geometry);
   assert.equal(loaded.blocked,false);
   const beforeCopy=structuredClone(loaded.state);
@@ -100,6 +107,8 @@ async function assertReopen(f,checkpoint){
     const savedCharacters=JSON.parse(checkpoint.raw).characterMessages;
     assert.deepEqual(restored.exportPersistence().characterMessages,savedCharacters);
     assert.equal(restored.snapshot().pending,0);
+    assert.deepEqual(restored.readGestureMemory(loaded.state.agents[0]).records,[]);
+    assert.deepEqual(restored.readGestureMemory(loaded.state.agents[1]).records,[]);
     assert.deepEqual(restored.snapshot().observationEvents,[]);
     assert.deepEqual(restored.snapshot().senderFeedback,[]);
     assert.deepEqual(durable(restored.snapshot()),durable(checkpoint.report.reference));

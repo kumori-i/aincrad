@@ -3,7 +3,8 @@
 // their former protocol. This channel owns no clock, population or bodily credit.
 import { createIndicationPermit, createListenerResponsePermit, retireIndicationPermit, discoveryActionCompletion, successfulDiscoveryActionCompletion, referenceGeometry } from './discovery-actions.js';
 import { requestNpcIndication, cancelNpcAction } from './npc.js';
-import { senseReferenceObjects, resolveIndication, visibleIndicationGeometry, observeIndication } from './visual-reference-perception.js';
+import { senseReferenceObjects, resolveIndication, visibleIndicationGeometry, observeIndication, sensePublicPeerGesture } from './visual-reference-perception.js';
+import { createActorGestureMemory } from './actor-gesture-memory.js';
 import { actorLineOfSight } from './perception.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping } from './biology.js';
@@ -68,7 +69,7 @@ export function reverseReferenceFailure(sender,sight,index,reply,
   return 'reverse-invalid-resolution';
 }
 
-export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.visualReference?.seed??211,protocol='legacy'}){
+export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.visualReference?.seed??211,protocol='legacy',gestureMemoryEnabled=true}){
   if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw new TypeError('Expected uint32 seed');
   if(typeof pixelSensor?.capture!=='function')throw new TypeError('A live pixel sensor is required');
   if(!['legacy','sequence'].includes(protocol))throw new TypeError('Unknown private reference protocol');
@@ -127,6 +128,7 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     // Session rows carry names, not durable incarnation keys. Do not show a
     // retired person's events as the replacement person's conversation.
     if(retiredIds.size){
+      for(const entry of identities.values())entry.gesture.clear();
       feedbackByActor.clear();
       if(measurement)measurement.retire(retiredIds);
       else for(let index=events.length-1;index>=0;index--)
@@ -138,11 +140,15 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
       const serial=nextIdentity++;
       identities.set(actor,{token:Object.freeze({}),agentId:actor.id,serial,discovery:actor.discovery,physiology:actor.physiology,
         epoch:actor.epoch,memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:serial}),
-        character:createCharacterMessageLearner({seed,ownerSerial:serial})});
+        character:createCharacterMessageLearner({seed,ownerSerial:serial}),
+        gesture:createActorGestureMemory()});
     }
     // Completed response samples are session evidence. Bodily interruption
     // erases them without erasing personally acquired associations.
-    for(const [actor,entry]of identities)if(entry.epoch!==actor.epoch){feedbackByActor.clear();entry.character.cancelPending();entry.epoch=actor.epoch;}
+    for(const [actor,entry]of identities)if(entry.epoch!==actor.epoch){
+      feedbackByActor.clear();entry.character.cancelPending();entry.epoch=actor.epoch;
+      for(const owner of identities.values())owner.gesture.clear();
+    }
     for(const [actor,entry]of identities){
       const peers=[...identities].filter(([other])=>other!==actor).map(([,other])=>other);
       entry.memory.reconcilePartners(peers.map(other=>other.token));
@@ -158,7 +164,8 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     identities.set(actor,{token:Object.freeze({}),agentId:saved.agentId,serial:saved.serial,
       discovery:actor.discovery,physiology:actor.physiology,epoch:actor.epoch,
       memory:createVisualReferenceMemory({symbolSeed:seed,symbolIdentity:saved.serial}),
-      character:createCharacterMessageLearner({seed,ownerSerial:saved.serial,restored:character})});
+      character:createCharacterMessageLearner({seed,ownerSerial:saved.serial,restored:character}),
+      gesture:createActorGestureMemory()});
   }
   for(const [actor,entry]of identities){
     const peers=[...identities].filter(([other])=>other!==actor).map(([,other])=>other);
@@ -614,9 +621,30 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
     const pending=feedbackByActor.get(sender)||[];feedbackByActor.delete(sender);
     return pending.map(({symbol,signal,features,at})=>({symbol,signal,features:features.slice(),at}));
   }
-  return {hooks,createNativeAssociationAuditReader,exportPersistence,inspectPersistedAssociation,takeSenderFeedback,
-    beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed)maintain();},
-    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');for(const entry of identities.values())entry.character.cancelPending();feedbackByActor.clear();},
+  // One symmetric sensing pass after the ordinary population/action step.
+  // No transaction, object binding, critic or pixel capture enters this store.
+  function rememberPublicGestures(){
+    if(protocol!=='sequence'||!gestureMemoryEnabled)return;
+    try{
+      for(const actor of state.agents){
+        const peer=state.agents.find(other=>other!==actor);
+        identities.get(actor)?.gesture.record(sensePublicPeerGesture(actor,peer));
+      }
+    }catch{
+      // A passive sensor may lose its session history, never stop care,
+      // physical action or the established character learners.
+      for(const entry of identities.values())entry.gesture.clear();
+    }
+  }
+  function readGestureMemory(actor){
+    if(disposed||protocol!=='sequence'||!gestureMemoryEnabled||!currentIdentities()||
+      ![...identities].every(([owner,entry])=>entry.epoch===owner.epoch))return null;
+    const entry=identities.get(actor);
+    return entry?entry.gesture.read(actor.elapsed):null;
+  }
+  return {hooks,createNativeAssociationAuditReader,exportPersistence,inspectPersistedAssociation,takeSenderFeedback,readGestureMemory,
+    beforeTick(){if(!disposed)maintain();},afterTick(){if(!disposed){maintain();rememberPublicGestures();}},
+    censorPending(){for(const t of [...sessions])finish(t,'censored','stopped');for(const entry of identities.values()){entry.character.cancelPending();entry.gesture.clear();}feedbackByActor.clear();},
     measurementSnapshot(){
       if(!measurement)return null;
       const stale=!currentIdentities(),sample=measurement.snapshot(),gateEntries=Object.entries(gates);
@@ -631,5 +659,5 @@ export function attachVisualReferenceLearning({state,pixelSensor,seed=state?.vis
         events:stale?[]:sample.events};
     },
     snapshot(){const stale=!currentIdentities(),feedbackCurrent=!stale&&[...identities].every(([actor,entry])=>entry.epoch===actor.epoch);return {phase:protocol==='sequence'?'private-character-message':'private-visual-association',seed,enabled:!disposed,elapsed:state.elapsed,...metrics,pending:feedbackCurrent?sessions.size:0,gates:{...gates},senderFeedback:feedbackCurrent?structuredClone([...feedbackByActor.values()].flat().map(({eventId,signal,features,at})=>({eventId,signal,features,at}))):[],learners:stale?[]:[...identities].map(([actor,entry])=>({agentId:actor.id,identity:entry.serial,...entry.memory.snapshot(),...(protocol==='sequence'?{character:entry.character.snapshot()}: {})})),ledger:stale?[]:structuredClone(events),observationEvents:stale?[]:structuredClone(events),latest:stale||!events.length?null:structuredClone(events.at(-1)),agents:state.agents.map(n=>({id:n.id,name:n.name,hunger:n.nourishment,thirst:n.hydration,energy:n.energy,collapses:n.stats.collapses,meals:n.stats.independentMeals,drinks:n.stats.independentDrinks})),diagnostic:{observations:metrics.observed,pendingReconciliation:stale,interpretation:stale?'Actor identity changed; private learner display waits for normal runtime reconciliation.':protocol==='sequence'?'Actual sampled character messages; listener models train only from own-view paid demonstrations and sender models only from completed own-view replies. No English meaning, abstraction or survival benefit is established.':'Private supplied-metric exemplar associations, corrected only by paid observed demonstrations. Sender feedback is transient local visual similarity, not critic correctness. Retained examples are not autonomous language, abstraction or survival-benefit evidence.'}};},
-    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');for(const entry of identities.values())entry.character.dispose();feedbackByActor.clear();disposed=true;pixelSensor.dispose?.();}};
+    dispose(){if(disposed)return;for(const t of [...sessions])finish(t,'censored','disposed');for(const entry of identities.values()){entry.character.dispose();entry.gesture.clear();}feedbackByActor.clear();disposed=true;pixelSensor.dispose?.();}};
 }
