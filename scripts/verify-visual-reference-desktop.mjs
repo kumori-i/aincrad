@@ -79,6 +79,43 @@ function installRunner(context,helpers){
       characterUnchanged:JSON.stringify(fixture?.characterExport?.()??null)===beforeCharacter,
       savedBytesUnchanged:localStorage.getItem('aincrad.world.v2')===beforeSaved};
   }
+  function assertPublicMeasurementPrivacy(result,label){
+    const forbidden=new Set(['senderPixels','receiverPixels','demonstrationPixels','candidatePixels',
+      'features','model','weights','bias','examples','messageHandle','orderedOwnFeatures',
+      'targetId','demonstratedObjectId']);
+    const exactKeys=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&
+      Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
+    const score=value=>exactKeys(value,['brier','logLoss'])&&
+      ['brier','logLoss'].every(key=>Number.isFinite(value[key])&&
+        value[key]>=0&&value[key]<=1e12);
+    const actorPredictor=path=>path[0]==='actors'&&
+      (path[1]===0||path[1]===1)&&path[2]==='gesturePrediction';
+    // The raw predictor snapshot stores one overall score matrix and one per
+    // target class. This exact path is the sole exception for the model key.
+    const publicMatrix=path=>actorPredictor(path)&&
+      (path.length===4&&path[3]==='scores'||
+        path.length===5&&path[3]==='scoresByTarget'&&
+        ['pose','absent'].includes(path[4]));
+    const inspect=(value,path=[])=>{
+      if(Array.isArray(value)){
+        for(let index=0;index<value.length;index++)inspect(value[index],[...path,index]);
+        return;
+      }
+      if(!value||typeof value!=='object')return;
+      if(actorPredictor(path)&&path.length===4&&path[3]==='scoresByTarget')
+        assert(exactKeys(value,['pose','absent']),label+' must retain only public target strata');
+      if(publicMatrix(path))
+        assert(exactKeys(value,['model','prior','persistence'])&&
+          ['model','prior','persistence'].every(key=>score(value[key])),
+        label+' must expose only bounded public predictor score totals');
+      for(const [key,row] of Object.entries(value)){
+        assert.equal(forbidden.has(key)&&!(key==='model'&&publicMatrix(path)),false,
+          label+' must not expose private '+key);
+        inspect(row,[...path,key]);
+      }
+    };
+    inspect(result);
+  }
   async function measurementPoint(win,label){
     const evidence=await evaluate(win,'('+readPureMeasurement.toString()+')()');
     for(const key of ['worldUnchanged','referenceUnchanged','characterUnchanged','savedBytesUnchanged'])
@@ -90,15 +127,7 @@ function installRunner(context,helpers){
     assert.equal(result.identityPendingReconciliation,false);
     assert.equal(result.actors?.length,2);
     assert.equal(result.survival?.length,2);
-    const forbidden=new Set(['senderPixels','receiverPixels','demonstrationPixels','candidatePixels',
-      'features','model','examples','messageHandle','orderedOwnFeatures','targetId','demonstratedObjectId']);
-    const inspect=value=>{
-      if(Array.isArray(value)){for(const row of value)inspect(row);return;}
-      if(value&&typeof value==='object')for(const [key,row]of Object.entries(value)){
-        assert.equal(forbidden.has(key),false,label+' must not expose private '+key);inspect(row);
-      }
-    };
-    inspect(result);
+    assertPublicMeasurementPrivacy(result,label);
     measurementChecks.push({phase,label,counts:{...result.counts},eventsRetained:result.eventsRetained,
       eventsEvicted:result.eventsEvicted,eventsRetired:result.eventsRetired});
     await fs.writeFile(path.join(context.output,phase+'-measurement-'+label+'.json'),JSON.stringify(result,null,2));

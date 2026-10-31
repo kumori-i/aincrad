@@ -8,6 +8,9 @@ import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 import vm from 'node:vm';
 import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
+import {createOzarkState} from '../src/ozark-save.js';
+import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
+import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
 
 test('character-message native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
   const output=await mkdtemp(join(tmpdir(),'visual-reference-harness-contract-'));let passed=false;
@@ -26,7 +29,7 @@ test('character-message native preparation is isolated, sandbox-preserving and n
     // Capture the actual generated helper, not a test reimplementation. It is
     // constructed outside installRunner and must retain its own assert binding.
     vm.runInNewContext(source.replace('// Production asset scheme and profile registration remain synchronous.',
-      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;globalThis.assertRetainedLearning=assertRetainedLearning;globalThis.readPureMeasurement=readPureMeasurement;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
+      'globalThis.serializedHistoryAssert = assertStructuralRestoredHistory;globalThis.presentAssociationLearning=presentAssociationLearning;globalThis.assertRetainedLearning=assertRetainedLearning;globalThis.readPureMeasurement=readPureMeasurement;globalThis.measurementPrivacyAssert=assertPublicMeasurementPrivacy;\n// Production asset scheme and profile registration remain synchronous.'),sandbox);
     assert.equal(loaded.length,1,'Production scheme/profile registration remains synchronous');
     for(const changedField of ['world','reference','character','saved']){
       const state={world:{elapsed:0},reference:{seed:211},character:{rng:7},saved:'unchanged'};
@@ -45,6 +48,44 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       for(const [field,flag]of [['world','worldUnchanged'],['reference','referenceUnchanged'],
         ['character','characterUnchanged'],['saved','savedBytesUnchanged']])
         assert.equal(observed[flag],changedField!==field,'Observer mutation must be detected for '+field);
+    }
+    const score=()=>({model:{brier:.25,logLoss:.69},prior:{brier:.36,logLoss:.91},
+      persistence:{brier:.81,logLoss:2.3}});
+    const publicMeasurement={actors:[0,1].map(()=>({gesturePrediction:{scores:score(),
+      scoresByTarget:{pose:score(),absent:score()}}})),survival:[{},{}]};
+    const originalMeasurement=JSON.stringify(publicMeasurement);
+    assert.doesNotThrow(()=>sandbox.measurementPrivacyAssert(publicMeasurement,'fresh'),
+      'Generated native walker accepts only documented public predictor score totals');
+    assert.equal(JSON.stringify(publicMeasurement),originalMeasurement,
+      'Privacy inspection must be read-only');
+    const freshState=createOzarkState(createOzarkWorldGeometry(),{communicationSeed:211});
+    const learning=attachVisualReferenceLearning({state:freshState,protocol:'sequence',
+      pixelSensor:{capture(){throw Error('Privacy inspection must not capture pixels');}}});
+    try{
+      const realMeasurement=learning.measurementSnapshot();
+      assert.equal(realMeasurement.actors[0].gesturePrediction.scores.model.brier,0);
+      assert.doesNotThrow(()=>sandbox.measurementPrivacyAssert(realMeasurement,'actual-fresh'),
+        'The generated privacy walker accepts the actual untrained main-world snapshot');
+    }finally{learning.dispose();}
+    for(const change of [
+      value=>{value.model={weights:[1]};},
+      value=>{value.actors[0].character={model:{weights:[1]}};},
+      value=>{value.survival[0].model={brier:0,logLoss:0};},
+      value=>{value.actors[0].gesturePrediction.extra={model:{brier:0,logLoss:0}};},
+      value=>{value.actors[0].gesturePrediction.scores.model.weights=[1];},
+      value=>{value.actors[0].gesturePrediction.scores.model.bias=1;},
+      value=>{value.actors[0].gesturePrediction.scores.model.brier=NaN;},
+      value=>{value.actors[0].gesturePrediction.scores.model.logLoss=-1;},
+      value=>{value.actors[0].gesturePrediction.scores.model.logLoss=1e13;},
+      value=>{value.actors[0].gesturePrediction.scores.extra={brier:0,logLoss:0};},
+      value=>{value.actors[1].gesturePrediction.scoresByTarget.pose.model.examples=[];},
+      value=>{value.actors[1].gesturePrediction.scoresByTarget.absent.model.features=[];},
+      value=>{value.actors[1].gesturePrediction.scoresByTarget.extra=score();},
+      value=>{value.actors[0].gesturePrediction.weights=[1];},
+    ]){
+      const hostile=structuredClone(publicMeasurement);change(hostile);
+      assert.throws(()=>sandbox.measurementPrivacyAssert(hostile,'hostile'),
+        'Generated native walker must reject a private or malformed score field');
     }
     const calls=[],nodes={
       'npc-panel':{classList:{contains:()=>!nodes.visible},dataset:{journalTab:'character'}},
