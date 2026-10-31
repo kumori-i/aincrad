@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "approved": true,
+  "protocol": "ordinary-character-gate-diagnostic-v2",
+  "commit": "eac90803e1864bdfa5ff4b3c2596f670b3909f31",
+  "tree": "a51a49c06d0464b61757db008fe85c89aa6a5629",
+  "activationRef": "experiments/character-gate-diagnostic-v2-once",
+  "sourceManifestSha256": "4a75b11fb57acad93c2d2ee27c3eca931a970147d9994566e962f8bba6c6a976",
+  "protocolSha256": "1d40860f1aa14d0cca652c1b239192a77c4ab854ee9bde4a56b86d964eb7e271",
+  "runnerSha256": "1e1b4963ebf2d987060150b775b362fc7895094bd6a21856f7203b0f52bc1d68",
+  "generatedRunnerSha256": "c089ae130560e9e0c1f106d1ecfb8f167a2aca382623f9064d9cd8650db2f0bc",
+  "runtimeFingerprint": "b808f572ca2258b4a536cd1cf56c1073c5c14d0e2e9f3870631c728701fcfe9e",
+  "rendererManifestSha256": "e917f4c0a56300adeea44f53ed50bf3af8286737e5a77c597435ac233ee7a589",
+  "reviewedBy": "dev (parent source and protocol review)",
+  "reviewedAt": "2026-10-31T03:31:40Z"
+}
