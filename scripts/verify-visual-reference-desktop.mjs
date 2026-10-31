@@ -243,7 +243,8 @@ function installRunner(context,helpers){
   async function exercise(win){
     assert.equal(await raw(win),null,'Fresh disposable profile must contain no current save');
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
-    const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':'context';
+    const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':
+      context.ambiguityScenario?'{...context,ambiguityScenario:true}':'context';
     const install='window.__visualReferenceFixture=await window.__ozarkWorld.referenceFixture(context=>('+installVisualReferenceFixture.toString()+')('+fixtureContext+',document.baseURI,('+visualReferenceEvidence.toString()+')),'+
       JSON.stringify(context.responseScenario?{negativeControlSeed:212}:{})+');return Boolean(window.__visualReferenceFixture)';
     assert.equal(await evaluate(win,'(async()=>{'+install+'})()'),true,'Install fixture on actual fresh main population');
@@ -252,6 +253,13 @@ function installRunner(context,helpers){
     assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),false,'Fixture owns the sole manual clock; normal timer start is blocked');
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Fresh fixture installer is one-use');
     let status=await evaluate(win,'window.__visualReferenceFixture.status()');assert.equal(status.pose,null);
+    if(context.ambiguityScenario){
+      const placed=await snapshot(win);
+      assert.deepEqual(placed.agents.map(actor=>actor.position),[{x:-12943,y:3595},{x:-12827,y:3543}],
+        'The renderer must receive and apply authored ambiguity placement before any paid action');
+      assert.equal(status.checks.authoredAmbiguity?.forwardCandidateCount,2);
+      assert.equal(status.checks.authoredAmbiguity?.reverseResult,'ambiguous');
+    }
     let measured=await measurementPoint(win,'fresh');
     assert(Object.values(measured.counts).every(value=>value===0),'Fresh engineering world has zero communication counts');
     assert.equal(measured.events.length,0);assert.equal(measured.pending,0);

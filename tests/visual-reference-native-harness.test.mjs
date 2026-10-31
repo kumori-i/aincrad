@@ -173,12 +173,20 @@ test('paid ambiguity native preparation is a separate single-process actual-Canv
     const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});
     assert.equal(syntax.status,0,syntax.stderr);
     const source=await readFile(prepared.harness,'utf8');
+    const selectedExpression=source.match(/const fixtureContext=([^;]+);/)?.[1];
+    assert(selectedExpression,'Generated runner must select the renderer fixture context');
+    const selected=vm.runInNewContext(selectedExpression,{context:{responseScenario:false,ambiguityScenario:true}});
+    assert.equal(selected,'{...context,ambiguityScenario:true}',
+      'The generated native route must forward its ambiguity flag across the renderer callback boundary');
+    assert.deepEqual({...vm.runInNewContext('('+selected+')',{context:{freshRendererFixture:true}})},
+      {freshRendererFixture:true,ambiguityScenario:true});
     for(const contract of ['Authored ambiguity positions must be physically occupiable',
       'Every forward candidate must have an ambiguous reverse bearing',
       "feedbackReason,'response-ambiguous'",'paidVisibleSamples>=30',
       'canonicalWorkSeconds-1.8','senderWeightsAndBaselineUnchanged:true',
       'noLingeringAuthority:status.reference.pending===0',
-      'Paid listener response did not finish','A censored ambiguity must follow a continuous actual paid sender-view interval'])
+      'Paid listener response did not finish','A censored ambiguity must follow a continuous actual paid sender-view interval',
+      'The renderer must receive and apply authored ambiguity placement before any paid action'])
       assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
