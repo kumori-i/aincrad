@@ -4,6 +4,7 @@ import { bodySignals } from './interoception.js';
 import { habitatConditions } from './ecology-regions.js';
 import { previewGroundColor } from './preview-ground-dispatch.js';
 import { publicIndicationGeometry } from './discovery-actions.js';
+import { publicFreeHandGeometry } from './free-hand-action.js';
 
 export const ART_PIXEL = 2;
 export function canvas(w, h) { const c=document.createElement('canvas');c.width=Math.ceil(w);c.height=Math.ceil(h);return c; }
@@ -511,4 +512,5 @@ export function drawNpc(g,npc,time){
   }
   g.restore();
   drawIndicationGeometry(g,publicIndicationGeometry(npc));
+  drawIndicationGeometry(g,publicFreeHandGeometry(npc));
 }

@@ -487,13 +487,15 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     referenceFixture: async (install, options={}) => {
       const optionKeys=options&&typeof options==='object'&&!Array.isArray(options)?Object.keys(options):null;
       if(!optionKeys||!(optionKeys.length===0||optionKeys.length===1&&
-          optionKeys[0]==='negativeControlSeed'&&options.negativeControlSeed===212))return null;
+          (optionKeys[0]==='negativeControlSeed'&&options.negativeControlSeed===212||
+            optionKeys[0]==='motorScenario'&&options.motorScenario===true)))return null;
       if(location.search!=='?test=1'||referenceFixtureOwner||started||loaded.exists||loaded.blocked||
         state.elapsed!==0||!population||!communicationLearning||typeof install!=='function')return null;
       try{if(storage.getItem(OZARK_SAVE_KEY)!==null)return null;}catch{return null;}
-      const owner={steps:0,failed:false,advancing:false,checkpointAttempted:false};referenceFixtureOwner=owner;keys.clear();
+      const owner={steps:0,maxSteps:options.motorScenario===true?7500:1200,
+        failed:false,advancing:false,checkpointAttempted:false};referenceFixtureOwner=owner;keys.clear();
       const step=()=>{
-        if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||owner.steps>=1200||
+        if(referenceFixtureOwner!==owner||owner.failed||owner.advancing||owner.steps>=owner.maxSteps||
           started||Math.abs(state.elapsed-owner.steps*CONFIG.fixedStep)>1e-7)return false;
         owner.advancing=true;
         try{advancePlayer(CONFIG.fixedStep,0,0,'walk');owner.steps++;return true;}

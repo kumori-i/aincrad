@@ -41,17 +41,22 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // not two copies of a potentially defective instrumentation path. The null
 // runtime property is excluded only from controller-container comparisons;
 // actors, ecology, actions, events and RNG remain compared in full.
+// The neutral hand-motion action remains in BOTH controller arms. This pin
+// removes only candidate-capture instrumentation, so its current policy and
+// private motor-session lifecycle are still compared exactly.
+assert.equal(source.split('disposeDiscoveryCandidateCapture(this);').length-1,1,
+  'The candidate-capture disposal seam must occur exactly once');
 const baselineSource = source
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
   .replace(/^  setDiscoveryCandidateCapture\(enabled\)\{setDiscoveryCandidateCapture\(this,enabled\);\}\n/m, '')
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')
-  .replace('dispose(){disposeDiscoveryCandidateCapture(this);this.disposed=true;this.cancel();}', 'dispose(){this.disposed=true;this.cancel();}')
+  .replace('disposeDiscoveryCandidateCapture(this);', '')
   .replace(/^    captureDiscoveryCandidates\(this,n\);\n/m, '')
   .replace(',experimentalDiscovery=null', '')
   .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
   .replace(',chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null', '')
   .replace('this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
-assert.equal(sha(baselineSource), '0007bae4d9e16a10999db52ff3df4213ced5d7ca6b497c5d98af0616120fde5b', 'baseline controller bytes');
+assert.equal(sha(baselineSource), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c', 'baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));

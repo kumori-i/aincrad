@@ -15,7 +15,7 @@ import { recordEvent, compact, withProofTransaction } from './npc-events.js';
 export { recordEvent } from './npc-events.js';
 
 const EVENT_TYPES=new Set(['observation','action','decision','collapse','rescue','recovery','provider','lesson','debug','skill','condition','social','belief','plan']);
-const OPS=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.allPrimitives]);
+const OPS=new Set(['observe','move','swim','climb','inspect','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note','free_hand',...DISCOVERY_RULES.allPrimitives]);
 const CATEGORIES=new Set(['observe','inspect','move_explore','move_source','move_food','move_shelter','swim','climb','fill_flask','drink','wait','gather_food','eat','enter_shelter','exit_shelter','rest','sleep','say','ask_human','journal_reply','write_note','read_note',...DISCOVERY_RULES.allPrimitives]);
 const FEATURE_NAMES=new Set(['thirst','hunger','thermal','injured','water','food','sheltered','knownWater','knownFood','knownShelter']);
 const featureBatches=new WeakMap();

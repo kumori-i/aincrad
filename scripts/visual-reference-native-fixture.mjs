@@ -15,6 +15,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {observeNpc,requestNpcAction,cancelNpcAction}=await use('npc');
   const {publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,referenceGeometry}=await use('discovery-actions');
+  const {FREE_HAND_RULES,freeHandExplorationChoice,publicFreeHandGeometry,ownFreeHandAction,
+    freeHandPaidSeconds,readFreeHandObserver}=await use('free-hand-action');
   const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry,sensePublicPeerGesture}=await use('visual-reference-perception');
   const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
@@ -35,6 +37,12 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   near(fixedStep,1/60,'Actual main fixed step');
   require(reference?.snapshot().phase==='private-character-message','Expected actual private character-message attachment');
   const [sender,listener]=state.agents;
+  require(context.motorScenario!==true||context.responseScenario!==true&&context.ambiguityScenario!==true&&
+    sender.id==='aster'&&listener.id==='mira'&&sender.position.x===276&&sender.position.y===760&&
+    listener.position.x===300&&listener.position.y===920&&
+    actorLineOfSight(sender,sender.position,listener.position)&&
+    actorLineOfSight(listener,listener.position,sender.position),
+  'Target-free motor fixture requires original mutually visible fresh actors');
   let authoredObjectSwap=null;
   if(context.responseScenario===true){
     // Explicit engineering geometry, never an ordinary-world opportunity or
@@ -80,8 +88,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const actualCanvas=!context.auditSensor;
   const audit=[],responseAudit=[],steps=[],checks={};
   let choiceActive,indicationActive,responseActive,pendingActive,privateTargetId,choiceProof,indicationProof,baseline,responseBaseline;
+  let firstMotorActive=null,secondMotorActive=null,motorBaseline=null;
   let secondStarted=false,secondChoiceActive=null,secondDemoActive=null;
-  let phase='ready';
+  let phase=context.motorScenario===true?'motor-ready':'ready';
   const characterState=()=>reference.exportPersistence().characterMessages;
   const ownerState=id=>characterState().learners.find(row=>row.agentId===id);
   const partnerState=(ownerId,partnerId)=>ownerState(ownerId).partners.find(row=>row.agentId===partnerId).listener;
@@ -90,10 +99,23 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const originalSender=beforeCharacters.learners.find(row=>row.agentId===sender.id).sender;
   const originalListener=beforeCharacters.learners.find(row=>row.agentId===listener.id).partners[0].listener;
   let admissionCrops=null;
-  const holdUntil=state.elapsed+20;
+  const holdUntil=state.elapsed+(context.motorScenario===true?125:20);
   // Bounded deliberate command scheduling, NOT bodily holds: the same ordinary
   // population still integrates every environment, ecology and body fixed step.
   for(const n of state.agents){n.nextDecisionAt=holdUntil;observeNpc(n,state.environment);}
+  if(context.motorScenario===true){
+    require(FREE_HAND_RULES.seconds===1.8&&FREE_HAND_RULES.effort===.25&&
+      FREE_HAND_RULES.cooldownSeconds===120,'Native motor fixture requires the reviewed fixed physical rules');
+    const initial=state.agents.map(actor=>readFreeHandObserver(actor));
+    require(initial.every(row=>row.nextEligibleAt>=120&&row.selectedAttempts===0&&
+      row.eligibleDecisions===0&&row.visibleSamples===0),
+    'Both independent fresh actors must begin behind the full motor delay');
+    require(freeHandExplorationChoice(sender)===null&&freeHandExplorationChoice(listener)===null&&
+      requestNpcAction(sender,{type:'free_hand'},state.environment).code==='FREE_HAND_COOLDOWN'&&
+      sender.active===null,'A fresh world cannot perform an immediate target-free motor trial');
+    checks.motorFresh={scope:'Original actors and ecology; no new object, message, cue, resource or response',
+      initial,firstAdmission:'FREE_HAND_COOLDOWN',actualCanvas};
+  }
   if(context.responseScenario===true){
     const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state);
     require(own.complete&&other.complete,'Authored response geometry requires complete original sight');
@@ -138,19 +160,33 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const project=()=>projectEvidence(state);
   const pose=()=>publicIndicationGeometry(sender);
   const responsePose=()=>publicIndicationGeometry(listener);
+  const motorPose=actor=>publicFreeHandGeometry(actor);
   function localGesture(observer,peer,visibility){
     const memory=reference.readGestureMemory(observer),row=memory?.records.at(-1);
     require(row?.visibility===visibility,`Actual ${observer.id} local gesture visibility must be ${visibility}`);
     require(Object.keys(row).sort().join(',')===
       'at,continuousAbsenceSeconds,continuousVisible,peer,pose,self,visibility,visibleSeconds',
     'Actor-local gesture row has an unexpected field');
-    require(Object.keys(row.self).sort().join(',')==='actionActive,poseProgress'&&
+    require(Object.keys(row.self).sort().join(',')==='actionActive,freeHandActive,freeHandPose,poseProgress'&&
       row.self.actionActive===Number(!!observer.active),
-    'Gesture memory must carry only the actor’s own coarse action state');
+    'Gesture memory must carry only the actor’s own public motion context');
     near(row.at,observer.elapsed,'Actor-local gesture sample time');
     const ownPose=publicIndicationGeometry(observer);
-    require(row.self.poseProgress===(ownPose?.progress??null),
+    require(row.self.poseProgress===(ownPose?.progress??motorPose(observer)?.progress??null),
       'Own pose progress must come from the actor’s paid public action');
+    const ownMotor=motorPose(observer);
+    require(row.self.freeHandActive===Number(ownFreeHandAction(observer))&&
+      Boolean(row.self.freeHandPose)===Boolean(ownMotor),
+    'Own motor identity must come from private current action authority and paid pose');
+    if(ownMotor){
+      for(const endpoint of ['origin','tip']){
+        near(row.self.freeHandPose[endpoint].dx,ownMotor[endpoint].x-observer.position.x,
+          'Own motor '+endpoint+' dx');
+        near(row.self.freeHandPose[endpoint].dy,ownMotor[endpoint].y-observer.position.y,
+          'Own motor '+endpoint+' dy');
+      }
+      near(row.self.freeHandPose.progress,ownMotor.progress,'Own motor paid progress');
+    }
     if(visibility==='unknown'){
       require(row.pose===null,'Unknown sight cannot become a pose');
       return {visibility,at:row.at};
@@ -158,7 +194,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(Object.keys(row.peer).sort().join(',')==='dx,dy','Peer sight may contain only relative numeric coordinates');
     near(row.peer.dx,peer.position.x-observer.position.x,'Actor-local peer dx');
     near(row.peer.dy,peer.position.y-observer.position.y,'Actor-local peer dy');
-    const publicPose=publicIndicationGeometry(peer);
+    const publicPose=publicIndicationGeometry(peer)||motorPose(peer);
     if(visibility==='absent')require(row.pose===null&&!publicPose,'Visible absence requires no paid public pose');
     else{
       require(publicPose&&row.pose&&Object.keys(row.pose).sort().join(',')==='origin,progress,tip',
@@ -174,6 +210,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     }
     return {visibility,at:row.at,continuousVisible:row.continuousVisible,
       ownActionActive:row.self.actionActive,ownPoseProgress:row.self.poseProgress,
+      ownFreeHandActive:row.self.freeHandActive,
+      ...(row.self.freeHandPose?{ownFreeHandPose:structuredClone(row.self.freeHandPose)}:{}),
       ...(row.pose?{relativeOrigin:{...row.pose.origin},relativeTip:{...row.pose.tip},progress:row.pose.progress}:{})};
   }
   function localGestureReadOnly(observer){
@@ -183,6 +221,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const copy=reference.readGestureMemory(observer);
     require(copy.records.length>0,'Expected an actual local gesture sample');
     if(copy.records.at(-1).pose)copy.records.at(-1).pose.tip.dx=999999;
+    if(copy.records.at(-1).self.freeHandPose)copy.records.at(-1).self.freeHandPose.tip.dy=999999;
     copy.records.length=0;copy.limits.capacity=0;
     require(JSON.stringify(reference.readGestureMemory(observer))===original&&
       JSON.stringify(project())===beforeWorld&&JSON.stringify(characterState())===beforeCharacter&&
@@ -343,6 +382,173 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const status=()=>({phase,elapsed:state.elapsed,pose:pose(),responsePose:responsePose(),reference:associationState(),privateWitness:{targetId:privateTargetId??null,
     choice:choiceProof??null,indication:indicationProof??null,responseTargetId:responseActive?.request?.targetId??null},
     audit:structuredClone(audit),responseAudit:structuredClone(responseAudit),steps:structuredClone(steps),checks:{...checks}});
+  /** Bounded real fixed steps reach the production 120-second first-admission
+   * delay. This fixture schedules commands, never changes elapsed/body clocks. */
+  function motorWait(batch){
+    require(context.motorScenario===true&&phase==='motor-ready'&&Number.isInteger(batch)&&batch>0&&batch<=600&&
+      state.elapsed+batch*fixedStep<=FREE_HAND_RULES.cooldownSeconds+1e-7,
+    'Motor wait must use a bounded genuine world-step batch');
+    const beforeCharacter=JSON.stringify(characterState());
+    const before={elapsed:state.elapsed,environment:state.environment.elapsed,
+      ecology:state.environment.ecology.elapsed+state.environment.ecology.pending,
+      bodies:state.agents.map(actor=>actor.elapsed)};
+    for(let i=0;i<batch;i++){
+      for(const actor of state.agents)actor.nextDecisionAt=holdUntil;
+      require(step()!==false,'Real main-world motor wait step rejected');
+    }
+    near(state.elapsed-before.elapsed,batch*fixedStep,'Motor wait main-world time');
+    near(state.environment.elapsed-before.environment,batch*fixedStep,'Motor wait environment time');
+    near(state.environment.ecology.elapsed+state.environment.ecology.pending-before.ecology,
+      batch*fixedStep,'Motor wait ecology time');
+    for(let index=0;index<state.agents.length;index++)
+      near(state.agents[index].elapsed-before.bodies[index],batch*fixedStep,'Motor wait body time');
+    require(JSON.stringify(characterState())===beforeCharacter&&
+      state.agents.every((actor,index)=>!actor.active&&
+        JSON.stringify(actor.position)===JSON.stringify(initialPositions[index])),
+    'Waiting for motor readiness cannot sample a character string or script an action');
+    return {elapsed:state.elapsed,steps:Math.round(state.elapsed/fixedStep),
+      observers:state.agents.map(actor=>({id:actor.id,...readFreeHandObserver(actor)}))};
+  }
+  function beginMotor(actorId){
+    require(context.motorScenario===true&&state.elapsed+1e-7>=FREE_HAND_RULES.cooldownSeconds&&
+      (actorId===sender.id&&phase==='motor-ready'||actorId===listener.id&&phase==='motor-first-complete'),
+    'Expected each actor’s first target-free optional motor admission');
+    const actor=actorId===sender.id?sender:listener,peer=actor===sender?listener:sender,
+      candidate=freeHandExplorationChoice(actor),prior=readFreeHandObserver(actor),
+      priorCharacter=JSON.stringify(characterState());
+    require(candidate?.action?.type==='free_hand'&&Object.keys(candidate.action).length===1&&
+      prior.selectedAttempts===0&&peer.active===null&&
+      sensePublicPeerGesture(peer,actor).visibility==='absent',
+    'Motor candidate must contain no target, peer, meaning or pre-existing pose');
+    const start={at:state.elapsed,metabolized:actor.physiology.totals.metabolizedKcal,
+      available:actor.physiology.availableEnergyKcal,observer:prior};
+    const result=requestNpcAction(actor,candidate.action,state.environment);
+    require(result.code==='ACTION_STARTED'&&ownFreeHandAction(actor)&&!motorPose(actor)&&
+      !pose()&&!responsePose()&&JSON.stringify(characterState())===priorCharacter,
+    'A target-free admission must be genuine, unpaid and unrelated to character messages');
+    if(actor===sender){firstMotorActive=actor.active;motorBaseline=start;phase='motor-first-active';}
+    else{secondMotorActive=actor.active;checks.motorSecondBaseline=start;phase='motor-second-active';}
+    return {phase,at:state.elapsed,observer:readFreeHandObserver(actor),
+      action:{type:actor.active.request.type,seconds:actor.active.seconds,expiresAt:actor.active.expiresAt},
+      pose:motorPose(actor),characterUnchanged:true};
+  }
+  function visibleMotor(actorId){
+    require(context.motorScenario===true&&
+      (actorId===sender.id&&phase==='motor-first-active'||actorId===listener.id&&phase==='motor-second-active'),
+    'Expected a funded main-world hand motion');
+    const actor=actorId===sender.id?sender:listener,peer=actor===sender?listener:sender;
+    for(let i=0;i<40;i++)tick();
+    const g=motorPose(actor),peerLocal=localGesture(peer,actor,'pose'),ownLocal=localGesture(actor,peer,'absent');
+    require(g&&g.progress>0&&g.progress<1&&near(g.tip.x-g.origin.x,0,'Target-free segment x')===undefined&&
+      near(g.tip.y-g.origin.y,-FREE_HAND_RULES.length,'Target-free segment y')===undefined,
+    'A paid motor slice must render the fixed target-free numeric segment');
+    require(peerLocal.ownFreeHandActive===0&&ownLocal.ownFreeHandActive===1&&
+      ownLocal.ownFreeHandPose?.progress===g.progress&&
+      observeIndication(peer,actor,state).objectId===null&&
+      reference.snapshot().observationEvents.length===0,
+    'A visible hand movement may enter local sight, never the object parser or character feedback');
+    const peerPrediction=localPrediction(peer),ownPrediction=localPrediction(actor);
+    require(peerPrediction.targetPose>=1&&peerPrediction.onsets>=1,
+      'Actual later personally visible pose must settle a local forecast');
+    const observer=readFreeHandObserver(peer);
+    require(observer.visibleSamples>=30,'Actual peer sight must count repeated funded pose samples');
+    let occluded=null;
+    if(actor===sender){
+      const p={x:496,y:760};
+      require(geometry.canOccupy(p.x,p.y)&&!geometry.lineOfSight(p,sender.position),
+        'Controlled observer copy must stand behind actual terrain occlusion');
+      const copy=structuredClone(peer);copy.position=p;
+      const observationState={...state,agents:state.agents.map(n=>n===peer?copy:n)};
+      bindOzarkWorldAgent(copy,geometry,observationState);
+      const unseen=sensePublicPeerGesture(copy,actor);
+      require(unseen.visibility==='unknown'&&unseen.pose===null&&
+        observeIndication(copy,actor,observationState).objectId===null,
+      'Occlusion is unknown local sight, not observed silence or an object label');
+      occluded={position:p,visibility:unseen.visibility};
+    }
+    const evidence={actualCanvas,actor:actor.id,peer:peer.id,geometry:g,
+      peerLocal,ownLocal,observer,occluded,
+      peerPrediction:{validTargets:peerPrediction.validTargets,targetPose:peerPrediction.targetPose,
+        onsets:peerPrediction.onsets},
+      ownPrediction:{validTargets:ownPrediction.validTargets},
+      memoryReadPure:localGestureReadOnly(peer)&&localGestureReadOnly(actor),
+      predictionReadPure:localPredictionReadOnly(peer)&&localPredictionReadOnly(actor)};
+    if(actor===sender)checks.motorFirstVisible=evidence;else checks.motorSecondVisible=evidence;
+    return {phase,elapsed:state.elapsed,...evidence};
+  }
+  function completeFirstMotor(){
+    require(context.motorScenario===true&&phase==='motor-first-active'&&firstMotorActive,
+      'Expected Aster’s first paid target-free movement');
+    until(()=>sender.active!==firstMotorActive,'First genuine paid hand motion did not finish',130);
+    const worked=freeHandPaidSeconds(sender,firstMotorActive),
+      effort=npcEffortCost(worked,FREE_HAND_RULES.effort),
+      metabolized=sender.physiology.totals.metabolizedKcal-motorBaseline.metabolized,
+      availableLoss=motorBaseline.available-sender.physiology.availableEnergyKcal;
+    near(worked,FREE_HAND_RULES.seconds,'Full funded motor seconds');
+    near(sender.lastResult.durationSeconds,worked,'Recorded funded motor duration');
+    require(sender.lastResult.code==='FREE_HAND_MOVED'&&sender.lastResult.ok===true&&
+      !motorPose(sender)&&!ownFreeHandAction(sender)&&
+      metabolized+1e-8>=effort&&availableLoss+1e-8>=effort&&
+      sender.discovery.experiments.length===0&&JSON.stringify(characterState())===JSON.stringify(beforeCharacters),
+    'Full ordinary paid effort must complete without object practice or character learning');
+    const ended=localGesture(listener,sender,'absent'),observer=readFreeHandObserver(sender);
+    require(observer.selectedAttempts===1&&observer.nextEligibleAt>=sender.elapsed+FREE_HAND_RULES.cooldownSeconds-2&&
+      ended.ownFreeHandActive===0,
+    'Completion consumes one actor-local rate budget and leaves visible absence');
+    checks.motorFirstComplete={worked,effortKcal:effort,metabolizedKcal:metabolized,
+      availableEnergyLossKcal:availableLoss,result:structuredClone(sender.lastResult),
+      observer,ended,characterUnchanged:true};
+    phase='motor-first-complete';return status();
+  }
+  function checkpointMotor(storage){
+    require(context.motorScenario===true&&phase==='motor-second-active'&&
+      secondMotorActive===listener.active,'Expected Mira’s distinct live paid motor action');
+    const paid=freeHandPaidSeconds(listener,secondMotorActive),
+      beforeCharacter=JSON.stringify(characterState()),
+      priorPrediction=state.agents.map(actor=>localPrediction(actor));
+    require(paid>0&&paid<FREE_HAND_RULES.seconds&&motorPose(listener),
+      'Pending save must occur inside a genuinely paid incomplete motor action');
+    require(saveCheckpoint()===true,'One ordinary save of pending funded motor action failed');
+    const raw=storage.getItem(OZARK_SAVE_KEY),document=raw&&JSON.parse(raw);
+    require(document&&JSON.stringify(characterState())===beforeCharacter&&
+      state.agents.every((actor,index)=>same(localPrediction(actor),priorPrediction[index]))&&
+      !Object.hasOwn(document,'actorGestureMemory')&&
+      document.agents.every(actor=>!Object.hasOwn(actor,'actorGestureMemory')&&
+        !Object.hasOwn(actor,'freeHandAuthority'))&&
+      !/"(?:actorGesturePrediction|actorGesturePredictor|gesturePrediction|gesturePredictor|freeHandAuthority)"/.test(raw),
+    'Pending save must exclude motor authority, local gesture rows and predictor state');
+    const loaded=loadOzarkSave({getItem:key=>key===OZARK_SAVE_KEY?raw:null},geometry);
+    require(!loaded.blocked&&loaded.state.agents.every(actor=>!actor.active),
+      'Strict ordinary reload must interrupt the pending motor command');
+    const report=status();
+    checks.motorPending={paidSeconds:paid,modeledEffortKcal:npcEffortCost(paid,FREE_HAND_RULES.effort),
+      actor:listener.id,characterUnchanged:true,saveExcluded:true};
+    return {raw,expectedRestored:projectEvidence(loaded.state),serializedActive:structuredClone(secondMotorActive),
+      report:{...report,checks:{...report.checks,motorPending:checks.motorPending}},
+      pendingKind:'free-hand',characterPersistence:structuredClone(characterState()),
+      fixtureDisclosure:'Separate fresh seed-211 main-world engineering profile at original actor positions, with unchanged ecology and real 1/60-second environment and body ticks. A bounded 120-second command schedule reaches the ordinary per-actor motor cooldown without editing clocks. Aster completes one funded 1.8-second target-free hand motion; Mira later begins her independent first motion and is saved during paid partial work. No object, message, crop, resource, partner response, semantic reward or alternate production rule is injected.'};
+  }
+  function interruptMotor(){
+    require(context.motorScenario===true&&phase==='motor-second-active'&&listener.active===secondMotorActive,
+      'Expected pending funded Mira motor action');
+    const beforeCharacter=JSON.stringify(characterState()),
+      beforePrediction=state.agents.map(actor=>localPrediction(actor)),
+      beforeCounts=state.agents.map(actor=>readFreeHandObserver(actor)),
+      paid=freeHandPaidSeconds(listener,secondMotorActive);
+    cancelNpcAction(listener,'PRIORITY_CHANGED');
+    require(!motorPose(listener)&&!ownFreeHandAction(listener)&&
+      listener.lastResult.ok===false&&listener.lastResult.durationSeconds===paid,
+    'Cancellation must retire the actual paid pose and preserve partial work');
+    reference.afterTick();
+    require(state.agents.every((actor,index)=>same(localPrediction(actor),beforePrediction[index])&&
+      same(readFreeHandObserver(actor),beforeCounts[index]))&&
+      JSON.stringify(characterState())===beforeCharacter&&
+      sensePublicPeerGesture(sender,listener).visibility==='absent',
+    'Same-instant passive reread cannot train, count or revive a cancelled motion');
+    checks.motorInterrupted={paidSeconds:paid,result:structuredClone(listener.lastResult),
+      poseCleared:true,characterUnchanged:true,sameInstantReadPure:true};
+    phase='motor-interrupted';return status();
+  }
   function beginChoice(){
     require(phase==='ready'&&!pose(),'Before choice there must be no paid cue');
     const action=reference.hooks.optionalAction(listener);
@@ -839,9 +1045,32 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(paid>0&&paid<1.8,'Interruption must retain genuine partial paid work');phase='interrupted';return status();
   }
   return {project,status,admissionAudit,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
+    motorWait,beginMotor,visibleMotor,completeFirstMotor,checkpointMotor,interruptMotor,
     inspectAssociation,pendingForSave,pendingResponseForSave,checkpoint,interrupt,
     characterExport:()=>structuredClone(characterState()),
     dispose(){sensor.dispose?.();}};
+}
+
+/** A read-only copy of the independently reopened profile cannot acquire the
+ * former private motor witness from serialized command fields. */
+export async function probeFreeHandReopen(moduleBase,state,serializedActive){
+  const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
+  const {publicFreeHandGeometry,ownFreeHandAction,freeHandPaidSeconds}=await use('free-hand-action');
+  const {createOzarkWorldGeometry}=await use('ozark-world-geometry');
+  const {bindOzarkWorldAgent}=await use('ozark-agent-world');
+  const {bindOzarkEcology}=await use('ozark-ecology');
+  if(state.agents.some(actor=>actor.active)||serializedActive?.request?.type!=='free_hand')
+    throw new Error('Expected a restored idle world and copied motor command');
+  const geometry=createOzarkWorldGeometry(),actor=state.agents.find(row=>row.id==='mira');
+  bindOzarkEcology(state.environment.ecology,geometry);
+  for(const row of state.agents)bindOzarkWorldAgent(row,geometry,state);
+  actor.active=structuredClone(serializedActive);
+  const copiedPose=publicFreeHandGeometry(actor),copiedOwnAction=ownFreeHandAction(actor),
+    copiedPaidSeconds=freeHandPaidSeconds(actor,actor.active);
+  actor.active=null;
+  if(copiedPose||copiedOwnAction||copiedPaidSeconds||publicFreeHandGeometry(actor))
+    throw new Error('Reopened data revived a private paid motor witness');
+  return {copiedPose,copiedOwnAction,copiedPaidSeconds,noRevivedAuthority:true};
 }
 
 /** Read-only replay attempts on copies of the actual independently reopened

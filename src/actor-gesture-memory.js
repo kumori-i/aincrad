@@ -5,21 +5,28 @@ import { CONFIG } from './config.js';
 export const ACTOR_GESTURE_MEMORY_LIMITS=Object.freeze({capacity:768,ttlSeconds:12});
 const finitePair=p=>p&&Number.isFinite(p.dx)&&Number.isFinite(p.dy);
 const copyPair=p=>p?{dx:p.dx,dy:p.dy}:null;
+const copyPose=p=>p?{origin:copyPair(p.origin),tip:copyPair(p.tip),progress:p.progress}:null;
+const validPose=p=>p&&finitePair(p.origin)&&finitePair(p.tip)&&
+  Number.isFinite(p.progress)&&p.progress>0&&p.progress<=1;
 const copyRecord=row=>({at:row.at,visibility:row.visibility,peer:copyPair(row.peer),
-  pose:row.pose?{origin:copyPair(row.pose.origin),tip:copyPair(row.pose.tip),progress:row.pose.progress}:null,
-  self:{actionActive:row.self.actionActive,poseProgress:row.self.poseProgress},
+  pose:copyPose(row.pose),
+  self:{actionActive:row.self.actionActive,poseProgress:row.self.poseProgress,
+    freeHandActive:row.self.freeHandActive,freeHandPose:copyPose(row.self.freeHandPose)},
   continuousVisible:row.continuousVisible,visibleSeconds:row.visibleSeconds,
   continuousAbsenceSeconds:row.continuousAbsenceSeconds});
 
 function validSample(row){
   if(!row||!Number.isFinite(row.at)||!['unknown','absent','pose'].includes(row.visibility)||
     !row.self||![0,1].includes(row.self.actionActive)||
-    row.self.poseProgress!==null&&(!Number.isFinite(row.self.poseProgress)||row.self.poseProgress<=0||row.self.poseProgress>1))return false;
+    ![0,1].includes(row.self.freeHandActive)||
+    row.self.poseProgress!==null&&(!Number.isFinite(row.self.poseProgress)||row.self.poseProgress<=0||row.self.poseProgress>1)||
+    row.self.freeHandPose!==null&&(!row.self.freeHandActive||!validPose(row.self.freeHandPose))||
+    row.self.freeHandPose!==null&&row.self.poseProgress!==row.self.freeHandPose.progress||
+    row.self.freeHandActive&&!row.self.actionActive)return false;
   if(row.visibility==='unknown')return row.pose===null&&(row.peer===null||finitePair(row.peer));
   if(!finitePair(row.peer))return false;
   if(row.visibility==='absent')return row.pose===null;
-  return row.pose&&finitePair(row.pose.origin)&&finitePair(row.pose.tip)&&
-    Number.isFinite(row.pose.progress)&&row.pose.progress>0&&row.pose.progress<=1;
+  return validPose(row.pose);
 }
 
 /** A fixed ring avoids shifting long histories every world tick. Reads copy all
@@ -47,8 +54,10 @@ export function createActorGestureMemory({capacity=ACTOR_GESTURE_MEMORY_LIMITS.c
     const continuous=!!prior&&prior.visibility!=='unknown'&&sample.visibility!=='unknown'&&
       gap>0&&gap<=CONFIG.fixedStep+1e-8;
     const row={at:sample.at,visibility:sample.visibility,peer:copyPair(sample.peer),
-      pose:sample.pose?{origin:copyPair(sample.pose.origin),tip:copyPair(sample.pose.tip),progress:sample.pose.progress}:null,
-      self:{...sample.self},continuousVisible:continuous,
+      pose:copyPose(sample.pose),
+      self:{actionActive:sample.self.actionActive,poseProgress:sample.self.poseProgress,
+        freeHandActive:sample.self.freeHandActive,freeHandPose:copyPose(sample.self.freeHandPose)},
+      continuousVisible:continuous,
       visibleSeconds:continuous?Math.min(supportedSeconds,prior.visibleSeconds+gap):0,
       continuousAbsenceSeconds:continuous&&sample.visibility==='absent'&&prior.visibility==='absent'
         ?Math.min(supportedSeconds,prior.continuousAbsenceSeconds+gap):0};

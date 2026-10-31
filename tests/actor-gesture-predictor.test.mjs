@@ -8,7 +8,7 @@ const dt=CONFIG.fixedStep;
 function row(tick,visibility='absent',extra={}){
   return {at:tick*dt,visibility,peer:visibility==='unknown'?null:{dx:100,dy:-30},
     pose:visibility==='pose'?{origin:{dx:104,dy:-29},tip:{dx:120,dy:-10},progress:0.5}:null,
-    self:{actionActive:0,poseProgress:null},...extra};
+    self:{actionActive:0,poseProgress:null,freeHandActive:0,freeHandPose:null},...extra};
 }
 function send(predictor,start,end,visibility){
   for(let tick=start;tick<=end;tick++)predictor.observe(row(tick,visibility));
@@ -16,7 +16,8 @@ function send(predictor,start,end,visibility){
 
 test('origin features use only current actor-local geometry and own action context',()=>{
   const sample=row(3,'pose',{objectId:'secret',referenceCorrect:true,
-    receiverLearner:{weights:[999]},self:{actionActive:1,poseProgress:0.4}});
+    receiverLearner:{weights:[999]},self:{actionActive:1,poseProgress:0.4,
+      freeHandActive:0,freeHandPose:null}});
   const features=actorGesturePredictionFeatures(sample);
   assert.equal(features.length,ACTOR_GESTURE_PREDICTOR_RULES.featureCount);
   assert.deepEqual(features,actorGesturePredictionFeatures({...sample,objectId:'different',
@@ -24,13 +25,26 @@ test('origin features use only current actor-local geometry and own action conte
   assert.deepEqual(actorGesturePredictionFeatures(row(3,'unknown')),null);
   assert(features.every(value=>Number.isFinite(value)&&value>=-1&&value<=1));
   assert.notDeepEqual(features,actorGesturePredictionFeatures(row(3,'absent')));
+  const freeHand={actionActive:1,poseProgress:0.4,freeHandActive:1,
+    freeHandPose:{origin:{dx:0,dy:0},tip:{dx:0,dy:-24},progress:0.4}};
+  const motorFeatures=actorGesturePredictionFeatures(row(3,'pose',{self:freeHand}));
+  assert.notDeepEqual(features,motorFeatures,'only the actor knows its own paid motor context');
+  assert.deepEqual(motorFeatures.slice(-4),[1,0.4,0,-1]);
+  assert.deepEqual(actorGesturePredictionFeatures(row(3,'pose',{self:{
+    actionActive:1,poseProgress:null,freeHandActive:1,freeHandPose:null}})).slice(-4),
+    [1,0,0,0],'own admitted action can be known before any paid public pose');
+  assert.deepEqual(motorFeatures,actorGesturePredictionFeatures(row(3,'pose',{
+    self:freeHand,peerActionType:'forged',referenceCorrect:false,targetId:'secret'})));
+  assert.throws(()=>actorGesturePredictionFeatures(row(3,'pose',{
+    self:{...freeHand,freeHandActive:0}})),TypeError);
   const hostile=row(3,'pose',{peer:{dx:1e100,dy:-1e100}});
   assert(actorGesturePredictionFeatures(hostile).every(value=>Number.isFinite(value)));
   assert.throws(()=>actorGesturePredictionFeatures(row(3,'pose',{peer:{dx:NaN,dy:0}})),TypeError);
 });
 
 test('all logistic weight and bias gradients match central differences',()=>{
-  const x=actorGesturePredictionFeatures(row(1,'pose',{self:{actionActive:1,poseProgress:0.6}}));
+  const x=actorGesturePredictionFeatures(row(1,'pose',{self:{actionActive:1,poseProgress:0.6,
+    freeHandActive:1,freeHandPose:{origin:{dx:0,dy:0},tip:{dx:24,dy:0},progress:0.6}}}));
   const weights=Array.from({length:x.length},(_,i)=>(i-4)*0.035),bias=-0.12;
   const analytic=actorGesturePredictionLossGradient(weights,bias,x,1);
   const epsilon=1e-5;
@@ -74,7 +88,8 @@ test('one frozen forecast settles after exactly 30 consecutive visible ticks',()
   assert.equal(snapshot.limits.horizonTicks,30);
   assert.equal(snapshot.limits.maximumUpdatesPerSecond,2);
   assert.equal(snapshot.limits.replayCapacity,0);
-  assert.notDeepEqual(predictor.parameters().weights,Array(11).fill(0));
+  assert.notDeepEqual(predictor.parameters().weights,
+    Array(ACTOR_GESTURE_PREDICTOR_RULES.featureCount).fill(0));
   send(predictor,31,59,'pose');
   assert.equal(predictor.snapshot().updates,1);
   predictor.observe(row(60,'absent'));
@@ -87,11 +102,13 @@ test('one frozen forecast settles after exactly 30 consecutive visible ticks',()
 test('the sampled origin is copied and a full-norm clipped step is bounded',()=>{
   const intense=row(0,'pose',{peer:{dx:280,dy:280},
     pose:{origin:{dx:304,dy:304},tip:{dx:328,dy:328},progress:1},
-    self:{actionActive:1,poseProgress:1}});
+    self:{actionActive:1,poseProgress:1,freeHandActive:1,
+      freeHandPose:{origin:{dx:0,dy:0},tip:{dx:24,dy:0},progress:1}}});
   const original=structuredClone(intense);
   const a=createActorGesturePredictor(),b=createActorGesturePredictor();
   a.observe(intense);b.observe(original);
   intense.peer.dx=-999;intense.pose.tip.dx=-999;intense.self.poseProgress=0.01;
+  intense.self.freeHandPose.tip.dx=-999;intense.self.freeHandPose.progress=0.01;
   for(let tick=1;tick<=30;tick++){
     a.observe(row(tick,'absent'));b.observe(row(tick,'absent'));
   }
@@ -161,5 +178,6 @@ test('long visible absence does not masquerade as pose learning and reset clears
   predictor.clear();
   assert.equal(predictor.snapshot().validTargets,0);
   assert.equal(predictor.snapshot().pending,false);
-  assert.deepEqual(predictor.parameters(),{weights:Array(11).fill(0),bias:0});
+  assert.deepEqual(predictor.parameters(),
+    {weights:Array(ACTOR_GESTURE_PREDICTOR_RULES.featureCount).fill(0),bias:0});
 });
