@@ -18,6 +18,11 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry}=await use('visual-reference-perception');
   const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
+  const {recentDiscoveryAim}=await use('discovery');
+  const {lookupEcologyObject,renderEcology}=await use('ecology');
+  const {REFERENCE_LIMITS,findReferencePeer}=await use('visual-reference-attachment');
+  const {bodySignals}=await use('interoception');
+  const {isSleeping}=await use('biology');
   const {npcEffortCost}=await use('npc-effort-funding');
   const {CHARACTER_CORE,classifyOwnDemonstration,listenerDistribution}=await use('character-message-core');
   const {validateCharacterPersistence}=await use('visual-reference-save');
@@ -114,6 +119,62 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const project=()=>projectEvidence(state);
   const pose=()=>publicIndicationGeometry(sender);
   const responsePose=()=>publicIndicationGeometry(listener);
+  function admissionAudit(){
+    require(context.ambiguityScenario===true&&phase==='ready',
+      'Pre-action Canvas admission audit is confined to the fresh engineering ambiguity scenario');
+    const beforePersistence=JSON.stringify(reference.exportPersistence()),beforeReference=JSON.stringify(reference.snapshot()),
+      beforeElapsed=state.elapsed,beforePositions=JSON.stringify(state.agents.map(actor=>actor.position));
+    const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state),
+      ownCrops=sensor.capture(listener,state),otherCrops=sensor.capture(sender,state),
+      sprites=new Set(renderEcology(state.environment.ecology,sender.scene).map(sprite=>sprite.id));
+    const valid=(crop,actor)=>!!crop&&crop.epoch===actor.epoch&&Number.isFinite(crop.at)&&crop.at<=actor.elapsed&&
+      actor.elapsed-crop.at<=1.1&&crop.features?.length===48&&crop.features.every(value=>Number.isFinite(value)&&value>=0&&value<=1)&&
+      crop.pixels?.length===768;
+    const cropRow=(actor,id,crop)=>({present:!!crop,valid:valid(crop,actor),at:crop?.at??null,
+      epoch:crop?.epoch??null,observedAt:actor.discovery.observations[id]?.observedAt??null,
+      observationAge:actor.discovery.observations[id]?actor.elapsed-actor.discovery.observations[id].observedAt:null,
+      recentDirectAim:!!recentDiscoveryAim(actor,id),spriteInProjection:sprites.has(id)});
+    const candidates=[],rows=[];
+    for(let i=0;i<own.objects.length;i++){
+      const id=own.bindings[i],j=other.bindings.indexOf(id),a=ownCrops.get(id),b=otherCrops.get(id),
+        cue=j>=0?referenceGeometry(sender.position,own.objects[i].position,sender.scene,1):null,
+        visible=cue?!!visibleIndicationGeometry(listener,cue):false,
+        parsed=visible?resolveIndication(cue,own.objects):null,
+        numericForward=j>=0&&visible&&parsed?.index===i;
+      const row={id,kind:lookupEcologyObject(state.environment.ecology,id)?.kind??null,
+        listenerSightIndex:i,senderSightIndex:j,listenerCrop:cropRow(listener,id,a),senderCrop:cropRow(sender,id,b),
+        numericForward,geometryReason:parsed?.reason??(cue?'gesture-not-visible':'not-shared-or-no-geometry')};
+      if(rows.length<96)rows.push(row);
+      if(numericForward&&valid(a,listener)&&valid(b,sender))candidates.push({id,own:a.features,other:b.features});
+    }
+    const rms=(a,b)=>Math.sqrt(a.reduce((sum,value,index)=>sum+(value-b[index])**2,0)/a.length),pairs=[];
+    let pairCount=0,qualifiedPairs=0;
+    for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
+      const ownRms=rms(candidates[i].own,candidates[j].own),senderRms=rms(candidates[i].other,candidates[j].other),
+        qualified=ownRms>=REFERENCE_LIMITS.featureDistance&&senderRms>=REFERENCE_LIMITS.featureDistance;
+      pairCount++;if(qualified)qualifiedPairs++;
+      if(pairs.length<64)pairs.push({ids:[candidates[i].id,candidates[j].id],ownRms,senderRms,qualified});
+    }
+    const signals=bodySignals(listener),urgent=['ravenous','faint with hunger'].includes(signals.hunger)||
+      ['parched','desperate thirst'].includes(signals.thirst)||signals.energy==='depleted'||signals.pain==='severe',
+      peer=findReferencePeer(state.agents,listener,new Map()),ecology=state.environment.ecology;
+    return {scope:'Read-only pre-action engineering audit; no pair, target, message or listener choice is committed',
+      actualCanvas,elapsed:state.elapsed,featureDistance:REFERENCE_LIMITS.featureDistance,
+      genericGates:{receiverAwake:listener.lifecycle==='AWAKE'&&!isSleeping(listener),receiverUrgent:urgent,
+        receiverActive:!!listener.active,noExchangeYet:reference.snapshot().exchanges===0,
+        peerFound:peer.sender===sender,peerFirstFailure:peer.firstFailure,
+        peerDistance:Math.hypot(sender.position.x-listener.position.x,sender.position.y-listener.position.y),
+        peerLineOfSight:actorLineOfSight(listener,listener.position,sender.position)},
+      sight:{listenerComplete:own.complete,listenerReason:own.reason,listenerCount:own.objects.length,
+        senderComplete:other.complete,senderReason:other.reason,senderCount:other.objects.length},
+      crops:{listenerCount:ownCrops.size,senderCount:otherCrops.size},
+      rows,pairs,pairCount,validForwardCandidates:candidates.length,qualifiedPairs,
+      rowCap:96,pairCap:64,rowsTruncated:own.objects.length>rows.length,pairsTruncated:pairCount>pairs.length,
+      ecologySeed:ecology.seed,communicationSeed:reference.snapshot().seed,
+      pure:{referencePersistence:JSON.stringify(reference.exportPersistence())===beforePersistence,
+        referenceSnapshot:JSON.stringify(reference.snapshot())===beforeReference,
+        elapsed:state.elapsed===beforeElapsed,positions:JSON.stringify(state.agents.map(actor=>actor.position))===beforePositions}};
+  }
   const associationState=()=>{
     const s=reference.snapshot(),completed=!!successfulDiscoveryActionCompletion(sender,indicationActive),expected=completed?1:0;
     require(s.positive===0&&s.negative===0&&s.relief===0&&s.discomfort===0,'Character learning cannot pay a bodily reward');
@@ -598,7 +659,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       pendingKind:responseCase?'listener-response':'sender-demonstration'};
     require(paid>0&&paid<1.8,'Interruption must retain genuine partial paid work');phase='interrupted';return status();
   }
-  return {project,status,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
+  return {project,status,admissionAudit,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
     inspectAssociation,pendingForSave,pendingResponseForSave,checkpoint,interrupt,
     characterExport:()=>structuredClone(characterState()),
     dispose(){sensor.dispose?.();}};

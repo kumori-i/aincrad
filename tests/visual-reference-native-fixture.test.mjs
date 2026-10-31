@@ -181,6 +181,22 @@ test('fixed authored native vantage makes an actually paid reply ambiguous witho
       assert.deepEqual(placed.senderPlaced,{x:-12943,y:3595});
       assert.deepEqual(placed.listenerPlaced,{x:-12827,y:3543});
       assert.equal(placed.forwardCandidateCount,2);
+      const beforeWorld=f.fixture.project(),beforeReference=f.reference.snapshot(),beforePersistence=f.reference.exportPersistence(),
+        admission=f.fixture.admissionAudit();
+      assert.equal(admission.actualCanvas,false);
+      assert.equal(admission.sight.listenerComplete,true);
+      assert.equal(admission.sight.senderComplete,true);
+      assert.equal(admission.genericGates.peerFound,true);
+      assert.equal(admission.validForwardCandidates,2);
+      assert.equal(admission.pairCount,1);assert.equal(admission.qualifiedPairs,1);
+      assert.deepEqual(admission.pairs[0].ids,['object:501','object:504']);
+      assert(admission.pairs[0].ownRms>=admission.featureDistance&&
+        admission.pairs[0].senderRms>=admission.featureDistance);
+      assert(Object.values(admission.pure).every(Boolean));
+      assert.deepEqual(f.fixture.admissionAudit(),admission,'Repeated pre-action audits cannot draw learner RNG');
+      assert.deepEqual(f.fixture.project(),beforeWorld);
+      assert.deepEqual(f.reference.snapshot(),beforeReference);
+      assert.deepEqual(f.reference.exportPersistence(),beforePersistence);
       const original=f.reference.exportPersistence(),complete=firstPaidExchange(f);
       assert.equal(complete.reference.latest.listenerUpdate,true);
       assert.equal(complete.checks.listenerLearning.uniqueDemonstrations,1);
@@ -205,6 +221,30 @@ test('fixed authored native vantage makes an actually paid reply ambiguous witho
       assert.deepEqual(settled.reference.senderFeedback,[]);
     }finally{f.dispose();}
   });
+
+test('pre-action audit separates missing Canvas crops from below-threshold numeric pairs without sampling a message',async()=>{
+  const f=await setup({ambiguityScenario:true});
+  try{
+    const before=f.reference.exportPersistence(),capture=f.sensor.capture;
+    f.sensor.capture=actor=>actor===f.state.agents[0]?new Map():capture(actor);
+    const missing=f.fixture.admissionAudit();
+    assert.equal(missing.validForwardCandidates,0);
+    assert.equal(missing.qualifiedPairs,0);
+    assert(missing.rows.some(row=>row.numericForward&&row.senderCrop.present===false));
+    assert(Object.values(missing.pure).every(Boolean));
+    const pixels=Array(768).fill(77),features=poolCommunicationPixels(pixels);
+    f.sensor.capture=actor=>new Map([...capture(actor)].map(([id,crop])=>[id,{...crop,pixels,features}]));
+    const indistinct=f.fixture.admissionAudit();
+    assert.equal(indistinct.validForwardCandidates,2);
+    assert.equal(indistinct.pairCount,1);
+    assert.equal(indistinct.qualifiedPairs,0);
+    assert.equal(indistinct.pairs[0].ownRms,0);
+    assert.equal(indistinct.pairs[0].senderRms,0);
+    assert(Object.values(indistinct.pure).every(Boolean));
+    assert.deepEqual(f.reference.exportPersistence(),before);
+    assert.equal(f.reference.snapshot().exchanges,0);
+  }finally{f.dispose();}
+});
 
 test('serialized seed-212 negative control saves a paid pending reply after a genuine mismatch update (synthetic pixels)',
   {timeout:180000},async()=>{

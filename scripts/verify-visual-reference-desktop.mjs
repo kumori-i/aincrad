@@ -259,6 +259,21 @@ function installRunner(context,helpers){
         'The renderer must receive and apply authored ambiguity placement before any paid action');
       assert.equal(status.checks.authoredAmbiguity?.forwardCandidateCount,2);
       assert.equal(status.checks.authoredAmbiguity?.reverseResult,'ambiguous');
+      const beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),
+        beforeCharacter=await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeRaw=await raw(win);
+      let admission;
+      try{admission=await evaluate(win,'window.__visualReferenceFixture.admissionAudit()');}
+      catch(error){admission={error:String(error?.stack||error)};}
+      await fs.writeFile(path.join(context.output,'pre-action-admission-audit.json'),JSON.stringify(admission,null,2));
+      assert.equal(admission.error,undefined,'Retained pre-action Canvas admission audit must complete');
+      assert.equal(admission.actualCanvas,true,'Native admission audit must use real offscreen Canvas crops');
+      for(const [key,value] of Object.entries(admission.pure))assert.equal(value,true,'Admission audit cannot change '+key);
+      assert.deepEqual(await snapshot(win),placed,'Admission audit cannot change the actual main world');
+      assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,
+        'Admission audit cannot sample or train either learner');
+      assert.deepEqual(await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeCharacter,
+        'Admission audit cannot draw character RNG or update weights');
+      assert.equal(await raw(win),beforeRaw,'Admission audit cannot write storage');
     }
     let measured=await measurementPoint(win,'fresh');
     assert(Object.values(measured.counts).every(value=>value===0),'Fresh engineering world has zero communication counts');
