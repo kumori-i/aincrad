@@ -15,7 +15,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {observeNpc,requestNpcAction,cancelNpcAction}=await use('npc');
   const {publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,referenceGeometry}=await use('discovery-actions');
-  const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry}=await use('visual-reference-perception');
+  const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry,sensePublicPeerGesture}=await use('visual-reference-perception');
   const {actorLineOfSight}=await use('perception');
   const {createCommunicationPixelSensor,poolCommunicationPixels}=await use('communication-pixels');
   const {recentDiscoveryAim}=await use('discovery');
@@ -138,6 +138,58 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const project=()=>projectEvidence(state);
   const pose=()=>publicIndicationGeometry(sender);
   const responsePose=()=>publicIndicationGeometry(listener);
+  function localGesture(observer,peer,visibility){
+    const memory=reference.readGestureMemory(observer),row=memory?.records.at(-1);
+    require(row?.visibility===visibility,`Actual ${observer.id} local gesture visibility must be ${visibility}`);
+    require(Object.keys(row).sort().join(',')===
+      'at,continuousAbsenceSeconds,continuousVisible,peer,pose,self,visibility,visibleSeconds',
+    'Actor-local gesture row has an unexpected field');
+    require(Object.keys(row.self).sort().join(',')==='actionActive,poseProgress'&&
+      row.self.actionActive===Number(!!observer.active),
+    'Gesture memory must carry only the actor’s own coarse action state');
+    near(row.at,observer.elapsed,'Actor-local gesture sample time');
+    const ownPose=publicIndicationGeometry(observer);
+    require(row.self.poseProgress===(ownPose?.progress??null),
+      'Own pose progress must come from the actor’s paid public action');
+    if(visibility==='unknown'){
+      require(row.pose===null,'Unknown sight cannot become a pose');
+      return {visibility,at:row.at};
+    }
+    require(Object.keys(row.peer).sort().join(',')==='dx,dy','Peer sight may contain only relative numeric coordinates');
+    near(row.peer.dx,peer.position.x-observer.position.x,'Actor-local peer dx');
+    near(row.peer.dy,peer.position.y-observer.position.y,'Actor-local peer dy');
+    const publicPose=publicIndicationGeometry(peer);
+    if(visibility==='absent')require(row.pose===null&&!publicPose,'Visible absence requires no paid public pose');
+    else{
+      require(publicPose&&row.pose&&Object.keys(row.pose).sort().join(',')==='origin,progress,tip',
+        'Only the actual paid public segment may enter gesture memory');
+      for(const endpoint of ['origin','tip']){
+        require(Object.keys(row.pose[endpoint]).sort().join(',')==='dx,dy',
+          'Pose coordinates must be relative numeric values');
+        near(row.pose[endpoint].dx,publicPose[endpoint].x-observer.position.x,endpoint+' local dx');
+        near(row.pose[endpoint].dy,publicPose[endpoint].y-observer.position.y,endpoint+' local dy');
+      }
+      near(row.pose.progress,publicPose.progress,'Actor-local paid pose progress');
+      require(row.continuousVisible&&row.visibleSeconds>0,'Funded public pose needs consecutive local sight');
+    }
+    return {visibility,at:row.at,continuousVisible:row.continuousVisible,
+      ownActionActive:row.self.actionActive,ownPoseProgress:row.self.poseProgress,
+      ...(row.pose?{relativeOrigin:{...row.pose.origin},relativeTip:{...row.pose.tip},progress:row.pose.progress}:{})};
+  }
+  function localGestureReadOnly(observer){
+    const beforeWorld=JSON.stringify(project()),beforeCharacter=JSON.stringify(characterState()),
+      beforePersistence=JSON.stringify(reference.exportPersistence()),
+      original=JSON.stringify(reference.readGestureMemory(observer));
+    const copy=reference.readGestureMemory(observer);
+    require(copy.records.length>0,'Expected an actual local gesture sample');
+    if(copy.records.at(-1).pose)copy.records.at(-1).pose.tip.dx=999999;
+    copy.records.length=0;copy.limits.capacity=0;
+    require(JSON.stringify(reference.readGestureMemory(observer))===original&&
+      JSON.stringify(project())===beforeWorld&&JSON.stringify(characterState())===beforeCharacter&&
+      JSON.stringify(reference.exportPersistence())===beforePersistence,
+    'Reading or changing a copied local gesture view altered the world, RNG, model or private history');
+    return true;
+  }
   function admissionAudit(){
     require(context.ambiguityScenario===true&&phase==='ready',
       'Pre-action Canvas admission audit is confined to the fresh engineering ambiguity scenario');
@@ -285,6 +337,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(choiceProof?.type==='inspect_object'&&choiceProof.worked>0,'No canonical successful paid inspect witness');
     near(choiceProof.worked,choiceActive.seconds,'Full paid listener inspection');
     require(reference.snapshot().latest.status==='awaiting-indication'&&!pose(),'Sender indication preceded completed listener choice');
+    checks.actorGestureMemory={paidChoiceVisibleAbsence:
+      localGesture(listener,sender,'absent').visibility==='absent'&&
+      localGesture(sender,listener,'absent').visibility==='absent'};
     checks.choiceCompletedBeforeIndication=true;phase='choice-complete';return status();
   }
   function beginIndication(){
@@ -302,6 +357,12 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   function visible(){
     require(phase==='indicating','Expected paid indication');for(let i=0;i<24;i++)tick();
     require(pose()&&audit.length>=23,'No sustained visible public cue');
+    const listenerLocal=localGesture(listener,sender,'pose'),senderLocal=localGesture(sender,listener,'absent');
+    require(listenerLocal.ownActionActive===0&&senderLocal.ownActionActive===1&&
+      senderLocal.ownPoseProgress===pose().progress,
+    'Each actor must retain only its own action context during the funded pose');
+    checks.actorGestureMemory.forward={paidPoseObserved:true,listenerLocal,senderLocal,
+      defensiveReadPure:localGestureReadOnly(listener)};
     const crop=sensor.capture(listener,state).get(privateTargetId);
     require(crop?.pixels?.length===768&&crop.features?.length===48,'Missing actual current listener crop');
     checks.visibleCrop={actualCanvas,pixels:crop.pixels.slice(),features:crop.features.slice(),at:crop.at,epoch:crop.epoch};
@@ -320,8 +381,14 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       const observationState={...state,agents:state.agents.map(n=>n===listener?copy:n)};
       bindOzarkWorldAgent(copy,geometry,observationState);
       const observed=observeIndication(copy,sender,observationState);require(observed.objectId===null,'Occluded observer acquired a referent');
+      require(sensePublicPeerGesture(copy,sender).visibility==='unknown',
+        'An occluded read-only observer copy must see unknown, not visible silence');
       blocked={position:p,reason:observed.reason};
     }
+    const farCopy=structuredClone(listener);farCopy.position={x:sender.position.x+401,y:sender.position.y};
+    require(sensePublicPeerGesture(farCopy,sender).visibility==='unknown',
+      'An out-of-sight read-only observer copy must not infer a pose or silence');
+    checks.actorGestureMemory.controlledUnknown=true;
     checks.occlusion={tested:!!blocked,scope:'Read-only observer copy using authoritative world LOS; no main actor relocation',...(blocked||{reason:'No occluded occupiable position in bounded local search'})};
     return status();
   }
@@ -331,6 +398,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(indicationProof?.type==='indicate_object','No canonical successful sender indication');
     near(indicationProof.worked,1.8,'Paid sender work');near(state.elapsed-baseline.at,1.8,'Real main indication duration');
     require(!pose(),'Completion must remove public cue');
+    checks.actorGestureMemory.forwardEndedAsVisibleAbsence=
+      localGesture(listener,sender,'absent').visibility==='absent';
     const snapshot=associationState();
     const replyAvailable=snapshot.pending===1&&snapshot.latest.feedbackStatus==='awaiting-response';
     require(snapshot.observed===1&&snapshot.latest.status==='observed'&&replyAvailable,
@@ -389,6 +458,12 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   function visibleResponse(){
     require(phase==='responding','Expected paid listener response');for(let i=0;i<24;i++)tick();
     require(responsePose()&&responseAudit.length>=23,'No sustained paid public listener response');
+    const senderLocal=localGesture(sender,listener,'pose'),listenerLocal=localGesture(listener,sender,'absent');
+    require(senderLocal.ownActionActive===0&&listenerLocal.ownActionActive===1&&
+      listenerLocal.ownPoseProgress===responsePose().progress,
+    'Reply memory must retain each actor’s own action context only');
+    checks.actorGestureMemory.reply={paidPoseObserved:true,senderLocal,listenerLocal,
+      defensiveReadPure:localGestureReadOnly(sender)};
     const id=responseActive.request.targetId,senderCrop=sensor.capture(sender,state).get(id),listenerCrop=sensor.capture(listener,state).get(id);
     const g=responsePose(),sensed=senseReferenceObjects(sender,state),index=sensed.bindings.indexOf(id);
     const resolved=index>=0&&resolveIndication(g,sensed.objects).index===index;
@@ -410,6 +485,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(proof?.type==='indicate_object','No canonical successful listener response');near(proof.worked,1.8,'Paid listener response work');
     near(state.elapsed-responseBaseline.at,1.8,'Real main listener response duration');
     require(!pose()&&!responsePose(),'Completion must remove both public cues');
+    checks.actorGestureMemory.replyEndedAsVisibleAbsence=
+      localGesture(sender,listener,'absent').visibility==='absent';
     const snapshot=associationState(),feedbackStatus=snapshot.latest.feedbackStatus;
     const sampled=feedbackStatus==='matched'||feedbackStatus==='mismatched';
     require(snapshot.observed===1&&snapshot.pending===0&&
@@ -642,6 +719,14 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     if(!saveCheckpoint())return null;
     const raw=storage.getItem(OZARK_SAVE_KEY);require(raw,'Main save did not write current bytes');
     const document=JSON.parse(raw),canonical=validateCharacterPersistence(persisted);
+    require(state.agents.every(actor=>reference.readGestureMemory(actor)?.records.length>0),
+      'A paid live gesture must exist only in session memory at checkpoint');
+    require(!Object.hasOwn(document,'actorGestureMemory')&&
+      document.agents.every(actor=>!Object.hasOwn(actor,'actorGestureMemory'))&&
+      document.visualReference.learners.every(owner=>!Object.hasOwn(owner,'gesture'))&&
+      document.characterMessages.learners.every(owner=>!Object.hasOwn(owner,'gesture')),
+    'Strict ordinary save must exclude transient actor-local gesture rows');
+    checks.actorGestureMemory.saveExcluded=true;
     require(JSON.stringify(document.worldLineage)===JSON.stringify(canonical.worldLineage)&&
       JSON.stringify(document.visualReference)===JSON.stringify(canonical.visualReference)&&
       JSON.stringify(document.characterMessages)===JSON.stringify(canonical.characterMessages),
@@ -670,6 +755,13 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(!(responseCase?responsePose():pose())&&!successfulDiscoveryActionCompletion(actor,pendingActive),
       'Interruption fabricated completion or retained cue');
     reference.afterTick();
+    const peer=actor===sender?listener:sender;
+    checks.actorGestureMemory.interruptionPublicPoseAbsent=
+      sensePublicPeerGesture(peer,actor).visibility==='absent';
+    require(checks.actorGestureMemory.interruptionPublicPoseAbsent,
+      'Cancelled paid action must immediately stop its public pose');
+    require(reference.readGestureMemory(peer).records.some(row=>row.visibility==='pose'),
+      'Cancellation at the same clock instant must retain genuinely seen rows until another real sample');
     require(JSON.stringify(characterState())===beforeCharacter,
       'Interrupting a pending paid sequence must not update weights, baseline or random states');
     if(responseCase)require(reference.snapshot().latest.feedbackStatus==='censored'&&reference.snapshot().senderFeedback.length===0,

@@ -556,6 +556,10 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
+    // Test-only yes/no lifecycle probe. It exposes no partner rows, targets,
+    // poses, or learner inputs, and never creates a new observation.
+    gestureMemoryEmpty: () => location.search === '?test=1' && state?.agents?.length === 2 &&
+      state.agents.every(actor => communicationLearning?.readGestureMemory(actor)?.records.length === 0),
     communicationMeasurementSnapshot: () => {
       if(location.search!=='?test=1')return null;
       const measurement=communicationLearning?.measurementSnapshot();

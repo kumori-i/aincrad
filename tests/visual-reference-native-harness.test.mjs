@@ -111,6 +111,8 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       'characterMessages','modelStateSha256','[data-character-message="true"]',
       '04b0-exact-message-and-paid-recipient-action.png',
       'communicationMeasurementSnapshot()','paidInspectionCompletions','own-view-demonstration',
+      'actorGestureMemory.forward','actorGestureMemory.reply','actorGestureMemory.controlledUnknown',
+      'actorGestureMemory?.saveExcluded','window.__ozarkWorld.gestureMemoryEmpty()',
       'after-checkpoint','after-interruption','first-reopen','second-reopen','passiveMeasurementNativeQA',
       'Copied original paid inspection receipt cannot create a new indication permit',
       'Second independent reopen retains exact live model weights, counters and RNG states',
@@ -118,6 +120,9 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       '04b-learning-character-counters.png','04c-learning-own-demonstration-provenance.png','character-learning-view.json','character-model-audit.json','timestampedPairSha256','captureWithReadiness({','prefs.sandbox,true'])assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
+    const main=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
+    assert(main.includes("gestureMemoryEmpty: () => location.search === '?test=1'"),
+      'The empty-memory probe is restricted to the disposable native route');
     const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
     assert.match(workflow,/ubuntu-22.04, macos-latest/);assert.doesNotMatch(workflow,/--no-sandbox|--disable-setuid-sandbox|\n  create:|experiments\//);
     const runner=await readFile(new URL('../scripts/verify-visual-reference-desktop.mjs',import.meta.url),'utf8');

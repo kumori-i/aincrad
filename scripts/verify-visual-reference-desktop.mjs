@@ -304,6 +304,7 @@ function installRunner(context,helpers){
     assert.equal(measured.events[0]?.message,status.reference.latest.message,
       'Observer message is the exact sampled physical transaction');
     status=await evaluate(win,'window.__visualReferenceFixture.completeChoice()');assert.equal(status.checks.choiceCompletedBeforeIndication,true);
+    assert.equal(status.checks.actorGestureMemory?.paidChoiceVisibleAbsence,true);
     measured=await measurementPoint(win,'paid-inspection');
     assert.equal(measured.counts.paidInspectionCompletions,1);
     assert.equal(measured.counts.paidInspectionOutcomeUnavailable,0);
@@ -311,10 +312,14 @@ function installRunner(context,helpers){
     assert.equal(status.pose,null);await capture(win,'02-paid-choice-complete-no-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.beginIndication()');assert.equal(status.pose,null);
     status=await evaluate(win,'window.__visualReferenceFixture.visible()');assert(status.pose);assert.equal(status.checks.visibleCrop.actualCanvas,true,'Native audit uses actual current Canvas crops');
+    assert.equal(status.checks.actorGestureMemory?.forward?.paidPoseObserved,true);
+    assert.equal(status.checks.actorGestureMemory.forward.defensiveReadPure,true);
+    assert.equal(status.checks.actorGestureMemory.controlledUnknown,true);
     await fs.writeFile(path.join(context.output,'visible-parser-audit.json'),JSON.stringify(status,null,2));
     await capture(win,'03-during-paid-public-direction-cue.png');
     status=await evaluate(win,'window.__visualReferenceFixture.completeIndication()');
     assert.equal(status.pose,null);assert.equal(status.reference.observed,1);
+    assert.equal(status.checks.actorGestureMemory?.forwardEndedAsVisibleAbsence,true);
     assert.equal(status.reference.latest.listenerUpdate,true);
     assert.equal(status.checks.listenerLearning.uniqueDemonstrations,1);
     assert.equal(status.checks.listenerLearning.optimizerSteps,1);
@@ -339,10 +344,13 @@ function installRunner(context,helpers){
     assert.equal(measured.counts.paidReplyCompletions,0);
     status=await evaluate(win,'window.__visualReferenceFixture.visibleResponse()');
     assert(status.responsePose);assert.equal(status.checks.responseVisible.actualCanvas,true);
+    assert.equal(status.checks.actorGestureMemory?.reply?.paidPoseObserved,true);
+    assert.equal(status.checks.actorGestureMemory.reply.defensiveReadPure,true);
     await fs.writeFile(path.join(context.output,'visible-response-parser-audit.json'),JSON.stringify(status,null,2));
     await capture(win,'04a-during-paid-listener-response.png');
     status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
     assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
+    assert.equal(status.checks.actorGestureMemory?.replyEndedAsVisibleAbsence,true);
     measured=await measurementPoint(win,'paid-reply-complete');
     assert.equal(measured.counts.paidReplyCompletions,1);
     assert.equal(measured.counts.paidReplyOutcomeUnavailable,0);
@@ -388,6 +396,7 @@ function installRunner(context,helpers){
         replyFeedbackStatus:status.reference.latest.feedbackStatus,
         replyFeedbackReason:status.reference.latest.feedbackReason,
         continuousActualSenderObservation:status.checks.responseAmbiguity,
+        actorLocalGestureMemory:status.checks.actorGestureMemory,
         uniquePhysicalDemonstrations:status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.uniqueDemonstrations,
         listenerOptimizerSteps:status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.listenerUpdates,
         senderOptimizerSteps:status.reference.learners.find(row=>row.agentId===status.reference.latest.senderId)?.character.senderUpdates,
@@ -517,6 +526,7 @@ function installRunner(context,helpers){
       'Refused pending save cannot change private model or pending RNG continuation');
     const checkpoint=await evaluate(win,'window.__visualReferenceFixture.checkpoint(localStorage)');
     assert(checkpoint,'Authenticated one-shot checkpoint must persist actual main state');
+    assert.equal(checkpoint.report.checks.actorGestureMemory?.saveExcluded,true);
     assert.equal(checkpoint.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
     assert.equal(await evaluate(win,'window.__visualReferenceFixture.checkpoint(localStorage)'),null,'Fixture checkpoint is one attempt only');
     assert.equal(checkpoint.raw,await raw(win));
@@ -524,6 +534,7 @@ function installRunner(context,helpers){
     assert.equal(measured.pending,1,'Read-only measurement cannot settle saved pending authority');
     await fs.writeFile(path.join(context.output,'checkpoint.json'),JSON.stringify({...checkpoint,screenshots},null,2));
     status=await evaluate(win,'window.__visualReferenceFixture.interrupt()');assert.equal(status.checks.interruption.poseCleared,true);
+    assert.equal(status.checks.actorGestureMemory?.interruptionPublicPoseAbsent,true);
     assert.equal(status.checks.interruption.pendingKind,checkpoint.pendingKind);
     if(context.responseScenario)assert.deepEqual(status.reference.senderFeedback,[],
       'Interruption clears session feedback and cannot produce a second sample');
@@ -548,6 +559,8 @@ function installRunner(context,helpers){
     assert.equal(saved.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
     assert.equal(await raw(win),saved.raw,'Independent reopen reads exact saved mid-action bytes');
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Actual reopen preserves clocks/bodies/history and interrupts only unfinished action');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.gestureMemoryEmpty()'),true,
+      'First independent reopen must begin with empty session-only actor gesture memory');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Loaded profile cannot obtain fresh fixture authority');
     const measured=await measurementPoint(win,'first-reopen');
@@ -582,6 +595,8 @@ function installRunner(context,helpers){
     assert.equal(saved.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
     assert.equal(await raw(win),saved.raw,'Third process reads exact post-interruption save bytes');
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Repeated reopen cannot duplicate interruption or revive authority');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.gestureMemoryEmpty()'),true,
+      'Second independent reopen must not restore actor gesture history from ordinary saved bytes');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     const measured=await measurementPoint(win,'second-reopen');
     assert(Object.values(measured.counts).every(value=>value===0),
@@ -610,6 +625,7 @@ function installRunner(context,helpers){
       replyAvailable,replyFeedbackStatus:firstEvent.feedbackStatus,paidListenerResponseSeconds:paidReplySeconds,
       paidReplyCensored:firstEvent.feedbackStatus==='censored',
       actualCanvasCrops:true,exactEmittedCharacterString:firstEvent.message,
+      actorLocalGestureMemory:{...saved.report.checks.actorGestureMemory,independentReopensEmpty:true},
       consecutiveListenerGeometryAudit:true,
       consecutiveSenderResponseGeometryAudit:paidReplySeconds>0,privateCanonicalWitnessOnly:true,
       canonicalOwnDemonstrationLearning:true,

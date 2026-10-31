@@ -89,6 +89,22 @@ consecutive actually sampled full 1/60-second funded intervals. Missing,
 partial or ambiguous samples reset the measure; no sight is backdated.
 Reference correctness remains an observer-only critic.
 
+`actor-gesture-memory.js` keeps at most 768 recent fixed-step samples for 12
+simulation seconds per actor. After the ordinary population/action step, each
+actor senses the same paid public pointer projection that art draws, through
+its own peer and segment line of sight. Rows contain only relative numeric pose,
+visibility status, sampled continuity and the actor's own coarse action state.
+They distinguish visible absence from unknown sight and never infer an unseen
+interval. Sampling follows each complete population tick, so a pose retired on
+its final paid tick is not backdated into a visible frame. The current source is
+the paid indication segment; food-sharing event labels are not public pose input.
+Object bindings, private transactions, critic results and the other
+actor's learning state are excluded. Reads are actor-local defensive copies.
+Identity/epoch changes, session cancellation, disposal and reopen clear this session
+memory; saves and character weights do not contain it. No policy or learner
+consumes these rows yet, so this supplied sensorimotor memory establishes no
+learned request, gesture meaning, vocabulary or survival benefit.
+
 `communication-inspector.js` opens the same NPC Learning tab. `learning-view.js`
 shows the literal emitted string and completed recipient actions, with English
 observer notes separate from messages. It distinguishes unique valid physical
