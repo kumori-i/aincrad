@@ -20,7 +20,7 @@ const durable=reference=>reference.learners.map(({agentId,identity,anchors,partn
 const senderData=value=>value.characterMessages.learners.find(row=>row.agentId==='aster').sender;
 const listenerData=value=>value.characterMessages.learners.find(row=>row.agentId==='mira').partners[0].listener;
 
-async function setup({seed=211,responseScenario=false,ambiguousSecond=false}={}){
+async function setup({seed=211,responseScenario=false,ambiguityScenario=false,ambiguousSecond=false}={}){
   const geometry=createOzarkWorldGeometry(),state=createOzarkState(geometry);
   if(seed!==state.visualReference.seed){
     state.visualReference={...state.visualReference,seed,random:initialReferenceRandomStates(seed)};
@@ -48,8 +48,13 @@ async function setup({seed=211,responseScenario=false,ambiguousSecond=false}={})
     return writeOzarkSave(storage,state,geometry,{referencePersistence:reference.exportPersistence()});
   };
   const fixture=await serialized(installVisualReferenceFixture)({state,populationState:population.state,reference,
-    geometry,step,fixedStep:1/60,responseScenario,auditSensor:sensor,checkpoint},
+    geometry,step,fixedStep:1/60,responseScenario,ambiguityScenario,auditSensor:sensor,checkpoint},
     new URL('../',import.meta.url),serialized(visualReferenceEvidence));
+  if(ambiguityScenario){
+    // Synthetic pixels only: the pre-action authored scene has two distinct
+    // candidate classes. Native CI must establish this with actual Canvas.
+    categories.set('object:501',0);categories.set('object:504',1);
+  }
   return {geometry,state,sensor,reference,population,storage,fixture,
     dispose(){fixture.dispose();reference.dispose();population.dispose();}};
 }
@@ -165,6 +170,39 @@ test('serialized sequence fixture retains paid listener learning and discards a 
       assert(saved);assert.equal(f.fixture.checkpoint(f.storage),null);
       assert.equal(saved.pendingKind,'sender-demonstration');
       await assertReopen(f,saved);
+    }finally{f.dispose();}
+  });
+
+test('fixed authored native vantage makes an actually paid reply ambiguous without sender training (synthetic pixels)',
+  {timeout:180000},async()=>{
+    const f=await setup({ambiguityScenario:true});
+    try{
+      const placed=f.fixture.status().checks.authoredAmbiguity;
+      assert.deepEqual(placed.senderPlaced,{x:-12943,y:3595});
+      assert.deepEqual(placed.listenerPlaced,{x:-12827,y:3543});
+      assert.equal(placed.forwardCandidateCount,2);
+      const original=f.reference.exportPersistence(),complete=firstPaidExchange(f);
+      assert.equal(complete.reference.latest.listenerUpdate,true);
+      assert.equal(complete.checks.listenerLearning.uniqueDemonstrations,1);
+      f.fixture.beginResponse();
+      const visible=f.fixture.visibleResponse();
+      assert(visible.responsePose);
+      assert.equal(visible.responseAudit.at(-1).reason,'ambiguous');
+      const settled=f.fixture.completeResponse(),sender=senderData(f.reference.exportPersistence());
+      assert.equal(settled.reference.latest.feedbackStatus,'censored');
+      assert.equal(settled.reference.latest.feedbackReason,'response-ambiguous');
+      assert.equal(settled.reference.pending,0);
+      assert.equal(settled.responsePose,null);
+      assert(Math.abs(settled.checks.responsePayment.canonicalWorkSeconds-1.8)<1e-7);
+      assert(settled.checks.responseAmbiguity.paidVisibleSamples>=30);
+      assert.equal(settled.checks.responseAmbiguity.actualSenderObservation,true);
+      assert.equal(settled.checks.senderLearning.updated,false);
+      assert.equal(sender.updates,0);
+      assert.equal(sender.baseline,0);
+      assert.deepEqual(sender.model,senderData(original).model);
+      assert.equal(listenerData(f.reference.exportPersistence()).demonstrations,1);
+      assert.equal(listenerData(f.reference.exportPersistence()).optimizerSteps,1);
+      assert.deepEqual(settled.reference.senderFeedback,[]);
     }finally{f.dispose();}
   });
 

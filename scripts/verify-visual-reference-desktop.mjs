@@ -15,10 +15,12 @@ import {assertStructuralRestoredHistory} from './structural-movement-native-cont
 import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen} from './visual-reference-native-fixture.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url)),prepareOnly=process.argv.includes('--prepare-only'),
-  responseScenario=process.argv.includes('--response-scenario');
-assert(process.argv.slice(2).every(arg=>['--prepare-only','--response-scenario'].includes(arg))&&
+  responseScenario=process.argv.includes('--response-scenario'),ambiguityScenario=process.argv.includes('--ambiguity-scenario');
+assert(process.argv.slice(2).every(arg=>['--prepare-only','--response-scenario','--ambiguity-scenario'].includes(arg))&&
   process.argv.filter(arg=>arg==='--prepare-only').length<=1&&
-  process.argv.filter(arg=>arg==='--response-scenario').length<=1,'Only bounded preparation and response scenario options are supported');
+  process.argv.filter(arg=>arg==='--response-scenario').length<=1&&
+  process.argv.filter(arg=>arg==='--ambiguity-scenario').length<=1&&
+  !(responseScenario&&ambiguityScenario),'Only one bounded native scenario may be selected');
 if(!prepareOnly){
   assert(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_WORKFLOW==='Character message native acceptance','Native execution requires the approved engineering CI workflow');
   assert(['linux','darwin'].includes(process.platform),'Linux/macOS only');
@@ -26,15 +28,16 @@ if(!prepareOnly){
   assert(process.platform!=='linux'||process.env.DISPLAY||process.env.WAYLAND_DISPLAY,'Authorized supported display required');
 }
 const outputRoot=resolve(process.env.AINCRAD_VISUAL_REFERENCE_QA_OUTPUT||
-  join(root,'test-results/visual-reference-native',responseScenario?'response':''));
+  join(root,'test-results/visual-reference-native',responseScenario?'response':ambiguityScenario?'ambiguity':''));
 await mkdir(outputRoot,{recursive:true});
 const output=await mkdtemp(join(outputRoot,'run-')),temporary=await mkdtemp(join(tmpdir(),'aincrad-visual-reference-'));
 const profile=join(temporary,'profile');
 for(const name of ['profile','home','config','cache'])await mkdir(join(temporary,name));
 const application=await canonicalApplicationRoot(output),built=await buildApplication(application);
-const context={output,profile,application,responseScenario,sourceIdentity:nativeSourceIdentity(root),sourceFingerprint:built.sourceFingerprint};
+const context={output,profile,application,responseScenario,ambiguityScenario,
+  sourceIdentity:nativeSourceIdentity(root),sourceFingerprint:built.sourceFingerprint};
 if(!prepareOnly){assert.equal(context.sourceIdentity.commit,process.env.GITHUB_SHA,'Native CI must exercise the exact approved checkout SHA');assert.equal(context.sourceIdentity.worktreeStatus,'','Native CI requires a clean reviewed source tree');}
-const harness=join(output,'runner.cjs'),phases=responseScenario?
+const harness=join(output,'runner.cjs'),phases=ambiguityScenario?['ambiguity-exercise']:responseScenario?
   ['response-exercise','response-reopen','response-verify']:['exercise','reopen','verify'];
 context.phases=phases;
 
@@ -311,6 +314,54 @@ function installRunner(context,helpers){
     assert.equal(measured.counts.visualMatches,Number(status.reference.latest.feedbackStatus==='matched'));
     assert.equal(measured.counts.visualMismatches,Number(status.reference.latest.feedbackStatus==='mismatched'));
     if(context.responseScenario){assert.equal(measured.counts.visualMismatches,1);assert.equal(measured.counts.senderUpdates,1);}
+    if(context.ambiguityScenario){
+      assert.equal(status.reference.latest.feedbackStatus,'censored');
+      assert.equal(status.reference.latest.feedbackReason,'response-ambiguous');
+      assert.equal(status.checks.responseAmbiguity?.actualSenderObservation,true);
+      assert(status.checks.responseAmbiguity.paidVisibleSamples>=30);
+      assert(Math.abs(status.checks.responsePayment.canonicalWorkSeconds-1.8)<1e-7);
+      assert.equal(status.checks.senderLearning.updated,false);
+      assert.equal(status.checks.senderLearning.updates,0);
+      assert.equal(status.checks.senderLearning.baseline,0);
+      assert.equal(status.checks.senderLearning.changedParameters,false);
+      assert.equal(measured.counts.paidReplyStarts,1);
+      assert.equal(measured.counts.paidReplyCompletions,1);
+      assert.equal(measured.counts.responseCensors,1);
+      assert.equal(measured.counts.senderUpdates,0);
+      assert.equal(measured.counts.canonicalDemonstrations,1);
+      assert.equal(measured.counts.validListenerDemonstrations,1);
+      assert.equal(measured.counts.listenerOptimizerSteps,1);
+      assert.equal(status.reference.pending,0);
+      assert.deepEqual(status.reference.senderFeedback,[]);
+      assert.equal(status.responsePose,null);
+      await fs.writeFile(path.join(context.output,'paid-ambiguous-reply.json'),JSON.stringify(status,null,2));
+      await capture(win,'04a2-after-paid-ambiguous-reply.png');
+      await captureAssociationLearning(win);
+      const afterView=await measurementPoint(win,'after-ambiguity-view');
+      assert.deepEqual(afterView,measured,'Read-only Learning and captures cannot change the ambiguity outcome');
+      assert.equal(await raw(win),null,'The single-process ambiguity exercise writes no durable save');
+      await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:false,
+        sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,
+        mainPopulationAndEcology:true,originalActorPositions:false,
+        authoredAmbiguousGeometry:status.checks.authoredAmbiguity,
+        fixtureDisclosure:'Separate seed-211 disposable main-world engineering vantage: Aster (-12943,3595) and Mira (-12827,3543) are placed before any observation or action. No objects, resources, crops, rewards, policy choices or parser rules are changed. The original inspected object receives a genuinely paid reply; Aster continuously observes its ambiguous public gesture in its own actual sight. This is an authored physical geometry check, not ordinary opportunity, learned meaning or survival evidence.',
+        exactEmittedCharacterString:status.reference.latest.message,actualCanvasCrops:true,
+        paidInspectionSeconds:status.privateWitness.choice.worked,
+        paidIndicationSeconds:status.checks.payment.canonicalWorkSeconds,
+        paidListenerResponseSeconds:status.checks.responsePayment.canonicalWorkSeconds,
+        replyFeedbackStatus:status.reference.latest.feedbackStatus,
+        replyFeedbackReason:status.reference.latest.feedbackReason,
+        continuousActualSenderObservation:status.checks.responseAmbiguity,
+        uniquePhysicalDemonstrations:status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.uniqueDemonstrations,
+        listenerOptimizerSteps:status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.listenerUpdates,
+        senderOptimizerSteps:status.reference.learners.find(row=>row.agentId===status.reference.latest.senderId)?.character.senderUpdates,
+        senderWeightsAndBaselineUnchanged:true,noLingeringAuthority:status.reference.pending===0&&status.responsePose===null,
+        actualLearningTabCaptured:true,passiveMeasurementNativeQA:true,
+        screenshots,scope:'One deliberately authored native main-world ambiguity geometry, one real paid listener reply and no sender update. This tests sensory censorship, not acquired vocabulary, ordinary opportunity, generalization or survival benefit.'},null,2));
+      await evaluate(win,'window.__visualReferenceFixture.dispose();true');
+      await session.defaultSession.flushStorageData();
+      return;
+    }
     if(status.reference.latest.feedbackStatus==='censored'){
       assert.equal(context.responseScenario,false,'Authored response profile must produce its required mismatch');
       assert.equal(status.checks.senderLearning.updated,false,'A paid but censored reply gives no sender update');
@@ -553,7 +604,7 @@ function installRunner(context,helpers){
       screenshots:[...saved.screenshots,...screenshots],fixtureDisclosure:saved.fixtureDisclosure,
       scope:context.responseScenario?
         'Fixed historical seed-212 engineering negative control with authored initial Mira position (230,960), wrong original paid inspection, one listener update and sender-local actual-Canvas mismatch update. A second full optional exchange is saved during the genuinely paid listener response; isolated reopen and second reopen discard pending authority without duplicating any update, preserving private model weights and replay. This is not ordinary initial geometry, generalization, autonomous cohort, scientific-seed sweep or survival-benefit evidence.':
-        'Bounded engineering-only deliberate original-position main-world actions and native pixels show a sampled character string, original own-view listener example and one model update. The reverse reply is offered only when actual sender geometry permits; unavailable replies censor sender learning without erasing listener learning. The second authentic sampled sequence is saved mid-paid sender indication and cannot revive its authority after close/reopen. No vocabulary, grammar, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
+        'Bounded engineering-only deliberate original-position main-world actions and native pixels show a sampled character string, original own-view listener example and one model update. A physically admitted reverse reply may still be ambiguous in actual sender sight; such a paid observation censors sender learning without erasing listener learning. The second authentic sampled sequence is saved mid-paid sender indication and cannot revive its authority after close/reopen. No vocabulary, grammar, generalization, autonomous cohort, scientific-seed sweep or survival-benefit claim.'},null,2));
   }
   async function closeNormally(win){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().started'),false,'Engineering fixture must never start an independent wall-clock loop');
@@ -583,7 +634,8 @@ function installRunner(context,helpers){
         await waitFor(win,'Boolean(window.__ozarkWorld)');
         assertCurrentRoute(await evaluate(win,'('+currentRouteSnapshot.toString()+')(window,document)'));
         assert.equal(await evaluate(win,"import('./src/build-info.js').then(module=>module.BUILD_SOURCE_FINGERPRINT)"),context.sourceFingerprint);
-        const operation=phase.startsWith('response-')?phase.slice('response-'.length):phase;
+        const operation=phase.startsWith('response-')?phase.slice('response-'.length):
+          phase.startsWith('ambiguity-')?phase.slice('ambiguity-'.length):phase;
         await ({exercise,reopen,verify}[operation])(win);await closeNormally(win);
       }catch(error){
         console.error(error);const failure={phase,stage,error:String(error?.stack||error),events};
@@ -605,9 +657,10 @@ let nativeProcessesClosed=true,nativeProcessesStarted=0;
 try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
-    nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:responseScenario?
+    nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:ambiguityScenario?
+      'engineering-only fixed seed-211 actor placement before observation and action; one actual Canvas paid ambiguous reply must censor sender feedback without erasing the one listener example; no ordinary opportunity, cohort or generalization':responseScenario?
       'engineering-only fixed historical seed 212 wrong-choice negative control with authored Mira position (230,960); actual Canvas listener and sender updates, mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
-      'engineering-only original-position actual Canvas own-demo character learning; optional sender-visible reply can be censored when geometry is unavailable; pending sampled message close/reopen and read-only model inspection; no cohort or generalization'};
+      'engineering-only original-position actual Canvas own-demo character learning; a paid sender-visible reply can be censored by actual observation; pending sampled message close/reopen and read-only model inspection; no cohort or generalization'};
   await writeFile(join(output,'prepared.json'),JSON.stringify(prepared,null,2));
   if(prepareOnly)console.log(JSON.stringify(prepared));
   else{
@@ -625,9 +678,10 @@ try{
       assert(result.stdout.includes('VISUAL_REFERENCE_NATIVE_CLOSED '+phase));assert(result.stdout.includes('VISUAL_REFERENCE_NATIVE_WILL_QUIT '+phase));
     }
     const processIds=await Promise.all(phases.map(async phase=>JSON.parse(await readFile(join(output,phase+'-sandbox.json'),'utf8')).pid));
-    assert(processIds.every(pid=>Number.isInteger(pid)&&pid>0));assert.equal(new Set(processIds).size,3);
+    assert(processIds.every(pid=>Number.isInteger(pid)&&pid>0));assert.equal(new Set(processIds).size,phases.length);
     const result=JSON.parse(await readFile(join(output,'result.json'),'utf8'));
-    Object.assign(result,{nativeExecutionPerformed:true,threeIndependentElectronProcesses:true,processIds,actualNativeCloseEvents:true,actualNativeWillQuitEvents:true});
+    Object.assign(result,{nativeExecutionPerformed:true,threeIndependentElectronProcesses:phases.length===3,
+      independentElectronProcesses:phases.length,processIds,actualNativeCloseEvents:true,actualNativeWillQuitEvents:true});
     await writeFile(join(output,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
   }
 }finally{

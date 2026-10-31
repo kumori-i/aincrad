@@ -40,6 +40,19 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     listener.position.x=230;listener.position.y=960;
     require(actorLineOfSight(listener,listener.position,sender.position),'Authored response actors must see each other');
   }
+  if(context.ambiguityScenario===true){
+    // A separate engineering-only vantage is placed before observation or
+    // action. Ordinary objects, crops, action selection and parser stay intact.
+    require(context.responseScenario!==true&&sender.id==='aster'&&listener.id==='mira'&&
+      sender.position.x===276&&sender.position.y===760&&listener.position.x===300&&listener.position.y===920,
+    'Authored ambiguity fixture requires exact fresh actors');
+    require(geometry.canOccupy(-12943,3595)&&geometry.canOccupy(-12827,3543),
+      'Authored ambiguity positions must be physically occupiable');
+    sender.position.x=-12943;sender.position.y=3595;
+    listener.position.x=-12827;listener.position.y=3543;
+    require(actorLineOfSight(listener,listener.position,sender.position),
+      'Authored ambiguity actors must see each other');
+  }
   const initialPositions=state.agents.map(n=>({...n.position}));
   const sensor=context.auditSensor||createCommunicationPixelSensor(document);
   const actualCanvas=!context.auditSensor;
@@ -76,6 +89,26 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     checks.authoredGeometry={scope:'engineering-only fresh-profile placement; no ordinary-world opportunity claim',
       senderOriginal:{x:276,y:760},listenerOriginal:{x:300,y:920},listenerPlaced:{x:230,y:960},
       forwardAndReverseCandidateCount:forward,peerDistance:Math.hypot(listener.position.x-sender.position.x,listener.position.y-sender.position.y)};
+  }
+  if(context.ambiguityScenario===true){
+    const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state);
+    require(own.complete&&other.complete,'Authored ambiguity requires complete ordinary sight');
+    let forward=0;
+    for(let i=0;i<own.objects.length;i++){
+      const id=own.bindings[i],j=other.bindings.indexOf(id);if(j<0)continue;
+      const position=own.objects[i].position,cue=referenceGeometry(sender.position,position,sender.scene,1);
+      if(!cue||!visibleIndicationGeometry(listener,cue)||resolveIndication(cue,own.objects).index!==i)continue;
+      forward++;
+      const reply=referenceGeometry(listener.position,position,listener.scene,1);
+      require(reply&&visibleIndicationGeometry(sender,reply)&&resolveIndication(reply,other.objects).reason==='ambiguous',
+        'Every forward candidate must have an ambiguous reverse bearing in fresh sender sight');
+    }
+    require(forward===2,'Authored ambiguity geometry requires exactly two forward candidates');
+    checks.authoredAmbiguity={scope:'Fixed fresh-profile actor positions before any observation or action; no object or crop change, no ordinary opportunity claim',
+      senderOriginal:{x:276,y:760},listenerOriginal:{x:300,y:920},
+      senderPlaced:{...sender.position},listenerPlaced:{...listener.position},
+      forwardCandidateCount:forward,reverseResult:'ambiguous',
+      peerDistance:Math.hypot(listener.position.x-sender.position.x,listener.position.y-sender.position.y)};
   }
   if(renderer){renderer.followNpc=true;renderer.followId=sender.id;renderer.targetZoom=2;renderer.snap(sender.position);}
   const project=()=>projectEvidence(state);
@@ -300,7 +333,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const snapshot=associationState(),feedbackStatus=snapshot.latest.feedbackStatus;
     const sampled=feedbackStatus==='matched'||feedbackStatus==='mismatched';
     require(snapshot.observed===1&&snapshot.pending===0&&
-      (context.responseScenario===true?sampled&&feedbackStatus==='mismatched':sampled||feedbackStatus==='censored'),
+      (context.responseScenario===true?sampled&&feedbackStatus==='mismatched':
+        context.ambiguityScenario===true?feedbackStatus==='censored'&&snapshot.latest.feedbackReason==='response-ambiguous':
+        sampled||feedbackStatus==='censored'),
     'Completed response must yield a paid local sample or an explicit censored outcome');
     const finalSender=sensor.capture(sender,state).get(responseActive.request.targetId);
     const finalListener=sensor.capture(listener,state).get(responseActive.request.targetId);
