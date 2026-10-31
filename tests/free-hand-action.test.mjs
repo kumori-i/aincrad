@@ -13,12 +13,16 @@ import {npcEffortCost,npcWorkAllowance} from '../src/npc-effort-funding.js';
 import {exertPhysiology} from '../src/biology.js';
 import {FREE_HAND_RULES,initializeFreeHandSession,
   freeHandBodySafe,freeHandExplorationChoice,tickFreeHandAction,
-  ownFreeHandAction,publicFreeHandGeometry,freeHandPaidSeconds,
+  ownFreeHandAction,publicFreeHandGeometry,freeHandPaidSeconds,requestFreeHandAction,
   readFreeHandObserver} from '../src/free-hand-action.js';
 
 const geometry=createOzarkWorldGeometry();
 const near=(actual,expected,label)=>assert.ok(Math.abs(actual-expected)<1e-8,
   `${label}: ${actual} versus ${expected}`);
+const emptyLifecycle=()=>({admitted:0,firstPaid:0,certifiedPaidSeconds:0,
+  completed:0,rejectedAfterSelection:{ACTION_BUSY:0,PRIORITY_CHANGED:0},
+  interrupted:{PRIORITY_CHANGED:0,ACTION_TIMEOUT:0,CONTACT_ESCAPE:0,
+    REFERENCE_INTERRUPTED:0,OTHER:0},unavailable:0,ownPoseSamples:0,pending:0});
 function fixture(){
   const state=createOzarkState(geometry,{communicationSeed:211});
   for(const npc of state.agents){
@@ -51,7 +55,11 @@ test('fresh delay and attempted-admission budget are actor-local, bounded and in
   assert.equal(before.saturated,false);
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'ACTION_STARTED');
   assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),admitted:1,pending:1});
   cancelNpcAction(f.actor,'PRIORITY_CHANGED');
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),admitted:1,interrupted:{...emptyLifecycle().interrupted,PRIORITY_CHANGED:1}});
   assert.equal(freeHandExplorationChoice(f.actor),null);
   f.actor.elapsed=239.99;assert.equal(freeHandExplorationChoice(f.actor),null);
   f.actor.elapsed=240;
@@ -64,6 +72,7 @@ test('fresh delay and attempted-admission budget are actor-local, bounded and in
   initializeFreeHandSession(f.actor);
   assert.deepEqual(readFreeHandObserver(f.actor),{decisionChecks:0,eligibleDecisions:0,
     selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+    lifecycle:emptyLifecycle(),
     sessionResets:1,saturated:false,nextEligibleAt:360});
   assert.equal(freeHandExplorationChoice(f.actor),null,'A new incarnation starts another full delay');
   f.actor.elapsed=360;assert.ok(freeHandExplorationChoice(f.actor));
@@ -89,9 +98,23 @@ test('target-free admission rejects object bindings and spends a due attempt on 
     'An urgent body can reject an exact decision-boundary check');
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'PRIORITY_CHANGED');
   assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),rejectedAfterSelection:{ACTION_BUSY:0,PRIORITY_CHANGED:1}});
   f.actor.physiology.waterDeficitMl=250;
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'FREE_HAND_COOLDOWN');
   assert.equal(f.actor.active,null);
+});
+
+test('a selected busy actor has a counted rejection but no admitted or paid motion',()=>{
+  const f=fixture();f.ready();
+  const busy={kind:'wait',request:{type:'wait',seconds:1}};
+  f.actor.active=busy;
+  assert.deepEqual(requestFreeHandAction(f.actor,{type:'free_hand'}),
+    {ok:false,code:'ACTION_BUSY'});
+  assert.equal(f.actor.active,busy);
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),rejectedAfterSelection:{ACTION_BUSY:1,PRIORITY_CHANGED:0}});
+  assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
 });
 
 test('observer checks do not initialize a motor cooldown before an unsafe actor becomes safe',()=>{
@@ -102,6 +125,7 @@ test('observer checks do not initialize a motor cooldown before an unsafe actor 
   assert.equal(freeHandExplorationChoice(actor),null);
   assert.deepEqual(readFreeHandObserver(actor),{decisionChecks:1,eligibleDecisions:0,
     selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+    lifecycle:emptyLifecycle(),
     sessionResets:0,saturated:false,nextEligibleAt:null});
   actor.physiology.waterDeficitMl=250;actor.elapsed=130;
   assert.equal(freeHandExplorationChoice(actor),null,
@@ -121,6 +145,8 @@ test('real funded action has exact duration, effort debit and no ecology object 
   const beforeValues=structuredClone(f.actor.memory.values);
   const charged=[];
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'ACTION_STARTED');
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),admitted:1,pending:1});
   const active=f.actor.active;
   near(active.seconds,1.8,'Fixed paid duration');
   near(active.expiresAt-active.startedAt,npcWorkAllowance(1.8,.25),'Fixed work deadline');
@@ -142,6 +168,8 @@ test('real funded action has exact duration, effort debit and no ecology object 
   assert.equal(publicFreeHandGeometry(f.actor),null);
   assert.equal(ownFreeHandAction(f.actor),false);
   assert.equal(freeHandPaidSeconds(f.actor,active),1.8);
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),admitted:1,firstPaid:1,certifiedPaidSeconds:1.8,completed:1});
 });
 
 test('ordinary ticks render only funded motion and never resolve it as an object pointer',()=>{
@@ -149,6 +177,8 @@ test('ordinary ticks render only funded motion and never resolve it as an object
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'ACTION_STARTED');
   const active=f.actor.active;
   f.advance(.1);
+  assert.equal(readFreeHandObserver(f.actor).lifecycle.firstPaid,1);
+  near(readFreeHandObserver(f.actor).lifecycle.certifiedPaidSeconds,.1,'First certified slice');
   const pose=publicFreeHandGeometry(f.actor);
   assert.ok(pose);
   near(pose.progress,.1/1.8,'Paid pose progress');
@@ -163,12 +193,17 @@ test('ordinary ticks render only funded motion and never resolve it as an object
   assert.equal(publicFreeHandGeometry(f.actor),null);
   assert.equal(f.actor.discovery.experiments.length,0);
   assert.equal(f.actor.discovery.practice.free_hand,undefined);
+  assert.equal(readFreeHandObserver(f.actor).lifecycle.completed,1);
+  near(readFreeHandObserver(f.actor).lifecycle.certifiedPaidSeconds,1.8,
+    'Ordinary tick observer counts only certified work');
   assert.equal(Object.keys(f.actor.discovery.trials).some(key=>key.endsWith('|free_hand')),false);
   assert.equal(f.actor.memory.experience.some(e=>e.details?.action?.type==='free_hand'&&
     e.details?.result?.ok===true),true);
   f.actor.active=structuredClone(active);
   f.advance(.1);
   assert.equal(f.actor.active,null,'A copied completed command cannot resume');
+  assert.equal(readFreeHandObserver(f.actor).lifecycle.completed,1,
+    'Replayed command cannot duplicate authentic completion');
 });
 
 test('partial work, urgent care, actor drift and identity replacement cancel without free completion',()=>{
@@ -178,6 +213,9 @@ test('partial work, urgent care, actor drift and identity replacement cancel wit
     f.advance(.2);
     const active=f.actor.active,paid=freeHandPaidSeconds(f.actor,active);
     assert.ok(paid>0&&publicFreeHandGeometry(f.actor));
+    assert.equal(readFreeHandObserver(f.actor).lifecycle.firstPaid,1);
+    near(readFreeHandObserver(f.actor).lifecycle.certifiedPaidSeconds,paid,
+      `${boundary} certified work before cancellation`);
     if(boundary==='urgent')f.actor.physiology.waterDeficitMl=4000;
     if(boundary==='drift')f.actor.position.x+=1;
     if(boundary==='epoch')f.actor.epoch++;
@@ -195,6 +233,12 @@ test('partial work, urgent care, actor drift and identity replacement cancel wit
       near(f.actor.lastResult.durationSeconds,paid,`${boundary} preserves previously paid work`);
     }
     assert.equal(publicFreeHandGeometry(f.actor),null);
+    const lifecycle=readFreeHandObserver(f.actor).lifecycle;
+    assert.equal(lifecycle.completed,0,`${boundary} is never a completion`);
+    assert.equal(lifecycle.pending,0,`${boundary} retires pending observer authority`);
+    if(boundary==='urgent'||boundary==='drift')
+      assert.equal(lifecycle.interrupted.PRIORITY_CHANGED,1,
+        `${boundary} has one authentic interruption`);
   }
 });
 
@@ -210,6 +254,9 @@ test('unfunded slices cannot fabricate pose, and timeout retains zero paid secon
   assert.equal(f.actor.lastResult.code,'ACTION_TIMEOUT');
   assert.equal(f.actor.lastResult.durationSeconds,0);
   assert.equal(freeHandPaidSeconds(f.actor,active),0);
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),admitted:1,
+      interrupted:{...emptyLifecycle().interrupted,ACTION_TIMEOUT:1}});
 });
 
 test('copied, interrupted and disposed action objects cannot grant fresh physical work',()=>{
@@ -221,9 +268,13 @@ test('copied, interrupted and disposed action objects cannot grant fresh physica
   assert.equal(publicFreeHandGeometry(f.actor),null);
   f.advance(.1);
   assert.equal(f.actor.active,null);
+  assert.equal(readFreeHandObserver(f.actor).lifecycle.unavailable,1,
+    'A copied active object loses the private witness without a fabricated interruption');
   f.actor.active=original;
   f.advance(.1);
   assert.equal(f.actor.active,null,'Old work cannot revive after copied action was ticked');
+  assert.equal(readFreeHandObserver(f.actor).lifecycle.unavailable,1,
+    'Revival cannot duplicate the unavailable witness');
 
   const g=fixture();g.ready();requestNpcAction(g.actor,{type:'free_hand'},g.state.environment);
   g.advance(.1);
@@ -235,7 +286,8 @@ test('copied, interrupted and disposed action objects cannot grant fresh physica
   assert.equal(g.actor.lastResult.code,'PRIORITY_CHANGED');
   assert.deepEqual(readFreeHandObserver(g.actor),
     {decisionChecks:0,eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,
-      sampleCounts:{unknown:0,absent:0,pose:0},sessionResets:0,saturated:false,
+      sampleCounts:{unknown:0,absent:0,pose:0},lifecycle:emptyLifecycle(),
+      sessionResets:0,saturated:false,
       nextEligibleAt:null});
 });
 
@@ -269,6 +321,10 @@ test('reentrant exert detachment or replacement retires old authority without cr
     near(freeHandPaidSeconds(f.actor,original),.1,
       'Revival attempt cannot charge or certify another slice');
     assert.equal(f.actor.lastResult,null,'No completion receipt is fabricated');
+    const lifecycle=readFreeHandObserver(f.actor).lifecycle;
+    assert.equal(lifecycle.unavailable,1,'Reentrant replacement loses one observer witness');
+    assert.equal(lifecycle.completed,0);
+    near(lifecycle.certifiedPaidSeconds,.1,'Reentrant unreturned work is not certified');
   }
 });
 
@@ -290,6 +346,7 @@ test('cancelling a copied free-hand command fabricates no action receipt and ret
   assert.equal(f.actor.memory.experience.length,beforeEvents);
   near(freeHandPaidSeconds(f.actor,original),certified,
     'No later slice can be certified through the retired original');
+  assert.equal(readFreeHandObserver(f.actor).lifecycle.unavailable,1);
 });
 
 test('disposal after legitimate drift or urgent care records previously paid work exactly once',()=>{
@@ -340,6 +397,8 @@ test('pending paid motion saves no authority and reopening resets only its sessi
   restored.elapsed+=120;
   assert.ok(freeHandExplorationChoice(restored),'Reopened actor waits another 120 simulation seconds');
   assert.equal(readFreeHandObserver(restored).selectedAttempts,0);
+  assert.deepEqual(readFreeHandObserver(restored).lifecycle,emptyLifecycle(),
+    'Reopen cannot restore paid authority or session-only lifecycle counts');
 });
 
 test('optional exploration sees free hand only after care and reference choices',()=>{
@@ -370,6 +429,7 @@ test('ineligible motor reads preserve ordinary actor, ecology, action and RNG co
     assert.deepEqual(readFreeHandObserver(a.actor),
       {decisionChecks:i+1,eligibleDecisions:0,selectedAttempts:0,
         visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+        lifecycle:emptyLifecycle(),
         sessionResets:0,saturated:false,nextEligibleAt:120});
     a.advance(.1);b.advance(.1);
   }

@@ -423,12 +423,15 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const start={at:state.elapsed,metabolized:actor.physiology.totals.metabolizedKcal,
       available:actor.physiology.availableEnergyKcal,observer:prior};
     const result=requestNpcAction(actor,candidate.action,state.environment);
+    const admitted=readFreeHandObserver(actor);
     require(result.code==='ACTION_STARTED'&&ownFreeHandAction(actor)&&!motorPose(actor)&&
-      !pose()&&!responsePose()&&JSON.stringify(characterState())===priorCharacter,
+      !pose()&&!responsePose()&&JSON.stringify(characterState())===priorCharacter&&
+      admitted.lifecycle.admitted===1&&admitted.lifecycle.firstPaid===0&&
+      admitted.lifecycle.certifiedPaidSeconds===0&&admitted.lifecycle.pending===1,
     'A target-free admission must be genuine, unpaid and unrelated to character messages');
     if(actor===sender){firstMotorActive=actor.active;motorBaseline=start;phase='motor-first-active';}
     else{secondMotorActive=actor.active;checks.motorSecondBaseline=start;phase='motor-second-active';}
-    return {phase,at:state.elapsed,observer:readFreeHandObserver(actor),
+    return {phase,at:state.elapsed,observer:admitted,
       action:{type:actor.active.request.type,seconds:actor.active.seconds,expiresAt:actor.active.expiresAt},
       pose:motorPose(actor),characterUnchanged:true};
   }
@@ -450,8 +453,12 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     const peerPrediction=localPrediction(peer),ownPrediction=localPrediction(actor);
     require(peerPrediction.targetPose>=1&&peerPrediction.onsets>=1,
       'Actual later personally visible pose must settle a local forecast');
-    const observer=readFreeHandObserver(peer);
-    require(observer.visibleSamples>=30,'Actual peer sight must count repeated funded pose samples');
+    const observer=readFreeHandObserver(peer),actorObserver=readFreeHandObserver(actor);
+    require(observer.visibleSamples>=30&&actorObserver.lifecycle.firstPaid===1&&
+      actorObserver.lifecycle.certifiedPaidSeconds>0&&
+      actorObserver.lifecycle.certifiedPaidSeconds<FREE_HAND_RULES.seconds&&
+      actorObserver.lifecycle.ownPoseSamples>0&&actorObserver.lifecycle.pending===1,
+    'Actual peer and own sight must count repeated genuinely funded pose samples');
     let occluded=null;
     if(actor===sender){
       const p={x:496,y:760};
@@ -467,7 +474,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       occluded={position:p,visibility:unseen.visibility};
     }
     const evidence={actualCanvas,actor:actor.id,peer:peer.id,geometry:g,
-      peerLocal,ownLocal,observer,occluded,
+      peerLocal,ownLocal,observer,actorObserver,occluded,
       peerPrediction:{validTargets:peerPrediction.validTargets,targetPose:peerPrediction.targetPose,
         onsets:peerPrediction.onsets},
       ownPrediction:{validTargets:ownPrediction.validTargets},
@@ -493,6 +500,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     'Full ordinary paid effort must complete without object practice or character learning');
     const ended=localGesture(listener,sender,'absent'),observer=readFreeHandObserver(sender);
     require(observer.selectedAttempts===1&&observer.nextEligibleAt>=sender.elapsed+FREE_HAND_RULES.cooldownSeconds-2&&
+      observer.lifecycle.admitted===1&&observer.lifecycle.firstPaid===1&&
+      Math.abs(observer.lifecycle.certifiedPaidSeconds-FREE_HAND_RULES.seconds)<1e-7&&
+      observer.lifecycle.completed===1&&observer.lifecycle.pending===0&&
       ended.ownFreeHandActive===0,
     'Completion consumes one actor-local rate budget and leaves visible absence');
     checks.motorFirstComplete={worked,effortKcal:effort,metabolizedKcal:metabolized,
@@ -515,14 +525,19 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       !Object.hasOwn(document,'actorGestureMemory')&&
       document.agents.every(actor=>!Object.hasOwn(actor,'actorGestureMemory')&&
         !Object.hasOwn(actor,'freeHandAuthority'))&&
-      !/"(?:actorGesturePrediction|actorGesturePredictor|gesturePrediction|gesturePredictor|freeHandAuthority)"/.test(raw),
+      !/"(?:actorGesturePrediction|actorGesturePredictor|gesturePrediction|gesturePredictor|freeHandAuthority|freeHandObserver)"/.test(raw),
     'Pending save must exclude motor authority, local gesture rows and predictor state');
     const loaded=loadOzarkSave({getItem:key=>key===OZARK_SAVE_KEY?raw:null},geometry);
     require(!loaded.blocked&&loaded.state.agents.every(actor=>!actor.active),
       'Strict ordinary reload must interrupt the pending motor command');
     const report=status();
+    const observer=readFreeHandObserver(listener);
+    require(observer.lifecycle.admitted===1&&observer.lifecycle.firstPaid===1&&
+      observer.lifecycle.certifiedPaidSeconds>0&&observer.lifecycle.completed===0&&
+      observer.lifecycle.pending===1,
+    'Pending checkpoint retains only live local observer credit for certified partial work');
     checks.motorPending={paidSeconds:paid,modeledEffortKcal:npcEffortCost(paid,FREE_HAND_RULES.effort),
-      actor:listener.id,characterUnchanged:true,saveExcluded:true};
+      actor:listener.id,observer,characterUnchanged:true,saveExcluded:true};
     return {raw,expectedRestored:projectEvidence(loaded.state),serializedActive:structuredClone(secondMotorActive),
       report:{...report,checks:{...report.checks,motorPending:checks.motorPending}},
       pendingKind:'free-hand',characterPersistence:structuredClone(characterState()),
@@ -536,17 +551,22 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       beforeCounts=state.agents.map(actor=>readFreeHandObserver(actor)),
       paid=freeHandPaidSeconds(listener,secondMotorActive);
     cancelNpcAction(listener,'PRIORITY_CHANGED');
+    const afterCounts=state.agents.map(actor=>readFreeHandObserver(actor));
+    const expectedInterruption={...beforeCounts[1],lifecycle:{...beforeCounts[1].lifecycle,
+      pending:0,interrupted:{...beforeCounts[1].lifecycle.interrupted,
+        PRIORITY_CHANGED:beforeCounts[1].lifecycle.interrupted.PRIORITY_CHANGED+1}}};
     require(!motorPose(listener)&&!ownFreeHandAction(listener)&&
-      listener.lastResult.ok===false&&listener.lastResult.durationSeconds===paid,
+      listener.lastResult.ok===false&&listener.lastResult.durationSeconds===paid&&
+      same(afterCounts[0],beforeCounts[0])&&same(afterCounts[1],expectedInterruption),
     'Cancellation must retire the actual paid pose and preserve partial work');
     reference.afterTick();
     require(state.agents.every((actor,index)=>same(localPrediction(actor),beforePrediction[index])&&
-      same(readFreeHandObserver(actor),beforeCounts[index]))&&
+      same(readFreeHandObserver(actor),afterCounts[index]))&&
       JSON.stringify(characterState())===beforeCharacter&&
       sensePublicPeerGesture(sender,listener).visibility==='absent',
     'Same-instant passive reread cannot train, count or revive a cancelled motion');
     checks.motorInterrupted={paidSeconds:paid,result:structuredClone(listener.lastResult),
-      poseCleared:true,characterUnchanged:true,sameInstantReadPure:true};
+      observer:afterCounts[1],poseCleared:true,characterUnchanged:true,sameInstantReadPure:true};
     phase='motor-interrupted';return status();
   }
   function beginChoice(){

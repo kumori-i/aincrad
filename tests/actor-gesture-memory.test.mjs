@@ -152,6 +152,8 @@ test('funded target-free hand motion is public numeric pose but never an object 
     assert.equal(publicIndicationGeometry(f.sender),null);
     const received=f.attachment.readGestureMemory(f.listener).records.at(-1);
     const own=f.attachment.readGestureMemory(f.sender).records.at(-1);
+    const ownCounts=()=>f.attachment.measurementSnapshot().actors.find(
+      row=>row.id===f.sender.id).freeHandObserver;
     assert.equal(received.visibility,'pose');
     assert.deepEqual(Object.keys(received.pose).sort(),['origin','progress','tip']);
     assert.equal(received.pose.tip.dx,publicPose.tip.x-f.listener.position.x);
@@ -160,6 +162,11 @@ test('funded target-free hand motion is public numeric pose but never an object 
     assert.equal(own.self.freeHandActive,1);
     assert.equal(own.self.freeHandPose.progress,publicPose.progress);
     assert.equal(own.self.freeHandPose.tip.dx,publicPose.tip.x-f.sender.position.x);
+    assert(ownCounts().lifecycle.ownPoseSamples>0,
+      'Only accepted actor-local funded pose rows count own motion sight');
+    assert.equal(ownCounts().lifecycle.admitted,1);
+    assert.equal(ownCounts().lifecycle.firstPaid,1);
+    assert.equal(ownCounts().lifecycle.pending,1);
     const counts=()=>f.attachment.measurementSnapshot().actors.find(row=>row.id===f.listener.id).freeHandObserver;
     const seen=counts();
     assert(seen.visibleSamples>0,'Only actual locally visible funded samples are counted');
@@ -168,6 +175,10 @@ test('funded target-free hand motion is public numeric pose but never an object 
     assert.deepEqual(counts(),seen,'Repeated observer reads cannot count a new sighting');
     const copiedCounts=counts();copiedCounts.sampleCounts.pose=999;
     assert.notEqual(counts().sampleCounts.pose,999);
+    const copiedOwn=ownCounts();copiedOwn.lifecycle.interrupted.OTHER=999;
+    copiedOwn.lifecycle.ownPoseSamples=999;
+    assert.notEqual(ownCounts().lifecycle.interrupted.OTHER,999);
+    assert.notEqual(ownCounts().lifecycle.ownPoseSamples,999);
     assert.deepEqual(actorGesturePredictionFeatures(own).slice(-4),[
       1,publicPose.progress,
       (publicPose.tip.x-publicPose.origin.x)/24,
@@ -187,6 +198,9 @@ test('funded target-free hand motion is public numeric pose but never an object 
     assert.equal(counts().sampleCounts.unknown,seen.sampleCounts.unknown+1);
     hidden=null;
     cancelNpcAction(f.sender,'TEST_INTERRUPTION');f.step();
+    assert.equal(ownCounts().lifecycle.interrupted.OTHER,1);
+    assert.equal(ownCounts().lifecycle.pending,0);
+    assert.equal(ownCounts().lifecycle.completed,0);
     assert.equal(publicFreeHandGeometry(f.sender),null);
     assert.equal(f.attachment.readGestureMemory(f.listener).records.at(-1).visibility,'absent');
     assert.equal(counts().visibleSamples,seen.visibleSamples,'Visible absence is not a motion sample');

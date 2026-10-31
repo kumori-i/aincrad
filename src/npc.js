@@ -49,7 +49,7 @@ export function observeNpc(npc,environment={}){
 function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene){
   const active=npc.active;
   retireDiscoveryAction(npc,active);
-  retireFreeHandAction(npc,active);
+  retireFreeHandAction(npc,active,result);
   const handling=takeDiscoveryActionFeedback(npc,active);
   if(handling)result.handling=handling;
   if(active?.startRisk!==undefined&&result.riskCost===undefined)result.riskCost=Math.max(0,npc.riskCost-active.startRisk);
