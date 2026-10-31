@@ -3,6 +3,7 @@
 import { CONFIG } from './config.js';
 
 export const ACTOR_GESTURE_MEMORY_LIMITS=Object.freeze({capacity:768,ttlSeconds:12});
+const MAX=Number.MAX_SAFE_INTEGER;
 const finitePair=p=>p&&Number.isFinite(p.dx)&&Number.isFinite(p.dy);
 const copyPair=p=>p?{dx:p.dx,dy:p.dy}:null;
 const copyPose=p=>p?{origin:copyPair(p.origin),tip:copyPair(p.tip),progress:p.progress}:null;
@@ -40,10 +41,13 @@ export function createActorGestureMemory({capacity=ACTOR_GESTURE_MEMORY_LIMITS.c
     throw new TypeError('Invalid actor gesture memory limits');
   const ring=new Array(capacity);
   const supportedSeconds=Math.min(ttlSeconds,(capacity-1)*CONFIG.fixedStep);
-  let head=0,size=0,overflows=0,expirations=0,lastAt=null;
-  function clear(){ring.fill(undefined);head=0;size=0;overflows=0;expirations=0;lastAt=null;}
+  let head=0,size=0,overflows=0,expirations=0,lastAt=null,
+    sessionResets=0,saturated=false;
+  const bump=value=>{const next=Math.min(MAX,value+1);if(next===MAX)saturated=true;return next;};
+  function clear(){ring.fill(undefined);head=0;size=0;overflows=0;expirations=0;lastAt=null;
+    sessionResets=bump(sessionResets);}
   function removeOld(at){
-    while(size&&at-ring[head].at>ttlSeconds){ring[head]=undefined;head=(head+1)%capacity;size--;expirations++;}
+    while(size&&at-ring[head].at>ttlSeconds){ring[head]=undefined;head=(head+1)%capacity;size--;expirations=bump(expirations);}
   }
   function record(sample){
     if(!validSample(sample))throw new TypeError('Invalid actor-local public gesture sample');
@@ -61,7 +65,7 @@ export function createActorGestureMemory({capacity=ACTOR_GESTURE_MEMORY_LIMITS.c
       visibleSeconds:continuous?Math.min(supportedSeconds,prior.visibleSeconds+gap):0,
       continuousAbsenceSeconds:continuous&&sample.visibility==='absent'&&prior.visibility==='absent'
         ?Math.min(supportedSeconds,prior.continuousAbsenceSeconds+gap):0};
-    if(size===capacity){ring[head]=undefined;head=(head+1)%capacity;size--;overflows++;}
+    if(size===capacity){ring[head]=undefined;head=(head+1)%capacity;size--;overflows=bump(overflows);}
     ring[(head+size)%capacity]=row;size++;lastAt=sample.at;
     return true;
   }
@@ -74,5 +78,7 @@ export function createActorGestureMemory({capacity=ACTOR_GESTURE_MEMORY_LIMITS.c
     }
     return {records,overflows,expirations,limits:{capacity,ttlSeconds}};
   }
-  return {record,read,clear};
+  function summary(){return {retained:size,overflows,expirations,
+    limits:{capacity,ttlSeconds},sessionResets,saturated};}
+  return {record,read,summary,clear};
 }

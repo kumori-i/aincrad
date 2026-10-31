@@ -249,8 +249,20 @@ test('target-free paid motor native preparation is a separate bounded two-proces
       "Each reopened actor independently waits another full motor cooldown",
       "copied saved motor command cannot resurrect private paid authority",
       "motor-02-aster-real-paid-segment.png","motor-03-mira-partial-real-paid-segment.png",
-      "motor-04-independent-reopen-no-authority.png"])
+      "motor-04-independent-reopen-no-authority.png",
+      "guardFreshCharacterMotorPilot","projectCharacterPilot","validateCharacterPilotProjection",
+      "await freshMotorV3(win)","v3 projection differs beyond its wall clock",
+      "v3 projection changed ","motor-first-complete","motor-second-paid",
+      "motor-reopen","Fresh v3 projection must contain no motor, local memory or predictor training"])
       assert(source.includes(contract),contract);
+    assert(prepared.motorProtocol&&prepared.motorProtocol.worldSeed===74193&&
+      prepared.motorProtocol.communicationSeed===211,
+    'Native v3 guard must receive the declared world and communication seeds');
+    const exerciseStart=source.indexOf('async function exercise(win)'),
+      freshGuard=source.indexOf('await freshMotorV3(win)',exerciseStart),
+      install=source.indexOf('const install=',exerciseStart);
+    assert(exerciseStart>=0&&freshGuard>exerciseStart&&install>freshGuard,
+      'Real renderer fresh-zero v3 guard and pure projection must precede fixture ownership or paid actions');
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);
     assert.equal(archive.copiedAfterProcessesClosed,false);

@@ -8,16 +8,43 @@ import { ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 export const FREE_HAND_RULES=Object.freeze({seconds:1.8,effort:.25,length:24,
   cooldownSeconds:120,curiosityScore:2.5});
 const actions=new WeakMap(),currentActions=new WeakMap(),settled=new WeakSet(),
-  ticking=new WeakSet(),sessions=new WeakMap();
+  ticking=new WeakSet(),sessions=new WeakMap(),histories=new WeakMap();
 const boundedAdd=n=>Math.min(Number.MAX_SAFE_INTEGER,n+1);
+function history(npc){
+  let h=histories.get(npc);
+  if(!h){
+    h={epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,
+      decisionChecks:0,sessionResets:0,sessionCreated:false,saturated:false};
+    histories.set(npc,h);
+  }else if(h.epoch!==npc.epoch||h.discovery!==npc.discovery||
+      h.physiology!==npc.physiology){
+    // Observer checks belong to the current individual. A later real motor
+    // session, if any, separately records the session reset.
+    h.epoch=npc.epoch;h.discovery=npc.discovery;h.physiology=npc.physiology;
+    h.decisionChecks=0;
+  }
+  return h;
+}
+const bumpHistory=(h,key)=>{
+  h[key]=boundedAdd(h[key]);
+  if(h[key]===Number.MAX_SAFE_INTEGER)h.saturated=true;
+};
+const bump=(session,key)=>{
+  session[key]=boundedAdd(session[key]);
+  if(session[key]===Number.MAX_SAFE_INTEGER)session.history.saturated=true;
+};
 
 function session(npc){
   const prior=sessions.get(npc);
   if(prior&&prior.epoch===npc.epoch&&prior.discovery===npc.discovery&&
     prior.physiology===npc.physiology)return prior;
+  const h=history(npc);
+  if(h.sessionCreated)bumpHistory(h,'sessionResets');
+  else h.sessionCreated=true;
   const next={epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,
     readyAt:npc.elapsed+FREE_HAND_RULES.cooldownSeconds,attempts:0,
-    eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,lastVisibleAt:-Infinity};
+    eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,
+    sampleCounts:{unknown:0,absent:0,pose:0},lastRecordedAt:-Infinity,history:h};
   sessions.set(npc,next);return next;
 }
 
@@ -32,6 +59,8 @@ export function disposeFreeHandSession(npc){
   if(active)settled.add(active);
   currentActions.delete(npc);
   sessions.delete(npc);
+  const h=histories.get(npc);
+  if(h)h.decisionChecks=0;
 }
 
 /** The same qualitative body signals that can preempt a reference exchange
@@ -50,11 +79,13 @@ export function freeHandBodySafe(npc){
 /** An authored curiosity candidate, evaluated only after ordinary care and
  * reference opportunities. No extra RNG draw or learned reward selects it. */
 export function freeHandExplorationChoice(npc){
-  if(!ozarkPersistentWorldAgent(npc)||npc.mode!=='discovery'||npc.active||
+  if(!ozarkPersistentWorldAgent(npc))return null;
+  bumpHistory(history(npc),'decisionChecks');
+  if(npc.mode!=='discovery'||npc.active||
     !freeHandBodySafe(npc))return null;
   const s=session(npc);
   if(npc.elapsed+1e-8<s.readyAt)return null;
-  s.eligibleDecisions=boundedAdd(s.eligibleDecisions);
+  bump(s,'eligibleDecisions');
   return {action:{type:'free_hand'},score:FREE_HAND_RULES.curiosityScore/(1+s.attempts),
     reason:'I can try a small movement of my own hand and observe what happens.'};
 }
@@ -110,8 +141,8 @@ export function requestFreeHandAction(npc,raw){
   const s=session(npc);
   if(npc.elapsed+1e-8<s.readyAt)return {ok:false,code:'FREE_HAND_COOLDOWN'};
   s.readyAt=npc.elapsed+FREE_HAND_RULES.cooldownSeconds;
-  s.attempts=boundedAdd(s.attempts);
-  s.selectedAttempts=boundedAdd(s.selectedAttempts);
+  bump(s,'attempts');
+  bump(s,'selectedAttempts');
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   if(!freeHandBodySafe(npc))return {ok:false,code:'PRIORITY_CHANGED'};
   const request=Object.freeze({type:'free_hand'});
@@ -190,20 +221,32 @@ export function tickFreeHandAction(npc,dt,{complete,exert=exertPhysiology}={}){
   }finally{ticking.delete(active);}
 }
 
-/** Observer-only sampled counts. They never participate in admission, policy,
- * rewards or prediction; repeated reads do not count observations. */
-export function noteFreeHandVisibleSample(observer,peer,sample){
-  if(sample?.visibility!=='pose'||sample.at!==observer?.elapsed||
-    !publicFreeHandGeometry(peer))return false;
+/** Called only after the actor-local memory accepted one new sensor row.
+ * These observer counts never participate in policy, reward or prediction. */
+export function noteFreeHandRecordedSample(observer,peer,sample){
+  if(!['unknown','absent','pose'].includes(sample?.visibility)||
+    sample.at!==observer?.elapsed)return false;
   const s=session(observer);
-  if(sample.at<=s.lastVisibleAt)return false;
-  s.lastVisibleAt=sample.at;s.visibleSamples=boundedAdd(s.visibleSamples);return true;
+  if(sample.at<=s.lastRecordedAt)return false;
+  s.lastRecordedAt=sample.at;
+  const kind=sample.visibility;
+  s.sampleCounts[kind]=boundedAdd(s.sampleCounts[kind]);
+  if(s.sampleCounts[kind]===Number.MAX_SAFE_INTEGER)s.history.saturated=true;
+  if(kind==='pose'&&publicFreeHandGeometry(peer)){bump(s,'visibleSamples');return true;}
+  return false;
 }
 export function readFreeHandObserver(npc){
-  const s=sessions.get(npc);
+  const s=sessions.get(npc),history=histories.get(npc);
+  const currentHistory=history&&history.epoch===npc?.epoch&&
+    history.discovery===npc?.discovery&&history.physiology===npc?.physiology;
+  const decisionChecks=currentHistory?history.decisionChecks:0;
   if(!s||s.epoch!==npc.epoch||s.discovery!==npc.discovery||
-    s.physiology!==npc.physiology)return {eligibleDecisions:0,selectedAttempts:0,
-      visibleSamples:0,nextEligibleAt:null};
-  return {eligibleDecisions:s.eligibleDecisions,selectedAttempts:s.selectedAttempts,
-    visibleSamples:s.visibleSamples,nextEligibleAt:s.readyAt};
+    s.physiology!==npc.physiology)return {decisionChecks,eligibleDecisions:0,
+      selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+      sessionResets:history?.sessionResets??0,saturated:history?.saturated??false,
+      nextEligibleAt:null};
+  return {decisionChecks,eligibleDecisions:s.eligibleDecisions,
+    selectedAttempts:s.selectedAttempts,visibleSamples:s.visibleSamples,
+    sampleCounts:{...s.sampleCounts},sessionResets:s.history.sessionResets,
+    saturated:s.history.saturated,nextEligibleAt:s.readyAt};
 }

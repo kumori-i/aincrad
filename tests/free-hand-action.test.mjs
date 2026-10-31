@@ -45,6 +45,10 @@ test('fresh delay and attempted-admission budget are actor-local, bounded and in
   assert.equal(first.score,FREE_HAND_RULES.curiosityScore);
   const before=readFreeHandObserver(f.actor);
   assert.equal(before.eligibleDecisions,2);
+  assert.equal(before.decisionChecks,4,'Every persistent-actor choice check is counted');
+  assert.deepEqual(before.sampleCounts,{unknown:0,absent:0,pose:0});
+  assert.equal(before.sessionResets,0);
+  assert.equal(before.saturated,false);
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'ACTION_STARTED');
   assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
   cancelNpcAction(f.actor,'PRIORITY_CHANGED');
@@ -58,10 +62,15 @@ test('fresh delay and attempted-admission budget are actor-local, bounded and in
     'Reattaching a controller to the same individual cannot shorten its cooldown');
   f.actor.epoch++;
   initializeFreeHandSession(f.actor);
-  assert.deepEqual(readFreeHandObserver(f.actor),{eligibleDecisions:0,selectedAttempts:0,
-    visibleSamples:0,nextEligibleAt:360});
+  assert.deepEqual(readFreeHandObserver(f.actor),{decisionChecks:0,eligibleDecisions:0,
+    selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+    sessionResets:1,saturated:false,nextEligibleAt:360});
   assert.equal(freeHandExplorationChoice(f.actor),null,'A new incarnation starts another full delay');
   f.actor.elapsed=360;assert.ok(freeHandExplorationChoice(f.actor));
+  f.actor.epoch++;initializeFreeHandSession(f.actor);
+  assert.equal(readFreeHandObserver(f.actor).sessionResets,2,
+    'A second live incarnation reset is visible without durable state');
+  assert.equal(readFreeHandObserver(f.actor).nextEligibleAt,480);
   assert.deepEqual(readFreeHandObserver(other),peerBefore,'Partner does not inherit rate state');
   assert.equal(f.actor.rng,initial,'Motor eligibility and selection draw no RNG');
 });
@@ -74,11 +83,34 @@ test('target-free admission rejects object bindings and spends a due attempt on 
   assert.equal(readFreeHandObserver(f.actor).selectedAttempts,0);
   f.actor.physiology.waterDeficitMl=4000;
   assert.equal(freeHandBodySafe(f.actor),false);
+  const checks=readFreeHandObserver(f.actor).decisionChecks;
+  assert.equal(freeHandExplorationChoice(f.actor),null);
+  assert.equal(readFreeHandObserver(f.actor).decisionChecks,checks+1,
+    'An urgent body can reject an exact decision-boundary check');
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'PRIORITY_CHANGED');
   assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
   f.actor.physiology.waterDeficitMl=250;
   assert.equal(requestNpcAction(f.actor,{type:'free_hand'},f.state.environment).code,'FREE_HAND_COOLDOWN');
   assert.equal(f.actor.active,null);
+});
+
+test('observer checks do not initialize a motor cooldown before an unsafe actor becomes safe',()=>{
+  const state=createOzarkState(geometry,{communicationSeed:211}),actor=state.agents[0];
+  bindOzarkWorldAgent(actor,geometry,state);observeNpc(actor,state.environment);
+  actor.elapsed=120;actor.physiology.waterDeficitMl=4000;
+  const rng=actor.rng;
+  assert.equal(freeHandExplorationChoice(actor),null);
+  assert.deepEqual(readFreeHandObserver(actor),{decisionChecks:1,eligibleDecisions:0,
+    selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+    sessionResets:0,saturated:false,nextEligibleAt:null});
+  actor.physiology.waterDeficitMl=250;actor.elapsed=130;
+  assert.equal(freeHandExplorationChoice(actor),null,
+    'The first safe check starts the original 120-second motor delay');
+  assert.equal(readFreeHandObserver(actor).nextEligibleAt,250);
+  assert.equal(readFreeHandObserver(actor).decisionChecks,2);
+  actor.elapsed=250;
+  assert.equal(freeHandExplorationChoice(actor)?.action.type,'free_hand');
+  assert.equal(actor.rng,rng);
 });
 
 test('real funded action has exact duration, effort debit and no ecology object trial',()=>{
@@ -202,7 +234,9 @@ test('copied, interrupted and disposed action objects cannot grant fresh physica
   assert.equal(publicFreeHandGeometry(g.actor),null);
   assert.equal(g.actor.lastResult.code,'PRIORITY_CHANGED');
   assert.deepEqual(readFreeHandObserver(g.actor),
-    {eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,nextEligibleAt:null});
+    {decisionChecks:0,eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,
+      sampleCounts:{unknown:0,absent:0,pose:0},sessionResets:0,saturated:false,
+      nextEligibleAt:null});
 });
 
 test('reentrant exert detachment or replacement retires old authority without crediting its unreturned slice',()=>{
@@ -334,7 +368,9 @@ test('ineligible motor reads preserve ordinary actor, ecology, action and RNG co
   for(let i=0;i<5;i++){
     assert.equal(freeHandExplorationChoice(a.actor),null);
     assert.deepEqual(readFreeHandObserver(a.actor),
-      {eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,nextEligibleAt:120});
+      {decisionChecks:i+1,eligibleDecisions:0,selectedAttempts:0,
+        visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+        sessionResets:0,saturated:false,nextEligibleAt:120});
     a.advance(.1);b.advance(.1);
   }
   a.actor.elapsed=120;b.actor.elapsed=120;

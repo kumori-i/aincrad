@@ -59,6 +59,8 @@ test('bounded local rows distinguish unknown, visible absence and uninterrupted 
     peer:visibility==='unknown'?null:{dx:3,dy:4},pose:null,
     self:{actionActive:0,poseProgress:null,freeHandActive:0,freeHandPose:null}});
   assert.equal(memory.record(sample(0,'unknown')),true);
+  assert.deepEqual(memory.summary(),{retained:1,overflows:0,expirations:0,
+    limits:{capacity:3,ttlSeconds:1},sessionResets:0,saturated:false});
   memory.record(sample(CONFIG.fixedStep,'absent'));
   memory.record(sample(2*CONFIG.fixedStep,'absent'));
   let rows=memory.read(2*CONFIG.fixedStep).records;
@@ -82,6 +84,9 @@ test('bounded local rows distinguish unknown, visible absence and uninterrupted 
   assert.equal(expired.records[0].visibleSeconds,0);
   assert(expired.expirations>=1);
   memory.clear();assert.deepEqual(memory.read(2.1).records,[]);
+  assert.deepEqual(memory.summary(),{retained:0,overflows:0,expirations:0,
+    limits:{capacity:3,ttlSeconds:1},sessionResets:1,saturated:false});
+  memory.clear();assert.equal(memory.summary().sessionResets,2);
   assert.throws(()=>memory.record({...sample(2,'pose'),pose:{origin:{dx:0,dy:0},tip:{dx:1,dy:0},progress:NaN}}),/Invalid/);
   const motor=sample(2.2,'absent');
   motor.self={actionActive:1,poseProgress:.5,freeHandActive:1,
@@ -158,7 +163,11 @@ test('funded target-free hand motion is public numeric pose but never an object 
     const counts=()=>f.attachment.measurementSnapshot().actors.find(row=>row.id===f.listener.id).freeHandObserver;
     const seen=counts();
     assert(seen.visibleSamples>0,'Only actual locally visible funded samples are counted');
+    assert(seen.sampleCounts.pose>=seen.visibleSamples);
+    assert.equal(seen.sampleCounts.unknown,0);
     assert.deepEqual(counts(),seen,'Repeated observer reads cannot count a new sighting');
+    const copiedCounts=counts();copiedCounts.sampleCounts.pose=999;
+    assert.notEqual(counts().sampleCounts.pose,999);
     assert.deepEqual(actorGesturePredictionFeatures(own).slice(-4),[
       1,publicPose.progress,
       (publicPose.tip.x-publicPose.origin.x)/24,
@@ -175,11 +184,39 @@ test('funded target-free hand motion is public numeric pose but never an object 
     assert.equal(occluded.visibility,'unknown');
     assert(occluded.peer,'The peer remains visible although the paid segment is not');
     assert.equal(counts().visibleSamples,seen.visibleSamples,'Occlusion is not a visible pose sample');
+    assert.equal(counts().sampleCounts.unknown,seen.sampleCounts.unknown+1);
     hidden=null;
     cancelNpcAction(f.sender,'TEST_INTERRUPTION');f.step();
     assert.equal(publicFreeHandGeometry(f.sender),null);
     assert.equal(f.attachment.readGestureMemory(f.listener).records.at(-1).visibility,'absent');
     assert.equal(counts().visibleSamples,seen.visibleSamples,'Visible absence is not a motion sample');
+    assert.equal(counts().sampleCounts.absent,seen.sampleCounts.absent+1);
+  }finally{f.attachment.dispose();}
+});
+
+test('measurement exposes bounded local summaries and frozen score totals without rows or weights',()=>{
+  const f=fixture();
+  try{
+    f.step();
+    const before=structuredClone(f.state),first=f.attachment.measurementSnapshot(),
+      actor=first.actors.find(row=>row.id===f.listener.id),
+      local=f.attachment.readGestureMemory(f.listener),
+      prediction=f.attachment.readGesturePrediction(f.listener);
+    assert.deepEqual(actor.gestureMemory,{retained:local.records.length,
+      overflows:local.overflows,expirations:local.expirations,
+      limits:local.limits,sessionResets:0,saturated:false});
+    assert.deepEqual(actor.gesturePrediction,prediction);
+    assert.equal(actor.gesturePrediction.forecasts,1);
+    assert(!Object.hasOwn(actor.gesturePrediction,'weights'));
+    assert(!Object.hasOwn(actor.gestureMemory,'records'));
+    actor.gestureMemory.limits.capacity=1;
+    actor.gesturePrediction.scores.model.brier=999;
+    actor.freeHandObserver.sampleCounts.absent=999;
+    const again=f.attachment.measurementSnapshot().actors.find(row=>row.id===f.listener.id);
+    assert.equal(again.gestureMemory.limits.capacity,768);
+    assert.notEqual(again.gesturePrediction.scores.model.brier,999);
+    assert.notEqual(again.freeHandObserver.sampleCounts.absent,999);
+    assert.deepEqual(f.state,before,'Repeated summary reads cannot alter the world');
   }finally{f.attachment.dispose();}
 });
 
@@ -366,10 +403,15 @@ test('hostile observer copies and repeated reads cannot change action, RNG or le
     for(let i=0;i<130;i++){for(const f of all)f.step();a.attachment.readGestureMemory(a.sender);}
     assert.equal(a.attachment.measurementSnapshot().counts.senderUpdates,1,
       'Both listeners and the sender have now taken an authentic update path');
+    const establishedMeasurement=snapshot=>({...snapshot,
+      actors:snapshot.actors.map(({freeHandObserver,gestureMemory,gesturePrediction,...actor})=>actor)});
     for(const f of [b,c]){
       assert.deepEqual(a.attachment.exportPersistence(),f.attachment.exportPersistence(),
         'Private prediction cannot draw RNG or alter either learned model');
-      assert.deepEqual(a.attachment.measurementSnapshot(),f.attachment.measurementSnapshot());
+      assert.deepEqual(establishedMeasurement(a.attachment.measurementSnapshot()),
+        establishedMeasurement(f.attachment.measurementSnapshot()),
+        'All established character, body and transaction measurements remain equal');
+      assert.equal(f.attachment.measurementSnapshot().actors[0].freeHandObserver.selectedAttempts,0);
       assert.deepEqual(a.state,f.state,'Ordinary action and body state are unchanged');
     }
     assert.equal(b.attachment.readGestureMemory(b.listener),null);
