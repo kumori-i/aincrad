@@ -1,9 +1,16 @@
-Traceback (most recent call last):
-  File "<stdin>", line 2, in <module>
-  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1027, in read_text
-    with self.open(mode='r', encoding=encoding, errors=errors) as f:
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1013, in open
-    return io.open(self, mode, buffering, encoding, errors, newline)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 'motor-v3-activation/receipt-unapproved.json'
+{
+  "schema": 1,
+  "approved": true,
+  "protocol": "ordinary-character-motor-observation-v3",
+  "commit": "9c1de543a1fc26c673eda25d1e71111fa9f65ce7",
+  "tree": "da5f49b9aaa4c3e66d68aef5c2fb509a03e707ea",
+  "activationRef": "experiments/character-motor-observation-v3-once",
+  "sourceManifestSha256": "75fba0b0643d9475bccedecb0324d0ba779373f1b514ba717f11f85024bc491e",
+  "protocolSha256": "2d14aaf4666dfdf83b9b7c982165d194bb2ca327006489f95e49ba75ace21d84",
+  "runnerSha256": "ea1c61060e343058d0350d854f80cb8e43a4c1433e342b2b74357499e7ec614c",
+  "generatedRunnerSha256": "cf3041e7d080817b4b8b4e28fca931b0a712c94fb4f8b39a827ea6e7390cba50",
+  "runtimeFingerprint": "efbabf98a316c22cc5e01df75ab73ca50192251bd039e83b0726a963c285fc2f",
+  "rendererManifestSha256": "14e291d6fa3ee2b9b8ad79aa23f3ddcdf620d5d9bdf455f79ae699707693399c",
+  "reviewedBy": "dev",
+  "reviewedAt": "2026-10-31T21:30:50Z"
+}
