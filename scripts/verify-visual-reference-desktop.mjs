@@ -258,6 +258,8 @@ function installRunner(context,helpers){
       assert.deepEqual(placed.agents.map(actor=>actor.position),[{x:-12943,y:3595},{x:-12827,y:3543}],
         'The renderer must receive and apply authored ambiguity placement before any paid action');
       assert.equal(status.checks.authoredAmbiguity?.forwardCandidateCount,2);
+      assert.deepEqual(status.checks.authoredAmbiguity?.forwardCandidateIds,['object:501','object:505']);
+      assert.equal(status.checks.authoredAmbiguity?.objectSwap?.tree?.kind,'apple_tree');
       assert.equal(status.checks.authoredAmbiguity?.reverseResult,'ambiguous');
       const beforeReference=await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),
         beforeCharacter=await evaluate(win,'window.__visualReferenceFixture.characterExport()'),beforeRaw=await raw(win);
@@ -267,6 +269,17 @@ function installRunner(context,helpers){
       await fs.writeFile(path.join(context.output,'pre-action-admission-audit.json'),JSON.stringify(admission,null,2));
       assert.equal(admission.error,undefined,'Retained pre-action Canvas admission audit must complete');
       assert.equal(admission.actualCanvas,true,'Native admission audit must use real offscreen Canvas crops');
+      assert.equal(admission.sight.listenerComplete,true);assert.equal(admission.sight.senderComplete,true);
+      assert.equal(admission.genericGates.peerFound,true);
+      assert.equal(admission.validForwardCandidates,2,'Actual Canvas crops and forward gestures must admit both declared objects');
+      assert.equal(admission.pairCount,1);
+      assert.deepEqual(admission.pairs[0]?.ids,['object:501','object:505']);
+      assert.equal(admission.rows.find(row=>row.id==='object:501')?.kind,'grass');
+      assert.equal(admission.rows.find(row=>row.id==='object:505')?.kind,'apple_tree');
+      assert(admission.pairs[0].ownRms>=admission.featureDistance&&
+        admission.pairs[0].senderRms>=admission.featureDistance,
+      'Both actors must have a genuinely distinct real-Canvas pair at the unchanged threshold');
+      assert.equal(admission.qualifiedPairs,1,'The actual Canvas pair must pass ordinary numeric admission');
       for(const [key,value] of Object.entries(admission.pure))assert.equal(value,true,'Admission audit cannot change '+key);
       assert.deepEqual(await snapshot(win),placed,'Admission audit cannot change the actual main world');
       assert.deepEqual(await evaluate(win,'window.__ozarkWorld.communicationSnapshot()'),beforeReference,
@@ -367,7 +380,7 @@ function installRunner(context,helpers){
         sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,
         mainPopulationAndEcology:true,originalActorPositions:false,
         authoredAmbiguousGeometry:status.checks.authoredAmbiguity,
-        fixtureDisclosure:'Separate seed-211 disposable main-world engineering vantage: Aster (-12943,3595) and Mira (-12827,3543) are placed before any observation or action. No objects, resources, crops, rewards, policy choices or parser rules are changed. The original inspected object receives a genuinely paid reply; Aster continuously observes its ambiguous public gesture in its own actual sight. This is an authored physical geometry check, not ordinary opportunity, learned meaning or survival evidence.',
+        fixtureDisclosure:'Separate seed-211 disposable main-world engineering vantage: Aster (-12943,3595) and Mira (-12827,3543) are placed before observation or action. Existing ripe bramble object:504 and apple tree object:505 exchange positions before observation; no objects or resources are created, and no crop values, rewards, policy choices or parser rules are overridden. The original inspected object receives a genuinely paid reply; Aster continuously observes its ambiguous public gesture in its own actual sight. This is an authored physical geometry check, not ordinary opportunity, learned meaning or survival evidence.',
         exactEmittedCharacterString:status.reference.latest.message,actualCanvasCrops:true,
         paidInspectionSeconds:status.privateWitness.choice.worked,
         paidIndicationSeconds:status.checks.payment.canonicalWorkSeconds,
@@ -681,7 +694,7 @@ try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
     nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:ambiguityScenario?
-      'engineering-only fixed seed-211 actor placement before observation and action; one actual Canvas paid ambiguous reply must censor sender feedback without erasing the one listener example; no ordinary opportunity, cohort or generalization':responseScenario?
+      'engineering-only fixed seed-211 actor placement and reciprocal position swap of existing ripe bramble object:504 and apple tree object:505 before observation; one actual Canvas paid ambiguous reply must censor sender feedback without erasing the one listener example; no ordinary opportunity, cohort or generalization':responseScenario?
       'engineering-only fixed historical seed 212 wrong-choice negative control with authored Mira position (230,960); actual Canvas listener and sender updates, mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
       'engineering-only original-position actual Canvas own-demo character learning; a paid sender-visible reply can be censored by actual observation; pending sampled message close/reopen and read-only model inspection; no cohort or generalization'};
   await writeFile(join(output,'prepared.json'),JSON.stringify(prepared,null,2));

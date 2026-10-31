@@ -41,6 +41,8 @@ async function setup({seed=211,responseScenario=false,ambiguityScenario=false,am
   const population=new PopulationRuntime(state,{cardinal:false,experimentalDiscovery:reference.hooks});
   const step=()=>{reference.beforeTick();state.elapsed+=1/60;population.tick(1/60);reference.afterTick();};
   const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  const originalPlants=ambiguityScenario?structuredClone(state.environment.ecology.plants):null,
+    originalLedger=ambiguityScenario?structuredClone(state.environment.ecology.ledger):null;
   let saved=false;
   const checkpoint=()=>{
     if(saved)return false;
@@ -53,9 +55,9 @@ async function setup({seed=211,responseScenario=false,ambiguityScenario=false,am
   if(ambiguityScenario){
     // Synthetic pixels only: the pre-action authored scene has two distinct
     // candidate classes. Native CI must establish this with actual Canvas.
-    categories.set('object:501',0);categories.set('object:504',1);
+    categories.set('object:501',0);categories.set('object:505',1);
   }
-  return {geometry,state,sensor,reference,population,storage,fixture,
+  return {geometry,state,sensor,reference,population,storage,fixture,originalPlants,originalLedger,
     dispose(){fixture.dispose();reference.dispose();population.dispose();}};
 }
 
@@ -181,6 +183,19 @@ test('fixed authored native vantage makes an actually paid reply ambiguous witho
       assert.deepEqual(placed.senderPlaced,{x:-12943,y:3595});
       assert.deepEqual(placed.listenerPlaced,{x:-12827,y:3543});
       assert.equal(placed.forwardCandidateCount,2);
+      assert.deepEqual(placed.forwardCandidateIds,['object:501','object:505']);
+      assert.deepEqual(placed.objectSwap.bramble,{id:'object:504',kind:'bramble',
+        original:{x:-12876.9761711114,y:3676.0703545399747},
+        placed:{x:-12637.114480087068,y:3800.9655602960443}});
+      assert.deepEqual(placed.objectSwap.tree,{id:'object:505',kind:'apple_tree',
+        original:{x:-12637.114480087068,y:3800.9655602960443},
+        placed:{x:-12876.9761711114,y:3676.0703545399747}});
+      const expectedPlants=structuredClone(f.originalPlants);
+      expectedPlants.find(plant=>plant.id==='object:504').position=placed.objectSwap.bramble.placed;
+      expectedPlants.find(plant=>plant.id==='object:505').position=placed.objectSwap.tree.placed;
+      assert.deepEqual(f.state.environment.ecology.plants,expectedPlants,
+        'Only positions of two existing rendered plants may change in the engineering fixture');
+      assert.deepEqual(f.state.environment.ecology.ledger,f.originalLedger,'Fixture adds no resources');
       const beforeWorld=f.fixture.project(),beforeReference=f.reference.snapshot(),beforePersistence=f.reference.exportPersistence(),
         admission=f.fixture.admissionAudit();
       assert.equal(admission.actualCanvas,false);
@@ -189,7 +204,7 @@ test('fixed authored native vantage makes an actually paid reply ambiguous witho
       assert.equal(admission.genericGates.peerFound,true);
       assert.equal(admission.validForwardCandidates,2);
       assert.equal(admission.pairCount,1);assert.equal(admission.qualifiedPairs,1);
-      assert.deepEqual(admission.pairs[0].ids,['object:501','object:504']);
+      assert.deepEqual(admission.pairs[0].ids,['object:501','object:505']);
       assert(admission.pairs[0].ownRms>=admission.featureDistance&&
         admission.pairs[0].senderRms>=admission.featureDistance);
       assert(Object.values(admission.pure).every(Boolean));

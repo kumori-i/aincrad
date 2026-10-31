@@ -35,6 +35,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   near(fixedStep,1/60,'Actual main fixed step');
   require(reference?.snapshot().phase==='private-character-message','Expected actual private character-message attachment');
   const [sender,listener]=state.agents;
+  let authoredObjectSwap=null;
   if(context.responseScenario===true){
     // Explicit engineering geometry, never an ordinary-world opportunity or
     // a runtime pair/target override. The unchanged default profile retains
@@ -46,13 +47,29 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(actorLineOfSight(listener,listener.position,sender.position),'Authored response actors must see each other');
   }
   if(context.ambiguityScenario===true){
-    // A separate engineering-only vantage is placed before observation or
-    // action. Ordinary objects, crops, action selection and parser stay intact.
+    // Engineering-only geometry: exchange positions of two existing ripe plants
+    // before observation. The tree's crown/trunk and the grass's blades use
+    // unchanged real art; no object, stock, crop or sensory value is invented.
     require(context.responseScenario!==true&&sender.id==='aster'&&listener.id==='mira'&&
       sender.position.x===276&&sender.position.y===760&&listener.position.x===300&&listener.position.y===920,
     'Authored ambiguity fixture requires exact fresh actors');
     require(geometry.canOccupy(-12943,3595)&&geometry.canOccupy(-12827,3543),
       'Authored ambiguity positions must be physically occupiable');
+    const ecology=state.environment.ecology,
+      bramble=lookupEcologyObject(ecology,'object:504'),tree=lookupEcologyObject(ecology,'object:505');
+    require(ecology.seed===74193&&bramble?.kind==='bramble'&&bramble.stage==='ripe'&&
+      tree?.kind==='apple_tree'&&tree.stage==='ripe','Authored ambiguity requires the declared fresh ecology');
+    near(bramble.position.x,-12876.9761711114,'Original bramble x');
+    near(bramble.position.y,3676.0703545399747,'Original bramble y');
+    near(tree.position.x,-12637.114480087068,'Original tree x');
+    near(tree.position.y,3800.9655602960443,'Original tree y');
+    const brambleOriginal={...bramble.position},treeOriginal={...tree.position};
+    ecology.plants=ecology.plants.map(plant=>plant.id===bramble.id?
+      {...plant,position:{...treeOriginal}}:plant.id===tree.id?
+        {...plant,position:{...brambleOriginal}}:plant);
+    // Replacing the plants array also invalidates ecology's spatial index.
+    authoredObjectSwap={bramble:{id:bramble.id,kind:bramble.kind,original:brambleOriginal,placed:treeOriginal},
+      tree:{id:tree.id,kind:tree.kind,original:treeOriginal,placed:brambleOriginal}};
     sender.position.x=-12943;sender.position.y=3595;
     listener.position.x=-12827;listener.position.y=3543;
     require(actorLineOfSight(listener,listener.position,sender.position),
@@ -98,21 +115,23 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   if(context.ambiguityScenario===true){
     const own=senseReferenceObjects(listener,state),other=senseReferenceObjects(sender,state);
     require(own.complete&&other.complete,'Authored ambiguity requires complete ordinary sight');
-    let forward=0;
+    const forwardIds=[];
     for(let i=0;i<own.objects.length;i++){
       const id=own.bindings[i],j=other.bindings.indexOf(id);if(j<0)continue;
       const position=own.objects[i].position,cue=referenceGeometry(sender.position,position,sender.scene,1);
       if(!cue||!visibleIndicationGeometry(listener,cue)||resolveIndication(cue,own.objects).index!==i)continue;
-      forward++;
+      forwardIds.push(id);
       const reply=referenceGeometry(listener.position,position,listener.scene,1);
       require(reply&&visibleIndicationGeometry(sender,reply)&&resolveIndication(reply,other.objects).reason==='ambiguous',
         'Every forward candidate must have an ambiguous reverse bearing in fresh sender sight');
     }
-    require(forward===2,'Authored ambiguity geometry requires exactly two forward candidates');
-    checks.authoredAmbiguity={scope:'Fixed fresh-profile actor positions before any observation or action; no object or crop change, no ordinary opportunity claim',
+    require(forwardIds.length===2&&forwardIds.includes('object:501')&&forwardIds.includes('object:505'),
+      'Authored ambiguity geometry requires only the declared grass and tree candidates');
+    checks.authoredAmbiguity={scope:'Engineering-only positions of two existing ripe plants and both actors before observation/action; no object creation, crop override or ordinary opportunity claim',
       senderOriginal:{x:276,y:760},listenerOriginal:{x:300,y:920},
       senderPlaced:{...sender.position},listenerPlaced:{...listener.position},
-      forwardCandidateCount:forward,reverseResult:'ambiguous',
+      objectSwap:authoredObjectSwap,forwardCandidateCount:forwardIds.length,forwardCandidateIds:forwardIds,
+      reverseResult:'ambiguous',
       peerDistance:Math.hypot(listener.position.x-sender.position.x,listener.position.y-sender.position.y)};
   }
   if(renderer){renderer.followNpc=true;renderer.followId=sender.id;renderer.targetZoom=2;renderer.snap(sender.position);}

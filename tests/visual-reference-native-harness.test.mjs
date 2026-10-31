@@ -169,10 +169,13 @@ test('paid ambiguity native preparation is a separate single-process actual-Canv
     assert.equal(prepared.nativeExecutionPerformed,false);
     assert.deepEqual(prepared.phases,['ambiguity-exercise']);
     assert.match(prepared.scope,/one actual Canvas paid ambiguous reply/);
+    assert.match(prepared.scope,/position swap of existing ripe bramble object:504 and apple tree object:505/);
     await assert.rejects(access(join(prepared.output,'result.json')));
     const syntax=spawnSync(process.execPath,['--check',prepared.harness],{encoding:'utf8'});
     assert.equal(syntax.status,0,syntax.stderr);
     const source=await readFile(prepared.harness,'utf8');
+    assert(source.includes('Existing ripe bramble object:504 and apple tree object:505 exchange positions'),
+      'Native result disclosure must describe the authored object swap');
     const auditWrite=source.indexOf("'pre-action-admission-audit.json'"),choiceStart=source.indexOf(
       "status=await evaluate(win,'window.__visualReferenceFixture.beginChoice()')");
     assert(auditWrite>=0&&choiceStart>auditWrite,
@@ -191,7 +194,9 @@ test('paid ambiguity native preparation is a separate single-process actual-Canv
       'noLingeringAuthority:status.reference.pending===0',
       'Paid listener response did not finish','A censored ambiguity must follow a continuous actual paid sender-view interval',
       'The renderer must receive and apply authored ambiguity placement before any paid action',
-      'Admission audit cannot draw character RNG or update weights'])
+      'Admission audit cannot draw character RNG or update weights',
+      'Both actors must have a genuinely distinct real-Canvas pair at the unchanged threshold',
+      'The actual Canvas pair must pass ordinary numeric admission'])
       assert(source.includes(contract),contract);
     const archive=JSON.parse(await readFile(join(prepared.output,'profile-evidence.json'),'utf8'));
     assert.equal(archive.nativeExecutionPerformed,false);assert.equal(archive.copiedAfterProcessesClosed,false);
