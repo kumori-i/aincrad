@@ -345,7 +345,12 @@ function installRunner(context,helpers){
     assert(Object.values(measured.counts).every(value=>value===0)&&measured.events.length===0,
       'The target-free fixture begins with no character exchange or learning');
     assert(measured.actors.every(actor=>actor.freeHandObserver?.nextEligibleAt>=120&&
-      actor.freeHandObserver.selectedAttempts===0&&actor.freeHandObserver.visibleSamples===0),
+      actor.freeHandObserver.selectedAttempts===0&&actor.freeHandObserver.visibleSamples===0&&
+      actor.freeHandObserver.lifecycle.admitted===0&&
+      actor.freeHandObserver.lifecycle.firstPaid===0&&
+      actor.freeHandObserver.lifecycle.completed===0&&
+      actor.freeHandObserver.lifecycle.ownPoseSamples===0&&
+      actor.freeHandObserver.lifecycle.pending===0),
     'Both fresh individuals must start behind their private 120-second motor delay');
     let status=await evaluate(win,'window.__visualReferenceFixture.status()');
     assert.equal(status.phase,'motor-ready');
@@ -355,7 +360,9 @@ function installRunner(context,helpers){
     for(let i=0;i<12;i++)wait.push(await evaluate(win,'window.__visualReferenceFixture.motorWait(600)'));
     assert(Math.abs(wait.at(-1).elapsed-120)<1e-7&&wait.at(-1).steps===7200,
       'The motor delay must elapse through exactly 7,200 real main-world fixed steps');
-    assert(wait.every(row=>row.observers.every(actor=>actor.selectedAttempts===0&&actor.visibleSamples===0)),
+    assert(wait.every(row=>row.observers.every(actor=>actor.selectedAttempts===0&&
+      actor.visibleSamples===0&&actor.lifecycle.admitted===0&&
+      actor.lifecycle.firstPaid===0&&actor.lifecycle.pending===0)),
       'Waiting alone cannot fabricate a motor selection or a peer pose');
     assert.deepEqual((await snapshot(win)).agents.map(actor=>actor.position),
       [{x:276,y:760},{x:300,y:920}],
@@ -365,6 +372,10 @@ function installRunner(context,helpers){
     status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('aster')");
     assert.equal(status.action.type,'free_hand');assert.equal(status.action.seconds,1.8);
     assert.equal(status.pose,null,'Unfunded actor motion has no public pose');
+    assert.equal(status.observer.lifecycle.admitted,1);
+    assert.equal(status.observer.lifecycle.firstPaid,0);
+    assert.equal(status.observer.lifecycle.certifiedPaidSeconds,0);
+    assert.equal(status.observer.lifecycle.pending,1);
     status=await evaluate(win,"window.__visualReferenceFixture.visibleMotor('aster')");
     assert.equal(status.actualCanvas,true);
     assert.equal(status.peerLocal.visibility,'pose');
@@ -372,6 +383,11 @@ function installRunner(context,helpers){
     assert.equal(status.ownLocal.ownFreeHandActive,1);
     assert.equal(status.occluded?.visibility,'unknown');
     assert.equal(status.memoryReadPure,true);assert.equal(status.predictionReadPure,true);
+    assert.equal(status.actorObserver.lifecycle.firstPaid,1);
+    assert(status.actorObserver.lifecycle.certifiedPaidSeconds>0&&
+      status.actorObserver.lifecycle.certifiedPaidSeconds<1.8);
+    assert(status.actorObserver.lifecycle.ownPoseSamples>0);
+    assert.equal(status.actorObserver.lifecycle.pending,1);
     await fs.writeFile(path.join(context.output,'motor-first-paid-pose.json'),JSON.stringify(status,null,2));
     await capture(win,'motor-02-aster-real-paid-segment.png');
     status=await evaluate(win,'window.__visualReferenceFixture.completeFirstMotor()');
@@ -383,6 +399,9 @@ function installRunner(context,helpers){
       'Full effort cost is computed from and funded by the current body model');
     assert.equal(status.checks.motorFirstComplete.characterUnchanged,true);
     assert.equal(status.checks.motorFirstComplete.observer.selectedAttempts,1);
+    assert.equal(status.checks.motorFirstComplete.observer.lifecycle.completed,1);
+    assert.equal(status.checks.motorFirstComplete.observer.lifecycle.pending,0);
+    assert(Math.abs(status.checks.motorFirstComplete.observer.lifecycle.certifiedPaidSeconds-1.8)<1e-7);
     assert.equal(status.checks.motorFirstVisible.peerPrediction.onsets>=1,true);
     measured=await measurementPoint(win,'motor-first-complete');
     assert(Object.values(measured.counts).every(value=>value===0),
@@ -393,8 +412,13 @@ function installRunner(context,helpers){
       'The v3 observer must count the paid first motion and personally visible peer samples');
     status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('mira')");
     assert.equal(status.action.type,'free_hand');assert.equal(status.pose,null);
+    assert.equal(status.observer.lifecycle.admitted,1);
+    assert.equal(status.observer.lifecycle.firstPaid,0);
+    assert.equal(status.observer.lifecycle.pending,1);
     status=await evaluate(win,"window.__visualReferenceFixture.visibleMotor('mira')");
     assert.equal(status.peerLocal.visibility,'pose');assert.equal(status.ownLocal.ownFreeHandActive,1);
+    assert.equal(status.actorObserver.lifecycle.firstPaid,1);
+    assert(status.actorObserver.lifecycle.ownPoseSamples>0);
     const secondV3=await v3ProjectionPoint(win,'motor-second-paid');
     assert(secondV3.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.selectedAttempts===1&&
       secondV3.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.visibleSamples>0,
@@ -404,9 +428,17 @@ function installRunner(context,helpers){
     assert.equal(checkpoint.pendingKind,'free-hand');
     assert(checkpoint.report.checks.motorPending.paidSeconds>0&&
       checkpoint.report.checks.motorPending.paidSeconds<1.8);
+    assert.equal(checkpoint.report.checks.motorPending.observer.lifecycle.completed,0);
+    assert.equal(checkpoint.report.checks.motorPending.observer.lifecycle.pending,1);
+    assert(checkpoint.report.checks.motorPending.observer.lifecycle.certifiedPaidSeconds>0);
     status=await evaluate(win,'window.__visualReferenceFixture.interruptMotor()');
     assert.equal(status.checks.motorInterrupted.poseCleared,true);
     assert.equal(status.checks.motorInterrupted.sameInstantReadPure,true);
+    assert.equal(status.checks.motorInterrupted.observer.lifecycle.interrupted.PRIORITY_CHANGED,1);
+    assert.equal(status.checks.motorInterrupted.observer.lifecycle.completed,0);
+    assert.equal(status.checks.motorInterrupted.observer.lifecycle.pending,0);
+    assert(Math.abs(status.checks.motorInterrupted.observer.lifecycle.certifiedPaidSeconds-
+      checkpoint.report.checks.motorPending.paidSeconds)<1e-7);
     assert.equal(await raw(win),checkpoint.raw,
       'Cancelling the paid motion after checkpoint cannot rewrite occupied bytes');
     measured=await measurementPoint(win,'motor-interrupted');
@@ -819,6 +851,12 @@ function installRunner(context,helpers){
       assert.equal(actor.freeHandObserver?.selectedAttempts,0);
       assert.equal(actor.freeHandObserver?.visibleSamples,0);
       assert.equal(actor.freeHandObserver?.eligibleDecisions,0);
+      assert.equal(actor.freeHandObserver.lifecycle.admitted,0);
+      assert.equal(actor.freeHandObserver.lifecycle.firstPaid,0);
+      assert.equal(actor.freeHandObserver.lifecycle.certifiedPaidSeconds,0);
+      assert.equal(actor.freeHandObserver.lifecycle.completed,0);
+      assert.equal(actor.freeHandObserver.lifecycle.ownPoseSamples,0);
+      assert.equal(actor.freeHandObserver.lifecycle.pending,0);
       assert(actor.freeHandObserver.nextEligibleAt>=restored.elapsed+120-1e-7,
         'Each reopened actor independently waits another full motor cooldown');
     }

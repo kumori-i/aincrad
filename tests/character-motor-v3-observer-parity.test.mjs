@@ -135,11 +135,33 @@ test('gesture observer enablement preserves actions, character learners, RNG and
     assert.equal(enabled.state.agents[0].lastResult?.code,'FREE_HAND_MOVED');
     assert.equal(disabled.state.agents[0].lastResult?.code,'FREE_HAND_MOVED');
     assert.deepEqual(continuation(enabled),continuation(disabled));
+    const enabledLife=readFreeHandObserver(enabled.state.agents[0]).lifecycle;
+    const disabledLife=readFreeHandObserver(disabled.state.agents[0]).lifecycle;
+    for(const life of [enabledLife,disabledLife]){
+      assert.equal(life.admitted,1);
+      assert.equal(life.firstPaid,1);
+      assert.equal(life.completed,1);
+      assert.equal(life.pending,0);
+      assert(Math.abs(life.certifiedPaidSeconds-1.8)<1e-7,
+        'Only authentic funded work supplies the physical duration');
+    }
+    assert(enabledLife.ownPoseSamples>0,
+      'Accepted local sensor rows, when enabled, witness own funded motion');
+    assert.equal(disabledLife.ownPoseSamples,0,
+      'Disabled actor-local memory cannot fabricate accepted sensor rows');
+    assert.deepEqual({...enabledLife,ownPoseSamples:0},disabledLife,
+      'Gesture memory toggling cannot change physical action lifecycle counts');
     const beforeReads=continuation(enabled),projected=await motorProjection(enabled);
     assert.equal(projected.motor.actors[0].freeHandObserver.selectedAttempts,1);
     assert.deepEqual(await motorProjection(enabled),projected);
     assert.deepEqual(continuation(enabled),beforeReads,
       'Post-motion v3 projection cannot change any paid action or learner continuation');
+    const observerBefore=readFreeHandObserver(enabled.state.agents[0]);
+    observerBefore.lifecycle.interrupted.OTHER=999;
+    observerBefore.lifecycle.rejectedAfterSelection.ACTION_BUSY=999;
+    observerBefore.lifecycle.ownPoseSamples=999;
+    assert.deepEqual(readFreeHandObserver(enabled.state.agents[0]).lifecycle,enabledLife,
+      'Nested lifecycle snapshots are defensive and repeated reads are pure');
     assert.deepEqual(continuation(enabled),continuation(disabled));
     const active=enabled.reference.measurementSnapshot().actors[0];
     assert(active.freeHandObserver.selectedAttempts>0);

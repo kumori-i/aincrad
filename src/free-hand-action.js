@@ -10,6 +10,14 @@ export const FREE_HAND_RULES=Object.freeze({seconds:1.8,effort:.25,length:24,
 const actions=new WeakMap(),currentActions=new WeakMap(),settled=new WeakSet(),
   ticking=new WeakSet(),sessions=new WeakMap(),histories=new WeakMap();
 const boundedAdd=n=>Math.min(Number.MAX_SAFE_INTEGER,n+1);
+const INTERRUPT_CODES=Object.freeze(['PRIORITY_CHANGED','ACTION_TIMEOUT',
+  'CONTACT_ESCAPE','REFERENCE_INTERRUPTED']);
+const blankLifecycle=()=>({admitted:0,firstPaid:0,certifiedPaidSeconds:0,
+  completed:0,rejectedAfterSelection:{ACTION_BUSY:0,PRIORITY_CHANGED:0},
+  interrupted:{PRIORITY_CHANGED:0,ACTION_TIMEOUT:0,CONTACT_ESCAPE:0,
+    REFERENCE_INTERRUPTED:0,OTHER:0},unavailable:0,ownPoseSamples:0});
+const copyLifecycle=life=>({...life,rejectedAfterSelection:{...life.rejectedAfterSelection},
+  interrupted:{...life.interrupted}});
 function history(npc){
   let h=histories.get(npc);
   if(!h){
@@ -33,6 +41,19 @@ const bump=(session,key)=>{
   session[key]=boundedAdd(session[key]);
   if(session[key]===Number.MAX_SAFE_INTEGER)session.history.saturated=true;
 };
+const bumpLife=(s,key)=>{
+  s.lifecycle[key]=boundedAdd(s.lifecycle[key]);
+  if(s.lifecycle[key]===Number.MAX_SAFE_INTEGER)s.history.saturated=true;
+};
+const bumpLifeCode=(s,group,code)=>{
+  const slot=s.lifecycle[group];slot[code]=boundedAdd(slot[code]);
+  if(slot[code]===Number.MAX_SAFE_INTEGER)s.history.saturated=true;
+};
+const addPaid=(s,seconds)=>{
+  s.lifecycle.certifiedPaidSeconds=Math.min(Number.MAX_SAFE_INTEGER,
+    s.lifecycle.certifiedPaidSeconds+seconds);
+  if(s.lifecycle.certifiedPaidSeconds===Number.MAX_SAFE_INTEGER)s.history.saturated=true;
+};
 
 function session(npc){
   const prior=sessions.get(npc);
@@ -44,7 +65,8 @@ function session(npc){
   const next={epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,
     readyAt:npc.elapsed+FREE_HAND_RULES.cooldownSeconds,attempts:0,
     eligibleDecisions:0,selectedAttempts:0,visibleSamples:0,
-    sampleCounts:{unknown:0,absent:0,pose:0},lastRecordedAt:-Infinity,history:h};
+    sampleCounts:{unknown:0,absent:0,pose:0},lifecycle:blankLifecycle(),
+    lastRecordedAt:-Infinity,history:h};
   sessions.set(npc,next);return next;
 }
 
@@ -56,7 +78,7 @@ export function initializeFreeHandSession(npc){
 }
 export function disposeFreeHandSession(npc){
   const active=currentActions.get(npc);
-  if(active)settled.add(active);
+  if(active){noteFreeHandTerminal(npc,active,null);settled.add(active);}
   currentActions.delete(npc);
   sessions.delete(npc);
   const h=histories.get(npc);
@@ -94,6 +116,25 @@ function ownerIntact(npc,w){
   return !!w&&w.actor===npc&&w.epoch===npc.epoch&&
     w.discovery===npc.discovery&&w.physiology===npc.physiology;
 }
+/** One observer-only terminal witness. A changed owner or lost action is
+ * unknown, never a completed movement or a fabricated interruption receipt. */
+function noteFreeHandTerminal(npc,active,result){
+  const w=active&&actions.get(active);
+  if(!w||w.actor!==npc||w.observerTerminal)return false;
+  w.observerTerminal=true;
+  const s=w.observerSession;
+  if(!ownerIntact(npc,w)||currentActions.get(npc)!==active||
+    active.request!==w.request||!result||typeof result!=='object'){
+    bumpLife(s,'unavailable');return true;
+  }
+  if(result.ok===true&&result.code==='FREE_HAND_MOVED'&&
+    w.worked+1e-8>=FREE_HAND_RULES.seconds){bumpLife(s,'completed');return true;}
+  if(result.ok===false){
+    bumpLifeCode(s,'interrupted',INTERRUPT_CODES.includes(result.code)?result.code:'OTHER');
+    return true;
+  }
+  bumpLife(s,'unavailable');return true;
+}
 function valid(npc,active,w){
   return ownerIntact(npc,w)&&npc.active===active&&currentActions.get(npc)===active&&
     active?.kind==='free-hand'&&active.request===w.request&&
@@ -128,10 +169,11 @@ export function freeHandPaidSeconds(npc,active){
   const w=active&&actions.get(active);
   return w?.actor===npc?w.worked:0;
 }
-export function retireFreeHandAction(npc,active){
-  if(actions.get(active)?.actor===npc)settled.add(active);
+export function retireFreeHandAction(npc,active,result=null){
+  if(actions.get(active)?.actor===npc){noteFreeHandTerminal(npc,active,result);settled.add(active);}
   const current=currentActions.get(npc);
-  if(current){settled.add(current);currentActions.delete(npc);}
+  if(current){noteFreeHandTerminal(npc,current,current===active?result:null);
+    settled.add(current);currentActions.delete(npc);}
 }
 
 /** A valid selection spends its rate budget before physical admission. */
@@ -143,8 +185,10 @@ export function requestFreeHandAction(npc,raw){
   s.readyAt=npc.elapsed+FREE_HAND_RULES.cooldownSeconds;
   bump(s,'attempts');
   bump(s,'selectedAttempts');
-  if(npc.active)return {ok:false,code:'ACTION_BUSY'};
-  if(!freeHandBodySafe(npc))return {ok:false,code:'PRIORITY_CHANGED'};
+  if(npc.active){bumpLifeCode(s,'rejectedAfterSelection','ACTION_BUSY');
+    return {ok:false,code:'ACTION_BUSY'};}
+  if(!freeHandBodySafe(npc)){bumpLifeCode(s,'rejectedAfterSelection','PRIORITY_CHANGED');
+    return {ok:false,code:'PRIORITY_CHANGED'};}
   const request=Object.freeze({type:'free_hand'});
   const active={kind:'free-hand',request,startedAt:npc.elapsed,
     expiresAt:npc.elapsed+npcWorkAllowance(FREE_HAND_RULES.seconds,FREE_HAND_RULES.effort),
@@ -154,7 +198,9 @@ export function requestFreeHandAction(npc,raw){
   currentActions.set(npc,active);
   actions.set(active,{actor:npc,epoch:npc.epoch,discovery:npc.discovery,
     physiology:npc.physiology,scene:npc.scene,origin:{...npc.position},
-    startedAt:npc.elapsed,deadline:active.expiresAt,elapsed:0,worked:0,request});
+    startedAt:npc.elapsed,deadline:active.expiresAt,elapsed:0,worked:0,request,
+    observerSession:s,observerTerminal:false});
+  bumpLife(s,'admitted');
   return {ok:true,code:'ACTION_STARTED'};
 }
 
@@ -166,11 +212,13 @@ export function tickFreeHandAction(npc,dt,{complete,exert=exertPhysiology}={}){
   const w=actions.get(active);
   if(!w||w.actor!==npc){
     const prior=currentActions.get(npc);
-    if(prior){settled.add(prior);currentActions.delete(npc);}
+    if(prior){noteFreeHandTerminal(npc,prior,null);
+      settled.add(prior);currentActions.delete(npc);}
     if(npc.active===active)npc.active=null;return false;
   }
   if(ticking.has(active))return false;
   if(settled.has(active)){
+    noteFreeHandTerminal(npc,active,null);
     if(currentActions.get(npc)===active)currentActions.delete(npc);
     if(npc.active===active)npc.active=null;return false;
   }
@@ -179,13 +227,16 @@ export function tickFreeHandAction(npc,dt,{complete,exert=exertPhysiology}={}){
     // A replacement individual cannot inherit even an interrupted outcome
     // from a predecessor's private physical witness.
     if(!ownerIntact(npc,w)){
+      noteFreeHandTerminal(npc,active,null);
       settled.add(active);currentActions.delete(npc);
       if(npc.active===active)npc.active=null;return true;
     }
     if(!recognizedFreeHandAction(npc)){
+      noteFreeHandTerminal(npc,active,null);
       settled.add(active);currentActions.delete(npc);npc.active=null;return true;
     }
     const end=(ok,code)=>{
+      noteFreeHandTerminal(npc,active,{ok,code});
       settled.add(active);
       if(npc.active===active)complete?.(npc,w.request,{ok,code,durationSeconds:w.worked});
       return true;
@@ -197,23 +248,29 @@ export function tickFreeHandAction(npc,dt,{complete,exert=exertPhysiology}={}){
     const requested=Math.min(dt,remaining,Math.max(0,FREE_HAND_RULES.seconds-w.worked));
     let paid;
     try{paid=fundNpcEffort(npc,requested,FREE_HAND_RULES.effort,exert).paidSeconds;}
-    catch(error){settled.add(active);throw error;}
+    catch(error){noteFreeHandTerminal(npc,active,null);settled.add(active);throw error;}
     if(npc.active!==active||settled.has(active)){
       // A reentrant hook may replace the command without using the normal
       // cancellation helper. Its unreturned slice cannot certify progress,
       // and the old private witness must never be reattached later.
+      noteFreeHandTerminal(npc,active,null);
       settled.add(active);
       if(currentActions.get(npc)===active)currentActions.delete(npc);
       return true;
     }
     if(!ownerIntact(npc,w)){
+      noteFreeHandTerminal(npc,active,null);
       settled.add(active);currentActions.delete(npc);npc.active=null;return true;
     }
     if(!recognizedFreeHandAction(npc)){
+      noteFreeHandTerminal(npc,active,null);
       settled.add(active);currentActions.delete(npc);npc.active=null;return true;
     }
     if(!valid(npc,active,w))return end(false,'PRIORITY_CHANGED');
+    const firstPaid=w.worked===0&&paid>0;
     w.worked+=paid;active.worked=w.worked;
+    if(firstPaid)bumpLife(w.observerSession,'firstPaid');
+    if(paid>0)addPaid(w.observerSession,paid);
     if(!freeHandBodySafe(npc))return end(false,'PRIORITY_CHANGED');
     if(w.worked+1e-8>=FREE_HAND_RULES.seconds)return end(true,'FREE_HAND_MOVED');
     if(w.elapsed+1e-9>=w.deadline-w.startedAt)return end(false,'ACTION_TIMEOUT');
@@ -232,6 +289,10 @@ export function noteFreeHandRecordedSample(observer,peer,sample){
   const kind=sample.visibility;
   s.sampleCounts[kind]=boundedAdd(s.sampleCounts[kind]);
   if(s.sampleCounts[kind]===Number.MAX_SAFE_INTEGER)s.history.saturated=true;
+  const own=observer?.active,w=own&&actions.get(own);
+  if(sample.self?.freeHandPose&&ownerIntact(observer,w)&&
+    currentActions.get(observer)===own&&!settled.has(own)&&w.worked>0)
+    bumpLife(s,'ownPoseSamples');
   if(kind==='pose'&&publicFreeHandGeometry(peer)){bump(s,'visibleSamples');return true;}
   return false;
 }
@@ -243,10 +304,15 @@ export function readFreeHandObserver(npc){
   if(!s||s.epoch!==npc.epoch||s.discovery!==npc.discovery||
     s.physiology!==npc.physiology)return {decisionChecks,eligibleDecisions:0,
       selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+      lifecycle:{...blankLifecycle(),pending:0},
       sessionResets:history?.sessionResets??0,saturated:history?.saturated??false,
       nextEligibleAt:null};
+  const active=currentActions.get(npc),w=active&&actions.get(active);
+  const pending=Number(ownerIntact(npc,w)&&npc.active===active&&
+    !settled.has(active)&&!w.observerTerminal);
   return {decisionChecks,eligibleDecisions:s.eligibleDecisions,
     selectedAttempts:s.selectedAttempts,visibleSamples:s.visibleSamples,
-    sampleCounts:{...s.sampleCounts},sessionResets:s.history.sessionResets,
+    sampleCounts:{...s.sampleCounts},lifecycle:{...copyLifecycle(s.lifecycle),pending},
+    sessionResets:s.history.sessionResets,
     saturated:s.history.saturated,nextEligibleAt:s.readyAt};
 }
