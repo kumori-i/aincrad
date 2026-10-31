@@ -85,8 +85,16 @@ function copyScores(scores){return Object.fromEntries(Object.entries(scores).map
 export function createActorGesturePredictor(){
   let weights=new Float64Array(featureCount),bias=0,pending=null,lastAt=null;
   let forecasts=0,validTargets=0,updates=0,censoredUnknown=0,censoredGap=0,
-    targetPose=0,targetAbsent=0,onsets=0,offsets=0,stablePose=0,stableAbsent=0;
+    targetPose=0,targetAbsent=0,onsets=0,offsets=0,stablePose=0,stableAbsent=0,
+    sessionResets=0,everSaturated=false;
   let scores=blankScores(),scoresByTarget={pose:blankScores(),absent:blankScores()};
+  const scoreAtCap=slot=>Object.values(slot).some(value=>
+    value.brier>=MAX||value.logLoss>=MAX);
+  const saturatedNow=()=>[
+    forecasts,validTargets,updates,censoredUnknown,censoredGap,targetPose,
+    targetAbsent,onsets,offsets,stablePose,stableAbsent,sessionResets
+  ].some(value=>value>=MAX)||scoreAtCap(scores)||
+    scoreAtCap(scoresByTarget.pose)||scoreAtCap(scoresByTarget.absent);
   function start(row){
     const x=actorGesturePredictionFeatures(row);
     if(!x)return false;
@@ -149,9 +157,13 @@ export function createActorGesturePredictor(){
     censoredUnknown,censoredGap,targetPose,targetAbsent,onsets,offsets,
     stablePose,stableAbsent,scores:copyScores(scores),
     scoresByTarget:{pose:copyScores(scoresByTarget.pose),absent:copyScores(scoresByTarget.absent)},
-    limits:{horizonTicks,maximumUpdatesPerSecond:1/(horizonTicks*STEP),replayCapacity:0}};}
+    limits:{horizonTicks,maximumUpdatesPerSecond:1/(horizonTicks*STEP),replayCapacity:0},
+    sessionResets,saturated:everSaturated||saturatedNow()};}
   function parameters(){return {weights:Array.from(weights),bias};}
-  function clear(){weights=new Float64Array(featureCount);bias=0;pending=null;lastAt=null;
+  function clear(){everSaturated ||= saturatedNow();
+    sessionResets=boundedAdd(sessionResets,1);
+    if(sessionResets>=MAX)everSaturated=true;
+    weights=new Float64Array(featureCount);bias=0;pending=null;lastAt=null;
     forecasts=0;validTargets=0;updates=0;censoredUnknown=0;censoredGap=0;
     targetPose=0;targetAbsent=0;onsets=0;offsets=0;stablePose=0;stableAbsent=0;
     scores=blankScores();scoresByTarget={pose:blankScores(),absent:blankScores()};}

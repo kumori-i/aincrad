@@ -13,6 +13,7 @@ import {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence} 
 import {canonicalApplicationRoot,nativeSourceIdentity,captureNativeChild,archiveNativeProfile,currentRouteSnapshot,assertCurrentRoute} from './carcass-native-contract.mjs';
 import {assertStructuralRestoredHistory} from './structural-movement-native-contract.mjs';
 import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen} from './visual-reference-native-fixture.mjs';
+import {CHARACTER_ORDINARY_PILOT_PROTOCOL,guardFreshCharacterMotorPilot,projectCharacterPilot} from './character-ordinary-motor-v3-protocol.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url)),prepareOnly=process.argv.includes('--prepare-only'),
   responseScenario=process.argv.includes('--response-scenario'),ambiguityScenario=process.argv.includes('--ambiguity-scenario'),
@@ -38,6 +39,8 @@ const profile=join(temporary,'profile');
 for(const name of ['profile','home','config','cache'])await mkdir(join(temporary,name));
 const application=await canonicalApplicationRoot(output),built=await buildApplication(application);
 const context={output,profile,application,responseScenario,ambiguityScenario,motorScenario,
+  motorProtocol:CHARACTER_ORDINARY_PILOT_PROTOCOL,
+  motorProtocolPath:join(root,'scripts/character-ordinary-motor-v3-protocol.mjs'),
   sourceIdentity:nativeSourceIdentity(root),sourceFingerprint:built.sourceFingerprint};
 if(!prepareOnly){assert.equal(context.sourceIdentity.commit,process.env.GITHUB_SHA,'Native CI must exercise the exact approved checkout SHA');assert.equal(context.sourceIdentity.worktreeStatus,'','Native CI requires a clean reviewed source tree');}
 const harness=join(output,'runner.cjs'),phases=motorScenario?['motor-exercise','motor-reopen']:ambiguityScenario?['ambiguity-exercise']:responseScenario?
@@ -46,9 +49,11 @@ context.phases=phases;
 
 function installRunner(context,helpers){
   const {app,session}=require('electron'),assert=require('node:assert/strict');
-  const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto');
+  const fs=require('node:fs/promises'),path=require('node:path'),{pathToFileURL}=require('node:url'),
+    {createHash}=require('node:crypto');
   const {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
-    visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen}=helpers;
+    visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen,
+    guardFreshCharacterMotorPilot,projectCharacterPilot}=helpers;
   const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
   assert(context.phases.includes(phase));
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -74,6 +79,43 @@ function installRunner(context,helpers){
       characterUnchanged:JSON.stringify(fixture?.characterExport?.()??null)===beforeCharacter,
       savedBytesUnchanged:localStorage.getItem('aincrad.world.v2')===beforeSaved};
   }
+  function assertPublicMeasurementPrivacy(result,label){
+    const forbidden=new Set(['senderPixels','receiverPixels','demonstrationPixels','candidatePixels',
+      'features','model','weights','bias','examples','messageHandle','orderedOwnFeatures',
+      'targetId','demonstratedObjectId']);
+    const exactKeys=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&
+      Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
+    const score=value=>exactKeys(value,['brier','logLoss'])&&
+      ['brier','logLoss'].every(key=>Number.isFinite(value[key])&&
+        value[key]>=0&&value[key]<=1e12);
+    const actorPredictor=path=>path[0]==='actors'&&
+      (path[1]===0||path[1]===1)&&path[2]==='gesturePrediction';
+    // The raw predictor snapshot stores one overall score matrix and one per
+    // target class. This exact path is the sole exception for the model key.
+    const publicMatrix=path=>actorPredictor(path)&&
+      (path.length===4&&path[3]==='scores'||
+        path.length===5&&path[3]==='scoresByTarget'&&
+        ['pose','absent'].includes(path[4]));
+    const inspect=(value,path=[])=>{
+      if(Array.isArray(value)){
+        for(let index=0;index<value.length;index++)inspect(value[index],[...path,index]);
+        return;
+      }
+      if(!value||typeof value!=='object')return;
+      if(actorPredictor(path)&&path.length===4&&path[3]==='scoresByTarget')
+        assert(exactKeys(value,['pose','absent']),label+' must retain only public target strata');
+      if(publicMatrix(path))
+        assert(exactKeys(value,['model','prior','persistence'])&&
+          ['model','prior','persistence'].every(key=>score(value[key])),
+        label+' must expose only bounded public predictor score totals');
+      for(const [key,row] of Object.entries(value)){
+        assert.equal(forbidden.has(key)&&!(key==='model'&&publicMatrix(path)),false,
+          label+' must not expose private '+key);
+        inspect(row,[...path,key]);
+      }
+    };
+    inspect(result);
+  }
   async function measurementPoint(win,label){
     const evidence=await evaluate(win,'('+readPureMeasurement.toString()+')()');
     for(const key of ['worldUnchanged','referenceUnchanged','characterUnchanged','savedBytesUnchanged'])
@@ -85,19 +127,71 @@ function installRunner(context,helpers){
     assert.equal(result.identityPendingReconciliation,false);
     assert.equal(result.actors?.length,2);
     assert.equal(result.survival?.length,2);
-    const forbidden=new Set(['senderPixels','receiverPixels','demonstrationPixels','candidatePixels',
-      'features','model','examples','messageHandle','orderedOwnFeatures','targetId','demonstratedObjectId']);
-    const inspect=value=>{
-      if(Array.isArray(value)){for(const row of value)inspect(row);return;}
-      if(value&&typeof value==='object')for(const [key,row]of Object.entries(value)){
-        assert.equal(forbidden.has(key),false,label+' must not expose private '+key);inspect(row);
-      }
-    };
-    inspect(result);
+    assertPublicMeasurementPrivacy(result,label);
     measurementChecks.push({phase,label,counts:{...result.counts},eventsRetained:result.eventsRetained,
       eventsEvicted:result.eventsEvicted,eventsRetired:result.eventsRetired});
     await fs.writeFile(path.join(context.output,phase+'-measurement-'+label+'.json'),JSON.stringify(result,null,2));
     return result;
+  }
+  // The v3 projection is read inside the real sandboxed renderer and checked
+  // by the exact source validator in this Node harness. Neither read advances
+  // the clock, produces a character sample or writes an occupied save.
+  async function v3ProjectionPoint(win,label){
+    async function readTwice(project){
+      const q=window.__ozarkWorld,fixture=window.__visualReferenceFixture,
+        world=JSON.stringify(q.fullSnapshot()),
+        reference=JSON.stringify(q.communicationSnapshot()),
+        character=JSON.stringify(fixture?.characterExport?.()??null),
+        observer=JSON.stringify(q.communicationMeasurementSnapshot()),
+        saved=localStorage.getItem('aincrad.world.v2');
+      const first=await project(),second=await project();
+      return {first,second,unchanged:{world:JSON.stringify(q.fullSnapshot())===world,
+        reference:JSON.stringify(q.communicationSnapshot())===reference,
+        character:JSON.stringify(fixture?.characterExport?.()??null)===character,
+        observer:JSON.stringify(q.communicationMeasurementSnapshot())===observer,
+        storage:localStorage.getItem('aincrad.world.v2')===saved}};
+    }
+    const read=await evaluate(win,'('+readTwice.toString()+')('+projectCharacterPilot.toString()+')');
+    for(const [key,unchanged]of Object.entries(read.unchanged))
+      assert.equal(unchanged,true,label+' v3 projection changed '+key);
+    const withoutWall=sample=>{const copy=structuredClone(sample);delete copy.wallMs;return copy;};
+    assert.deepEqual(withoutWall(read.first),withoutWall(read.second),
+      label+' repeated v3 projection differs beyond its wall clock');
+    const {validateCharacterPilotProjection}=await import(pathToFileURL(context.motorProtocolPath).href);
+    validateCharacterPilotProjection(read.first);
+    validateCharacterPilotProjection(read.second);
+    assert.equal(read.first.motor?.version,1,label+' must project the bounded motor observer');
+    assert.deepEqual(read.first.motor.actors.map(row=>row.id),['aster','mira']);
+    const forbidden=new Set(['weights','bias','features','targetId','selectedId',
+      'referenceCorrect','demonstratedObjectId','messageHandle','pixels','records','examples']);
+    const inspect=value=>{
+      if(Array.isArray(value)){for(const row of value)inspect(row);return;}
+      if(value&&typeof value==='object')for(const [key,row]of Object.entries(value)){
+        assert.equal(forbidden.has(key),false,label+' v3 motor projection exposed '+key);
+        inspect(row);
+      }
+    };
+    inspect(read.first.motor);
+    await fs.writeFile(path.join(context.output,phase+'-motor-v3-'+label+'.json'),
+      JSON.stringify(read.first,null,2));
+    return read.first;
+  }
+  async function freshMotorV3(win){
+    const guard=await evaluate(win,'('+guardFreshCharacterMotorPilot.toString()+')('+JSON.stringify(context.motorProtocol)+')');
+    assert.equal(guard?.ready,true,'Fresh motor-v3 guard must accept the actual blank renderer profile');
+    assert.deepEqual(guard.individuals,[{id:'aster',serial:1,trained:false},
+      {id:'mira',serial:2,trained:false}]);
+    const projection=await v3ProjectionPoint(win,'fresh');
+    assert.equal(projection.elapsed,0);
+    assert(projection.motor.actors.every(row=>row.freeHandObserver?.selectedAttempts===0&&
+      row.freeHandObserver?.visibleSamples===0&&
+      row.freeHandObserver?.nextEligibleAt>=120&&
+      row.gestureMemory?.retained===0&&
+      row.gesturePrediction?.pending===false&&
+      row.gesturePrediction?.updates===0),
+    'Fresh v3 projection must contain no motor, local memory or predictor training');
+    await fs.writeFile(path.join(context.output,phase+'-motor-v3-fresh-guard.json'),
+      JSON.stringify(guard,null,2));
   }
   const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts,character})=>
     ({agentId,identity,anchors,partners,counts,character}));
@@ -293,10 +387,18 @@ function installRunner(context,helpers){
     measured=await measurementPoint(win,'motor-first-complete');
     assert(Object.values(measured.counts).every(value=>value===0),
       'Paid neutral motion cannot emit words or train either character learner');
+    const firstV3=await v3ProjectionPoint(win,'motor-first-complete');
+    assert(firstV3.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.selectedAttempts===1&&
+      firstV3.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.visibleSamples>0,
+      'The v3 observer must count the paid first motion and personally visible peer samples');
     status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('mira')");
     assert.equal(status.action.type,'free_hand');assert.equal(status.pose,null);
     status=await evaluate(win,"window.__visualReferenceFixture.visibleMotor('mira')");
     assert.equal(status.peerLocal.visibility,'pose');assert.equal(status.ownLocal.ownFreeHandActive,1);
+    const secondV3=await v3ProjectionPoint(win,'motor-second-paid');
+    assert(secondV3.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.selectedAttempts===1&&
+      secondV3.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.visibleSamples>0,
+      'The v3 observer must retain independent selection and visible-sample counts');
     await capture(win,'motor-03-mira-partial-real-paid-segment.png');
     const checkpoint=await evaluate(win,'window.__visualReferenceFixture.checkpointMotor(localStorage)');
     assert.equal(checkpoint.pendingKind,'free-hand');
@@ -316,6 +418,7 @@ function installRunner(context,helpers){
   async function exercise(win){
     assert.equal(await raw(win),null,'Fresh disposable profile must contain no current save');
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
+    await freshMotorV3(win);
     const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':
       context.ambiguityScenario?'{...context,ambiguityScenario:true}':
       context.motorScenario?'{...context,motorScenario:true}':'context';
@@ -327,6 +430,7 @@ function installRunner(context,helpers){
     assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),false,'Fixture owns the sole manual clock; normal timer start is blocked');
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Fresh fixture installer is one-use');
     let status=await evaluate(win,'window.__visualReferenceFixture.status()');assert.equal(status.pose,null);
+    if(!context.responseScenario)await v3ProjectionPoint(win,'fresh-attached');
     if(context.motorScenario)return motorExercise(win);
     if(context.ambiguityScenario){
       const placed=await snapshot(win);
@@ -408,6 +512,11 @@ function installRunner(context,helpers){
     assert.equal(status.checks.listenerLearning.actualCanvas,true);
     assert.deepEqual(status.reference.senderFeedback,[]);
     measured=await measurementPoint(win,'own-view-demonstration');
+    if(!context.responseScenario){
+      const paidV3=await v3ProjectionPoint(win,'own-view-demonstration');
+      assert(paidV3.motor.actors.some(row=>row.gesturePrediction?.validTargets>0),
+        'The v3 observer must include actual settled local future-pose targets after paid sight');
+    }
     assert.equal(measured.counts.canonicalDemonstrations,1);
     assert.equal(measured.counts.validListenerDemonstrations,1);
     assert.equal(measured.counts.listenerOptimizerSteps,1);
@@ -699,6 +808,10 @@ function installRunner(context,helpers){
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,
       'Occupied saved motor profile cannot obtain fresh fixture authority');
     const measured=await measurementPoint(win,'motor-reopen');
+    const reopenedV3=await v3ProjectionPoint(win,'motor-reopen');
+    assert(reopenedV3.motor.actors.every(row=>row.freeHandObserver?.selectedAttempts===0&&
+      row.freeHandObserver?.visibleSamples===0&&row.gesturePrediction?.updates===0),
+      'The v3 observer must start with empty session motor and predictor counts after reopen');
     assert(Object.values(measured.counts).every(value=>value===0)&&
       measured.events.length===0&&measured.pending===0,
       'A paid neutral motion cannot replay character events or learning on reopen');
@@ -853,7 +966,8 @@ function installRunner(context,helpers){
 }
 
 const helpers={captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
-  visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen};
+  visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen,
+  guardFreshCharacterMotorPilot,projectCharacterPilot};
 // Serialized helper expressions are created outside installRunner, so their
 // imported assertion dependency must exist in the generated outer scope.
 const source="const assert = require('node:assert/strict');\n"+'('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';

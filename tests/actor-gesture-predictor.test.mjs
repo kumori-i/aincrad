@@ -178,6 +178,11 @@ test('long visible absence does not masquerade as pose learning and reset clears
   predictor.clear();
   assert.equal(predictor.snapshot().validTargets,0);
   assert.equal(predictor.snapshot().pending,false);
+  assert.equal(predictor.snapshot().sessionResets,1);
+  assert.equal(predictor.snapshot().saturated,false);
+  predictor.clear();
+  assert.equal(predictor.snapshot().sessionResets,2,
+    'A second local clear remains visible even though current scores are zero');
   assert.deepEqual(predictor.parameters(),
     {weights:Array(ACTOR_GESTURE_PREDICTOR_RULES.featureCount).fill(0),bias:0});
 });
