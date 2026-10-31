@@ -67,7 +67,11 @@ function firstPaidExchange(f){
   const choice=fixture.beginChoice();
   assert.match(choice.reference.latest.message,/^[a-z]{1,6}$/);
   assert.equal(choice.reference.latest.choiceMode,'uniform-untrained');
-  assert.equal(fixture.completeChoice().checks.choiceCompletedBeforeIndication,true);
+  const choiceCompleted=fixture.completeChoice();
+  assert.equal(choiceCompleted.checks.choiceCompletedBeforeIndication,true);
+  assert(choiceCompleted.checks.actorGesturePrediction.choice.listener.targetAbsent>=1);
+  assert(choiceCompleted.checks.actorGesturePrediction.choice.sender.targetAbsent>=1);
+  assert.equal(choiceCompleted.checks.actorGesturePrediction.defensiveReadPure,true);
   assert.equal(fixture.beginIndication().pose,null);
   const during=fixture.visible();
   assert(during.pose);assert.equal(during.checks.visibleCrop.actualCanvas,false);
@@ -75,9 +79,14 @@ function firstPaidExchange(f){
   assert.equal(during.checks.actorGestureMemory.forward?.paidPoseObserved,true);
   assert.equal(during.checks.actorGestureMemory.forward.defensiveReadPure,true);
   assert.equal(during.checks.actorGestureMemory.controlledUnknown,true);
+  assert.equal(during.checks.actorGesturePrediction.forwardMidpoint.limits.horizonTicks,30);
   const complete=fixture.completeIndication();
   assert.equal(complete.pose,null);
   assert.equal(complete.checks.actorGestureMemory.forwardEndedAsVisibleAbsence,true);
+  assert.equal(complete.checks.actorGesturePrediction.forward.actualPaidPose,true);
+  assert.equal(complete.checks.actorGesturePrediction.forward.defensiveReadPure,true);
+  assert(complete.checks.actorGesturePrediction.forward.listener.targetPose>=1);
+  assert(complete.checks.actorGesturePrediction.forward.listener.onsets>=1);
   assert.equal(complete.reference.observed,1);
   assert.equal(complete.reference.latest.listenerUpdate,true);
   assert.equal(complete.checks.listenerLearning.optimizerSteps,1);
@@ -99,6 +108,7 @@ async function assertReopen(f,checkpoint){
   const interrupted=fixture.interrupt();
   assert.equal(interrupted.checks.interruption.poseCleared,true);
   assert.equal(interrupted.checks.actorGestureMemory.interruptionPublicPoseAbsent,true);
+  assert.equal(interrupted.checks.actorGesturePrediction.sameInstantCancellationPure,true);
   const loaded=loadOzarkSave(storage,geometry);
   assert.equal(loaded.blocked,false);
   const beforeCopy=structuredClone(loaded.state);
@@ -109,6 +119,13 @@ async function assertReopen(f,checkpoint){
     assert.equal(restored.snapshot().pending,0);
     assert.deepEqual(restored.readGestureMemory(loaded.state.agents[0]).records,[]);
     assert.deepEqual(restored.readGestureMemory(loaded.state.agents[1]).records,[]);
+    for(const actor of loaded.state.agents){
+      const prediction=restored.readGesturePrediction(actor);
+      assert.equal(prediction.pending,false);
+      assert.equal(prediction.forecasts,0);
+      assert.equal(prediction.validTargets,0);
+      assert.equal(prediction.updates,0);
+    }
     assert.deepEqual(restored.snapshot().observationEvents,[]);
     assert.deepEqual(restored.snapshot().senderFeedback,[]);
     assert.deepEqual(durable(restored.snapshot()),durable(checkpoint.report.reference));
@@ -135,6 +152,12 @@ async function assertReopen(f,checkpoint){
       assert.deepEqual(durable(repeated.snapshot()),durable(restored.snapshot()));
       assert.equal(repeated.snapshot().pending,0);
       assert.deepEqual(repeated.snapshot().observationEvents,[]);
+      for(const actor of twice.state.agents){
+        const prediction=repeated.readGesturePrediction(actor);
+        assert.equal(prediction.pending,false);
+        assert.equal(prediction.forecasts,0);
+        assert.equal(prediction.updates,0);
+      }
       assertStructuralRestoredHistory(JSON.parse(storage.getItem(OZARK_SAVE_KEY)),visualReferenceEvidence(twice.state));
     }finally{repeated.dispose();}
     const wrongWorld=structuredClone(loaded.state);
@@ -162,6 +185,9 @@ test('serialized sequence fixture retains paid listener learning and discards a 
       assert(f.fixture.visibleResponse().responsePose);
       const settled=f.fixture.completeResponse();
       assert.equal(settled.reference.pending,0);
+      assert.equal(settled.checks.actorGesturePrediction.reply.actualPaidPose,true);
+      assert(settled.checks.actorGesturePrediction.reply.sender.targetPose>=1);
+      assert(settled.checks.actorGesturePrediction.reply.sender.onsets>=1);
       assert(settled.checks.responsePayment.expectedActionEffortKcal>0);
       const before=f.reference.exportPersistence(),world=f.fixture.project();
       const audit=f.fixture.inspectAssociation().checks.modelAudit;
@@ -179,6 +205,7 @@ test('serialized sequence fixture retains paid listener learning and discards a 
       assert.equal(pending.reference.latest.senderUpdate,false);
       const saved=f.fixture.checkpoint(f.storage);
       assert(saved);assert.equal(f.fixture.checkpoint(f.storage),null);
+      assert.equal(saved.report.checks.actorGesturePrediction.saveExcluded,true);
       assert.equal(saved.pendingKind,'sender-demonstration');
       await assertReopen(f,saved);
     }finally{f.dispose();}
@@ -229,6 +256,8 @@ test('fixed authored native vantage makes an actually paid reply ambiguous witho
       assert(visible.responsePose);
       assert.equal(visible.responseAudit.at(-1).reason,'ambiguous');
       const settled=f.fixture.completeResponse(),sender=senderData(f.reference.exportPersistence());
+      assert.equal(settled.checks.actorGesturePrediction.reply.actualPaidPose,true);
+      assert(settled.checks.actorGesturePrediction.reply.sender.targetPose>=1);
       assert.equal(settled.reference.latest.feedbackStatus,'censored');
       assert.equal(settled.reference.latest.feedbackReason,'response-ambiguous');
       assert.equal(settled.reference.pending,0);
@@ -286,6 +315,8 @@ test('serialized seed-212 negative control saves a paid pending reply after a ge
       const visible=f.fixture.visibleResponse();
       assert(visible.responsePose);assert.equal(visible.checks.responseVisible.actualCanvas,false);
       const settled=f.fixture.completeResponse();
+      assert.equal(settled.checks.actorGesturePrediction.reply.actualPaidPose,true);
+      assert(settled.checks.actorGesturePrediction.reply.sender.targetPose>=1);
       assert.equal(settled.reference.latest.message,originalMessage);
       assert.equal(settled.reference.latest.feedbackStatus,'mismatched');
       assert.equal(settled.reference.latest.senderUpdate,true);

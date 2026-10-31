@@ -113,6 +113,8 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       'communicationMeasurementSnapshot()','paidInspectionCompletions','own-view-demonstration',
       'actorGestureMemory.forward','actorGestureMemory.reply','actorGestureMemory.controlledUnknown',
       'actorGestureMemory?.saveExcluded','window.__ozarkWorld.gestureMemoryEmpty()',
+      'actorGesturePrediction.forward','actorGesturePrediction.reply',
+      'actorGesturePrediction?.saveExcluded','window.__ozarkWorld.gesturePredictionEmpty()',
       'after-checkpoint','after-interruption','first-reopen','second-reopen','passiveMeasurementNativeQA',
       'Copied original paid inspection receipt cannot create a new indication permit',
       'Second independent reopen retains exact live model weights, counters and RNG states',
@@ -123,6 +125,8 @@ test('character-message native preparation is isolated, sandbox-preserving and n
     const main=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
     assert(main.includes("gestureMemoryEmpty: () => location.search === '?test=1'"),
       'The empty-memory probe is restricted to the disposable native route');
+    assert(main.includes("gesturePredictionEmpty: () => location.search === '?test=1'"),
+      'The empty-predictor probe is restricted to the disposable native route');
     const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
     assert.match(workflow,/ubuntu-22.04, macos-latest/);assert.doesNotMatch(workflow,/--no-sandbox|--disable-setuid-sandbox|\n  create:|experiments\//);
     const runner=await readFile(new URL('../scripts/verify-visual-reference-desktop.mjs',import.meta.url),'utf8');

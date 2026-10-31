@@ -305,6 +305,9 @@ function installRunner(context,helpers){
       'Observer message is the exact sampled physical transaction');
     status=await evaluate(win,'window.__visualReferenceFixture.completeChoice()');assert.equal(status.checks.choiceCompletedBeforeIndication,true);
     assert.equal(status.checks.actorGestureMemory?.paidChoiceVisibleAbsence,true);
+    assert(status.checks.actorGesturePrediction?.choice?.listener.targetAbsent>=1);
+    assert(status.checks.actorGesturePrediction.choice.sender.targetAbsent>=1);
+    assert.equal(status.checks.actorGesturePrediction.defensiveReadPure,true);
     measured=await measurementPoint(win,'paid-inspection');
     assert.equal(measured.counts.paidInspectionCompletions,1);
     assert.equal(measured.counts.paidInspectionOutcomeUnavailable,0);
@@ -320,6 +323,10 @@ function installRunner(context,helpers){
     status=await evaluate(win,'window.__visualReferenceFixture.completeIndication()');
     assert.equal(status.pose,null);assert.equal(status.reference.observed,1);
     assert.equal(status.checks.actorGestureMemory?.forwardEndedAsVisibleAbsence,true);
+    assert.equal(status.checks.actorGesturePrediction?.forward?.actualPaidPose,true);
+    assert.equal(status.checks.actorGesturePrediction.forward.defensiveReadPure,true);
+    assert(status.checks.actorGesturePrediction.forward.listener.targetPose>=1);
+    assert(status.checks.actorGesturePrediction.forward.listener.onsets>=1);
     assert.equal(status.reference.latest.listenerUpdate,true);
     assert.equal(status.checks.listenerLearning.uniqueDemonstrations,1);
     assert.equal(status.checks.listenerLearning.optimizerSteps,1);
@@ -351,6 +358,10 @@ function installRunner(context,helpers){
     status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
     assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
     assert.equal(status.checks.actorGestureMemory?.replyEndedAsVisibleAbsence,true);
+    assert.equal(status.checks.actorGesturePrediction?.reply?.actualPaidPose,true);
+    assert.equal(status.checks.actorGesturePrediction.reply.defensiveReadPure,true);
+    assert(status.checks.actorGesturePrediction.reply.sender.targetPose>=1);
+    assert(status.checks.actorGesturePrediction.reply.sender.onsets>=1);
     measured=await measurementPoint(win,'paid-reply-complete');
     assert.equal(measured.counts.paidReplyCompletions,1);
     assert.equal(measured.counts.paidReplyOutcomeUnavailable,0);
@@ -527,6 +538,7 @@ function installRunner(context,helpers){
     const checkpoint=await evaluate(win,'window.__visualReferenceFixture.checkpoint(localStorage)');
     assert(checkpoint,'Authenticated one-shot checkpoint must persist actual main state');
     assert.equal(checkpoint.report.checks.actorGestureMemory?.saveExcluded,true);
+    assert.equal(checkpoint.report.checks.actorGesturePrediction?.saveExcluded,true);
     assert.equal(checkpoint.pendingKind,context.responseScenario?'listener-response':'sender-demonstration');
     assert.equal(await evaluate(win,'window.__visualReferenceFixture.checkpoint(localStorage)'),null,'Fixture checkpoint is one attempt only');
     assert.equal(checkpoint.raw,await raw(win));
@@ -535,6 +547,7 @@ function installRunner(context,helpers){
     await fs.writeFile(path.join(context.output,'checkpoint.json'),JSON.stringify({...checkpoint,screenshots},null,2));
     status=await evaluate(win,'window.__visualReferenceFixture.interrupt()');assert.equal(status.checks.interruption.poseCleared,true);
     assert.equal(status.checks.actorGestureMemory?.interruptionPublicPoseAbsent,true);
+    assert.equal(status.checks.actorGesturePrediction?.sameInstantCancellationPure,true);
     assert.equal(status.checks.interruption.pendingKind,checkpoint.pendingKind);
     if(context.responseScenario)assert.deepEqual(status.reference.senderFeedback,[],
       'Interruption clears session feedback and cannot produce a second sample');
@@ -561,6 +574,8 @@ function installRunner(context,helpers){
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Actual reopen preserves clocks/bodies/history and interrupts only unfinished action');
     assert.equal(await evaluate(win,'window.__ozarkWorld.gestureMemoryEmpty()'),true,
       'First independent reopen must begin with empty session-only actor gesture memory');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.gesturePredictionEmpty()'),true,
+      'First independent reopen must begin without session-only prediction history or pending forecast');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Loaded profile cannot obtain fresh fixture authority');
     const measured=await measurementPoint(win,'first-reopen');
@@ -597,6 +612,8 @@ function installRunner(context,helpers){
     const restored=await snapshot(win);assert.deepEqual(restored,saved.expectedRestored,'Repeated reopen cannot duplicate interruption or revive authority');
     assert.equal(await evaluate(win,'window.__ozarkWorld.gestureMemoryEmpty()'),true,
       'Second independent reopen must not restore actor gesture history from ordinary saved bytes');
+    assert.equal(await evaluate(win,'window.__ozarkWorld.gesturePredictionEmpty()'),true,
+      'Second independent reopen must not restore actor-local prediction state');
     assertStructuralRestoredHistory(JSON.parse(saved.raw),restored);
     const measured=await measurementPoint(win,'second-reopen');
     assert(Object.values(measured.counts).every(value=>value===0),
@@ -626,6 +643,8 @@ function installRunner(context,helpers){
       paidReplyCensored:firstEvent.feedbackStatus==='censored',
       actualCanvasCrops:true,exactEmittedCharacterString:firstEvent.message,
       actorLocalGestureMemory:{...saved.report.checks.actorGestureMemory,independentReopensEmpty:true},
+      actorLocalGesturePrediction:{...saved.report.checks.actorGesturePrediction,independentReopensEmpty:true,
+        scope:'Engineered paid-action in-stream training and prequential sensor scores, not held-out evaluation or ordinary meaning evidence; no policy effect'},
       consecutiveListenerGeometryAudit:true,
       consecutiveSenderResponseGeometryAudit:paidReplySeconds>0,privateCanonicalWitnessOnly:true,
       canonicalOwnDemonstrationLearning:true,
