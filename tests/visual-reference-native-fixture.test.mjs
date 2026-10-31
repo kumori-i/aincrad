@@ -141,16 +141,12 @@ test('serialized sequence fixture retains paid listener learning and discards a 
       assert.deepEqual(senderData(f.reference.exportPersistence()).model,senderData(initial).model);
       assert.deepEqual(f.reference.exportPersistence().visualReference,initial.visualReference,
         'Sequence exchange cannot advance the four legacy streams or relabel anchors');
-      if(complete.checks.replyAvailable){
-        f.fixture.beginResponse();
-        assert(f.fixture.visibleResponse().responsePose);
-        const settled=f.fixture.completeResponse();
-        assert.equal(settled.reference.pending,0);
-        assert(settled.checks.responsePayment.expectedActionEffortKcal>0);
-      }else{
-        assert.equal(complete.reference.latest.feedbackStatus,'censored');
-        assert.equal(complete.reference.latest.feedbackReason,'response-not-resolvable');
-      }
+      assert.equal(complete.checks.replyAvailable,true);
+      f.fixture.beginResponse();
+      assert(f.fixture.visibleResponse().responsePose);
+      const settled=f.fixture.completeResponse();
+      assert.equal(settled.reference.pending,0);
+      assert(settled.checks.responsePayment.expectedActionEffortKcal>0);
       const before=f.reference.exportPersistence(),world=f.fixture.project();
       const audit=f.fixture.inspectAssociation().checks.modelAudit;
       assert.equal(audit.readOnly,true);

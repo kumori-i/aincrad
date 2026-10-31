@@ -289,53 +289,42 @@ function installRunner(context,helpers){
     assert.equal(measured.counts.criticCorrect,status.reference.correct);
     assert.equal(measured.counts.senderUpdates,0);
     const replyAvailable=status.checks.replyAvailable;
-    assert.equal(typeof replyAvailable,'boolean','Actual response geometry must be audited after listener learning');
-    if(context.responseScenario)assert.equal(replyAvailable,true,'Authored response profile must offer a visible paid reply');
-    else if(!replyAvailable){
-      assert.equal(status.reference.latest.feedbackStatus,'censored');
-      assert.equal(status.reference.latest.feedbackReason,'response-not-resolvable');
-      assert.equal(status.reference.pending,0,'An unresolvable reply must leave no pending authority');
-    }
-    if(replyAvailable)assert.equal(status.reference.latest.feedbackStatus,'awaiting-response');
+    assert.equal(replyAvailable,true,'An earned character demonstration must offer a physical paid reply');
+    assert.equal(status.reference.latest.feedbackStatus,'awaiting-response');
     await fs.writeFile(path.join(context.output,'completed-reference.json'),JSON.stringify(status,null,2));
     await capture(win,'04-after-sender-completion-no-cue.png');
-    if(replyAvailable){
-      status=await evaluate(win,'window.__visualReferenceFixture.beginResponse()');
-      assert.equal(status.responsePose,null);assert.deepEqual(status.reference.senderFeedback,[]);
-      measured=await measurementPoint(win,'paid-reply-start');
-      assert.equal(measured.counts.paidReplyStarts,1);
-      assert.equal(measured.counts.paidReplyCompletions,0);
-      status=await evaluate(win,'window.__visualReferenceFixture.visibleResponse()');
-      assert(status.responsePose);assert.equal(status.checks.responseVisible.actualCanvas,true);
-      await fs.writeFile(path.join(context.output,'visible-response-parser-audit.json'),JSON.stringify(status,null,2));
-      await capture(win,'04a-during-paid-listener-response.png');
-      status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
-      assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
-      measured=await measurementPoint(win,'paid-reply-complete');
-      assert.equal(measured.counts.paidReplyCompletions,1);
-      assert.equal(measured.counts.paidReplyOutcomeUnavailable,0);
-      assert.equal(measured.counts.senderUpdates,Number(status.reference.latest.senderUpdate===true));
-      assert.equal(measured.counts.visualMatches,Number(status.reference.latest.feedbackStatus==='matched'));
-      assert.equal(measured.counts.visualMismatches,Number(status.reference.latest.feedbackStatus==='mismatched'));
-      if(context.responseScenario){assert.equal(measured.counts.visualMismatches,1);assert.equal(measured.counts.senderUpdates,1);}
-      if(status.reference.latest.feedbackStatus==='censored'){
-        assert.equal(context.responseScenario,false,'Authored response profile must produce its required mismatch');
-        assert.equal(status.checks.senderLearning.updated,false,'A paid but censored reply gives no sender update');
-      }else{
-        assert(['matched','mismatched'].includes(status.reference.latest.feedbackStatus));
-        assert.equal(status.reference.latest.senderUpdate,true);
-        assert.equal(status.checks.senderLearning.updates,1);
-        assert.equal(status.checks.senderFeedback.actualCanvas,true);assert.equal(status.checks.senderFeedback.senderOnly,true);
+    status=await evaluate(win,'window.__visualReferenceFixture.beginResponse()');
+    assert.equal(status.responsePose,null);assert.deepEqual(status.reference.senderFeedback,[]);
+    measured=await measurementPoint(win,'paid-reply-start');
+    assert.equal(measured.counts.paidReplyStarts,1);
+    assert.equal(measured.counts.paidReplyCompletions,0);
+    status=await evaluate(win,'window.__visualReferenceFixture.visibleResponse()');
+    assert(status.responsePose);assert.equal(status.checks.responseVisible.actualCanvas,true);
+    await fs.writeFile(path.join(context.output,'visible-response-parser-audit.json'),JSON.stringify(status,null,2));
+    await capture(win,'04a-during-paid-listener-response.png');
+    status=await evaluate(win,'window.__visualReferenceFixture.completeResponse()');
+    assert.equal(status.responsePose,null);assert.equal(status.reference.pending,0);
+    measured=await measurementPoint(win,'paid-reply-complete');
+    assert.equal(measured.counts.paidReplyCompletions,1);
+    assert.equal(measured.counts.paidReplyOutcomeUnavailable,0);
+    assert.equal(measured.counts.senderUpdates,Number(status.reference.latest.senderUpdate===true));
+    assert.equal(measured.counts.visualMatches,Number(status.reference.latest.feedbackStatus==='matched'));
+    assert.equal(measured.counts.visualMismatches,Number(status.reference.latest.feedbackStatus==='mismatched'));
+    if(context.responseScenario){assert.equal(measured.counts.visualMismatches,1);assert.equal(measured.counts.senderUpdates,1);}
+    if(status.reference.latest.feedbackStatus==='censored'){
+      assert.equal(context.responseScenario,false,'Authored response profile must produce its required mismatch');
+      assert.equal(status.checks.senderLearning.updated,false,'A paid but censored reply gives no sender update');
+      if(status.reference.latest.feedbackReason==='response-ambiguous'){
+        assert.equal(status.checks.responseAmbiguity?.actualSenderObservation,true);
+        assert(status.checks.responseAmbiguity.paidVisibleSamples>=30);
       }
-      await capture(win,'04a2-after-listener-response-no-cue.png');
     }else{
-      assert.equal(status.responsePose,null,'No reply pose or paid response may exist after geometry censorship');
-      measured=await measurementPoint(win,'unavailable-reply');
-      assert.equal(measured.counts.paidReplyStarts,0);
-      assert.equal(measured.counts.paidReplyCompletions,0);
-      assert.equal(measured.counts.responseCensors,1);
-      await capture(win,'04a2-unavailable-listener-response-no-cue.png');
+      assert(['matched','mismatched'].includes(status.reference.latest.feedbackStatus));
+      assert.equal(status.reference.latest.senderUpdate,true);
+      assert.equal(status.checks.senderLearning.updates,1);
+      assert.equal(status.checks.senderFeedback.actualCanvas,true);assert.equal(status.checks.senderFeedback.senderOnly,true);
     }
+    await capture(win,'04a2-after-listener-response-no-cue.png');
     const firstMessage=status.reference.latest.message;
     assert.match(firstMessage,/^[a-z]{1,6}$/);
     assert.equal(status.reference.learners.find(row=>row.agentId===status.reference.latest.receiverId)?.character.uniqueDemonstrations,1,
@@ -431,8 +420,8 @@ function installRunner(context,helpers){
       assert.equal(measured.counts.canonicalDemonstrations,1,
         'An unfinished second indication is not a listener demonstration');
       assert.equal(measured.counts.listenerOptimizerSteps,1);
-      assert.equal(measured.counts.paidReplyStarts,replyAvailable?1:0);
-      assert.equal(measured.counts.paidReplyCompletions,replyAvailable?1:0);
+      assert.equal(measured.counts.paidReplyStarts,1);
+      assert.equal(measured.counts.paidReplyCompletions,1);
       assert(status.pose);await capture(win,'05-second-paid-indication-before-save.png');
     }
     const beforePendingSave=await evaluate(win,'window.__visualReferenceFixture.characterExport()');
@@ -532,8 +521,7 @@ function installRunner(context,helpers){
       authoredResponseGeometry:saved.report.checks.authoredGeometry??null,
       fixedStepSeconds:1/60,paidChoiceBeforeIndication:true,paidIndicationSeconds:1.8,
       replyAvailable,replyFeedbackStatus:firstEvent.feedbackStatus,paidListenerResponseSeconds:paidReplySeconds,
-      replyUnavailableCensored:!replyAvailable&&firstEvent.feedbackStatus==='censored',
-      paidReplyCensored:replyAvailable&&firstEvent.feedbackStatus==='censored',
+      paidReplyCensored:firstEvent.feedbackStatus==='censored',
       actualCanvasCrops:true,exactEmittedCharacterString:firstEvent.message,
       consecutiveListenerGeometryAudit:true,
       consecutiveSenderResponseGeometryAudit:paidReplySeconds>0,privateCanonicalWitnessOnly:true,

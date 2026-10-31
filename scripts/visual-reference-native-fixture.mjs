@@ -220,12 +220,9 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(!pose(),'Completion must remove public cue');
     const snapshot=associationState();
     const replyAvailable=snapshot.pending===1&&snapshot.latest.feedbackStatus==='awaiting-response';
-    const replyCensored=snapshot.pending===0&&snapshot.latest.feedbackStatus==='censored';
-    require(snapshot.observed===1&&snapshot.latest.status==='observed'&&
-      (context.responseScenario===true?replyAvailable:replyAvailable||replyCensored),
-    'Actual attachment lost the paid character demonstration or an eligible optional reply');
+    require(snapshot.observed===1&&snapshot.latest.status==='observed'&&replyAvailable,
+      'A completed own-view demonstration must authorize a physical reply attempt');
     checks.replyAvailable=replyAvailable;
-    if(replyCensored)checks.replyCensorReason=snapshot.latest.feedbackReason;
     require(snapshot.senderFeedback.length===0,'Sender cannot receive feedback before a listener response');
     require(snapshot.latest.observedSeconds>=.5-1e-8,'Final consecutive paid perception was insufficient');
     require(audit.length>=100,'Missing repeated actual fixed-step listener perception');
@@ -261,7 +258,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       candidateViewsFromOriginalCanvas:true,senderWeightsUnchangedBeforeResponse:true,
       provenance:'Original own candidate Canvas crops and final personally observed demonstration crop; one canonical paid completion'};
     checks.sameMainPopulation=true;checks.actualFixedStep=1/60;checks.canonicalOwnDemonstrationOnly=true;
-    phase=replyAvailable?'indication-complete':'completed';return status();
+    phase='indication-complete';return status();
   }
   function beginResponse(){
     require(phase==='indication-complete'&&!pose()&&!responsePose(),'Expected learned demonstration and no unpaid response cue');
@@ -333,6 +330,16 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       'The later reply cannot revoke or duplicate completed listener learning');
     require(responseAudit.length>=100,'Missing repeated sender-side response perception');
     for(let i=1;i<responseAudit.length;i++)near(responseAudit[i].at-responseAudit[i-1].at,fixedStep,'Consecutive sender response perceptions');
+    if(snapshot.latest.feedbackReason==='response-ambiguous'){
+      const last=responseAudit.at(-1),trailing=[];
+      for(let i=responseAudit.length-1;i>=0&&responseAudit[i].reason==='ambiguous';i--)trailing.push(responseAudit[i]);
+      require(last&&state.elapsed-last.at<=fixedStep+1e-8&&
+        trailing.length>=Math.ceil(.5/fixedStep)&&
+        trailing.every(row=>row.numericResult?.reason==='ambiguous'&&row.localBinding===null&&row.senderFeatures===null),
+      'A censored ambiguity must follow a continuous actual paid sender-view interval, never a hypothetical preflight');
+      checks.responseAmbiguity={paidVisibleSamples:trailing.length,finalAuditAt:last.at,
+        noSenderCrop:true,actualSenderObservation:true};
+    }
     const expectedEffort=npcEffortCost(1.8,.25),metabolized=listener.physiology.totals.metabolizedKcal-responseBaseline.metabolized;
     require(expectedEffort>0&&metabolized>=expectedEffort-1e-8,'Listener response must have canonical metabolic debit');
     require(JSON.stringify(listener.inventory)===JSON.stringify(responseBaseline.inventory)&&
@@ -535,7 +542,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
       pendingKind:responseCase?'listener-response':'sender-demonstration',
       fixtureDisclosure:responseCase?
         'Fresh disposable main-world character-message negative control with fixed historical communication seed 212 and explicitly authored Mira position (230,960), moved from (300,920) before any action. Aster remains at (276,760); ecology, bodies and resources are unchanged. This engineering geometry makes forward and reverse gestures numerically resolvable under the ordinary parser; it is not ordinary opportunity evidence, a favorable runtime redraw, or a scientific seed search. Separate predeclared target, order and uniform listener-choice draws yield a wrong original inspection. Actual Canvas views, canonical paid inspection, one listener model update, a paid listener response and one sender-local mismatch update are checked. A second optional sequence is saved and closed during its genuinely paid listener response; no duplicate feedback is granted. The main environment, ecology and bodies continue at 1/60 second with only bounded decision scheduling.':
-        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication with an actual sampled character string. The later optional reply is attempted only if independently resolvable; an unavailable reply censors sender feedback without erasing listener learning. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. A read-only numeric model query uses the original actual own Canvas views but is not a policy action or generalization claim. A second authentic sampled sequence is saved mid-cue to test pending trajectory interruption on reopen.'};
+        'Fresh default main state/population and original positions, deliberate optional listener inspect and paid post-choice sender indication with an actual sampled character string. The later optional reply is physically attempted even if Aster cannot uniquely interpret its direction; a paid ambiguous observation, if present, censors sender feedback without erasing listener learning. The ordinary main engine integrates environment/ecology/bodies at 1/60 second. Bounded decision scheduling only; no body hold, injected crops, reward, cohort, scientific-seed sweep or autonomous-adoption claim. A read-only numeric model query uses the original actual own Canvas views but is not a policy action or generalization claim. A second authentic sampled sequence is saved mid-cue to test pending trajectory interruption on reopen.'};
     for(let i=0;i<state.agents.length;i++)require(JSON.stringify(state.agents[i].position)===JSON.stringify(initialPositions[i]),'Fixture moved an actor');
     return result;
   }
