@@ -437,6 +437,30 @@ function installRunner(context,helpers){
       'Real wait must retain original actor positions before paid motor admission');
     measured=await measurementPoint(win,'motor-ready');
     assert(Object.values(measured.counts).every(value=>value===0));
+    status=await evaluate(win,'window.__visualReferenceFixture.probeFlowingCurrentMotor()');
+    const current=status.checks.motorCurrentFooting;
+    assert.equal(status.phase,'motor-ready');
+    assert.deepEqual(current.point,{x:-1200,y:240});
+    assert.equal(current.ground,'shallow-water');
+    assert.equal(current.currentCue,'downstream');
+    for(const key of ['offered','eligibleDecisionsDelta','selectedAttemptsDelta','admittedDelta'])
+      assert.equal(current[key],key==='offered'?false:0,
+        'Actor-local flowing current cannot select or admit the neutral motion');
+    assert.equal(current.decisionChecksDelta,1);
+    for(const key of ['worldRestored','characterUnchanged','localModelsUnchanged','savedBytesUnchanged'])
+      assert.equal(current[key],true,'Current-footing probe must preserve '+key);
+    assert.deepEqual((await snapshot(win)).agents.map(actor=>actor.position),
+      [{x:276,y:760},{x:300,y:920}],
+      'The authored current-footing probe must restore original positions before paid work');
+    const currentMeasurement=await measurementPoint(win,'motor-current-footing');
+    assert.deepEqual(currentMeasurement.counts,measured.counts,
+      'The read-only current probe cannot emit or train character messages');
+    const currentV4=await v4ProjectionPoint(win,'motor-current-footing');
+    const currentMotor=currentV4.motor.actors.find(row=>row.id==='aster')?.freeHandObserver;
+    assert.equal(currentMotor?.selectedAttempts,0);
+    assert.equal(currentMotor?.lifecycle.admitted,0);
+    await fs.writeFile(path.join(context.output,'motor-current-footing-offer.json'),
+      JSON.stringify(current,null,2));
     status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('aster')");
     assert.equal(status.action.type,'free_hand');assert.equal(status.action.seconds,1.8);
     assert.equal(status.pose,null,'Unfunded actor motion has no public pose');
@@ -972,6 +996,7 @@ function installRunner(context,helpers){
       passed:true,nativeExecutionPerformed:false,sourceIdentity:context.sourceIdentity,
       sourceFingerprint:context.sourceFingerprint,mainPopulationAndEcology:true,
       originalActorPositions:true,realFixedStep:1/60,actualCanvas:true,
+      currentFootingProbe:saved.report.checks.motorCurrentFooting,
       motorFirst:saved.report.checks.motorFirstComplete,
       motorFirstVisible:saved.report.checks.motorFirstVisible,
       motorSecondVisible:saved.report.checks.motorSecondVisible,
@@ -980,7 +1005,7 @@ function installRunner(context,helpers){
         id:actor.id,...actor.freeHandObserver})),
       noCharacterMessageOrLearning:true,screenshots:[...saved.screenshots,...screenshots],
       fixtureDisclosure:saved.fixtureDisclosure,
-      scope:'Engineering-only, target-free funded motor movement in the main Ozark state: two original actors, unchanged ecology and real 120-second first delay. Aster fully pays one 1.8-second hand movement; Mira begins her independent first movement and is saved during paid partial work. Real peer sight and a read-only occlusion probe distinguish pose, visible absence and unknown. Independent reopen discards motor authority and local predictor history. The fixed curiosity and motor shape are supplied scaffolding, not a word, clarification request, learned response, ordinary encounter, survival benefit or language acquisition.'
+      scope:'Engineering-only, target-free funded motor movement in the main Ozark state: unchanged ecology and real 120-second first delay. Aster is temporarily placed at shallow current (-1200,240) for a pre-action actor-local offer check, then restored to the original position without time or model change. Aster fully pays one 1.8-second hand movement; Mira begins her independent first movement and is saved during paid partial work. Real peer sight and a read-only occlusion probe distinguish pose, visible absence and unknown. Independent reopen discards motor authority and local predictor history. The fixed curiosity and motor shape are supplied scaffolding, not a word, clarification request, learned response, ordinary encounter, survival benefit or language acquisition.'
     },null,2));
     await session.defaultSession.flushStorageData();
   }
@@ -1111,7 +1136,7 @@ try{
   await writeFile(harness,source);
   const prepared={...context,harness,harnessSha256:createHash('sha256').update(source).digest('hex'),phases,
     nativeExecutionPerformed:false,sandboxBypassFlags:[],scope:motorScenario?
-      'engineering-only original-position main-world target-free funded motor action, fixed 120-simulation-second first delay through 7,200 real fixed steps, full Aster payment, Mira pending paid save and independent reopen; actual public pose and actor-local prediction, no assigned meaning, object or automatic response':ambiguityScenario?
+      'engineering-only original-position main-world target-free funded motor action after a temporary shallow-current actor-local offer probe, fixed 120-simulation-second first delay through 7,200 real fixed steps, full Aster payment, Mira pending paid save and independent reopen; actual public pose and actor-local prediction, no assigned meaning, object or automatic response':ambiguityScenario?
       'engineering-only fixed seed-211 actor placement and reciprocal position swap of existing ripe bramble object:504 and apple tree object:505 before observation; one actual Canvas paid ambiguous reply must censor sender feedback without erasing the one listener example; no ordinary opportunity, cohort or generalization':responseScenario?
       'engineering-only fixed historical seed 212 wrong-choice negative control with authored Mira position (230,960); actual Canvas listener and sender updates, mismatch and save during paid listener response across independent close/reopen; no ordinary opportunity, cohort or generalization':
       'engineering-only original-position actual Canvas own-demo character learning; a paid sender-visible reply can be censored by actual observation; pending sampled message close/reopen and read-only model inspection; no cohort or generalization'};

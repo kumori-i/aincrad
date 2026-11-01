@@ -3,7 +3,7 @@
 import { fundNpcEffort, npcWorkAllowance } from './npc-effort-funding.js';
 import { bodySignals } from './interoception.js';
 import { isSleeping, exertPhysiology } from './biology.js';
-import { ozarkPersistentWorldAgent } from './ozark-agent-world.js';
+import { ozarkAgentWorld, ozarkPersistentWorldAgent } from './ozark-agent-world.js';
 
 export const FREE_HAND_RULES=Object.freeze({seconds:1.8,effort:.25,length:24,
   cooldownSeconds:120,curiosityScore:2.5});
@@ -98,6 +98,15 @@ export function freeHandBodySafe(npc){
     !['winded','exhausted'].includes(b.stamina);
 }
 
+/** The discovery policy already feels ground through this current-position
+ * observation. Its qualitative cue contains no current vector, hidden depth
+ * or predicted movement. A flowing surface would passively move the actor
+ * before an exact-origin hand action can receive its first funded slice. */
+function stableLocalFooting(npc){
+  try{return ozarkAgentWorld(npc)?.observe(npc.position)?.currentCue===null;}
+  catch{return false;}
+}
+
 /** An authored curiosity candidate, evaluated only after ordinary care and
  * reference opportunities. No extra RNG draw or learned reward selects it. */
 export function freeHandExplorationChoice(npc){
@@ -107,6 +116,7 @@ export function freeHandExplorationChoice(npc){
     !freeHandBodySafe(npc))return null;
   const s=session(npc);
   if(npc.elapsed+1e-8<s.readyAt)return null;
+  if(!stableLocalFooting(npc))return null;
   bump(s,'eligibleDecisions');
   return {action:{type:'free_hand'},score:FREE_HAND_RULES.curiosityScore/(1+s.attempts),
     reason:'I can try a small movement of my own hand and observe what happens.'};
@@ -188,6 +198,11 @@ export function requestFreeHandAction(npc,raw){
   if(npc.active){bumpLifeCode(s,'rejectedAfterSelection','ACTION_BUSY');
     return {ok:false,code:'ACTION_BUSY'};}
   if(!freeHandBodySafe(npc)){bumpLifeCode(s,'rejectedAfterSelection','PRIORITY_CHANGED');
+    return {ok:false,code:'PRIORITY_CHANGED'};}
+  // Recheck the same local cue at admission. A stale selected attempt still
+  // spends its existing rate budget; neither current nor body risk can mint
+  // an unpaid public pose or bypass the exact-position guard during work.
+  if(!stableLocalFooting(npc)){bumpLifeCode(s,'rejectedAfterSelection','PRIORITY_CHANGED');
     return {ok:false,code:'PRIORITY_CHANGED'};}
   const request=Object.freeze({type:'free_hand'});
   const active={kind:'free-hand',request,startedAt:npc.elapsed,

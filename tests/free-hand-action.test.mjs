@@ -11,6 +11,7 @@ import {observeIndication} from '../src/visual-reference-perception.js';
 import {publicIndicationGeometry} from '../src/discovery-actions.js';
 import {npcEffortCost,npcWorkAllowance} from '../src/npc-effort-funding.js';
 import {exertPhysiology} from '../src/biology.js';
+import {bodySignals} from '../src/interoception.js';
 import {FREE_HAND_RULES,initializeFreeHandSession,
   freeHandBodySafe,freeHandExplorationChoice,tickFreeHandAction,
   ownFreeHandAction,publicFreeHandGeometry,freeHandPaidSeconds,requestFreeHandAction,
@@ -115,6 +116,74 @@ test('a selected busy actor has a counted rejection but no admitted or paid moti
   assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
     {...emptyLifecycle(),rejectedAfterSelection:{ACTION_BUSY:1,PRIORITY_CHANGED:0}});
   assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
+});
+
+test('personally sensed flowing current withholds the optional motion and a stale admission spends its budget',()=>{
+  const f=fixture();f.actor.position={x:-1200,y:240};f.actor.elapsed=120;
+  const local=geometry.observe(f.actor.position);
+  assert.equal(local.ground,'shallow-water');
+  assert.equal(local.currentCue,'downstream','Only the existing actor-local qualitative cue is used');
+  const before=JSON.stringify(f.state),rng=f.actor.rng;
+  for(let i=0;i<3;i++)assert.equal(freeHandExplorationChoice(f.actor),null);
+  assert.equal(JSON.stringify(f.state),before,'Current-footing checks cannot modify durable state');
+  assert.equal(f.actor.rng,rng,'Current-footing checks do not select through RNG');
+  assert.deepEqual(readFreeHandObserver(f.actor),{decisionChecks:3,eligibleDecisions:0,
+    selectedAttempts:0,visibleSamples:0,sampleCounts:{unknown:0,absent:0,pose:0},
+    lifecycle:emptyLifecycle(),sessionResets:0,saturated:false,nextEligibleAt:120});
+  f.actor.position={x:276,y:760};
+  const staleCandidate=freeHandExplorationChoice(f.actor);
+  assert.deepEqual(staleCandidate?.action,{type:'free_hand'});
+  f.actor.position={x:-1200,y:240};
+  const rejected=requestNpcAction(f.actor,staleCandidate.action,f.state.environment);
+  assert.deepEqual(rejected,{ok:false,code:'PRIORITY_CHANGED'},
+    'A copied or stale command cannot bypass fresh local footing at admission');
+  assert.equal(JSON.stringify(f.state),before);
+  assert.equal(f.actor.rng,rng);
+  assert.equal(f.actor.active,null);
+  assert.equal(publicFreeHandGeometry(f.actor),null);
+  assert.equal(readFreeHandObserver(f.actor).selectedAttempts,1);
+  assert.deepEqual(readFreeHandObserver(f.actor).lifecycle,
+    {...emptyLifecycle(),rejectedAfterSelection:{ACTION_BUSY:0,PRIORITY_CHANGED:1}});
+  f.actor.position={x:276,y:760};f.actor.elapsed=239.99;
+  assert.equal(freeHandExplorationChoice(f.actor),null,
+    'Rejected attempted admission cannot reset its 120-second rate budget');
+  f.actor.elapsed=240;
+  assert.equal(freeHandExplorationChoice(f.actor)?.action.type,'free_hand');
+});
+
+test('ordinary controller tick pays on dry ground but a newly unsafe body still preempts before payment',()=>{
+  for(const boundary of ['dry','thirst-threshold']){
+    const f=fixture();f.actor.elapsed=120;
+    if(boundary==='thirst-threshold')f.actor.physiology.waterDeficitMl=1749.995;
+    const controller=new NpcController(f.actor,{environment:f.state.environment,
+      deferInitialObservation:true}),position={...f.actor.position},epoch=f.actor.epoch,
+      discovery=f.actor.discovery,physiology=f.actor.physiology;
+    assert.equal(freeHandBodySafe(f.actor),true);
+    if(boundary==='thirst-threshold')assert.equal(bodySignals(f.actor).thirst,'thirsty');
+    assert.equal(controller.perform({type:'free_hand'}).code,'ACTION_STARTED');
+    const active=f.actor.active;
+    controller.tick(1/60);
+    assert.deepEqual(f.actor.position,position);
+    assert.equal(f.actor.epoch,epoch);
+    assert.equal(f.actor.discovery,discovery);
+    assert.equal(f.actor.physiology,physiology);
+    const life=readFreeHandObserver(f.actor).lifecycle;
+    if(boundary==='dry'){
+      assert.equal(f.actor.active,active);
+      assert.equal(life.firstPaid,1);
+      near(life.certifiedPaidSeconds,1/60,'Dry ground first funded controller slice');
+      assert.equal(life.interrupted.PRIORITY_CHANGED,0);
+    }else{
+      assert.equal(bodySignals(f.actor).thirst,'parched');
+      assert.equal(freeHandBodySafe(f.actor),false);
+      assert.equal(f.actor.active,null);
+      assert.equal(f.actor.lastResult.code,'PRIORITY_CHANGED');
+      assert.equal(life.firstPaid,0);
+      assert.equal(life.certifiedPaidSeconds,0);
+      assert.equal(life.interrupted.PRIORITY_CHANGED,1);
+    }
+    controller.dispose();
+  }
 });
 
 test('observer checks do not initialize a motor cooldown before an unsafe actor becomes safe',()=>{
@@ -443,4 +512,48 @@ test('ineligible motor reads preserve ordinary actor, ecology, action and RNG co
   assert.deepEqual(a.state.environment,b.state.environment);
   assert.equal(a.actor.rng,b.actor.rng);
   assert.deepEqual(a.actor.memory.values,b.actor.memory.values);
+});
+
+test('current-footing exclusion preserves saved bytes and ordinary continuation, then reopens empty',()=>{
+  const a=fixture(),b=fixture();
+  for(const f of [a,b]){
+    f.actor.position={x:-1200,y:240};
+    f.state.elapsed=120;f.state.environment.elapsed=120;
+    f.state.environment.ecology.elapsed=120;
+    for(const actor of f.state.agents)actor.elapsed=120;
+  }
+  const values=new Map(),storage={getItem:key=>values.get(key)??null,
+    setItem:(key,value)=>values.set(key,value)};
+  assert.equal(writeOzarkSave(storage,a.state,geometry),true);
+  const original=values.values().next().value,body=JSON.stringify(a.state),rng=a.actor.rng;
+  for(let i=0;i<4;i++){
+    assert.equal(freeHandExplorationChoice(a.actor),null);
+    const read=readFreeHandObserver(a.actor);
+    assert.equal(read.eligibleDecisions,0);
+    read.lifecycle.rejectedAfterSelection.PRIORITY_CHANGED=900;
+    assert.equal(readFreeHandObserver(a.actor).lifecycle.rejectedAfterSelection.PRIORITY_CHANGED,0);
+  }
+  assert.equal(JSON.stringify(a.state),body);
+  assert.equal(a.actor.rng,rng);
+  assert.equal(writeOzarkSave(storage,a.state,geometry),true);
+  assert.equal(values.values().next().value,original,
+    'Repeated actor-local current checks and defensive observer reads cannot write learning or RNG');
+  a.advance(.1);b.advance(.1);
+  assert.deepEqual(a.actor,b.actor);
+  assert.deepEqual(a.peer,b.peer);
+  assert.deepEqual(a.state.environment,b.state.environment);
+  const reopened=loadOzarkSave({getItem:()=>original},geometry);
+  assert.equal(reopened.blocked,false);
+  const restored=reopened.state.agents[0];
+  bindOzarkWorldAgent(restored,geometry,reopened.state);
+  const controller=new NpcController(restored,{environment:reopened.state.environment,
+    deferInitialObservation:true});
+  assert.equal(readFreeHandObserver(restored).decisionChecks,0);
+  assert.equal(readFreeHandObserver(restored).selectedAttempts,0);
+  assert.deepEqual(readFreeHandObserver(restored).lifecycle,emptyLifecycle());
+  assert.equal(readFreeHandObserver(restored).nextEligibleAt,240);
+  assert.equal(freeHandExplorationChoice(restored),null);
+  restored.position={x:276,y:760};restored.elapsed=240;
+  assert.equal(freeHandExplorationChoice(restored)?.action.type,'free_hand');
+  controller.dispose();
 });
