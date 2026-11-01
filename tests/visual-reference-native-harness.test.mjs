@@ -281,6 +281,7 @@ test('target-free paid motor native preparation is a separate bounded two-proces
       {freshRendererFixture:true,motorScenario:true},
       'The renderer must receive its authenticated scenario flag before the clock starts');
     for(const contract of ["{motorScenario:true}","motorWait(600)",
+      "probeFlowingCurrentMotor()","motor-current-footing-offer.json",
       "exactly 7,200 real main-world fixed steps","Original actors and ecology",
       "First genuine paid hand motion did not finish","FREE_HAND_MOVED",
       "Paid neutral motion cannot emit words or train either character learner",
@@ -310,6 +311,8 @@ test('target-free paid motor native preparation is a separate bounded two-proces
     const workflow=await readFile(new URL('../.github/workflows/visual-reference-native.yml',import.meta.url),'utf8');
     assert.match(workflow,/--motor-scenario/);
     assert.match(workflow,/7,200 real fixed steps/);
+    assert.match(workflow,/temporarily places Aster at declared shallow current/,
+      'Native scope must disclose the temporary engineering placement');
     passed=true;
   }finally{if(passed)await rm(output,{recursive:true,force:true});else console.error('Failed motor preparation retained at '+output);}
 });

@@ -15,7 +15,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
   const use=name=>import(new URL(`src/${name}.js`,moduleBase).href);
   const {observeNpc,requestNpcAction,cancelNpcAction}=await use('npc');
   const {publicIndicationGeometry,discoveryActionPaidSeconds,successfulDiscoveryActionCompletion,referenceGeometry}=await use('discovery-actions');
-  const {FREE_HAND_RULES,freeHandExplorationChoice,publicFreeHandGeometry,ownFreeHandAction,
+  const {FREE_HAND_RULES,freeHandBodySafe,freeHandExplorationChoice,publicFreeHandGeometry,ownFreeHandAction,
     freeHandPaidSeconds,readFreeHandObserver}=await use('free-hand-action');
   const {observeIndication,senseReferenceObjects,resolveIndication,visibleIndicationGeometry,sensePublicPeerGesture}=await use('visual-reference-perception');
   const {actorLineOfSight}=await use('perception');
@@ -409,6 +409,60 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     return {elapsed:state.elapsed,steps:Math.round(state.elapsed/fixedStep),
       observers:state.agents.map(actor=>({id:actor.id,...readFreeHandObserver(actor)}))};
   }
+  /** A temporary, pre-action engineering placement checks the same actor-local
+   * current cue used by the ordinary optional motor offer. It advances no clock,
+   * samples no message and restores the original actor before paid work. */
+  function probeFlowingCurrentMotor(){
+    require(context.motorScenario===true&&phase==='motor-ready'&&
+      state.elapsed+1e-7>=FREE_HAND_RULES.cooldownSeconds&&
+      state.agents.every((actor,index)=>actor.active===null&&
+        same(actor.position,initialPositions[index])),
+    'Flowing-current offer probe requires idle original-position actors after the real delay');
+    const point={x:-1200,y:240},original={...sender.position},
+      beforeWorld=JSON.stringify(projectEvidence(state)),
+      beforeReference=JSON.stringify(reference.snapshot()),
+      beforeCharacter=JSON.stringify(characterState()),
+      beforeLocal=state.agents.map(actor=>({memory:reference.readGestureMemory(actor),
+        prediction:reference.readGesturePrediction(actor)})),
+      beforeSaved=localStorage.getItem(OZARK_SAVE_KEY),
+      beforeObserver=readFreeHandObserver(sender),beforePeer=readFreeHandObserver(listener);
+    // Match the production offer's 1e-8 clock tolerance after 7,200 fixed steps.
+    require(freeHandBodySafe(sender)&&beforeObserver.nextEligibleAt<=sender.elapsed+1e-8&&
+      geometry.canOccupy(point.x,point.y),
+    'Current probe must isolate local footing from body, cooldown or invalid placement');
+    let observed,offered,during;
+    try{
+      sender.position.x=point.x;sender.position.y=point.y;
+      observed=geometry.observe(sender.position);
+      require(observed.ground==='shallow-water'&&observed.currentCue==='downstream',
+        'Declared temporary footing must have an actor-local flowing-current cue');
+      offered=freeHandExplorationChoice(sender);
+      during=readFreeHandObserver(sender);
+      require(offered===null&&sender.active===null&&!ownFreeHandAction(sender)&&
+        publicFreeHandGeometry(sender)===null&&
+        same(during,{...beforeObserver,decisionChecks:beforeObserver.decisionChecks+1}),
+      'Flowing-current footing must suppress only the optional offer, without action authority');
+    }finally{
+      sender.position.x=original.x;sender.position.y=original.y;
+    }
+    require(JSON.stringify(projectEvidence(state))===beforeWorld&&
+      JSON.stringify(reference.snapshot())===beforeReference&&
+      JSON.stringify(characterState())===beforeCharacter&&
+      same(state.agents.map(actor=>({memory:reference.readGestureMemory(actor),
+        prediction:reference.readGesturePrediction(actor)})),beforeLocal)&&
+      localStorage.getItem(OZARK_SAVE_KEY)===beforeSaved&&
+      same(readFreeHandObserver(sender),during)&&
+      same(readFreeHandObserver(listener),beforePeer)&&
+      state.agents.every((actor,index)=>actor.active===null&&
+        same(actor.position,initialPositions[index])),
+    'Temporary current probe must restore the whole world and preserve models, save and authority');
+    checks.motorCurrentFooting={scope:'engineering-only temporary pre-action actor placement',
+      point,ground:observed.ground,currentCue:observed.currentCue,
+      offered:false,decisionChecksDelta:1,eligibleDecisionsDelta:0,
+      selectedAttemptsDelta:0,admittedDelta:0,worldRestored:true,
+      characterUnchanged:true,localModelsUnchanged:true,savedBytesUnchanged:true};
+    return status();
+  }
   function beginMotor(actorId){
     require(context.motorScenario===true&&state.elapsed+1e-7>=FREE_HAND_RULES.cooldownSeconds&&
       (actorId===sender.id&&phase==='motor-ready'||actorId===listener.id&&phase==='motor-first-complete'),
@@ -541,7 +595,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     return {raw,expectedRestored:projectEvidence(loaded.state),serializedActive:structuredClone(secondMotorActive),
       report:{...report,checks:{...report.checks,motorPending:checks.motorPending}},
       pendingKind:'free-hand',characterPersistence:structuredClone(characterState()),
-      fixtureDisclosure:'Separate fresh seed-211 main-world engineering profile at original actor positions, with unchanged ecology and real 1/60-second environment and body ticks. A bounded 120-second command schedule reaches the ordinary per-actor motor cooldown without editing clocks. Aster completes one funded 1.8-second target-free hand motion; Mira later begins her independent first motion and is saved during paid partial work. No object, message, crop, resource, partner response, semantic reward or alternate production rule is injected.'};
+      fixtureDisclosure:'Separate fresh seed-211 main-world engineering profile with unchanged ecology and real 1/60-second environment and body ticks. A bounded 120-second command schedule reaches the ordinary per-actor motor cooldown without editing clocks. Before paid action, Aster is temporarily placed at declared shallow-current point (-1200,240) for one actor-local offer check, then restored to the original spawn without time, action, model, RNG or save change. Aster completes one funded 1.8-second target-free hand motion from the original position; Mira later begins her independent first motion and is saved during paid partial work. No object, message, crop, resource, partner response, semantic reward or alternate production rule is injected.'};
   }
   function interruptMotor(){
     require(context.motorScenario===true&&phase==='motor-second-active'&&listener.active===secondMotorActive,
@@ -1065,7 +1119,7 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
     require(paid>0&&paid<1.8,'Interruption must retain genuine partial paid work');phase='interrupted';return status();
   }
   return {project,status,admissionAudit,beginChoice,completeChoice,beginIndication,visible,completeIndication,beginResponse,visibleResponse,completeResponse,
-    motorWait,beginMotor,visibleMotor,completeFirstMotor,checkpointMotor,interruptMotor,
+    motorWait,probeFlowingCurrentMotor,beginMotor,visibleMotor,completeFirstMotor,checkpointMotor,interruptMotor,
     inspectAssociation,pendingForSave,pendingResponseForSave,checkpoint,interrupt,
     characterExport:()=>structuredClone(characterState()),
     dispose(){sensor.dispose?.();}};

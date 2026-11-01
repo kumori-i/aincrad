@@ -73,6 +73,12 @@ const macScript = `on run argv
   end tell
 end run`;
 
+// This exact osascript error is emitted only by the zero-sheet check above,
+// before frontmost, text entry, keystrokes or clicks. All other action errors
+// leave input outcome uncertain and must remain terminal.
+const macPreInputNoSheet=error=>error.commandCode===1&&!error.commandSignal&&
+  !error.commandKilled&&/^\d+:\d+: execution error: NATIVE_DIALOG_NOT_READY \(-2700\)\r?\n?$/.test(error.commandStderr);
+
 
 export async function driveNativeSaveDialog({pid, action, destination, screenshot,
   platform = process.platform, env = process.env, run = execute, wait = sleep, read = readFile, write = writeFile, now = () => performance.now()}) {
@@ -175,7 +181,23 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   }
   // Capturing a real OS screen is necessary but not a semantic visual review.
   if(platform==='darwin'){
-    await command('osascript',['-e',macScript,String(pid),action,action==='save'?basename(destination):'',action==='save'?dirname(destination):'']);
+    const actionArgs=['-e',macScript,String(pid),action,
+      action==='save'?basename(destination):'',action==='save'?dirname(destination):''];
+    for(let attempt=0;attempt<10;attempt++){
+      if(attempt){
+        // A preceding exact zero-sheet error proves no input was sent. Re-read
+        // the same PID and unique sheet/buttons before any new action attempt.
+        diagnostics.macActionReacquisitions=attempt;
+        await wait(200);
+        try{
+          const inspected=await command('osascript',['-e',macScript,String(pid),'inspect']);
+          diagnostics.accessibilityHierarchy=inspected.stdout;
+          await command('osascript',['-e',macScript,String(pid),'probe']);
+        }catch(error){if(!macPreInputNoSheet(error)||attempt===9)throw error;continue;}
+      }
+      try{await command('osascript',actionArgs);break;}
+      catch(error){if(!macPreInputNoSheet(error)||attempt===9)throw error;}
+    }
   }else if(action==='cancel'){
     await linuxInput(['key','--clearmodifiers','Escape']);
   }else{

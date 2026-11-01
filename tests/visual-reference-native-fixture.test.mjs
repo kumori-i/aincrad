@@ -9,6 +9,7 @@ import {poolCommunicationPixels} from '../src/communication-pixels.js';
 import {senseReferenceObjects} from '../src/visual-reference-perception.js';
 import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
 import {createFreshCharacterMessages} from '../src/visual-reference-save.js';
+import {freeHandExplorationChoice,readFreeHandObserver} from '../src/free-hand-action.js';
 import {installVisualReferenceFixture,visualReferenceEvidence,probeVisualReferenceReopen} from '../scripts/visual-reference-native-fixture.mjs';
 import {assertStructuralRestoredHistory} from '../scripts/structural-movement-native-contract.mjs';
 
@@ -20,7 +21,8 @@ const durable=reference=>reference.learners.map(({agentId,identity,anchors,partn
 const senderData=value=>value.characterMessages.learners.find(row=>row.agentId==='aster').sender;
 const listenerData=value=>value.characterMessages.learners.find(row=>row.agentId==='mira').partners[0].listener;
 
-async function setup({seed=211,responseScenario=false,ambiguityScenario=false,ambiguousSecond=false}={}){
+async function setup({seed=211,responseScenario=false,ambiguityScenario=false,
+  motorScenario=false,ambiguousSecond=false}={}){
   const geometry=createOzarkWorldGeometry(),state=createOzarkState(geometry);
   if(seed!==state.visualReference.seed){
     state.visualReference={...state.visualReference,seed,random:initialReferenceRandomStates(seed)};
@@ -50,7 +52,8 @@ async function setup({seed=211,responseScenario=false,ambiguityScenario=false,am
     return writeOzarkSave(storage,state,geometry,{referencePersistence:reference.exportPersistence()});
   };
   const fixture=await serialized(installVisualReferenceFixture)({state,populationState:population.state,reference,
-    geometry,step,fixedStep:1/60,responseScenario,ambiguityScenario,auditSensor:sensor,checkpoint},
+    geometry,step,fixedStep:1/60,responseScenario,ambiguityScenario,motorScenario,
+    auditSensor:sensor,checkpoint},
     new URL('../',import.meta.url),serialized(visualReferenceEvidence));
   if(ambiguityScenario){
     // Synthetic pixels only: the pre-action authored scene has two distinct
@@ -60,6 +63,42 @@ async function setup({seed=211,responseScenario=false,ambiguityScenario=false,am
   return {geometry,state,sensor,reference,population,storage,fixture,originalPlants,originalLedger,
     dispose(){fixture.dispose();reference.dispose();population.dispose();}};
 }
+
+test('serialized motor probe accepts the accumulated 7,200-tick boundary without weakening footing checks',
+  {timeout:180000},async()=>{
+    const f=await setup({motorScenario:true});
+    const storageDescriptor=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+    Object.defineProperty(globalThis,'localStorage',{configurable:true,value:f.storage});
+    try{
+      for(let batch=0;batch<12;batch++)f.fixture.motorWait(600);
+      const actor=f.state.agents[0],originalPosition={...actor.position},
+        beforeWorld=JSON.stringify(f.state),beforeCharacter=f.reference.exportPersistence(),
+        beforeObserver=readFreeHandObserver(actor),saved=f.storage.getItem(OZARK_SAVE_KEY);
+      assert(actor.elapsed<120&&120-actor.elapsed<1e-8,
+        'Real 1/60-second additions may land just below the exact 120-second cooldown');
+      assert.equal(beforeObserver.nextEligibleAt,120);
+      const result=f.fixture.probeFlowingCurrentMotor();
+      assert.deepEqual(result.checks.motorCurrentFooting.point,{x:-1200,y:240});
+      assert.equal(result.checks.motorCurrentFooting.currentCue,'downstream');
+      assert.equal(result.checks.motorCurrentFooting.offered,false);
+      assert.equal(JSON.stringify(f.state),beforeWorld);
+      assert.deepEqual(f.reference.exportPersistence(),beforeCharacter);
+      assert.equal(f.storage.getItem(OZARK_SAVE_KEY),saved);
+      assert.deepEqual(actor.position,originalPosition);
+      const afterObserver=readFreeHandObserver(actor);
+      assert.equal(afterObserver.decisionChecks,beforeObserver.decisionChecks+1);
+      assert.equal(afterObserver.eligibleDecisions,beforeObserver.eligibleDecisions);
+      assert.equal(afterObserver.selectedAttempts,beforeObserver.selectedAttempts);
+      assert.deepEqual(afterObserver.lifecycle,beforeObserver.lifecycle);
+      assert.equal(freeHandExplorationChoice(actor)?.action.type,'free_hand',
+        'The restored dry actor remains eligible at the same fractional boundary');
+      assert.equal(actor.active,null);
+    }finally{
+      if(storageDescriptor)Object.defineProperty(globalThis,'localStorage',storageDescriptor);
+      else delete globalThis.localStorage;
+      f.dispose();
+    }
+  });
 
 function firstPaidExchange(f){
   const {fixture}=f;
