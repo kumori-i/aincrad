@@ -6,6 +6,7 @@ function survivalReturn(npc,code,value){survivalNote(npc,code);return value;}
 import { legacyCommunication } from './communication-mode.js';
 import { receivedMaterialCaution } from './food-warning.js';
 import { markNpcRunTravel } from './npc-effort-funding.js';
+import { markFoodRunChoice, endFoodRun } from './food-run-observer.js';
 import { freeHandExplorationChoice } from './free-hand-action.js';
 import { experiencedFoodSourceCaution } from './food-source-caution.js';
 import { witnessedMaterialCompletion } from './discovery-completion.js';
@@ -93,7 +94,7 @@ function recordDiscoveryOutcomeLinked(npc,action,result,event){
   // A rejected command is not practice. Successful inspection cannot improve pulling.
   if(experiment.ok&&experiment.durationSeconds>0){practice.successes++;practice.seconds+=experiment.durationSeconds;}else practice.failures++;
   d.lastAttemptAt=npc.elapsed;
-  if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}
+  if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;endFoodRun(npc,d.run,'action-failed');d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}
   for(const report of (legacyCommunication(npc)?d.reports:[]).filter(r=>r.status==='unverified'&&(r.sourceId==='human'||isPeerTeaching(r)&&r.teaching.state==='ready'&&!teachingExpired(r,npc.elapsed)))){
     const expected=report.proposed[report.cursor];if(expected?.type===action.type&&expected.targetId===action.targetId){report.evidence.push(experiment.id);report.cursor++;if(result.materialId)for(const step of report.proposed.slice(report.cursor))if(['sample','release'].includes(step.type)&&step.targetId===action.targetId)step.targetId=result.materialId;if(!result.ok){if(isPeerTeaching(report)){report.teaching.state='unavailable';report.teaching.lastCode=experiment.code;}else report.status='contradicted';report.cursor=report.proposed.length;}else if(isPeerTeaching(report)&&action.type==='sample')report.teaching.state='waiting';}
   }
@@ -419,14 +420,18 @@ function deferRestRetry(npc,body){
 function learnedStep(npc){
   survivalNote(npc,'visit:learned-run');
   const d=memory(npc),run=d.run;if(!run)return survivalReturn(npc,'run:missing-or-expired',null);
-  const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}
-  if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){d.run=null;return survivalReturn(npc,'run:complete',null);}
+  const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){endFoodRun(npc,run,technique&&technique.confidence!=='revised'?'expired':'unavailable');d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}
+  if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){endFoodRun(npc,run,'complete');d.run=null;return survivalReturn(npc,'run:complete',null);}
   const step=technique.steps[run.cursor],id=step.targetId==='$source'?technique.sourceId:run.materialId;
-  if(!id){d.run=null;return survivalReturn(npc,'run:no-target',null);}
-  if(availabilityBlocked(npc,step.type,id)){d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}
+  if(!id){endFoodRun(npc,run,'no-target');d.run=null;return survivalReturn(npc,'run:no-target',null);}
+  if(availabilityBlocked(npc,step.type,id)){endFoodRun(npc,run,'availability-blocked');d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}
   if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return survivalReturn(npc,'run:eligibility-blocked',null);const object=d.observations[id];
-  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return survivalReturn(npc,'run:travel',markNpcRunTravel(npc,move));d.run=null;return survivalReturn(npc,'run:route-missing',null);}
-  run.awaiting=true;run.expectedType=step.type;run.expectedId=id;return survivalReturn(npc,'run:action',{type:step.type,targetId:id});
+  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move){markNpcRunTravel(npc,move);markFoodRunChoice(npc,run,move,'travel');return survivalReturn(npc,'run:travel',move);}endFoodRun(npc,run,'no-route');d.run=null;return survivalReturn(npc,'run:route-missing',null);}
+  run.awaiting=true;run.expectedType=step.type;run.expectedId=id;
+  const request={type:step.type,targetId:id};
+  markFoodRunChoice(npc,run,request,step.type==='sample'?'sample':'acquisition',
+    {reach:npc.inventory.items.includes(id)?'held':object?'observed':'unknown'});
+  return survivalReturn(npc,'run:action',request);
 }
 /** Pain from actual observed contact supports avoidance; appearance alone predicts no threat. */
 export function contactEscape(npc){
@@ -447,7 +452,7 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   const trialHunger=['hungry','ravenous','faint with hunger'].includes(body.hunger);
   // Evaluation can ablate positive food associations without erasing perception,
   // navigation, practice, novelty, failures, or experienced discomfort.
-  if(!foodLearning)d.run=null;
+  if(!foodLearning){endFoodRun(npc,d.run,'ablation');d.run=null;}
   const wrap=(action,reason,need='understanding')=>{
     const retreat=recoveryChoice(npc,action,need);
     const result={action:retreat||action,reason:retreat?'My attempted walk did not make progress. I can cautiously retrace a short part of my own recent path before choosing another route.':reason,need,provider:'discovery-learner'};

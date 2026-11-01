@@ -1,0 +1,30 @@
+[
+  {
+    "before": "import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';",
+    "after": "import { normalizeFoodRunChoice, dispatchFoodRunChoice, endFoodRun, disposeFoodRunObserver } from './food-run-observer.js';\nimport { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';"
+  },
+  {
+    "before": "  dispose(){disposeDiscoveryCandidateCapture(this);if(recognizedFreeHandAction(this.npc))cancelNpcAction(this.npc,'PRIORITY_CHANGED');else if(this.npc.active?.kind==='free-hand')this.npc.active=null;disposeFreeHandSession(this.npc);this.disposed=true;this.cancel();}",
+    "after": "  dispose(){disposeDiscoveryCandidateCapture(this);if(recognizedFreeHandAction(this.npc))cancelNpcAction(this.npc,'PRIORITY_CHANGED');else if(this.npc.active?.kind==='free-hand')this.npc.active=null;disposeFreeHandSession(this.npc);disposeFoodRunObserver(this.npc);this.disposed=true;this.cancel();}"
+  },
+  {
+    "before": "    if([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}",
+    "after": "    normalizeFoodRunChoice(n,raw,action);\n    if([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}"
+  },
+  {
+    "before": "    return requestNpcAction(n,action,this.environment);",
+    "after": "    const result=requestNpcAction(n,action,this.environment);\n    dispatchFoodRunChoice(n,raw,result,n.active);\n    return result;"
+  },
+  {
+    "before": "    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;if(ozarkPersistentWorldAgent(n))initializeFreeHandSession(n);}",
+    "after": "    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;endFoodRun(n,n.discovery.run,'identity-loss');n.discovery.run=null;if(ozarkPersistentWorldAgent(n))initializeFreeHandSession(n);}"
+  },
+  {
+    "before": "    const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}",
+    "after": "    const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');endFoodRun(n,n.discovery.run,'contact-escape');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}"
+  },
+  {
+    "before": "    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';",
+    "after": "    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);dispatchFoodRunChoice(n,decision.action,performed,n.active);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';"
+  }
+]

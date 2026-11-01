@@ -102,5 +102,29 @@
   {
     "before": "  return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');\n}",
     "after": "  return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');\n  }finally{survivalObserve(closeSurvivalDecision,survivalScope);}\n}"
+  },
+  {
+    "before": "import { freeHandExplorationChoice } from './free-hand-action.js';",
+    "after": "import { markFoodRunChoice, endFoodRun } from './food-run-observer.js';\nimport { freeHandExplorationChoice } from './free-hand-action.js';"
+  },
+  {
+    "before": "  if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}",
+    "after": "  if(d.run?.awaiting){if(d.run.expectedType===action.type&&d.run.expectedId===action.targetId){d.run.awaiting=false;if(!result.ok){const t=d.techniques.find(t=>t.id===d.run.techniqueId);if(t&&!['TOO_FULL','OBJECT_GONE','nothing_detached'].includes(result.code))t.failures++;endFoodRun(npc,d.run,'action-failed');d.run=null;}else{if(result.materialId||action.type==='grasp')d.run.materialId=result.materialId||action.targetId;d.run.cursor++;}}}"
+  },
+  {
+    "before": "  const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}\n  if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){d.run=null;return survivalReturn(npc,'run:complete',null);}",
+    "after": "  const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){endFoodRun(npc,run,technique&&technique.confidence!=='revised'?'expired':'unavailable');d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}\n  if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){endFoodRun(npc,run,'complete');d.run=null;return survivalReturn(npc,'run:complete',null);}"
+  },
+  {
+    "before": "  if(!id){d.run=null;return survivalReturn(npc,'run:no-target',null);}\n  if(availabilityBlocked(npc,step.type,id)){d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}",
+    "after": "  if(!id){endFoodRun(npc,run,'no-target');d.run=null;return survivalReturn(npc,'run:no-target',null);}\n  if(availabilityBlocked(npc,step.type,id)){endFoodRun(npc,run,'availability-blocked');d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}"
+  },
+  {
+    "before": "  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move)return survivalReturn(npc,'run:travel',markNpcRunTravel(npc,move));d.run=null;return survivalReturn(npc,'run:route-missing',null);}\n  run.awaiting=true;run.expectedType=step.type;run.expectedId=id;return survivalReturn(npc,'run:action',{type:step.type,targetId:id});",
+    "after": "  if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move){markNpcRunTravel(npc,move);markFoodRunChoice(npc,run,move,'travel');return survivalReturn(npc,'run:travel',move);}endFoodRun(npc,run,'no-route');d.run=null;return survivalReturn(npc,'run:route-missing',null);}\n  run.awaiting=true;run.expectedType=step.type;run.expectedId=id;\n  const request={type:step.type,targetId:id};\n  markFoodRunChoice(npc,run,request,step.type==='sample'?'sample':'acquisition',\n    {reach:npc.inventory.items.includes(id)?'held':object?'observed':'unknown'});\n  return survivalReturn(npc,'run:action',request);"
+  },
+  {
+    "before": "  if(!foodLearning)d.run=null;",
+    "after": "  if(!foodLearning){endFoodRun(npc,d.run,'ablation');d.run=null;}"
   }
 ]

@@ -1,6 +1,7 @@
 import { bindCommunicationMode, defineCommunicationMode, legacyCommunication } from './communication-mode.js';
 import { namingProposal, beginNamingProposal, acceptNamingProposal, objectName } from './category-names.js';
 import { forwardNpcRunTravel } from './npc-effort-funding.js';
+import { normalizeFoodRunChoice, dispatchFoodRunChoice, endFoodRun, disposeFoodRunObserver } from './food-run-observer.js';
 import { FOOD_SHARING_ACTIONS } from './food-sharing-config.js';
 import { CONFIG, NPC_RULES } from './config.js';
 import { distance, clamp } from './world.js';
@@ -151,7 +152,7 @@ export class NpcController {
   cancel(){this.generation++;this.pending=null;if(this.namingPending)this.namingStatus={state:'cancelled',at:this.npc.elapsed};this.namingPending=null;this.readyDecision=null;this.provider.cancel?.();}
   setDiscoveryCandidateCapture(enabled){setDiscoveryCandidateCapture(this,enabled);}
   takeDiscoveryCandidateSnapshot(){return takeDiscoveryCandidateSnapshot(this);}
-  dispose(){disposeDiscoveryCandidateCapture(this);if(recognizedFreeHandAction(this.npc))cancelNpcAction(this.npc,'PRIORITY_CHANGED');else if(this.npc.active?.kind==='free-hand')this.npc.active=null;disposeFreeHandSession(this.npc);this.disposed=true;this.cancel();}
+  dispose(){disposeDiscoveryCandidateCapture(this);if(recognizedFreeHandAction(this.npc))cancelNpcAction(this.npc,'PRIORITY_CHANGED');else if(this.npc.active?.kind==='free-hand')this.npc.active=null;disposeFreeHandSession(this.npc);disposeFoodRunObserver(this.npc);this.disposed=true;this.cancel();}
   selectSkill(){const c=skillCandidates(this.npc).sort((a,b)=>needPriorities(this.npc)[b.need]-needPriorities(this.npc)[a.need])[0];return c?{skill:c.skill,[c.parameter]:c.resourceId}:null;}
   startSkill(skill,resourceId){
     const n=this.npc,candidate=skillCandidates(n).find(c=>c.skill.id===skill?.id&&c.resourceId===resourceId);if(!candidate)return false;
@@ -176,9 +177,12 @@ export class NpcController {
   }
   perform(raw){
     const n=this.npc,action=cognitiveAction(n,raw);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
+    normalizeFoodRunChoice(n,raw,action);
     if([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
     forwardNpcRunTravel(n,raw,action);
-    return requestNpcAction(n,action,this.environment);
+    const result=requestNpcAction(n,action,this.environment);
+    dispatchFoodRunChoice(n,raw,result,n.active);
+    return result;
   }
   decideOffline({survivalOnly=false}={}){
     const n=this.npc,priorities=needPriorities(n),safe=Math.max(...Object.values(priorities))<3.5;
@@ -258,12 +262,12 @@ export class NpcController {
     if(!accepted)recordEvent(this.npc,'provider',{code:'NAMING_PROPOSAL_NOT_ADOPTED',gameplayFailure:false});
   }
   tickDiscovery(dt){
-    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;n.discovery.run=null;if(ozarkPersistentWorldAgent(n))initializeFreeHandSession(n);}
+    if(this.disposed)return;const n=this.npc;tickNpc(n,dt,this.environment);if(n.epoch!==this.epoch){this.cancel();this.epoch=n.epoch;endFoodRun(n,n.discovery.run,'identity-loss');n.discovery.run=null;if(ozarkPersistentWorldAgent(n))initializeFreeHandSession(n);}
     if(this.namingPending&&(!namingAwake(n)||!n.learning||n.elapsed<this.namingPending.request.observedAt||n.elapsed-this.namingPending.request.observedAt>60))this.cancel();
     if(isSleeping(n)||n.lifecycle!=='AWAKE')return;
     processDiscoveryFeedback(n,{foodLearning:this.discoveryFoodLearning,recordEffect:effect=>recordEvent(n,'condition',{code:'DISCOVERY_EFFECT',feedback:effect})});
     if(n.elapsed-this.senseAt>=1){observeNpc(n,this.environment);updateCognition(n);this.social?.observe?.(n);this.senseAt=n.elapsed;this.finishNaming();this.maybeName();}
-    const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}
+    const contact=contactEscape(n);if(contact&&n.active&&n.active.goal!=='escape-contact'&&n.active.startedAt<n.memory.experience.find(e=>e.id===contact.eventId)?.at){cancelNpcAction(n,'CONTACT_ESCAPE');endFoodRun(n,n.discovery.run,'contact-escape');n.discovery.run=null;n.decision='Pain from experienced contact interrupted my activity.';this.perform(contact.action);if(n.active)n.active.goal='escape-contact';return;}
     // Dialogue inference runs alongside bodily life; it cannot select an experiment.
     if(this.readyDecision){const ready=this.readyDecision;this.readyDecision=null;const action=ready.decision?.action;if(legacyCommunication(n)&&ready.generation===this.generation&&ready.epoch===n.epoch&&['ask_human','journal_reply'].includes(action?.type))this.perform({...action,model:true});else recordEvent(n,'provider',{code:'DISCOVERY_MODEL_PHYSICAL_REJECTED',gameplayFailure:false});}
     if(n.active||n.elapsed<n.nextDecisionAt)return;
@@ -283,6 +287,6 @@ export class NpcController {
       }
     }
     captureDiscoveryCandidates(this,n);
-    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
+    const decision=discoveryDecision(n,{foodLearning:this.discoveryFoodLearning,chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null});n.decision=decision.reason;recordEvent(n,'decision',{provider:'discovery-learner',summary:decision.reason});this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);dispatchFoodRunChoice(n,decision.action,performed,n.active);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);if(contact&&n.active&&decision.need==='safety')n.active.goal='escape-contact';
   }
 }

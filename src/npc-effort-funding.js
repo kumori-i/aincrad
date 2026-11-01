@@ -1,5 +1,6 @@
 import { BIOLOGY_PROFILES, gameHours } from './biology-config.js';
 import { exertPhysiology } from './biology.js';
+import { endFoodRun } from './food-run-observer.js';
 
 // Opt-in human discovery NPC work only. Animal exertion and player movement
 // deliberately retain their existing abstractions.
@@ -48,5 +49,5 @@ export function captureNpcRunDeadline(npc,request,active,{travel=false}={}) {
 }
 export function expireNpcRun(npc,active,elapsed=npc.elapsed) {
   const owned=admittedRuns.get(active);
-  if(owned?.npc===npc&&npc.discovery?.run===owned.run&&elapsed>=owned.deadline)npc.discovery.run=null;
+  if(owned?.npc===npc&&npc.discovery?.run===owned.run&&elapsed>=owned.deadline){endFoodRun(npc,owned.run,'expired');npc.discovery.run=null;}
 }

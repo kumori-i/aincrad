@@ -1,4 +1,5 @@
 import { fundNpcEffort, npcWorkAllowance, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
+import { noteFoodRunPaid } from './food-run-observer.js';
 import { registerMaterialCompletion } from './discovery-completion.js';
 import { publishConsumption } from './consumption-events.js';
 import { recordAquaticCaptureFailure } from './aquatic-ecology.js';
@@ -274,7 +275,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     const captureWitness=catchWitnesses.get(active);
     if(captureWitness&&valid)captureWitness.worked+=worked;
     if(npc.active!==active){settled.add(active);return true;}
-    if(valid)work.worked+=worked;
+    if(valid){work.worked+=worked;if(worked>0)noteFoodRunPaid(npc,active,worked);}
     active.worked=work.worked;
     if(indication&&valid&&worked>0){
       const geometry=publicIndicationGeometry(npc);
