@@ -1,0 +1,48 @@
+name: Ordinary character-motor lifecycle v4 — approved once
+# This workflow is inert until the reviewed motor v4 experiment branch is created.
+# Receipt data lives on a separate single-file Git ref, outside frozen source.
+on: create
+permissions:
+  contents: read
+  actions: read
+jobs:
+  ordinary-character-motor-v4-once:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'experiments/character-motor-lifecycle-v4-once' && github.ref == 'refs/heads/experiments/character-motor-lifecycle-v4-once' && github.run_attempt == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    concurrency:
+      group: character-motor-lifecycle-v4-once
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Reject any prior activation, including failed or deleted-branch runs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/character-motor-v4-activation-gate.mjs
+      - name: Fetch one reviewed receipt from the separate data ref
+        run: node scripts/character-motor-v4-receipt-ref.mjs
+      - name: Record actual native host
+        run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - name: Source-only pilot and activation contracts
+        run: node --test tests/character-motor-v4-activation-gate.test.mjs tests/character-motor-v4-receipt-ref.test.mjs tests/character-ordinary-motor-v4-protocol.test.mjs tests/character-ordinary-motor-v4-runner.test.mjs
+      - name: Install sandbox-preserving Linux display
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: One approved normal-world motor v4 trajectory, never retry
+        run: xvfb-run -a bash -c 'openbox >/dev/null 2>&1 & node scripts/prepare-character-ordinary-motor-v4.mjs --execute-approved'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: character-motor-v4-once-linux-x64
+          path: |
+            test-results/host.json
+            test-results/character-ordinary-motor-v4/
+          if-no-files-found: warn
+          retention-days: 7

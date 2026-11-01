@@ -14,6 +14,9 @@ import {canonicalApplicationRoot,nativeSourceIdentity,captureNativeChild,archive
 import {assertStructuralRestoredHistory} from './structural-movement-native-contract.mjs';
 import {visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen} from './visual-reference-native-fixture.mjs';
 import {CHARACTER_ORDINARY_PILOT_PROTOCOL,guardFreshCharacterMotorPilot,projectCharacterPilot} from './character-ordinary-motor-v3-protocol.mjs';
+import {CHARACTER_ORDINARY_PILOT_PROTOCOL as MOTOR_V4_PROTOCOL,
+  guardFreshCharacterMotorPilot as guardFreshCharacterMotorV4,
+  projectCharacterPilot as projectCharacterMotorV4} from './character-ordinary-motor-v4-protocol.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url)),prepareOnly=process.argv.includes('--prepare-only'),
   responseScenario=process.argv.includes('--response-scenario'),ambiguityScenario=process.argv.includes('--ambiguity-scenario'),
@@ -41,6 +44,8 @@ const application=await canonicalApplicationRoot(output),built=await buildApplic
 const context={output,profile,application,responseScenario,ambiguityScenario,motorScenario,
   motorProtocol:CHARACTER_ORDINARY_PILOT_PROTOCOL,
   motorProtocolPath:join(root,'scripts/character-ordinary-motor-v3-protocol.mjs'),
+  motorV4Protocol:MOTOR_V4_PROTOCOL,
+  motorV4ProtocolPath:join(root,'scripts/character-ordinary-motor-v4-protocol.mjs'),
   sourceIdentity:nativeSourceIdentity(root),sourceFingerprint:built.sourceFingerprint};
 if(!prepareOnly){assert.equal(context.sourceIdentity.commit,process.env.GITHUB_SHA,'Native CI must exercise the exact approved checkout SHA');assert.equal(context.sourceIdentity.worktreeStatus,'','Native CI requires a clean reviewed source tree');}
 const harness=join(output,'runner.cjs'),phases=motorScenario?['motor-exercise','motor-reopen']:ambiguityScenario?['ambiguity-exercise']:responseScenario?
@@ -53,7 +58,8 @@ function installRunner(context,helpers){
     {createHash}=require('node:crypto');
   const {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
     visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen,
-    guardFreshCharacterMotorPilot,projectCharacterPilot}=helpers;
+    guardFreshCharacterMotorPilot,projectCharacterPilot,
+    guardFreshCharacterMotorV4,projectCharacterMotorV4}=helpers;
   const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
   assert(context.phases.includes(phase));
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -191,6 +197,68 @@ function installRunner(context,helpers){
       row.gesturePrediction?.updates===0),
     'Fresh v3 projection must contain no motor, local memory or predictor training');
     await fs.writeFile(path.join(context.output,phase+'-motor-v3-fresh-guard.json'),
+      JSON.stringify(guard,null,2));
+  }
+  // Exercise the prospective v4 allowlist against actual renderer snapshots.
+  // This is controlled engineering QA, not an ordinary v4 observation.
+  async function v4ProjectionPoint(win,label){
+    async function readTwice(project){
+      const q=window.__ozarkWorld,fixture=window.__visualReferenceFixture,
+        world=JSON.stringify(q.fullSnapshot()),
+        reference=JSON.stringify(q.communicationSnapshot()),
+        character=JSON.stringify(fixture?.characterExport?.()??null),
+        observer=JSON.stringify(q.communicationMeasurementSnapshot()),
+        saved=localStorage.getItem('aincrad.world.v2');
+      const first=await project(),second=await project();
+      return {first,second,unchanged:{world:JSON.stringify(q.fullSnapshot())===world,
+        reference:JSON.stringify(q.communicationSnapshot())===reference,
+        character:JSON.stringify(fixture?.characterExport?.()??null)===character,
+        observer:JSON.stringify(q.communicationMeasurementSnapshot())===observer,
+        storage:localStorage.getItem('aincrad.world.v2')===saved}};
+    }
+    const read=await evaluate(win,'('+readTwice.toString()+')('+projectCharacterMotorV4.toString()+')');
+    for(const [key,unchanged]of Object.entries(read.unchanged))
+      assert.equal(unchanged,true,label+' v4 projection changed '+key);
+    const withoutWall=sample=>{const copy=structuredClone(sample);delete copy.wallMs;return copy;};
+    assert.deepEqual(withoutWall(read.first),withoutWall(read.second),
+      label+' repeated v4 projection differs beyond its wall clock');
+    const {validateCharacterPilotProjection}=await import(pathToFileURL(context.motorV4ProtocolPath).href);
+    validateCharacterPilotProjection(read.first);
+    validateCharacterPilotProjection(read.second);
+    assert.equal(read.first.motor?.version,2,label+' must project the v4 lifecycle observer');
+    assert.deepEqual(read.first.motor.actors.map(row=>row.id),['aster','mira']);
+    const forbidden=new Set(['weights','bias','features','targetId','selectedId',
+      'referenceCorrect','demonstratedObjectId','messageHandle','pixels','records','examples']);
+    const inspect=value=>{
+      if(Array.isArray(value)){for(const row of value)inspect(row);return;}
+      if(value&&typeof value==='object')for(const [key,row]of Object.entries(value)){
+        assert.equal(forbidden.has(key),false,label+' v4 motor projection exposed '+key);
+        inspect(row);
+      }
+    };
+    inspect(read.first.motor);
+    await fs.writeFile(path.join(context.output,phase+'-motor-v4-'+label+'.json'),
+      JSON.stringify(read.first,null,2));
+    return read.first;
+  }
+  async function freshMotorV4(win){
+    const guard=await evaluate(win,'('+guardFreshCharacterMotorV4.toString()+')('+JSON.stringify(context.motorV4Protocol)+')');
+    assert.equal(guard?.ready,true,'Fresh motor-v4 guard must accept the actual blank renderer profile');
+    assert.deepEqual(guard.individuals,[{id:'aster',serial:1,trained:false},
+      {id:'mira',serial:2,trained:false}]);
+    const projection=await v4ProjectionPoint(win,'fresh');
+    assert.equal(projection.elapsed,0);
+    for(const actor of projection.motor.actors){
+      const free=actor.freeHandObserver,life=free.lifecycle;
+      assert.equal(free.selectedAttempts,0);
+      assert.equal(free.visibleSamples,0);
+      assert(free.nextEligibleAt>=120);
+      for(const key of ['admitted','firstPaid','certifiedPaidSeconds','completed',
+        'unavailable','ownPoseSamples','pending'])assert.equal(life[key],0);
+      assert(Object.values(life.rejectedAfterSelection).every(value=>value===0));
+      assert(Object.values(life.interrupted).every(value=>value===0));
+    }
+    await fs.writeFile(path.join(context.output,phase+'-motor-v4-fresh-guard.json'),
       JSON.stringify(guard,null,2));
   }
   const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts,character})=>
@@ -410,6 +478,12 @@ function installRunner(context,helpers){
     assert(firstV3.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.selectedAttempts===1&&
       firstV3.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.visibleSamples>0,
       'The v3 observer must count the paid first motion and personally visible peer samples');
+    const firstV4=await v4ProjectionPoint(win,'motor-first-complete');
+    assert.deepEqual(firstV4.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.lifecycle,
+      measured.actors.find(row=>row.id==='aster')?.freeHandObserver?.lifecycle,
+      'V4 completion must project exactly the paid actor-local lifecycle already observed');
+    assert(firstV4.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.visibleSamples>0,
+      'V4 peer visibility must be an actual accepted local sensor sample');
     status=await evaluate(win,"window.__visualReferenceFixture.beginMotor('mira')");
     assert.equal(status.action.type,'free_hand');assert.equal(status.pose,null);
     assert.equal(status.observer.lifecycle.admitted,1);
@@ -423,6 +497,13 @@ function installRunner(context,helpers){
     assert(secondV3.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.selectedAttempts===1&&
       secondV3.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.visibleSamples>0,
       'The v3 observer must retain independent selection and visible-sample counts');
+    const secondV4=await v4ProjectionPoint(win,'motor-second-paid');
+    const secondLife=secondV4.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.lifecycle;
+    assert.equal(secondLife.admitted,1);
+    assert.equal(secondLife.firstPaid,1);
+    assert(secondLife.certifiedPaidSeconds>0&&secondLife.certifiedPaidSeconds<1.8);
+    assert.equal(secondLife.completed,0);
+    assert.equal(secondLife.pending,1);
     await capture(win,'motor-03-mira-partial-real-paid-segment.png');
     const checkpoint=await evaluate(win,'window.__visualReferenceFixture.checkpointMotor(localStorage)');
     assert.equal(checkpoint.pendingKind,'free-hand');
@@ -443,6 +524,11 @@ function installRunner(context,helpers){
       'Cancelling the paid motion after checkpoint cannot rewrite occupied bytes');
     measured=await measurementPoint(win,'motor-interrupted');
     assert(Object.values(measured.counts).every(value=>value===0));
+    const interruptedV4=await v4ProjectionPoint(win,'motor-interrupted');
+    assert.deepEqual(interruptedV4.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.lifecycle,
+      measured.actors.find(row=>row.id==='mira')?.freeHandObserver?.lifecycle,
+      'V4 interruption must retain exactly one funded but unfinished actor-local outcome');
+    assert.equal(interruptedV4.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.lifecycle.interrupted.PRIORITY_CHANGED,1);
     await fs.writeFile(path.join(context.output,'checkpoint.json'),JSON.stringify({...checkpoint,screenshots},null,2));
     await evaluate(win,'window.__visualReferenceFixture.dispose();true');
     await session.defaultSession.flushStorageData();
@@ -451,6 +537,7 @@ function installRunner(context,helpers){
     assert.equal(await raw(win),null,'Fresh disposable profile must contain no current save');
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
     await freshMotorV3(win);
+    await freshMotorV4(win);
     const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':
       context.ambiguityScenario?'{...context,ambiguityScenario:true}':
       context.motorScenario?'{...context,motorScenario:true}':'context';
@@ -462,7 +549,10 @@ function installRunner(context,helpers){
     assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),false,'Fixture owns the sole manual clock; normal timer start is blocked');
     assert.equal(await evaluate(win,'window.__ozarkWorld.referenceFixture(()=>true)'),null,'Fresh fixture installer is one-use');
     let status=await evaluate(win,'window.__visualReferenceFixture.status()');assert.equal(status.pose,null);
-    if(!context.responseScenario)await v3ProjectionPoint(win,'fresh-attached');
+    if(!context.responseScenario){
+      await v3ProjectionPoint(win,'fresh-attached');
+      await v4ProjectionPoint(win,'fresh-attached');
+    }
     if(context.motorScenario)return motorExercise(win);
     if(context.ambiguityScenario){
       const placed=await snapshot(win);
@@ -841,9 +931,15 @@ function installRunner(context,helpers){
       'Occupied saved motor profile cannot obtain fresh fixture authority');
     const measured=await measurementPoint(win,'motor-reopen');
     const reopenedV3=await v3ProjectionPoint(win,'motor-reopen');
+    const reopenedV4=await v4ProjectionPoint(win,'motor-reopen');
     assert(reopenedV3.motor.actors.every(row=>row.freeHandObserver?.selectedAttempts===0&&
       row.freeHandObserver?.visibleSamples===0&&row.gesturePrediction?.updates===0),
       'The v3 observer must start with empty session motor and predictor counts after reopen');
+    assert(reopenedV4.motor.actors.every(row=>row.freeHandObserver?.selectedAttempts===0&&
+      row.freeHandObserver?.visibleSamples===0&&
+      Object.values(row.freeHandObserver.lifecycle).every(value=>typeof value==='number'?value===0:
+        Object.values(value).every(count=>count===0))),
+    'The v4 observer must start with empty session-only lifecycle and visibility counts after reopen');
     assert(Object.values(measured.counts).every(value=>value===0)&&
       measured.events.length===0&&measured.pending===0,
       'A paid neutral motion cannot replay character events or learning on reopen');
@@ -1005,7 +1101,8 @@ function installRunner(context,helpers){
 
 const helpers={captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
   visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen,
-  guardFreshCharacterMotorPilot,projectCharacterPilot};
+  guardFreshCharacterMotorPilot,projectCharacterPilot,
+  guardFreshCharacterMotorV4,projectCharacterMotorV4};
 // Serialized helper expressions are created outside installRunner, so their
 // imported assertion dependency must exist in the generated outer scope.
 const source="const assert = require('node:assert/strict');\n"+'('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';
