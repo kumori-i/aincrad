@@ -426,7 +426,8 @@ export async function installVisualReferenceFixture(context,moduleBase,projectEv
         prediction:reference.readGesturePrediction(actor)})),
       beforeSaved=localStorage.getItem(OZARK_SAVE_KEY),
       beforeObserver=readFreeHandObserver(sender),beforePeer=readFreeHandObserver(listener);
-    require(freeHandBodySafe(sender)&&beforeObserver.nextEligibleAt<=sender.elapsed&&
+    // Match the production offer's 1e-8 clock tolerance after 7,200 fixed steps.
+    require(freeHandBodySafe(sender)&&beforeObserver.nextEligibleAt<=sender.elapsed+1e-8&&
       geometry.canOccupy(point.x,point.y),
     'Current probe must isolate local footing from body, cooldown or invalid placement');
     let observed,offered,during;
