@@ -43,6 +43,62 @@ test('command contract only: macOS uses actual System Events sheet controls and 
   assert.deepEqual(calls.at(-1).args.slice(-4),['1234','save','current.json','/isolated/generated']);
   assert.ok(!calls.some(c=>c.file==='tccutil'||c.file==='sqlite3'||c.file==='sudo'));
 });
+
+const macNotReady=()=>Object.assign(new Error('No current Save sheet'),{
+  code:1,signal:null,killed:false,
+  stderr:'466:491: execution error: NATIVE_DIALOG_NOT_READY (-2700)\n'});
+const macInput=(file,args)=>file==='osascript'&&['cancel','save'].includes(args[3]);
+test('command contract only: macOS reacquires the same sheet after one proven pre-input disappearance',async()=>{
+  for(const action of ['cancel','save']){
+    const {calls,options}=harness('darwin'),original=options.run;
+    let actions=0,record;
+    await driveNativeSaveDialog({...options,action,run:async(file,args,settings)=>{
+      if(macInput(file,args)&&++actions===1){calls.push({file,args});throw macNotReady();}
+      return original(file,args,settings);
+    },write:async(_path,data)=>{record=JSON.parse(data);}});
+    assert.equal(actions,2,'Exactly one action attempt follows the proven no-input disappearance');
+    const first=calls.findIndex(c=>macInput(c.file,c.args));
+    const second=calls.findIndex((c,index)=>index>first&&macInput(c.file,c.args));
+    assert.deepEqual(calls[first].args,calls[second].args,
+      'Reacquisition preserves the exact PID, operation, filename and destination');
+    assert.deepEqual(calls.slice(first+1,second).filter(c=>c.file==='osascript').map(c=>c.args[3]),
+      ['inspect','probe'],'The same OS sheet must be inspected and probed before another action');
+    assert.equal(record.status,'input-completed');
+    assert.equal(record.commands.filter(c=>macInput(c.file,c.args)).length,2);
+  }
+});
+test('command contract only: persistent macOS pre-input absence exhausts the fixed ten-cycle cap',async()=>{
+  const {calls,options}=harness('darwin'),original=options.run;let actions=0,record;
+  await assert.rejects(driveNativeSaveDialog({...options,action:'cancel',
+    run:async(file,args,settings)=>{
+      if(macInput(file,args)){actions++;calls.push({file,args});throw macNotReady();}
+      return original(file,args,settings);
+    },write:async(_path,data)=>{record=JSON.parse(data);}}),/NATIVE_DIALOG_NOT_READY/);
+  assert.equal(actions,10,'The driver cannot loop indefinitely on a disappearing sheet');
+  assert.equal(calls.filter(c=>c.file==='osascript'&&c.args[3]==='inspect').length,10);
+  assert.equal(calls.filter(c=>c.file==='osascript'&&c.args[3]==='probe').length,10);
+  assert.equal(record.status,'failed');
+  assert.equal(record.commands.filter(c=>macInput(c.file,c.args)).length,10);
+});
+test('command contract only: macOS ambiguous, denied, timed-out and uncertain action errors never reacquire or repeat input',async()=>{
+  for(const failure of [
+    {code:1,stderr:'466:491: execution error: Ambiguous native sheet target; no input sent (-2700)\n'},
+    {code:1,stderr:'466:491: execution error: Not authorized to send Apple events (-1743)\n'},
+    {code:1,killed:true,signal:'SIGTERM',stderr:macNotReady().stderr},
+    {code:1,stderr:'466:491: execution error: click Cancel failed after input (-2700)\n'},
+    {code:1,stderr:macNotReady().stderr+'click status unknown\n'},
+  ]){
+    const {calls,options}=harness('darwin'),original=options.run;let actions=0,record;
+    await assert.rejects(driveNativeSaveDialog({...options,action:'cancel',
+      run:async(file,args,settings)=>{
+        if(macInput(file,args)){actions++;calls.push({file,args});throw Object.assign(new Error('Action failed'),failure);}
+        return original(file,args,settings);
+      },write:async(_path,data)=>{record=JSON.parse(data);}}),/Native dialog command/);
+    assert.equal(actions,1,'No second action is safe without the exact pre-input proof');
+    assert.equal(calls.filter(c=>c.file==='osascript'&&c.args[3]==='inspect').length,1);
+    assert.equal(record.status,'failed');
+  }
+});
 test('command contract only: Accessibility denial is a blocking error, not a skipped native pass',async()=>{
   const {options}=harness('darwin');
   let calls=0;
