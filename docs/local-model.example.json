@@ -1,8 +1,0 @@
-{
-  "enabled": false,
-  "endpoint": "http://127.0.0.1:11434/v1",
-  "model": "llama3.2:3b",
-  "timeoutMs": 8000,
-  "maxCallsPerHour": 60,
-  "maxTokens": 700
-}

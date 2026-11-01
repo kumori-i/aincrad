@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "approved": true,
+  "protocol": "ordinary-character-motor-lifecycle-v4",
+  "commit": "3be93d7c2f804b3ef17c825b3af4e0871eed14f9",
+  "tree": "814e14953b7c9bc450579a5532f08c6a094401aa",
+  "activationRef": "experiments/character-motor-lifecycle-v4-once",
+  "sourceManifestSha256": "2fea363731bbfe17be31eaec93b319148407b73f64feb16366bd7ab7b4651e44",
+  "protocolSha256": "1b562d558ac4e17c920f9b086239d48aff38ff5cea5a794c11ca121d8cc8fbf1",
+  "runnerSha256": "3d1f99dac39e554d3281cc863346338a942804008a51cc484b8404ecb149df5a",
+  "generatedRunnerSha256": "2e3fe2e303f80b0907038981d009ad2d3b009e79190a54618e830c7b2d630424",
+  "runtimeFingerprint": "4acd208229dae6cc89f3bc72d924cc7b6d7d7d736980e1ca9eca96bee63d339f",
+  "rendererManifestSha256": "a7e81112f5b4b8d021719e10d1296123c9e87adb40c8bbf27e142b2c447d0018",
+  "reviewedBy": "dev",
+  "reviewedAt": "2026-11-01T18:29:14Z"
+}
