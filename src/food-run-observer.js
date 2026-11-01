@@ -4,7 +4,7 @@ export const FOOD_RUN_STAGES=Object.freeze(['travel','acquisition','sample']);
 export const FOOD_RUN_REACH=Object.freeze(['observed','held','unknown']);
 export const FOOD_RUN_END_REASONS=Object.freeze([
   'action-failed','expired','unavailable','complete','no-target',
-  'availability-blocked','no-route','identity-loss','contact-escape','ablation','other',
+  'availability-blocked','no-route','proof-retired','identity-loss','contact-escape','ablation','other',
 ]);
 export const FOOD_RUN_OBSERVER_LIMITS=Object.freeze({counter:2147483647,paidSeconds:1e9});
 const stages=new Set(FOOD_RUN_STAGES),reaches=new Set(FOOD_RUN_REACH),reasons=new Set(FOOD_RUN_END_REASONS);
