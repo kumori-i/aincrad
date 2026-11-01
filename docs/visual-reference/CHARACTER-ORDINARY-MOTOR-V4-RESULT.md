@@ -50,3 +50,30 @@ or a benefit from communication. V4's motor lifecycle counters distinguish
 admission from paid work; they cannot retroactively repair v3's missing motor
 receipt or explain a particular v4 `PRIORITY_CHANGED` without the underlying
 personal footing and body observation.
+
+## Food-intake follow-up
+
+A read-only reconciliation of the retained v4 energy ledger found that Aster
+ingested 15.833333 kcal, absorbed 15.832806 kcal and metabolized 1,715.639340
+kcal. Mira ingested 164.666667 kcal, absorbed 132.175968 kcal and metabolized
+1,626.797572 kcal. Even complete absorption of what they ingested would cover
+only about 0.923% and 10.122% of expenditure, respectively. Sparse ingestion,
+not merely pending digestion, dominates this observed energy deficit.
+
+Aster's only retained ingestion increment occurred around 283–293 simulation
+seconds; the `independentMeals` count rose around 333–343 seconds without
+another ingestion increment. Source accounting makes this delay plausible: a
+30 g apple sample supplies 15.833333 kcal, and its two-game-hour digestion
+reaches the human 2.4 kcal sustained-feedback threshold about 45.5 simulation
+seconds after ingestion. This calculation does not identify the particular
+food object from the aggregate, and `independentMeals` records earned bodily
+feedback rather than a full meal.
+
+Aster had 52 learned-run visits, including 40 `run:travel` decisions, one
+`run:action` decision and no `run:complete` decision; six visits reported no
+known route and five reported a missing or expired run. These are bounded
+decision-stage counters, not paid-action receipts or exclusive causes. They
+show that learned return was attempted, but the retained aggregate cannot
+identify the exact source, route, admission result or reason further food was
+not ingested. This retrospective source diagnosis does not change the frozen
+v4 run or establish that a particular route or safety guard was defective.

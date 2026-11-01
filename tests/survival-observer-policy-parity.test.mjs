@@ -11,13 +11,16 @@ import {recordMotorTrail,finishMotorEvidence} from '../src/movement-recovery.js'
 import {survivalDecisionSnapshot} from '../src/survival-decision-observer.js';
 const source=await readFile(new URL('../src/discovery.js',import.meta.url),'utf8');
 const seams=JSON.parse(await readFile(new URL('./fixtures/survival-observer-seams.json',import.meta.url),'utf8'));
+assert.ok(seams.some(s=>s.after.includes('markFoodRunChoice')),
+  'food-run observation seams remain in the exact policy reconstruction');
 const sha=s=>createHash('sha256').update(s).digest('hex');
 let original=source;
 for(const {before,after} of seams.slice().reverse()){
  assert.equal(original.split(after).length-1,1,'each reverse seam occurs exactly once');original=original.replace(after,before);
 }
 // The neutral optional motor choice belongs to the policy under comparison in
-// both arms; only observer seams are reversed to obtain this exact baseline.
+// both arms; both survival and food-run observer seams are reversed to obtain
+// the original exact policy baseline without changing its hash or scenarios.
 assert.equal(sha(original),'9bf8516e5c00b12e5386672c6f85f7d34d3edf97d3345abbfa50f82256b7da5f','exact pre-observer policy, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}

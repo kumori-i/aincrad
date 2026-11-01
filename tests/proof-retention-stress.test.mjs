@@ -14,6 +14,7 @@ import { BIOLOGY_RULES } from '../src/biology-config.js';
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { NPC_RULES, CAVES } from '../src/config.js';
 import { planProofRetention, applyProofRetention, PROOF_RETENTION_BOUNDS } from '../src/proof-retention.js';
+import { foodRunSnapshot, markFoodRunChoice, setFoodRunObserverEnabled } from '../src/food-run-observer.js';
 
 function worldFixture() {
   const state = freshState(), npc = state.agents[0], environment = state.environment;
@@ -185,6 +186,37 @@ function fullOwnerFixture() {
   npc.discovery.nextId = nextExperiment;
   return { npc, staging, acquisition, recentOrigins, latestHeld };
 }
+
+test('committed technique retirement ends its witnessed food run immediately and only once', () => {
+  const { npc } = fullOwnerFixture();
+  const technique = npc.discovery.techniques[0];
+  // The planner retires this owner because no complete evidence remains. The
+  // run is a real current intention, but no physical move has been admitted.
+  technique.evidence = [];
+  const run = { techniqueId: technique.id, cursor: 0, startedAt: npc.elapsed };
+  npc.discovery.run = run;
+  const selected = { type: 'move', target: { x: 40, y: 0 } };
+  assert.equal(markFoodRunChoice(npc, run, selected, 'travel'), true);
+  const withoutObserver = structuredClone(npc);
+  assert.equal(setFoodRunObserverEnabled(withoutObserver, false), true);
+  const plan = planProofRetention(npc), controlPlan = planProofRetention(withoutObserver);
+  assert.equal(plan.ok, true, plan.reason);
+  assert.equal(controlPlan.ok, true, controlPlan.reason);
+  assert.ok(plan.retirements.some(row => row.kind === 'technique' && row.reason === 'unsupported-owner'));
+  assert.equal(applyProofRetention(npc, { ok: true }), false, 'uncommitted plan has no observer effect');
+  assert.equal(foodRunSnapshot(npc).runEnds['proof-retired'], 0);
+  assert.equal(applyProofRetention(npc, plan), true);
+  assert.equal(applyProofRetention(withoutObserver, controlPlan), true);
+  assert.equal(applyProofRetention(npc, plan), false, 'the original plan cannot be replayed');
+  assert.equal(npc.discovery.run, null);
+  assert.deepEqual(npc, withoutObserver, 'observer hook changes no actor, learner, or RNG state');
+  const observed = foodRunSnapshot(npc);
+  assert.equal(observed.runEnds['proof-retired'], 1);
+  assert.equal(observed.stages.travel.unavailable, 1);
+  assert.equal(observed.stages.travel.admitted, 0);
+  assert.equal(observed.stages.travel.completed, 0);
+  assert.deepEqual(observed.pending, { selected: 0, active: 0 });
+});
 
 test('full distinct hard ownership fits 165 experiments and retires shared soft owners deterministically', () => {
   const { npc, staging, acquisition, recentOrigins, latestHeld } = fullOwnerFixture();
