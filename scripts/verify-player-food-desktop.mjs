@@ -186,8 +186,23 @@ async function actPhase(win) {
   // Repeated trusted input to a disabled button cannot admit another action.
   const firstAction=await evaluate(win,'window.__ozarkWorld.playerFoodSnapshot()');
   assert.equal(firstAction.active?.type,'pull');
+  const firstStock=await evaluate(win,'window.__ozarkWorld.fullSnapshot().environment.ecology.plants.find(p=>p.id===' +
+    JSON.stringify(authored.sourceId) + ').quantity');
+  assert.equal(await evaluate(win,"document.getElementById('player-food-gather').disabled"),true,
+    'Gather must be disabled while its first paid action remains active');
   await clickButton(win,'player-food-gather',{allowDisabled:true});
-  assert.deepEqual(await evaluate(win,'window.__ozarkWorld.playerFoodSnapshot()'),firstAction);
+  const afterRepeatedClick=await evaluate(win,'window.__ozarkWorld.playerFoodSnapshot()');
+  assert.deepEqual(afterRepeatedClick.held,firstAction.held,
+    'A disabled repeated click cannot transfer another portion');
+  for(const key of ['type','targetId','seconds','startedAt','expiresAt'])
+    assert.equal(afterRepeatedClick.active?.[key],firstAction.active[key],
+      'A disabled repeated click cannot replace or reschedule the paid action: '+key);
+  assert.ok(afterRepeatedClick.active.worked>=firstAction.active.worked &&
+    afterRepeatedClick.active.worked<=afterRepeatedClick.active.seconds,
+  'The same paid action may advance while the native click is delivered');
+  assert.equal(await evaluate(win,'window.__ozarkWorld.fullSnapshot().environment.ecology.plants.find(p=>p.id===' +
+    JSON.stringify(authored.sourceId) + ').quantity'),firstStock,
+  'A disabled repeated click cannot take an extra fruit before the paid pull completes');
   await driveUntil(win,'window.__ozarkWorld.fullSnapshot().playerFood.inventory.items.length===1');
   const gathered=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   assert.ok(gathered.playerFood.physiology.totals.metabolizedKcal>

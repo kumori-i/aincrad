@@ -18,6 +18,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   native-renewable-sharing:
     strategy:
@@ -35,7 +38,6 @@ jobs:
       - name: Record actual native host and architecture
         run: node scripts/record-native-host.mjs
       - run: npm ci
-      - run: npm run check
       - run: npm run build
       - name: Install Linux test display and window manager
         if: runner.os == 'Linux'

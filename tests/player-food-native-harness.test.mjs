@@ -38,6 +38,12 @@ test('player food native preparation generates an isolated actual-input close/re
     assert.match(runner, /player-food-gather/);
     assert.match(runner, /player-food-taste/);
     assert.match(runner, /player-food-drop/);
+    assert.match(runner, /afterRepeatedClick\.active\.worked>=firstAction\.active\.worked/);
+    assert.match(runner, /Gather must be disabled while its first paid action remains active/);
+    assert.match(runner, /afterRepeatedClick\.active\?\.\[key\],firstAction\.active\[key\]/);
+    assert.match(runner, /A disabled repeated click cannot take an extra fruit/);
+    assert.doesNotMatch(runner, /playerFoodSnapshot\(\)'\),firstAction\)/,
+      'Native disabled-click audit must allow the original paid action to advance');
     assert.match(runner, /sourceQuantity-1/);
     assert.match(runner, /inquiry\.actorId,'player'/);
     assert.match(runner, /inquiry\.attempts\.length,0/);

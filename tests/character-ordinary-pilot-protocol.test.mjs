@@ -28,10 +28,8 @@ function freshSource(){
   });
   fresh={world:structuredClone(state),measurement:{...learning.measurementSnapshot(),survival},
     reference:learning.snapshot()};
-  // This frozen pilot ran before the player-food extension. Exercise its
-  // original four-feature start rather than changing its immutable guard.
-  delete fresh.world.features.playerFood;
-  delete fresh.world.playerFood;
+  // Current-source native checks use the current five-feature start. The
+  // completed pilot remains pinned to its original source commit and receipt.
   learning.dispose();
   return fresh;
 }
@@ -99,6 +97,9 @@ test('fresh guard rejects occupied, altered, trained and fixture-owned starts',(
   assert.throws(()=>runGuard(source,{fixture:{owner:true}}),/clock/);
   assert.throws(()=>runGuard(source,{route:'aincrad:\/\/app\/index.html'}),/route/);
   for(const mutate of [
+    s=>{delete s.world.features.playerFood;},
+    s=>{s.world.features.playerFood=2;},
+    s=>{s.world.features.unapproved=1;},
     s=>{s.world.environment.seed=74194;},
     s=>{s.world.visualReference.seed=212;},
     s=>{s.world.characterMessages.learners[0].sender.updates=1;},
