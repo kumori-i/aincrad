@@ -28,6 +28,10 @@ function freshSource(){
   });
   fresh={world:structuredClone(state),measurement:{...learning.measurementSnapshot(),survival},
     reference:learning.snapshot()};
+  // This frozen pilot ran before the player-food extension. Exercise its
+  // original four-feature start rather than changing its immutable guard.
+  delete fresh.world.features.playerFood;
+  delete fresh.world.playerFood;
   learning.dispose();
   return fresh;
 }

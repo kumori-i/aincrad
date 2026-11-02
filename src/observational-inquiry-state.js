@@ -9,7 +9,7 @@ export function validInquiries(rows, d, elapsed, self) {
   return rows.every(q => {
     if (!q || Object.keys(q).sort().join(',') !== 'actorId,actorPosition,at,attempts,retired,sourceId,sourcePosition' ||
       !objectId(q.sourceId) || q.sourceId===q.actorId || seen.has(q.sourceId) || q.actorId === self ||
-      !(['aster','mira'].includes(q.actorId) || objectId(q.actorId)) ||
+      !(['aster','mira','player'].includes(q.actorId) || objectId(q.actorId)) ||
       !Number.isFinite(q.at) || q.at < 0 || q.at > elapsed || !point(q.actorPosition) || !point(q.sourcePosition) || Math.hypot(q.actorPosition.x-q.sourcePosition.x,q.actorPosition.y-q.sourcePosition.y)>80 ||
       typeof q.retired !== 'boolean' || !Array.isArray(q.attempts) || q.attempts.length > 3 ||
       new Set(q.attempts).size !== q.attempts.length || q.retired && q.attempts.length) return false;

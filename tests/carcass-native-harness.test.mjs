@@ -30,7 +30,7 @@ test('serialized current route contract rejects retired bridges, choosers and in
  const assertRoute=vm.runInNewContext('('+assertCurrentRoute.toString()+')');
  const valid={url:'aincrad://app/index.html?test=1',hook:true,retiredWorldBridge:false,
   retiredProfileBridge:false,chooserPresent:false,snapshot:{blocked:false,started:false,
-   version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2}}};
+   version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1}}};
  assertRoute(valid);
  for(const patch of [{hook:false},{retiredWorldBridge:true},{retiredProfileBridge:true},
   {chooserPresent:true},{url:'aincrad://app/index.html?ozarkWorld=1'},
@@ -39,6 +39,8 @@ test('serialized current route contract rejects retired bridges, choosers and in
  for(const features of [
   {plantLifecycle:1,finiteAquatic:2,worldStructures:1},
   {...valid.snapshot.features,characterMessages:1},
+  {...valid.snapshot.features,playerFood:2},
+  Object.fromEntries(Object.entries(valid.snapshot.features).filter(([key])=>key!=='playerFood')),
   {...valid.snapshot.features,unexpectedFeature:1},
  ]) assert.throws(()=>assertRoute({...valid,snapshot:{...valid.snapshot,features}}));
 });

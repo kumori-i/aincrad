@@ -22,6 +22,7 @@ import { retainedProofIntegrityError } from './proof-retention.js';
 import { ozarkWaterSource } from './ozark-water-sources.js';
 import { createFreshReferencePersistence, validateCharacterPersistence } from './visual-reference-save.js';
 import { currentVisualReferenceExport } from './visual-reference-save-registration.js';
+import { createPlayerFoodState, validatePlayerFoodState } from './player-food-state.js';
 
 export const OZARK_SAVE_KEY = 'aincrad.world.v2';
 export const OZARK_SAVE_VERSION = 12;
@@ -366,14 +367,17 @@ function validateWaypoint(point, geometry) {
 
 // Cross the physical and experiential boundaries in one direction only: proof
 // validates actual possession; it can never create an object or supply a catch.
-function assertAquaticOwnership(ecology, actors) {
+function assertAquaticOwnership(ecology, actors, playerFood) {
   const materials = new Map(ecology.materials.map(item => [item.id, item]));
   const owners = new Map();
-  for (const actor of actors) {
+  for (const actor of [...actors, {id:'player',inventory:playerFood.inventory}]) {
     for (const id of actor.inventory.items) {
       const item = materials.get(id);
       if (!item || item.heldBy !== actor.id || owners.has(id))
         fail('inventory and physical material ownership disagree');
+      if(actor.id==='player'&&
+        (item.kind!=='material'||!['apple','berry'].includes(item.materialType)||item.fishOrigin))
+        fail('player hand contains a non-food material');
       owners.set(id, actor.id);
     }
   }
@@ -381,6 +385,7 @@ function assertAquaticOwnership(ecology, actors) {
     if (item.heldBy !== null && owners.get(item.id) !== item.heldBy)
       fail('a held material lacks exactly one matching inventory');
     if (!item.fishOrigin || item.heldBy === null) continue;
+    if(item.heldBy==='player')fail('player hand contains an aquatic material');
     const actor = actors.find(row => row.id === item.heldBy);
     const acquisitions = actor.discovery.experiments.filter(row => row.ok &&
       row.materialId === item.id &&
@@ -419,18 +424,25 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     fail('unsupported version, feature combination or structural geometry');
   const { finiteAquatic } = mode;
   const markedCharacters = Object.hasOwn(raw.features,'characterMessages');
+  const markedPlayerFood = Object.hasOwn(raw.features,'playerFood');
   // A historical envelope is readable for migration only. Every new write
   // must carry the current marker and all three complete learner sections.
   if (!restoring && !markedCharacters)
     fail('historical feature combination cannot be written as a current save');
+  if (!restoring && !markedPlayerFood)
+    fail('historical player-food combination cannot be written as a current save');
   const hasReference = REFERENCE_ENVELOPE_KEYS.some(key=>Object.hasOwn(raw || {},key));
   const hasCharacters = Object.hasOwn(raw || {},'characterMessages');
+  const hasPlayerFood = Object.hasOwn(raw || {},'playerFood');
   // The mandatory current feature marker sits outside the three learner fields.
   // Historical feature triples may migrate only from no extension or genuine v1.
   if (markedCharacters ? !hasReference || !hasCharacters : hasCharacters)
     fail('character message feature marker does not match its learner envelope');
+  if (markedPlayerFood !== hasPlayerFood)
+    fail('player-food feature marker does not match its physical envelope');
   const keys = [...ENVELOPE_KEYS,...(hasReference?LEGACY_REFERENCE_ENVELOPE_KEYS:[]),
     ...(hasCharacters?['characterMessages']:[]),
+    ...(hasPlayerFood?['playerFood']:[]),
     ...(Object.hasOwn(raw || {}, 'npc')?['npc']:[])];
   if (!exactKeys(raw, keys) ||
       raw.geometryIdentity !== OZARK_WORLD_PROFILE.identity ||
@@ -450,6 +462,10 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     fail('the live historical Aster alias is inconsistent');
   }
   const playerBody = validateBody(raw.playerBody);
+  const playerFood = hasPlayerFood?
+    validatePlayerFoodState(raw.playerFood,raw.elapsed,playerBody):
+    createPlayerFoodState(raw.elapsed,playerBody);
+  if(!playerFood)fail('player hand or physiology would change during validation');
   const waypoint = validateWaypoint(raw.waypoint, geometry);
   const records = new Map(raw.agents.map(actor => [actor?.id, actor]));
   if (records.size !== AGENT_IDS.length ||
@@ -480,7 +496,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
       environment.ecology.geometryIdentity !== OZARK_WORLD_PROFILE.identity) {
     fail('ecology identity does not match the playable world');
   }
-  assertAquaticOwnership(environment.ecology, agents);
+  assertAquaticOwnership(environment.ecology, agents, playerFood);
   if(!validFoodWarningMessages(raw.community.messages||[],raw.elapsed,SOCIAL_RULES.maxMessages))fail('invalid community adverse warning testimony');
   if((raw.community.messages||[]).some(m=>!validTransferSpeech(m)))fail('invalid community method transfer');
   // Lexical evidence is independent of rotating speech, but must still link to
@@ -504,7 +520,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     geometryIdentity: OZARK_WORLD_PROFILE.identity,
     features: { ...mode.features }, simulationMode: 'discovery',
     scene: 'valley', player: { x: raw.player.x, y: raw.player.y },
-    playerBody, elapsed: raw.elapsed, distance: raw.distance,
+    playerBody, playerFood, elapsed: raw.elapsed, distance: raw.distance,
     agents, npc: agents[0], environment, community,
     selectedAgentId: raw.selectedAgentId, waypoint,
     ...(reference||{}),
@@ -539,6 +555,7 @@ export function createOzarkState(geometry, {communicationSeed} = {}) {
     features: { ...mode.features }, simulationMode: 'discovery',
     scene: 'valley', player: { ...geometry.spawn },
     playerBody: { wetness: 0, effort: 0, stamina: 100, health: 100 },
+    playerFood: createPlayerFoodState(),
     elapsed: 0, distance: 0, agents, npc: agents[0], environment,
     community: createCommunity(), selectedAgentId: 'aster', waypoint: null,
     ...createFreshReferencePersistence(referenceSeed),

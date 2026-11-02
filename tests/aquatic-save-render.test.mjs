@@ -37,7 +37,7 @@ test('fresh current exact aquatic envelope and stock survive schema roundtrip wi
   const { disk, state, raw } = canonicalFresh();
   assert.equal(OZARK_SAVE_VERSION, 12);
   assert.equal(raw.version, 12);
-  assert.deepEqual(raw.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1, characterMessages: 2 });
+  assert.deepEqual(raw.features, { plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1, characterMessages: 2, playerFood: 1 });
   assert.equal(raw.environment.ecology.aquatic.version, 2);
   assert.ok(raw.environment.ecology.aquatic.fish.length > 0);
   const reopened = loadOzarkSave(disk, geometry);

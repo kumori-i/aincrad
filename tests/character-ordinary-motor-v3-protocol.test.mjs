@@ -38,6 +38,9 @@ function source(){
   });
   fresh={world:clone(state),measurement:{...learning.measurementSnapshot(),survival},
     reference:learning.snapshot()};
+  // The v3 run predates player food; retain its exact historical guard input.
+  delete fresh.world.features.playerFood;
+  delete fresh.world.playerFood;
   learning.dispose();
   return fresh;
 }

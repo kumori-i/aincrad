@@ -34,6 +34,10 @@ test('fresh Ozark world creates both distinct lives and writes only its own slot
   }
   assert.deepEqual(state.playerBody,
     { wetness: 0, effort: 0, stamina: 100, health: 100 });
+  assert.equal(state.features.playerFood, 1);
+  assert.deepEqual(state.playerFood.inventory.items, []);
+  assert.equal(state.playerFood.physiology.health, state.playerBody.health);
+  assert.equal(state.playerFood.physiology.stamina, state.playerBody.stamina);
   assert.equal(writeOzarkSave(disk, state, geometry), true);
   assert.equal(disk.getItem(CONFIG.saveKey), historical);
   const stored = JSON.parse(disk.getItem(OZARK_SAVE_KEY));
@@ -49,6 +53,8 @@ test('exact body and physically occupied swim and climb positions survive write/
   state.agents[0].position = { x: -12000, y: 9800 };
   state.agents[1].position = { x: -11800, y: 11800 };
   state.playerBody = { wetness: 64.25, effort: .71, stamina: 39.5, health: 88.25 };
+  state.playerFood.physiology.stamina = state.playerBody.stamina;
+  state.playerFood.physiology.health = state.playerBody.health;
   assert.equal(geometry.classify(state.player.x, state.player.y).walkable, false);
   assert.equal(geometry.classify(state.agents[0].position.x,
     state.agents[0].position.y).walkable, false);

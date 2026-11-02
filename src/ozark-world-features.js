@@ -3,9 +3,12 @@
 const LEGACY_WORLD_FEATURES = Object.freeze({
   plantLifecycle: 1, finiteAquatic: 2, worldStructures: 1,
 });
+const CHARACTER_WORLD_FEATURES = Object.freeze({
+  ...LEGACY_WORLD_FEATURES, characterMessages: 2,
+});
 export const OZARK_CURRENT_WORLD_MODE = Object.freeze({
   version: 12,
-  features: Object.freeze({ ...LEGACY_WORLD_FEATURES, characterMessages: 2 }),
+  features: Object.freeze({ ...CHARACTER_WORLD_FEATURES, playerFood: 1 }),
   finiteAquatic: true, worldStructures: true,
 });
 function exactFeatures(features, expected) {
@@ -15,9 +18,11 @@ function exactFeatures(features, expected) {
 }
 export function ozarkWorldMode(state) {
   const features = state?.features;
-  // Historical schema-12 bytes are readable only for strict in-memory migration.
+  // Historical schema-12 triples and character-message envelopes are readable
+  // only for strict in-memory migration. New writes carry both feature markers.
   return state?.version === 12 &&
     (exactFeatures(features,OZARK_CURRENT_WORLD_MODE.features) ||
+      exactFeatures(features,CHARACTER_WORLD_FEATURES) ||
       exactFeatures(features,LEGACY_WORLD_FEATURES)) ?
     OZARK_CURRENT_WORLD_MODE : null;
 }

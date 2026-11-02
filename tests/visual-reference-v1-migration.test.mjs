@@ -49,7 +49,11 @@ test('authentic paid v1 save migrates in memory without rewriting old bytes or e
   assert.equal(disk.getItem(OZARK_SAVE_KEY),archived,'Every occupied v1 byte survives load');
   assert.equal(migrated.state.worldLineage.version,2);
   assert.deepEqual(migrated.state.features,
-    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2});
+    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1});
+  assert.deepEqual(migrated.state.playerFood.inventory.items,[],
+    'The historical save predates avatar food ownership');
+  assert.equal(migrated.state.playerFood.physiology.health,old.playerBody.health);
+  assert.equal(migrated.state.playerFood.physiology.stamina,old.playerBody.stamina);
   assert.deepEqual({...migrated.state.worldLineage,version:1},old.worldLineage);
   assert.deepEqual(migrated.state.visualReference,old.visualReference,
     'Anchors, examples, and all four legacy RNG states remain unchanged');

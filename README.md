@@ -143,6 +143,11 @@ A genuinely witnessed eating event can motivate an uncertain, exact-source
 experiment. The observer must pay for its own acquisition and sampling, then
 learn from its own delayed feedback. This [observation-driven inquiry](docs/OBSERVATIONAL-LEARNING.md)
 is supplied scaffolding, not an invented recipe or transmitted food knowledge.
+The player's new [fruit actions](docs/PLAYER-TEACHING.md) use the same finite
+ecology: gather a reachable apple or berry, eat a paid sample, and drop the
+remainder. An agent must actually see the eating, then reach and test the
+same remaining piece with its own body to learn anything. No demonstration
+grants a technique or makes the agent obey the player.
 A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can compare
 a failed grasp with a personally successful pull on another currently similar
 source. It does not automatically sample or infer safety.
@@ -184,6 +189,7 @@ generalization have been established.
 | Control | Action |
 | --- | --- |
 | WASD / arrows | Move the player avatar |
+| Gather / Eat sample / Drop rest | Work with visible, reachable fruit in the Your hands panel |
 | Shift | Run while moving |
 | Space / G while moving | Attempt swimming / climbing |
 | Mouse wheel / + / − | World-camera zoom |
@@ -193,7 +199,9 @@ generalization have been established.
 | Escape | Pause / resume |
 | Ctrl+S / ⌘S | Save the current world |
 
-The player avatar explores and observes. Agent hunting/fishing actions are not a separate player-inventory game.
+The player can hold a finite fruit portion and eat from it. Agent hunting and
+fishing remain separate capabilities; this does not add a general player crafting
+or inventory game.
 
 ## Saves and scope
 

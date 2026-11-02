@@ -145,7 +145,19 @@ test('main has one tick owner and saves only validated current visual learning',
   const source=await readFile(new URL('../src/ozark-world-main.js',import.meta.url),'utf8');
   const gate=await readFile(new URL('../src/visual-reference-save-gate.js',import.meta.url),'utf8');
   assert.equal((source.match(/population\.tick\(dt\)/g)||[]).length,1);
-  assert.match(source,/communicate\('beforeTick'\);\s*state.elapsed \+= dt;\s*state.distance \+= motion.distance;\s*population.tick\(dt\);\s*communicate\('afterTick'\)/);
+  // The avatar's paid food and digestion run in the same owner tick before
+  // population learning; expiry reconciliation follows ecology, then the
+  // existing communication afterTick observes that completed world step.
+  const ordered=["communicate('beforeTick');",'state.elapsed += dt;',
+    'state.distance += motion.distance;','playerFoodController.tick(dt)',
+    'population.tick(dt)','playerFoodController?.reconcileHeld()',
+    "communicate('afterTick');"];
+  let previous=-1;
+  for(const segment of ordered){
+    const current=source.indexOf(segment,previous+1);
+    assert.ok(current>previous,`main tick order must retain ${segment}`);
+    previous=current;
+  }
   assert.match(source,/if\(referenceFixtureOwner&&!referenceCheckpoint\)return false/);
   assert.match(source,/if \(resetHeld \|\| resetRetired \|\| loaded.blocked \|\| !state\) return false/);
   assert.match(source,/referenceSaveGate\.retire\(previous\)/);
