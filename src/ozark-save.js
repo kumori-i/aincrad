@@ -23,6 +23,7 @@ import { ozarkWaterSource } from './ozark-water-sources.js';
 import { createFreshReferencePersistence, validateCharacterPersistence } from './visual-reference-save.js';
 import { currentVisualReferenceExport } from './visual-reference-save-registration.js';
 import { createPlayerFoodState, validatePlayerFoodState } from './player-food-state.js';
+import { createFreshPlayerLessons, validatePlayerLessons } from './player-lesson-bank.js';
 
 export const OZARK_SAVE_KEY = 'aincrad.world.v2';
 export const OZARK_SAVE_VERSION = 12;
@@ -425,24 +426,31 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   const { finiteAquatic } = mode;
   const markedCharacters = Object.hasOwn(raw.features,'characterMessages');
   const markedPlayerFood = Object.hasOwn(raw.features,'playerFood');
+  const markedPlayerLessons = Object.hasOwn(raw.features,'playerLessons');
   // A historical envelope is readable for migration only. Every new write
-  // must carry the current marker and all three complete learner sections.
+  // must carry all current markers and complete durable sections.
   if (!restoring && !markedCharacters)
     fail('historical feature combination cannot be written as a current save');
   if (!restoring && !markedPlayerFood)
     fail('historical player-food combination cannot be written as a current save');
+  if (!restoring && !markedPlayerLessons)
+    fail('historical player-lesson combination cannot be written as a current save');
   const hasReference = REFERENCE_ENVELOPE_KEYS.some(key=>Object.hasOwn(raw || {},key));
   const hasCharacters = Object.hasOwn(raw || {},'characterMessages');
   const hasPlayerFood = Object.hasOwn(raw || {},'playerFood');
-  // The mandatory current feature marker sits outside the three learner fields.
-  // Historical feature triples may migrate only from no extension or genuine v1.
+  const hasPlayerLessons = Object.hasOwn(raw || {},'playerLessons');
+  // Markers bind each current durable section; historical feature triples may
+  // migrate only from no reference extension or a complete genuine v1 pair.
   if (markedCharacters ? !hasReference || !hasCharacters : hasCharacters)
     fail('character message feature marker does not match its learner envelope');
   if (markedPlayerFood !== hasPlayerFood)
     fail('player-food feature marker does not match its physical envelope');
+  if (markedPlayerLessons !== hasPlayerLessons)
+    fail('player-lesson feature marker does not match its bank envelope');
   const keys = [...ENVELOPE_KEYS,...(hasReference?LEGACY_REFERENCE_ENVELOPE_KEYS:[]),
     ...(hasCharacters?['characterMessages']:[]),
     ...(hasPlayerFood?['playerFood']:[]),
+    ...(hasPlayerLessons?['playerLessons']:[]),
     ...(Object.hasOwn(raw || {}, 'npc')?['npc']:[])];
   if (!exactKeys(raw, keys) ||
       raw.geometryIdentity !== OZARK_WORLD_PROFILE.identity ||
@@ -477,6 +485,12 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   const reference=hasReference ? validateCharacterPersistence({worldLineage:raw.worldLineage,
     visualReference:raw.visualReference,...(hasCharacters?{characterMessages:raw.characterMessages}:{})},
     {allowV1Migration:!hasCharacters}) : null;
+  // Legacy feature sets receive empty private banks only in memory. A present
+  // bank is never sanitized or relabeled against a different world/incarnation.
+  const playerLessons = hasPlayerLessons ?
+    (reference ? validatePlayerLessons(raw.playerLessons,reference.worldLineage) :
+      fail('player lessons require validated world lineage')) :
+    (reference ? createFreshPlayerLessons(reference.worldLineage) : null);
   const environment = validateEnvironment(raw.environment, {
     elapsed: raw.elapsed, mode: 'discovery', connectedEcology: false,
     ecologyValidator: (rawEcology, context = {}) =>
@@ -520,7 +534,8 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
     geometryIdentity: OZARK_WORLD_PROFILE.identity,
     features: { ...mode.features }, simulationMode: 'discovery',
     scene: 'valley', player: { x: raw.player.x, y: raw.player.y },
-    playerBody, playerFood, elapsed: raw.elapsed, distance: raw.distance,
+    playerBody, playerFood, ...(playerLessons?{playerLessons}:{}),
+    elapsed: raw.elapsed, distance: raw.distance,
     agents, npc: agents[0], environment, community,
     selectedAgentId: raw.selectedAgentId, waypoint,
     ...(reference||{}),
@@ -549,6 +564,7 @@ export function createOzarkState(geometry, {communicationSeed} = {}) {
   });
   const environment = createEnvironment(seed, { mode: 'discovery', populate: false });
   environment.ecology = createOzarkEcology(geometry, seed, 0, { finiteAquatic: true });
+  const reference = createFreshReferencePersistence(referenceSeed);
   const state = {
     version: mode.version,
     geometryIdentity: OZARK_WORLD_PROFILE.identity,
@@ -556,9 +572,10 @@ export function createOzarkState(geometry, {communicationSeed} = {}) {
     scene: 'valley', player: { ...geometry.spawn },
     playerBody: { wetness: 0, effort: 0, stamina: 100, health: 100 },
     playerFood: createPlayerFoodState(),
+    playerLessons: createFreshPlayerLessons(reference.worldLineage),
     elapsed: 0, distance: 0, agents, npc: agents[0], environment,
     community: createCommunity(), selectedAgentId: 'aster', waypoint: null,
-    ...createFreshReferencePersistence(referenceSeed),
+    ...reference,
   };
   expectedRawByState.set(state, null);
   return state;
@@ -579,6 +596,8 @@ export function loadOzarkSave(storage, geometry, {communicationSeed} = {}) {
     if (hasDuplicateJsonKeys(raw)) fail('duplicate JSON field name');
     const state = validateOzarkState(parsed, geometry, { restoring: true });
     if(!Object.hasOwn(state,'worldLineage'))Object.assign(state,createFreshReferencePersistence());
+    if(!Object.hasOwn(state,'playerLessons'))
+      state.playerLessons=createFreshPlayerLessons(state.worldLineage);
     expectedRawByState.set(state, raw);
     return { state, exists: true, blocked: false, error: null };
   } catch (error) {

@@ -1,6 +1,6 @@
 // Read-only presentation of the single playable Ozark world.
 // Every terrain pixel comes from the same geometry used by movement and sight.
-import { ART_PIXEL, drawAvatar, drawNpc, drawEcologyObject, drawFieldNote } from './art.js';
+import { ART_PIXEL, drawAvatar, drawNpc, drawEcologyObject, drawFieldNote, drawIndicationGeometry } from './art.js';
 import { AtlasViewport, atlasActors } from './atlas.js';
 import { CONFIG } from './config.js';
 import { aquaticEnabled } from './aquatic-state.js';
@@ -84,6 +84,8 @@ export class OzarkWorldRenderer {
     this.targetZoom = 1.5;
     this.followNpc = false;
     this.followId = 'aster';
+    // A runtime-only paid player pose. Drawing never grants its authority.
+    this.playerIndication = null;
     this.inspectorOpen = false;
     this.chunks = new Map();
     this.pendingChunks = new Map();
@@ -304,9 +306,11 @@ export class OzarkWorldRenderer {
       if (object.kind === 'structure') drawStructuralObject(g, object.object, visiblePeople);
       else if (object.kind === 'ecology') drawEcologyObject(g, object.entity, time, subject);
       else if (object.kind === 'note') drawFieldNote(g, object.note);
-      else if (object.kind === 'player') drawAvatar(g, state.player,
-        anim.facing ?? DEFAULT_ANIM.facing, anim.time ?? time,
-        Boolean(anim.moving), 'valley');
+      else if (object.kind === 'player') {
+        drawAvatar(g, state.player, anim.facing ?? DEFAULT_ANIM.facing,
+          anim.time ?? time, Boolean(anim.moving), 'valley');
+        drawIndicationGeometry(g, this.playerIndication?.() ?? null);
+      }
       else {
         drawNpc(g, object.agent, time);
         for (const held of heldAquaticSprites(state, object.agent))

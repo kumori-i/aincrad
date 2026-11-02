@@ -28,7 +28,7 @@ function freshSource(){
   });
   fresh={world:structuredClone(state),measurement:{...learning.measurementSnapshot(),survival},
     reference:learning.snapshot()};
-  // Current-source native checks use the current five-feature start. The
+  // Current-source native checks use the current six-feature start. The
   // completed pilot remains pinned to its original source commit and receipt.
   learning.dispose();
   return fresh;
@@ -99,7 +99,12 @@ test('fresh guard rejects occupied, altered, trained and fixture-owned starts',(
   for(const mutate of [
     s=>{delete s.world.features.playerFood;},
     s=>{s.world.features.playerFood=2;},
+    s=>{delete s.world.features.playerLessons;},
+    s=>{s.world.features.playerLessons=2;},
     s=>{s.world.features.unapproved=1;},
+    s=>{s.world.playerLessons.worldId='other-world';},
+    s=>{s.world.playerLessons.futureAuthority=true;},
+    s=>{s.world.playerLessons.agents[0].examples.push({word:'abc',features:Array(48).fill(.5)});},
     s=>{s.world.environment.seed=74194;},
     s=>{s.world.visualReference.seed=212;},
     s=>{s.world.characterMessages.learners[0].sender.updates=1;},

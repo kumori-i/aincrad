@@ -32,11 +32,14 @@ test('canonical two-agent baseline preserves a negative outcome and exact save p
   assert.equal(secondSaved.worldLineage.instanceId,secondSaved.visualReference.worldId);
   assert.equal(firstSaved.worldLineage.instanceId,firstSaved.characterMessages.worldId);
   assert.equal(secondSaved.worldLineage.instanceId,secondSaved.characterMessages.worldId);
+  assert.equal(firstSaved.worldLineage.instanceId,firstSaved.playerLessons.worldId);
+  assert.equal(secondSaved.worldLineage.instanceId,secondSaved.playerLessons.worldId);
   assert.notEqual(firstSaved.worldLineage.instanceId,secondSaved.worldLineage.instanceId);
   for(const saved of [firstSaved,secondSaved]){
     saved.worldLineage.instanceId='<fresh-world-instance>';
     saved.visualReference.worldId='<fresh-world-instance>';
     saved.characterMessages.worldId='<fresh-world-instance>';
+    saved.playerLessons.worldId='<fresh-world-instance>';
   }
   assert.deepEqual(secondSaved,firstSaved,
     'Full actual saved worlds retain exact policy, physical, RNG and evidence parity apart from unique instance identity');

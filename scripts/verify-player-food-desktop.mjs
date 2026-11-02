@@ -155,8 +155,25 @@ function assertCurrentRoute(route) {
   assert.equal(route.hook,true);assert.equal(route.chooserPresent,false);
   assert.equal(route.retiredWorldBridge,false);assert.equal(route.retiredProfileBridge,false);
   assert.equal(route.snapshot?.blocked,false);assert.equal(route.snapshot?.started,false);
-  assert.equal(route.snapshot?.features?.characterMessages,2);
-  assert.equal(route.snapshot?.features?.playerFood,1);
+  assert.deepEqual(route.snapshot?.features,{
+    plantLifecycle:1,finiteAquatic:2,worldStructures:1,
+    characterMessages:2,playerFood:1,playerLessons:1,
+  });
+}
+async function assertFreshLessonBank(win) {
+  const {bank,lineage}=await evaluate(win,'(() => {const s=window.__ozarkWorld.fullSnapshot();' +
+    'return {bank:s.playerLessons,lineage:s.worldLineage};})()');
+  assert.deepEqual(Object.keys(bank).sort(),['agents','version','worldId']);
+  assert.equal(bank.version,1);
+  assert.equal(bank.worldId,lineage.instanceId);
+  assert.equal(bank.agents.length,2);
+  for(let i=0;i<2;i++){
+    assert.deepEqual(Object.keys(bank.agents[i]).sort(),['agentId','examples','serial']);
+    assert.equal(bank.agents[i].agentId,lineage.agents[i].agentId);
+    assert.equal(bank.agents[i].serial,lineage.agents[i].serial);
+    assert.deepEqual(bank.agents[i].examples,[],
+      'Food-only native exercise must not grant or restore typed word lessons');
+  }
 }
 async function authorPhase(win) {
   assert.equal(await evaluate(win,"localStorage.getItem('aincrad.world.v2')"),null);
@@ -318,6 +335,7 @@ app.on('browser-window-created',(_event,win)=>{
       await waitFor(win,'Boolean(window.__ozarkWorld)');
       assert.equal(await evaluate(win,"import('./src/build-info.js').then(m=>m.BUILD_SOURCE_FINGERPRINT)"),context.sourceFingerprint);
       assertCurrentRoute(await evaluate(win,'('+currentRouteSnapshot.toString()+')(window,document)'));
+      await assertFreshLessonBank(win);
       await ({author:authorPhase,act:actPhase,reopen:reopenPhase}[phase])(win);
       await closeNormally(win);
     }catch(error){

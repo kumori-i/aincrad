@@ -6,6 +6,7 @@ import { recentDiscoveryAim } from './discovery.js';
 import { actorLineOfSight } from './perception.js';
 import { isSleeping } from './biology.js';
 import { NPC_RULES } from './config.js';
+import { senseReferenceObjects } from './visual-reference-perception.js';
 
 export function poolCommunicationPixels(pixels) {
   if (!pixels || pixels.length !== 768 || Array.from(pixels).some(v => !Number.isFinite(v) || v < 0 || v > 255)) throw new TypeError('Expected 16 by 16 RGB pixels');
@@ -21,6 +22,20 @@ export function createCommunicationPixelSensor(document, {draw=drawEcologyObject
   const context=source.getContext('2d',{willReadFrequently:true}), out=small.getContext('2d',{willReadFrequently:true});
   if (!context || !out) throw new Error('Pixel sensor needs Canvas2D');
   let disposed=false;
+  const renderCrop=(sprite,state,npc,observedAt)=>{
+    context.setTransform(1,0,0,1,0,0);context.clearRect(0,0,256,256);
+    draw(context,{...sprite,x:128,y:190},state.elapsed,null);
+    const rgba=context.getImageData(0,0,256,256).data;
+    let minX=256,minY=256,maxX=-1,maxY=-1;
+    for(let y=0;y<256;y++)for(let x=0;x<256;x++)if(rgba[(y*256+x)*4+3]>0){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
+    if(maxX<minX)return null;
+    const w=maxX-minX+1,h=maxY-minY+1,scale=14/Math.max(w,h),dw=w*scale,dh=h*scale;
+    out.setTransform(1,0,0,1,0,0);out.fillStyle='#27352d';out.fillRect(0,0,16,16);out.imageSmoothingEnabled=false;
+    out.drawImage(source,minX,minY,w,h,(16-dw)/2,(16-dh)/2,dw,dh);
+    const data=out.getImageData(0,0,16,16).data,pixels=[];
+    for(let i=0;i<data.length;i+=4)pixels.push(data[i],data[i+1],data[i+2]);
+    return {pixels,features:poolCommunicationPixels(pixels),at:npc.elapsed,observedAt,epoch:npc.epoch};
+  };
   return {
     capture(npc,state) {
       const crops=new Map();
@@ -38,20 +53,22 @@ export function createCommunicationPixelSensor(document, {draw=drawEcologyObject
         // No new sensory record, nutrition fact, or physical resource is created.
         const sprite=held?renderEcology({...ecology,plants:[],animals:[],aquatic:null,materials:[{...actual,heldBy:null}]},npc.scene)[0]:sprites.get(id);
         if(!sprite)continue;
-        context.setTransform(1,0,0,1,0,0);context.clearRect(0,0,256,256);
-        draw(context,{...sprite,x:128,y:190},state.elapsed,null);
-        const rgba=context.getImageData(0,0,256,256).data;
-        let minX=256,minY=256,maxX=-1,maxY=-1;
-        for(let y=0;y<256;y++)for(let x=0;x<256;x++)if(rgba[(y*256+x)*4+3]>0){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
-        if(maxX<minX)continue;
-        const w=maxX-minX+1,h=maxY-minY+1,scale=14/Math.max(w,h),dw=w*scale,dh=h*scale;
-        out.setTransform(1,0,0,1,0,0);out.fillStyle='#27352d';out.fillRect(0,0,16,16);out.imageSmoothingEnabled=false;
-        out.drawImage(source,minX,minY,w,h,(16-dw)/2,(16-dh)/2,dw,dh);
-        const data=out.getImageData(0,0,16,16).data,pixels=[];
-        for(let i=0;i<data.length;i+=4)pixels.push(data[i],data[i+1],data[i+2]);
-        crops.set(id,{pixels,features:poolCommunicationPixels(pixels),at:npc.elapsed,observedAt:observation.observedAt,epoch:npc.epoch});
+        const crop=renderCrop(sprite,state,npc,observation.observedAt);
+        if(crop)crops.set(id,crop);
       }
       return crops;
+    },
+    /** Current recipient-owned crop for a personally visible public gesture.
+     * This does not fabricate a discovery observation or use the player's aim.
+     */
+    captureVisible(npc,state,id){
+      if(disposed||typeof id!=='string'||!state?.environment?.ecology)return null;
+      const sight=senseReferenceObjects(npc,state);
+      if(!sight.complete||!sight.bindings.includes(id))return null;
+      const actual=lookupEcologyObject(state.environment.ecology,id);
+      if(!actual||actual.heldBy||actual.scene!==npc.scene)return null;
+      const sprite=renderEcology(state.environment.ecology,npc.scene).find(row=>row.id===id);
+      return sprite?renderCrop(sprite,state,npc,npc.elapsed):null;
     },
     dispose(){disposed=true;source.width=source.height=small.width=small.height=0;},
   };

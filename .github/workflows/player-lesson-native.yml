@@ -1,0 +1,58 @@
+name: Player word lesson native QA
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/player-lesson-native.yml'
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/verify-player-lesson-desktop.mjs'
+      - 'scripts/native-capture-readiness.mjs'
+      - 'scripts/carcass-native-contract.mjs'
+      - 'scripts/build.mjs'
+      - 'scripts/record-native-host.mjs'
+      - 'tests/player-lesson-native-harness.test.mjs'
+      - 'index.html'
+      - 'style.css'
+      - 'package.json'
+      - 'package-lock.json'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  native-player-lesson:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Record actual native host and architecture
+        run: node scripts/record-native-host.mjs
+      - run: npm ci
+      - run: npm run build
+      - name: Install Linux test display and window manager
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Verify sandboxed Linux paid typed lesson and reopen
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-player-lesson-openbox.log" 2>&1 & node scripts/verify-player-lesson-desktop.mjs'
+      - name: Verify sandboxed macOS paid typed lesson and reopen
+        if: runner.os == 'macOS'
+        run: node scripts/verify-player-lesson-desktop.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-lesson-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            test-results/host.json
+            test-results/player-lesson-desktop/
+          if-no-files-found: warn
+          retention-days: 7

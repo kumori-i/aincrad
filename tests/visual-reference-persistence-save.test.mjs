@@ -7,6 +7,7 @@ import {VISUAL_REFERENCE_MEMORY_LIMITS} from '../src/visual-reference-memory.js'
 import {validateCharacterPersistence} from '../src/visual-reference-save.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
 import {markVisualReferenceAttached} from '../src/visual-reference-save-registration.js';
+import {learnPlayerLesson,reconcilePlayerLessons} from '../src/player-lesson-bank.js';
 import {CONFIG} from '../src/config.js';
 
 const geometry=createOzarkWorldGeometry();
@@ -73,17 +74,19 @@ test('only completely absent extension migrates old schema-12 bytes to blank ind
   const previous=JSON.parse(disk.getItem(OZARK_SAVE_KEY));
   delete previous.worldLineage;delete previous.visualReference;delete previous.characterMessages;
   delete previous.playerFood;
+  delete previous.playerLessons;
   previous.features={plantLifecycle:1,finiteAquatic:2,worldStructures:1};
   const oldBytes=JSON.stringify(previous);disk.setItem(OZARK_SAVE_KEY,oldBytes);
   const reopened=loadOzarkSave(disk,geometry);
   assert.equal(reopened.blocked,false,reopened.error);
   assert.equal(disk.getItem(OZARK_SAVE_KEY),oldBytes,'Loading never edits the occupied slot');
   assert.deepEqual(reopened.state.features,
-    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1});
+    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1,playerLessons:1});
   assert.deepEqual(reopened.state.playerFood.inventory.items,[]);
   assert.notEqual(reopened.state.worldLineage.instanceId,state.worldLineage.instanceId);
   assert.deepEqual(reopened.state.visualReference.learners.map(row=>[row.anchors.length,row.partners.length]),[[0,0],[0,0]]);
   assert.equal(reopened.state.characterMessages.version,2);
+  assert.deepEqual(reopened.state.playerLessons.agents.map(row=>row.examples),[[],[]]);
   assert.equal(writeOzarkSave(disk,reopened.state,geometry),true);
   assert.equal(loadOzarkSave(disk,geometry).blocked,false);
 });
@@ -241,6 +244,11 @@ for(const replacement of ['actor','discovery','physiology'])
   test(`${replacement} replacement saves a new blank incarnation and retires incoming links`,()=>{
     const disk=storage(),state=createOzarkState(geometry),original=learned(state);
     state.visualReference=original.visualReference;
+    state.playerLessons=learnPlayerLesson(state.playerLessons,
+      {agentId:'aster',serial:1,word:'abc',features:flat(.1)}).bank;
+    state.playerLessons=learnPlayerLesson(state.playerLessons,
+      {agentId:'mira',serial:2,word:'xyz',features:flat(.8)}).bank;
+    const oldLessons=structuredClone(state.playerLessons);
     const attachment=attachVisualReferenceLearning({state,pixelSensor:{capture(){throw Error('No pixel capture on sync/export');},dispose(){}}});
     const oldExport=attachment.exportPersistence();
     const replaced=state.agents[0];
@@ -263,11 +271,18 @@ for(const replacement of ['actor','discovery','physiology'])
       'Copied stamps cannot make an old export current after reconciliation');
     assert.equal(getOzarkSaveFailure(state),'reference-export-stale');
     assert.equal(disk.getItem(OZARK_SAVE_KEY),null);
+    state.playerLessons=reconcilePlayerLessons(state.playerLessons,current.worldLineage);
+    assert.equal(state.playerLessons.agents[0].serial,3);
+    assert.deepEqual(state.playerLessons.agents[0].examples,[],
+      'Replacement cannot inherit player examples from a retired individual');
+    assert.deepEqual(state.playerLessons.agents[1].examples,oldLessons.agents[1].examples,
+      'The continuing individual retains its private player examples');
     assert.equal(writeOzarkSave(disk,state,geometry,{referencePersistence:current}),true);
     const reopened=loadOzarkSave(disk,geometry);
     assert.equal(reopened.blocked,false,reopened.error);
     assert.deepEqual(reopened.state.worldLineage,current.worldLineage);
     assert.deepEqual(reopened.state.visualReference,current.visualReference);
+    assert.deepEqual(reopened.state.playerLessons,state.playerLessons);
     attachment.dispose();
   });
 

@@ -40,9 +40,11 @@ function comparableWorld(state){
   // Keep every other physical, policy, RNG and learner field in this parity check.
   assert.equal(copy.worldLineage.instanceId,copy.visualReference.worldId);
   assert.equal(copy.worldLineage.instanceId,copy.characterMessages.worldId);
+  assert.equal(copy.worldLineage.instanceId,copy.playerLessons.worldId);
   copy.worldLineage.instanceId='<fresh-world-instance>';
   copy.visualReference.worldId='<fresh-world-instance>';
   copy.characterMessages.worldId='<fresh-world-instance>';
+  copy.playerLessons.worldId='<fresh-world-instance>';
   return copy;
 }
 function assertFreshWorldParity(left,right){
@@ -164,8 +166,10 @@ test('main has one tick owner and saves only validated current visual learning',
   assert.match(gate,/retained=validate\(learner\.exportPersistence\(\)\);[\s\S]*?learner\?\.dispose\(\)/,
     'Completed learning is exported before channel disposal can censor pending work');
   assert.match(source,/const reference=referenceSaveGate\.current\(communicationLearning\)/);
-  assert.match(source,/const ok=reference\.ok&&writeOzarkSave\(storage,state,geometry,\{referencePersistence:reference\.persistence\}\)/,
-    'Every ordinary save must require the current validated learner export');
+  assert.match(source,/state\.playerLessons=reconcilePlayerLessons\(state\.playerLessons,reference\.persistence\.worldLineage\);\s*lessonReady=true/,
+    'The new bank must reconcile to the current validated individual lineage');
+  assert.match(source,/const ok=reference\.ok&&lessonReady&&writeOzarkSave\(storage,state,geometry,\{referencePersistence:reference\.persistence\}\)/,
+    'Every ordinary save must require both validated learner and player-word bank');
   assert.doesNotMatch(source,/createCommunicationExperiment|1800|n\.rng\s*=/);
   assert.match(source,/catch \{ stopCommunication\(\); return null; \}/);
 });

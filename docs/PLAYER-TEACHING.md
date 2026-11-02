@@ -8,8 +8,46 @@ The player can demonstrate berries as well as apples, but a berry is small. A 30
 
 A controlled integration test places the player and agents beside an existing ripe apple tree and holds the agents' policies only during the short paid player demonstration. After the remainder is dropped, the player departs and the ordinary population controller chooses the agent's actions. In this authored physical setup, a visible swallow leads to the agent's own paid grasp, sample, and delayed bodily feedback; an occluded swallow with the same player actions and remaining portion creates no player-origin inquiry. This verifies that the autonomous policy path exists. It does not establish that agents will notice or use lessons reliably during ordinary survival, or that they generalize food categories.
 
-## Next grounded language step
+## Typed Say and point lessons
 
-The next proposed bridge is **typed, in-world utterances** made while the player and an object or action are actually visible to a nearby agent. The utterance would be recorded as an audible/visible event with a bounded time and location, then paired only with that agent's own contemporaneous perception and later experience. Words would not be translated into hidden object identities, recipes, food safety, rewards, or commands. The agent would have to learn any association from repeated local evidence; no English dictionary, pretrained interpreter, Ollama, or imported checkpoint is part of this plan. This input bridge is not yet implemented.
+In the **Your hands** panel, enter one to six lowercase `a`–`z` letters,
+choose an object from the currently visible list and select **Say and point**.
+Keep the avatar still for the 1.8-second paid action. Moving, opening a panel,
+pausing or losing focus cancels the pending point; a partial action does not
+become a lesson. Focus loss does not itself pause the world.
 
-Speaking aloud is a later interface question. Microphone permission, speech transcription, cloud upload and voice learning are **not** part of this milestone. A microphone button without a grounded event and learner would not teach language, so typed input is the first testable implementation choice. Swimming imitation is also later work, after the food demonstration path has native evidence and its limits are clear.
+Each nearby agent must continuously see the real funded gesture and resolve its
+referent uniquely using its own view. At completion it must also get a fresh
+Canvas crop of that object. Occlusion, other visible objects along the gesture,
+identity change, interruption or missing pixels can leave one or both agents
+without a lesson. A completed example holds only the literal letters and that
+individual's own numeric image features. The private bank retains up to 64
+examples per individual; valid old saves begin with an empty player-word bank,
+while a continuing individual resumes its examples. A replaced individual
+starts empty. The Learning tab keeps player-word examples separate from the
+agents' own character-message models.
+
+An agent's bounded image-to-word predictor requires at least two alternatives
+and can abstain. Its diagnostic guess is made before recording a new example;
+it does not choose a survival action or teach the other agent. Repeating a word
+with one rendered instance does not establish a category, an English meaning,
+shared vocabulary or generalization to another object. No object identity,
+food safety, recipe, reward or player intent enters the bank. The supplied
+pointing and visibility rule is sensorimotor scaffolding, not learned language.
+The Learning tab shows bounded pre-update prediction counts for the current
+session. New words are excluded from the known-label comparison denominator;
+these training-stream counts are not a held-out transfer score and are not saved.
+The typed event is an in-world interface signal, not simulated hearing or a
+learned speaking policy.
+
+The native engineering check uses different existing object IDs for two later
+Canvas crops. The sprite sensor renders each object alone and pools its pixels,
+so a different ID can produce the same 48 numeric features as a training crop.
+The check reports exact feature-input matches and distances before interpreting
+its descriptive predictions. An ID-held-out result is not evidence of visual
+transfer when its input is identical, and neither result establishes an ordinary
+language skill.
+
+Speaking aloud remains a later interface question. Microphone permission,
+speech transcription, cloud upload, pretrained English interpretation and
+voice learning are **not** included. Swimming imitation is also later work.

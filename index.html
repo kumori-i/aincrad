@@ -40,11 +40,20 @@
       <aside class="navigation"><div class="minimap-frame"><canvas id="minimap" width="210" height="210" aria-label="Local map"></canvas><span class="north">N</span></div><div class="nav-caption"><span id="nav-label">OZARK WATERSHED</span><button id="open-map" title="Open field map (M)">M ↗</button></div></aside>
       <div class="location"><div class="eyebrow" id="location-kicker">YOUR FOOTSTEPS, YOUR STORY</div><h2 id="region">Ozark watershed</h2><p id="location-detail">Ozark watershed</p></div>
       <div id="waypoint-hud" class="waypoint-hud hidden"></div>
-      <section id="player-food-panel" class="player-food-panel" aria-label="Your food actions">
+      <section id="player-food-panel" class="player-food-panel" aria-label="Your food and word actions">
         <div class="eyebrow">YOUR HANDS · REAL FOOD</div>
         <p id="player-food-nearby">Looking for reachable fruit…</p>
         <div class="player-food-actions"><button id="player-food-gather" disabled>Gather</button><button id="player-food-taste" disabled>Eat sample</button><button id="player-food-drop" disabled>Drop rest</button></div>
         <p id="player-food-status" role="status" aria-live="polite">A visible fruit source or loose portion must be within reach.</p>
+        <div class="player-lesson-controls">
+          <div class="eyebrow">YOUR WORD · VISIBLE OBJECT</div>
+          <label for="player-lesson-word">Type 1–6 lowercase letters</label>
+          <input id="player-lesson-word" type="text" inputmode="latin" maxlength="6" pattern="[a-z]{1,6}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="player-lesson-status">
+          <label for="player-lesson-target">Point at a source you can see</label>
+          <select id="player-lesson-target" aria-describedby="player-lesson-status"><option value="">No visible source nearby</option></select>
+          <button id="player-lesson-say" disabled>Say and point</button>
+          <p id="player-lesson-status" role="status" aria-live="polite">A listener learns only if they see the paid point, resolve one object, and get their own fresh image.</p>
+        </div>
       </section>
       <button class="npc-short" id="npc-short" title="Open the character journal (N)">Aster · awake</button>
       <div class="bottom-controls"><button id="open-npc"><kbd>N</kbd> Their journal</button><button id="help-button"><kbd>H</kbd> Guide</button><span id="pause-button" class="pause-hint"><kbd>Esc</kbd> Pause</span></div>
@@ -87,6 +96,7 @@
       <dt><kbd>N</kbd></dt><dd>Open the journal, follow Aster or Mira, and share advice. Reports and personal experience remain distinct.</dd>
       <dt><kbd>Esc</kbd> / <kbd>H</kbd></dt><dd>Escape pauses or resumes. H opens this guide without pausing.</dd>
       </dl><p>Near visible fruit, use the food buttons to gather an apple or berries, eat a small sample, or drop the remainder. Each action takes time and effort. Aster and Mira can notice your actual eating only if they can see you and the food; they must still try the same remaining portion themselves. They can also attempt strikes, shore catches, processing and sampling through real timed actions. Agent success is not guaranteed.</p>
+      <p>For a first word lesson, type one to six lowercase letters, choose a visible object, then select <b>Say and point</b>. Stay in place while the gesture takes time and effort. Each nearby character needs an uninterrupted view of the gesture, one clear referent and their own fresh image. A lesson is a tentative image association, not an English definition or an instruction to act.</p>
       <p class="small">Fish stocks are finite; aquatic feeding and reproduction are not implemented. No time passes while the app is closed. Opening a map, journal, or another desktop window does not pause the world.</p>
       <button id="close-help" class="primary">Back to exploring ↗</button></div></section>
 

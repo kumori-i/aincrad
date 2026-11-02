@@ -122,12 +122,14 @@ test('enabled and disabled observer have exact ordinary-controller world parity'
   for(const {world} of [enabled,disabled]){
     assert.equal(world.worldLineage.instanceId,world.visualReference.worldId);
     assert.equal(world.worldLineage.instanceId,world.characterMessages.worldId);
+    assert.equal(world.worldLineage.instanceId,world.playerLessons.worldId);
   }
   const normalized=world=>{
     const copy=structuredClone(world);
     copy.worldLineage.instanceId='<fresh-world-instance>';
     copy.visualReference.worldId='<fresh-world-instance>';
     copy.characterMessages.worldId='<fresh-world-instance>';
+    copy.playerLessons.worldId='<fresh-world-instance>';
     return copy;
   };
   assert.deepEqual(normalized(enabled.world),normalized(disabled.world),
