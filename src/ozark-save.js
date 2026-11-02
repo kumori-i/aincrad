@@ -60,12 +60,29 @@ const PROOF_FIELDS = Object.freeze([
 const expectedRawByState = new WeakMap();
 // Reporting only: fixed codes never retain storage contents or exception text.
 const saveFailureByState = new WeakMap();
+// Developer inspection only: bounded validator diagnostics stay in memory, never
+// in save bytes, ordinary UI messages, agent observations, or console output.
+const saveValidationFailureByState = new WeakMap();
+export function getOzarkSaveValidationFailure(state) {
+  const detail = canTrackState(state) ? saveValidationFailureByState.get(state) : null;
+  return detail ? { ...detail } : null;
+}
 const canTrackState = state => state !== null && (typeof state === 'object' || typeof state === 'function');
 export function getOzarkSaveFailure(state) {
   return canTrackState(state) ? saveFailureByState.get(state) ?? null : 'untracked-state';
 }
-function failedSave(state, code) {
-  if (canTrackState(state)) saveFailureByState.set(state, code);
+function failedSave(state, code, error = null) {
+  if (canTrackState(state)) {
+    saveFailureByState.set(state, code);
+    saveValidationFailureByState.delete(state);
+    if (code === 'live-validation' && error) {
+      try {
+        const name = typeof error.name === 'string' ? error.name.slice(0, 80) : 'Error';
+        const message = typeof error.message === 'string' ? error.message.slice(0, 512) : '';
+        saveValidationFailureByState.set(state, { name, message });
+      } catch { /* Diagnostics must never change fail-closed behavior. */ }
+    }
+  }
   return false;
 }
 const fail = reason => { throw new Error(`Ozark save protected: ${reason}`); };
@@ -646,6 +663,7 @@ export function writeOzarkSave(storage, state, geometry, {referencePersistence}=
     if (storage.getItem(OZARK_SAVE_KEY) !== raw) return failedSave(state, 'readback-verification');
     expectedRawByState.set(state, raw);
     saveFailureByState.delete(state);
+    saveValidationFailureByState.delete(state);
     return true;
   } catch (error) {
     // A write may have committed even if it throws. These codes classify the
@@ -653,7 +671,7 @@ export function writeOzarkSave(storage, state, geometry, {referencePersistence}=
     if (phase === 'storage-write') {
       try { if (error?.name === 'QuotaExceededError') phase = 'quota-write'; } catch {}
     }
-    return failedSave(state, phase);
+    return failedSave(state, phase, error);
   }
 }
 

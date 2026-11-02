@@ -37,44 +37,33 @@ async function authorPlayerLessonScene(moduleBase) {
   const { createCommunicationPixelSensor } = await use('communication-pixels');
   const geometry = createOzarkWorldGeometry();
   const state = createOzarkState(geometry, { communicationSeed: 211 });
-  const plants = state.environment.ecology.plants.filter(plant =>
-    plant.kind === 'apple_tree' && plant.quantity > 3 && plant.stage === 'ripe');
-  plants.sort((a, b) => Math.hypot(a.position.x - 276, a.position.y - 760) -
-    Math.hypot(b.position.x - 276, b.position.y - 760));
-  let source = null, point = null;
-  for (const plant of plants) {
-    for (let index = 0; index < 16; index++) {
-      const angle = index * Math.PI / 8;
-      const candidate = { x: plant.position.x + 48 * Math.cos(angle),
-        y: plant.position.y + 48 * Math.sin(angle) };
-      if (geometry.canOccupy(candidate.x, candidate.y, CONFIG.playerRadius) &&
-          geometry.lineOfSight(candidate, plant.position)) {
-        source = plant; point = candidate; break;
-      }
-    }
-    if (source) break;
+  // Preserve fixed agent spawns: moving an actor at time zero would make its
+  // first real observations violate the strict spawn-reach evidence boundary.
+  const point = {x:276,y:620};
+  state.player = {...point};
+  if (!geometry.canOccupy(point.x,point.y,CONFIG.playerRadius))
+    throw new Error('Declared player point is not occupiable');
+  const source = state.environment.ecology.plants.find(row=>row.id==='object:671');
+  for (const actor of state.agents) {
+    const spawn=geometry.agentSpawns[actor.id];
+    if(actor.position.x!==spawn.x||actor.position.y!==spawn.y)
+      throw new Error('Fresh actor departed its fixed spawn before time or action');
+    bindOzarkWorldAgent(actor,geometry,state);
   }
-  if (!source || source.id !== 'object:671')
-    throw new Error('Declared actual ripe apple tree was not found');
-  state.player = { ...point };
-  state.agents[0].position = { ...point };
-  state.agents[1].position = {x:1000,y:900};
-  if (!geometry.canOccupy(1000,900,CONFIG.playerRadius))
-    throw new Error('Declared Mira isolation position is not occupiable');
-  for (const actor of state.agents)bindOzarkWorldAgent(actor,geometry,state);
   // Prospectively fixed existing instances: one apple and one bramble receive
   // paid labels; a different instance of each is only read for evaluation.
   const trainedBramble=state.environment.ecology.plants.find(row=>row.id==='object:677');
   const heldApple=state.environment.ecology.plants.find(row=>row.id==='object:679');
   const heldBramble=state.environment.ecology.plants.find(row=>row.id==='object:670');
-  if (trainedBramble?.kind!=='bramble'||heldApple?.kind!=='apple_tree'||
-      heldBramble?.kind!=='bramble'||[trainedBramble,heldApple,heldBramble].some(row=>
+  if (source?.kind!=='apple_tree'||trainedBramble?.kind!=='bramble'||heldApple?.kind!=='apple_tree'||
+      heldBramble?.kind!=='bramble'||[source,trainedBramble,heldApple,heldBramble].some(row=>
         row.stage!=='ripe'||row.quantity<=3))
     throw new Error('Prospective distinct existing plant instances changed');
-  // Only these two existing plant positions are authored before all actions.
-  // Fixed coordinates were chosen for physical sight, never pixel performance.
-  heldApple.position={x:232.9015163151354,y:797.3402514438216};
-  heldBramble.position={x:128.1256098128781,y:873.8769379168397};
+  // Existing objects only; fixed authored geometry, not selected by pixel score.
+  source.position={x:276,y:580};
+  trainedBramble.position={x:340,y:620};
+  heldApple.position={x:240,y:660};
+  heldBramble.position={x:320,y:680};
   const ids=[source.id,trainedBramble.id,heldApple.id,heldBramble.id];
   const sender={id:'player',lifecycle:'AWAKE',scene:'valley',position:point};
   for (const target of [source,trainedBramble]) {
@@ -106,9 +95,9 @@ async function authorPlayerLessonScene(moduleBase) {
   if (!raw) throw new Error('Authored save was not retained');
   return {raw,sourceId:source.id,brambleId:trainedBramble.id,
     heldoutAppleId:heldApple.id,heldoutBrambleId:heldBramble.id,
-    sourcePosition:{...source.position},point,sourceQuantity:source.quantity,
+    sourcePosition:{...source.position},point,recipientPosition:{...state.agents[0].position},agentPositions:state.agents.map(actor=>({id:actor.id,position:{...actor.position}})),sourceQuantity:source.quantity,
     recipientId:state.agents[0].id,parserReasons:['resolved','resolved'],cropLengths,
-    fixtureDisclosure:'Fresh normal Ozark ecology with physical seed 74193 and communication seed 211. Player and Aster are placed together near existing ripe apple tree object:671, while Mira is placed at an occupiable distant position to prevent unrelated Aster-Mira messages during this short engineering lesson. Existing bramble object:677 is the second training referent; existing apple object:679 and bramble object:670 are held out. Before time or action only the held-out plants are moved to fixed visible coordinates. No resource, pixel, label, body outcome, action, or learner is injected. This is authored engineering geometry, not an ordinary encounter or evidence of language emergence.'};
+    fixtureDisclosure:'Fresh normal Ozark ecology with physical seed 74193 and communication seed 211. Aster and Mira retain their original fixed spawns. Only the player and four existing plant positions are authored before time or action: player (276,620), training apple object:671 (276,580), training bramble object:677 (340,620), held-out apple object:679 (240,660), held-out bramble object:670 (320,680). The player is initially outside Mira’s ordinary peer-gesture range; Aster resolves both trained points uniquely. No resource, pixel, label, body outcome, action, or learner is injected. This is authored engineering geometry, not an ordinary encounter or evidence of language emergence.'};
 }
 const outputRoot = resolve(process.env.AINCRAD_PLAYER_LESSON_QA_OUTPUT || join(root, 'test-results/player-lesson-desktop'));
 await mkdir(outputRoot, { recursive: true });
@@ -146,6 +135,8 @@ async function evaluate(win, source) { return win.webContents.executeJavaScript(
 async function waitFor(win, expression) {
   for (let i = 0; i < 400; i++) {
     try { if (await evaluate(win, expression)) return; } catch {}
+    const saveFailure=await evaluate(win,'window.__ozarkWorld?.saveFailure?.()').catch(()=>null);
+    if(saveFailure?.validation)throw new Error('Native live save validation failed: '+JSON.stringify(saveFailure));
     await delay(50);
   }
   throw new Error('Native condition missing: ' + expression);
@@ -274,21 +265,43 @@ async function trustedTypeWord(win, word) {
   for (const letter of word)win.webContents.sendInputEvent({type:'char',keyCode:letter});
   await waitFor(win,'document.getElementById("player-lesson-word").value===' + JSON.stringify(word));
 }
+async function targetDiagnostic(win, step) {
+  const row=await evaluate(win,'(() => { const p=document.getElementById("player-lesson-target");' +
+    'return {value:p.value,disabled:p.disabled,options:Array.from(p.options,o=>({value:o.value,text:o.textContent})),' +
+    'activeElement:document.activeElement?.id,focused:document.hasFocus(),hidden:document.hidden,' +
+    'world:(()=>{const s=window.__ozarkWorld.snapshot();return {elapsed:s.elapsed,started:s.started,paused:s.paused,blocked:s.blocked,saveStatus:s.saveStatus};})(),' +
+    'events:window.__lessonInputTrace||[],saveFailure:window.__ozarkWorld.saveFailure?.()};})()');
+  await fs.appendFile(path.join(context.output,phase+'-target-selection.jsonl'),
+    JSON.stringify({step,at:Date.now(),...row})+'\\n');
+  return row;
+}
 async function trustedChooseTarget(win, sourceId) {
-  const index=await evaluate(win,'Array.from(document.getElementById("player-lesson-target").options)' +
-    '.findIndex(row=>row.value===' + JSON.stringify(sourceId) + ')');
+  await evaluate(win,'(() => { if(window.__lessonInputTrace)return;' +
+    'const rows=window.__lessonInputTrace=[];' +
+    'for(const name of ["focus","blur","focusin","focusout","change","keydown","keyup"])' +
+    'window.addEventListener(name,event=>{const p=document.getElementById("player-lesson-target");' +
+    'rows.push({type:event.type,key:event.key,target:event.target?.id,trusted:event.isTrusted,' +
+    'value:p.value,disabled:p.disabled,focused:document.hasFocus(),at:performance.now()});' +
+    'if(rows.length>128)rows.shift();},true);})()');
+  const before=await targetDiagnostic(win,'before-click');
+  const index=before.options.findIndex(row=>row.value===sourceId);
   assert.ok(index>0&&index<=12,'Declared real source must be present in the visible UI selector');
   await clickButton(win,'player-lesson-target');
+  await targetDiagnostic(win,'after-click');
   assert.equal(await evaluate(win,'document.activeElement?.id'),'player-lesson-target');
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'});
   win.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'});
+  await targetDiagnostic(win,'after-Home');
   for(let i=0;i<index;i++){
     win.webContents.sendInputEvent({type:'keyDown',keyCode:'ArrowDown'});
     win.webContents.sendInputEvent({type:'keyUp',keyCode:'ArrowDown'});
+    await targetDiagnostic(win,'after-ArrowDown-'+i);
   }
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'Return'});
   win.webContents.sendInputEvent({type:'keyUp',keyCode:'Return'});
+  await targetDiagnostic(win,'after-Return');
   await waitFor(win,'document.getElementById("player-lesson-target").value===' + JSON.stringify(sourceId));
+  await targetDiagnostic(win,'selected');
 }
 async function trustedLesson(win, word, sourceId) {
   await trustedTypeWord(win,word);
@@ -308,7 +321,8 @@ async function actPhase(win) {
   assert.equal(await evaluate(win,"localStorage.getItem('aincrad.world.v2')"),authored.raw);
   const original=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   assert.deepEqual(original.player,authored.point);
-  assert.deepEqual(original.agents.find(row=>row.id===authored.recipientId).position,authored.point);
+  assert.deepEqual(original.agents.map(({id,position})=>({id,position})),authored.agentPositions);
+  assert.deepEqual(original.agents.find(row=>row.id===authored.recipientId).position,authored.recipientPosition);
   assert.equal(original.environment.ecology.plants.find(row=>row.id===authored.sourceId).quantity,authored.sourceQuantity);
   assert.equal(examplesOf(original,'aster').length,0);
   assert.equal(examplesOf(original,'mira').length,0);
@@ -517,6 +531,9 @@ app.on('browser-window-created',(_event,win)=>{
       await closeNormally(win);
     }catch(error){
       console.error(error);const failure={phase,error:String(error?.stack||error),rendererEvents};
+      try{failure.live=await evaluate(win,'({world:window.__ozarkWorld?.fullSnapshot(),saveFailure:window.__ozarkWorld?.saveFailure?.()})');
+        failure.target=await targetDiagnostic(win,'failure');}
+      catch(diagnosticError){failure.diagnosticError=String(diagnosticError);}
       try{failure.url=win.webContents.getURL();await fs.writeFile(path.join(context.output,phase+'-failure.png'),(await win.webContents.capturePage()).toPNG());}
       catch(captureError){failure.captureError=String(captureError);}
       await fs.writeFile(path.join(context.output,phase+'-failure.json'),JSON.stringify(failure,null,2));

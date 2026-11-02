@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, OZARK_SAVE_KEY, writeOzarkSave, getOzarkSaveFailure } from '../src/ozark-save.js';
+import { createOzarkState, OZARK_SAVE_KEY, writeOzarkSave, getOzarkSaveFailure, getOzarkSaveValidationFailure } from '../src/ozark-save.js';
 const geometry = createOzarkWorldGeometry();
 function fixture(){
   const state=createOzarkState(geometry),values=new Map([['unrelated','keep']]);let writes=0;
@@ -77,4 +77,30 @@ test('failure codes are per state, success clears only its own code and preserve
   assert.equal(getOzarkSaveFailure(other.state),'live-validation');
   assert.equal(writeOzarkSave(f,f.state,geometry),true);assert.equal(getOzarkSaveFailure(f.state),null);
   assert.equal(f.writes,2);
+});
+
+
+test('private validation detail preserves strict failures, is copied, and never enters save bytes',()=>{
+  const f=fixture();
+  assert.equal(getOzarkSaveValidationFailure(f.state),null);
+  assert.equal(writeOzarkSave(f,f.state,geometry),true);
+  const bytes=f.getItem(OZARK_SAVE_KEY);
+  f.state.elapsed=-1;
+  failed(f,'live-validation');
+  const detail=getOzarkSaveValidationFailure(f.state);
+  assert.equal(detail.name,'Error');
+  assert.match(detail.message,/world identity or physical envelope/);
+  assert.equal(f.getItem(OZARK_SAVE_KEY),bytes);
+  assert.equal(f.state.elapsed,-1);
+  detail.message='changed externally';
+  assert.notEqual(getOzarkSaveValidationFailure(f.state).message,detail.message);
+  f.state.elapsed=0;
+  assert.equal(writeOzarkSave(f,f.state,geometry),true);
+  assert.equal(getOzarkSaveValidationFailure(f.state),null);
+  assert.equal(f.getItem(OZARK_SAVE_KEY),bytes);
+  f.state.elapsed=-1;failed(f,'live-validation');
+  f.getItem=()=>{throw new Error('private storage detail');};
+  failed(f,'storage-read');
+  assert.equal(getOzarkSaveValidationFailure(f.state),null);
+  assert.equal(getOzarkSaveValidationFailure(null),null);
 });

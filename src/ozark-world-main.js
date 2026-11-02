@@ -3,7 +3,7 @@
 import { CONFIG } from './config.js';
 import { clockTime } from './world.js';
 import { createOzarkWorldGeometry } from './ozark-world-geometry.js';
-import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure, OZARK_SAVE_KEY } from './ozark-save.js';
+import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure, getOzarkSaveValidationFailure, OZARK_SAVE_KEY } from './ozark-save.js';
 import { bindOzarkWorldAgent } from './ozark-agent-world.js';
 import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
@@ -15,6 +15,7 @@ import { environmentConditions, environmentHour } from './environment.js';
 import { tickPhysiology } from './biology.js';
 import { createPlayerFoodController } from './player-food.js';
 import { createPlayerLessonController } from './player-lesson-action.js';
+import { reconcilePlayerLessonOptions } from './player-lesson-options.js';
 import { learnPlayerLesson, reconcilePlayerLessons } from './player-lesson-bank.js';
 import { createPlayerLessonEvaluation, reconcilePlayerLessonEvaluation,
   recordPlayerLessonEvaluation, playerLessonEvaluationSnapshot } from './player-lesson-evaluation.js';
@@ -302,9 +303,9 @@ function updateAtlas() {
   const status = renderer.atlasStatus();
   text('atlas-zoom-label', `${status.zoom.toFixed(1)}×`);
 }
-function foodControlsAvailable() {
+function foodControlsAvailable(requireFocus = true) {
   return started && !paused && !panel && !resetHeld && !resetRetired && !loaded.blocked &&
-    windowFocused && !referenceFixtureOwner && $('npc-panel').classList.contains('hidden');
+    (!requireFocus || windowFocused) && !referenceFixtureOwner && $('npc-panel').classList.contains('hidden');
 }
 function updatePlayerFoodControls() {
   const usable=foodControlsAvailable() && !!playerFoodController;
@@ -346,25 +347,16 @@ function updatePlayerLessonControls() {
   const usable=foodControlsAvailable() && !!playerLessonController;
   const active=playerLessonController?.snapshot().active;
   const foodBusy=!!playerFoodController?.snapshot().active;
-  const options=usable && !active ? playerLessonController.visibleOptions() : [];
-  const picker=$('player-lesson-target'), prior=picker.value;
-  const signature=options.map(row=>row.targetId).join('|');
-  if(picker.dataset.options!==signature){
-    const placeholder=document.createElement('option');
-    placeholder.value='';placeholder.textContent=options.length?
-      'Choose a visible object':'No visible source nearby';
-    picker.replaceChildren(placeholder,...options.map(row=>{
-      const option=document.createElement('option');option.value=row.targetId;
-      option.textContent=`${title(row.appearance?.details || row.appearance?.shape || 'object')} · ${Math.round(row.distance)} away`;
-      return option;
-    }));
-    picker.dataset.options=signature;
-    picker.value=options.some(row=>row.targetId===prior)?prior:'';
-  }
+  // View contents are independent of action availability. Native select menus
+  // can transiently transfer window focus; that must not erase their options.
+  const options=playerLessonController?.visibleOptions() ?? [];
+  const picker=$('player-lesson-target');
+  reconcilePlayerLessonOptions(picker,options);
   const word=$('player-lesson-word');
   const validWord=/^[a-z]{1,6}$/.test(word.value);
   word.disabled=!usable||!!active||foodBusy;
-  picker.disabled=!usable||!!active||foodBusy||!options.length;
+  // Focus gates starting paid work, not the native menu's own lifetime.
+  picker.disabled=!foodControlsAvailable(false)||!playerLessonController||!!active||foodBusy||!options.length;
   $('player-lesson-say').disabled=!usable||!!active||foodBusy||!validWord||!picker.value;
   if(active)text('player-lesson-status',
     `Saying and pointing · ${Math.max(0,active.seconds-active.worked).toFixed(1)} s of paid work left. Stay in place.`);
@@ -689,6 +681,7 @@ for (const id of ['you', 'aster', 'mira'])
 if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
   window.__ozarkWorld = Object.freeze({
     start: begin, pause: () => setPause(true), save: () => save(true),
+    saveFailure: () => ({code:getOzarkSaveFailure(state),validation:getOzarkSaveValidationFailure(state)}),
     // The reviewed native engineering harness supplies this installer directly;
     // no provider, saved data, message or agent action can enter this test route.
     referenceFixture: async (install, options={}) => {

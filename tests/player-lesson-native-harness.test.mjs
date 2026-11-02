@@ -5,27 +5,30 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, loadOzarkSave, writeOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { createOzarkState, loadOzarkSave, writeOzarkSave, getOzarkSaveValidationFailure, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { referenceGeometry } from '../src/discovery-actions.js';
 import { perceiveReferenceGeometry, senseReferenceObjects } from '../src/visual-reference-perception.js';
 import { createPlayerLessonController } from '../src/player-lesson-action.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
+import { PopulationRuntime } from '../src/population.js';
+import { CONFIG } from '../src/config.js';
+import { tickPhysiology } from '../src/biology.js';
+import { environmentConditions } from '../src/environment.js';
+import { createPlayerFoodController } from '../src/player-food.js';
 
 const ids = Object.freeze({ apple:'object:671', bramble:'object:677',
   heldApple:'object:679', heldBramble:'object:670' });
-const player = Object.freeze({ x:48.12560981287811, y:873.8769379168397 });
+const player = Object.freeze({ x:276, y:620 });
 
 function authorPhysicalScene() {
   const geometry=createOzarkWorldGeometry();
   const state=createOzarkState(geometry,{communicationSeed:211});
   state.player={...player};
-  state.agents[0].position={...player};
-  state.agents[1].position={x:1000,y:900};
   for(const actor of state.agents)bindOzarkWorldAgent(actor,geometry,state);
-  state.environment.ecology.plants.find(row=>row.id===ids.heldApple).position=
-    {x:232.9015163151354,y:797.3402514438216};
-  state.environment.ecology.plants.find(row=>row.id===ids.heldBramble).position=
-    {x:128.1256098128781,y:873.8769379168397};
+  for(const [id,position] of Object.entries({
+    [ids.apple]:{x:276,y:580},[ids.bramble]:{x:340,y:620},
+    [ids.heldApple]:{x:240,y:660},[ids.heldBramble]:{x:320,y:680},
+  }))state.environment.ecology.plants.find(row=>row.id===id).position=position;
   return {state,geometry};
 }
 
@@ -48,6 +51,8 @@ test('engineered existing plant instances have unique ordinary trained gestures 
     const resolved=perceiveReferenceGeometry(state.agents[0],sender,
       referenceGeometry(player,source.position,'valley',.5),state);
     assert.deepEqual([resolved.reason,resolved.objectId],['resolved',id]);
+    assert.equal(perceiveReferenceGeometry(state.agents[1],sender,
+      referenceGeometry(player,source.position,'valley',.5),state).reason,'peer-not-visible');
   }
   const controller=createPlayerLessonController({state,geometry,
     pixelSensor:{captureVisible:()=>null},getLineage:()=>state.worldLineage,onLessons:()=>{}});
@@ -101,6 +106,9 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
       'No autonomous vocabulary', 'No resource, pixel, label, body outcome',
       'bindOzarkWorldAgent(actor,geometry,state)',
       'bindingModule.bindOzarkWorldAgent(npc,geometry,state)',
+      "phase+'-target-selection.jsonl'", 'after-Home', 'after-ArrowDown-', 'after-Return',
+      'event.isTrusted', 'window.__ozarkWorld.saveFailure', 'Native live save validation failed:',
+      'failure.live=', 'authored.agentPositions',
     ])assert.ok(runner.includes(token),'Missing native contract: '+token);
     const acted=runner.split('async function actPhase(win) {')[1]
       ?.split('async function reopenPhase(win) {')[0];
@@ -130,4 +138,55 @@ test('native workflow is separate, bounded and inert on experiment refs', async 
   assert.doesNotMatch(workflow,/workflow_dispatch:/);
   assert.doesNotMatch(workflow,/refs\/experiments\//);
   assert.doesNotMatch(workflow,/npm run check/,'No duplicate full-suite invocation in native job');
+});
+
+
+test('authored fixture stays strictly saveable across ordinary fixed steps and autosave horizon',()=>{
+  const {state,geometry}=authorPhysicalScene();
+  for(const actor of state.agents)assert.deepEqual(actor.position,geometry.agentSpawns[actor.id],
+    'Authored agent teleports can create unreachable observations on the first tick');
+  const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  const population=new PopulationRuntime(state,{cardinal:false});
+  const foodController=createPlayerFoodController(state,geometry);
+  try {
+    for(let i=0;i<=900;i++) {
+      const dt=CONFIG.fixedStep,body=state.playerBody,food=state.playerFood.physiology;
+      body.wetness=Math.max(0,body.wetness-dt*2);
+      body.effort=Math.max(0,body.effort-dt*.025);
+      body.stamina=Math.min(100,body.stamina+dt*1.2);
+      state.elapsed+=dt;
+      food.health=body.health;food.stamina=body.stamina;
+      const actor={id:'player',species:'human',position:state.player,scene:'valley',
+        elapsed:state.elapsed,physiology:food,thermal:{hot:0,cold:0,wetness:body.wetness}};
+      tickPhysiology(actor,dt,environmentConditions(state.environment,
+        {position:state.player,scene:'valley',thermal:actor.thermal}));
+      body.health=food.health;food.stamina=body.stamina;
+      foodController.tick(dt);body.health=food.health;body.stamina=food.stamina;
+      population.tick(dt);foodController.reconcileHeld();
+      if(i%60===0) {
+        assert.equal(writeOzarkSave(storage,state,geometry),true,'Strict save after step '+i);
+        const reopened=loadOzarkSave(storage,geometry);
+        assert.equal(reopened.blocked,false,reopened.error);
+      }
+    }
+    assert.ok(state.elapsed>15);
+    assert.deepEqual(state.playerLessons.agents.map(row=>row.examples),[[],[]]);
+  } finally { foodController.dispose();population.dispose(); }
+});
+
+
+test('time-zero NPC teleport is rejected after its first genuine terrain observation',()=>{
+  const {state,geometry}=authorPhysicalScene();
+  state.agents[0].position={x:48.12560981287811,y:873.8769379168397};
+  state.agents[1].position={x:1000,y:900};
+  const values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  assert.equal(writeOzarkSave(storage,state,geometry),true,'A pre-observation authored save alone misses this failure');
+  const bytes=values.get(OZARK_SAVE_KEY);
+  const population=new PopulationRuntime(state,{cardinal:false});
+  try {
+    state.elapsed+=CONFIG.fixedStep;population.tick(CONFIG.fixedStep);
+    assert.equal(writeOzarkSave(storage,state,geometry),false);
+    assert.match(getOzarkSaveValidationFailure(state)?.message,/aster has invalid Ozark terrain or legacy-site memory/);
+    assert.equal(values.get(OZARK_SAVE_KEY),bytes,'Strict failure protects prior bytes');
+  } finally { population.dispose(); }
 });
