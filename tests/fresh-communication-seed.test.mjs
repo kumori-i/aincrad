@@ -133,6 +133,9 @@ test('actual paid v1 save and absent-extension fallback retain their historical 
   const preExtension=JSON.parse(blank.getItem(OZARK_SAVE_KEY));
   delete preExtension.worldLineage;delete preExtension.visualReference;delete preExtension.characterMessages;
   delete preExtension.features.characterMessages;
+  // Reconstruct the actual absent-extension historical envelope; a world
+  // carrying the newer player-food marker cannot be an old three-feature save.
+  delete preExtension.playerFood;delete preExtension.features.playerFood;
   const bytes=JSON.stringify(preExtension);blank.setItem(OZARK_SAVE_KEY,bytes);
   const writes=blank.writes();
   const opened=withCommunicationEntropy([],()=>loadOzarkSave(blank,geometry,{communicationSeed:212}));

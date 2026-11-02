@@ -66,6 +66,7 @@ export function assertCurrentRoute(result) {
     result.snapshot.version !== 12 || result.snapshot.features?.plantLifecycle !== 1 ||
     result.snapshot.features?.finiteAquatic !== 2 || result.snapshot.features?.worldStructures !== 1 ||
     result.snapshot.features?.characterMessages !== 2 ||
-    Reflect.ownKeys(result.snapshot.features).length !== 4)
+    result.snapshot.features?.playerFood !== 1 ||
+    Reflect.ownKeys(result.snapshot.features).length !== 5)
     throw new Error('The sole current-world test runtime was not ready');
 }

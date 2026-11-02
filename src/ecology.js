@@ -388,7 +388,14 @@ export function transferEcologyMaterial(e,id,donor,recipient){
 export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley',power=1,amount=.02,inventory}={}){
   const o=lookupEcologyObject(e,id);
   if(!o)return{ok:false,code:'object_missing'};
-  if(!['aster','mira'].includes(actorId)||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y)||!['valley',...CAVES.map(c=>c.id)].includes(scene)||(scene!==o.scene||distance(position,o.position)>R.reach)&&o.heldBy!==actorId)return{ok:false,code:'object_out_of_reach'};
+  // The avatar can only pull fruit or handle a detached fruit portion. This
+  // grants no agent action authority, fish/carcass access, or edible label to
+  // either learner; the ordinary physical reach/ownership checks still apply.
+  const playerFruit=actorId==='player'&&(
+    verb==='pull'&&['apple_tree','bramble'].includes(o.kind)||
+    ['grasp','release'].includes(verb)&&o.kind==='material'&&
+      ['apple','berry'].includes(o.materialType));
+  if(!['aster','mira'].includes(actorId)&&!playerFruit||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y)||!['valley',...CAVES.map(c=>c.id)].includes(scene)||(scene!==o.scene||distance(position,o.position)>R.reach)&&o.heldBy!==actorId)return{ok:false,code:'object_out_of_reach'};
   if(o.heldBy&&o.heldBy!==actorId)return{ok:false,code:'object_held_elsewhere'};
   if(verb==='inspect_object')return{ok:true,code:'object_observed',targetId:id,object:publicObject(o)};
   if(verb==='grasp'){
@@ -472,6 +479,7 @@ export function interactEcologyObject(e,id,verb,{actorId,position,scene='valley'
 export function consumeEcologyMaterial(e,id,amount=.02,{actorId,accept}={}){
   const m=lookupEcologyObject(e,id);
   if(!m||m.kind!=='material'||m.heldBy!==actorId)return{ok:false,code:'object_not_held'};
+  if(actorId==='player'&&!['apple','berry'].includes(m.materialType))return{ok:false,code:'object_not_held'};
   const fraction=clamp(amount,.001,1),energyKcal=m.energyKcal*fraction,waterMl=m.waterMl*fraction,massGrams=m.massGrams*fraction;
   const material={energyKcal,waterMl,massGrams,digestHours:m.digestHours,toxicity:m.toxicity+(m.spoiled?.3:0),objectId:m.id};
   const ingestion=typeof accept==='function'?accept({...material}):null;
@@ -893,7 +901,7 @@ export function validateEcology(raw,{seed=CONFIG.seed,elapsed=0,connectedEcology
     // checked against the real producer clearances above and remain exact.
     const point=lifecyclePresent?{x:m.position.x,y:m.position.y}:scene==='valley'?position(m):canStandCave(m.position?.x,m.position?.y)?{...m.position}:{...CAVE_SPAWN};
     if(!point)continue;
-    add(out.materials,{id:m.id,kind:m.kind,materialType:m.materialType,scene,position:point,heldBy:m.kind==='material'&&['aster','mira'].includes(m.heldBy)?m.heldBy:null,massGrams:mass,energyKcal:stockClamp(m.energyKcal,0,maxEnergy),waterMl:stockClamp(m.waterMl,0,mass),createdAt:clamp(m.createdAt,0,out.elapsed),ageHours:clamp(m.ageHours,0,100000),spoiled:!!m.spoiled,digestHours:def.digestHours,toxicity:def.toxicity||0,...(lifecyclePresent?Object.fromEntries(MATERIAL_FIELDS.map(k=>[k,m[k]])):freshMaterialLifecycle())});
+    add(out.materials,{id:m.id,kind:m.kind,materialType:m.materialType,scene,position:point,heldBy:m.kind==='material'&&['aster','mira','player'].includes(m.heldBy)?m.heldBy:null,massGrams:mass,energyKcal:stockClamp(m.energyKcal,0,maxEnergy),waterMl:stockClamp(m.waterMl,0,mass),createdAt:clamp(m.createdAt,0,out.elapsed),ageHours:clamp(m.ageHours,0,100000),spoiled:!!m.spoiled,digestHours:def.digestHours,toxicity:def.toxicity||0,...(lifecyclePresent?Object.fromEntries(MATERIAL_FIELDS.map(k=>[k,m[k]])):freshMaterialLifecycle())});
   }
   for(const k of Object.keys(out.ledger))out.ledger[k]=stockClamp(raw.ledger?.[k],0,1e12);
   out.nextId=Math.max(out.nextId,Math.floor(clamp(raw.nextId,1,1e9)));

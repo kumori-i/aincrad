@@ -53,7 +53,7 @@ export function lifecycleError(e){
  }
  for(const m of e.materials){
   const def=MATERIALS[m.materialType],cap=m.kind==='carcass'?30000:def?.massGrams;
-  if(!def||!['material','carcass','fish_specimen'].includes(m.kind)||!scenes.has(m.scene)||!point(m.position)||!bounded(m.massGrams,0,cap)||!bounded(m.energyKcal,0,m.kind==='carcass'?m.massGrams*1.5:def.energyKcal*m.massGrams/def.massGrams)||!bounded(m.waterMl,0,m.massGrams)||!bounded(m.createdAt,0,e.elapsed)||!bounded(m.ageHours,0,100000)||typeof m.spoiled!=='boolean'||![null,'aster','mira'].includes(m.heldBy)||(m.kind==='carcass'&&m.heldBy!==null))return 'Invalid retained material';
+  if(!def||!['material','carcass','fish_specimen'].includes(m.kind)||!scenes.has(m.scene)||!point(m.position)||!bounded(m.massGrams,0,cap)||!bounded(m.energyKcal,0,m.kind==='carcass'?m.massGrams*1.5:def.energyKcal*m.massGrams/def.massGrams)||!bounded(m.waterMl,0,m.massGrams)||!bounded(m.createdAt,0,e.elapsed)||!bounded(m.ageHours,0,100000)||typeof m.spoiled!=='boolean'||![null,'aster','mira','player'].includes(m.heldBy)||(m.kind==='carcass'&&m.heldBy!==null))return 'Invalid retained material';
   const fishError=aquaticMaterialError(m);if(fishError)return fishError;
   if(isAquaticMaterial(m)&&!aquaticEnabled(e))return 'Fish material outside aquatic mode';
   if(MATERIAL_FIELDS.some(k=>!own(m,k))||typeof m.seedOpportunity!=='boolean')return 'Missing material lifecycle fields';

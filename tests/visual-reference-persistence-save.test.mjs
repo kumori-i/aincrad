@@ -72,13 +72,15 @@ test('only completely absent extension migrates old schema-12 bytes to blank ind
   assert.equal(writeOzarkSave(disk,state,geometry),true);
   const previous=JSON.parse(disk.getItem(OZARK_SAVE_KEY));
   delete previous.worldLineage;delete previous.visualReference;delete previous.characterMessages;
+  delete previous.playerFood;
   previous.features={plantLifecycle:1,finiteAquatic:2,worldStructures:1};
   const oldBytes=JSON.stringify(previous);disk.setItem(OZARK_SAVE_KEY,oldBytes);
   const reopened=loadOzarkSave(disk,geometry);
   assert.equal(reopened.blocked,false,reopened.error);
   assert.equal(disk.getItem(OZARK_SAVE_KEY),oldBytes,'Loading never edits the occupied slot');
   assert.deepEqual(reopened.state.features,
-    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2});
+    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1});
+  assert.deepEqual(reopened.state.playerFood.inventory.items,[]);
   assert.notEqual(reopened.state.worldLineage.instanceId,state.worldLineage.instanceId);
   assert.deepEqual(reopened.state.visualReference.learners.map(row=>[row.anchors.length,row.partners.length]),[[0,0],[0,0]]);
   assert.equal(reopened.state.characterMessages.version,2);

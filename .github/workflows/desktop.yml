@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   desktop:
     strategy:
@@ -50,8 +53,10 @@ jobs:
       - name: Exercise Linux window and saved structural departure
         if: runner.os == 'Linux'
         run: xvfb-run -a bash -c 'openbox > "$RUNNER_TEMP/aincrad-openbox.log" 2>&1 & npm run smoke && node scripts/verify-structural-movement-desktop.mjs && node scripts/verify-movement-recovery-desktop.mjs && node scripts/verify-naming-followup-desktop.mjs && node scripts/verify-naming-repair-desktop.mjs && node scripts/verify-visual-groups-desktop.mjs && node scripts/verify-combined-food-desktop.mjs && node scripts/verify-food-warning-desktop.mjs'
-      # Native fixtures fail early; the complete aggregate remains required before packaging.
-      - run: npm run check
+      # Verify world covers Ubuntu PR/push checks; standalone dispatch checks both hosts.
+      - name: Run complete suite before packaging when needed
+        if: runner.os == 'macOS' || github.event_name == 'workflow_dispatch'
+        run: npm run check
       - name: Package Linux for the runner architecture
         if: runner.os == 'Linux'
         run: npm run package:linux

@@ -9,14 +9,18 @@ on:
       - 'style.css'
       - 'scripts/visual-reference-native-fixture.mjs'
       - 'scripts/verify-visual-reference-desktop.mjs'
+      - 'scripts/character-ordinary-pilot-protocol.mjs'
       - 'scripts/character-ordinary-motor-v3-protocol.mjs'
+      - 'scripts/character-ordinary-motor-v4-protocol.mjs'
       - 'scripts/build.mjs'
       - 'scripts/record-native-host.mjs'
       - 'scripts/native-capture-readiness.mjs'
       - 'scripts/carcass-native-contract.mjs'
       - 'scripts/structural-movement-native-contract.mjs'
       - 'tests/visual-reference-*.test.mjs'
+      - 'tests/character-ordinary-pilot-protocol.test.mjs'
       - 'tests/character-ordinary-motor-v3-*.test.mjs'
+      - 'tests/character-ordinary-motor-v4-protocol.test.mjs'
       - 'tests/character-message-*.test.mjs'
       - 'tests/learning-view.test.mjs'
       - 'tests/visual-indication-action.test.mjs'
@@ -28,6 +32,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   native-reference:
     name: Character models, paid response, actual main pixels and reopen (${{ matrix.os }})
@@ -47,6 +54,13 @@ jobs:
           cache: npm
       - run: node scripts/record-native-host.mjs
       - run: npm ci
+      - name: Check current feature markers and serialized protocol syntax before native work
+        run: |
+          node --check src/ozark-world-features.js
+          node --check scripts/character-ordinary-pilot-protocol.mjs
+          node --check scripts/character-ordinary-motor-v3-protocol.mjs
+          node --check scripts/character-ordinary-motor-v4-protocol.mjs
+          node --test tests/character-ordinary-pilot-protocol.test.mjs tests/character-ordinary-motor-v3-protocol.test.mjs tests/character-ordinary-motor-v4-protocol.test.mjs
       - name: Causal action, sender-visible response, numeric core, local parser and persistence contracts
         id: focused
         shell: bash

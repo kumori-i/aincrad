@@ -12,6 +12,8 @@ import { survivalDecisionSnapshot } from './survival-decision-observer.js';
 import { foodRunSnapshot } from './food-run-observer.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
+import { tickPhysiology } from './biology.js';
+import { createPlayerFoodController } from './player-food.js';
 import { SimulationClock } from './simulation-clock.js';
 import { installWorldReset } from './world-reset-ui.js';
 import { installCommunicationInspector } from './communication-inspector.js';
@@ -49,6 +51,7 @@ let renderer = null;
 let npcPanel = null;
 let communicationInspector = null;
 let communicationLearning = null;
+let playerFoodController = null;
 const referenceSaveGate=createVisualReferenceSaveGate();
 let communicationError = '';
 // Capture completed personal learning before disposal can censor in-flight
@@ -105,6 +108,11 @@ function notify(message, seconds = 6) {
 }
 function selectedAgent() {
   return population?.getAgent(state.selectedAgentId) || state.agents?.[0] || null;
+}
+function cancelPlayerFood(reason) {
+  const result=playerFoodController?.cancel(reason);
+  if(result && !result.ok)text('player-food-status', 'Food action stopped. Time and effort already spent remain spent.');
+  return result;
 }
 function save(explicit = false, referenceCheckpoint = false) {
   if(referenceFixtureOwner&&!referenceCheckpoint)return false;
@@ -168,6 +176,7 @@ if (loaded.blocked) {
     decision: (...args) => communicate('decision', ...args),
     performed: (...args) => communicate('performed', ...args),
   } });
+  playerFoodController = createPlayerFoodController(state, geometry);
 }
 renderer = new OzarkWorldRenderer($('world'), geometry);
 try {
@@ -205,6 +214,7 @@ function begin() {
   show('hud');
   keys.clear(); $('world').focus({ preventScroll: true });
   clock.reset(performance.now() / 1000);
+  updatePlayerFoodControls();
   if (!loaded.exists) notify('Aster and Mira begin exploring. Press N to inspect their observations and character messages.');
   return true;
 }
@@ -214,6 +224,7 @@ function closePanel() {
 }
 function openPanel(name) {
   if (!started || loaded.blocked) return;
+  cancelPlayerFood('panel');
   closePanel(); panel = name; show(name + '-panel');
   if (name === 'map') updateAtlas();
   $(name + '-panel').querySelector('button')?.focus();
@@ -221,6 +232,7 @@ function openPanel(name) {
 function togglePanel(name) { if (panel === name) closePanel(); else openPanel(name); }
 function setPause(value) {
   if (!started || resetHeld || resetRetired) return;
+  if(value)cancelPlayerFood('pause');
   paused = value; keys.clear(); anim.moving = false;
   clock.reset(performance.now() / 1000);
   if (value) { closePanel(); show('pause-panel'); $('resume').focus(); }
@@ -231,9 +243,47 @@ function updateAtlas() {
   const status = renderer.atlasStatus();
   text('atlas-zoom-label', `${status.zoom.toFixed(1)}×`);
 }
+function foodControlsAvailable() {
+  return started && !paused && !panel && !resetHeld && !resetRetired && !loaded.blocked &&
+    windowFocused && !referenceFixtureOwner && $('npc-panel').classList.contains('hidden');
+}
+function updatePlayerFoodControls() {
+  const usable=foodControlsAvailable() && !!playerFoodController;
+  const snapshot=playerFoodController?.snapshot();
+  const options=usable?playerFoodController.visibleOptions():[];
+  const free=options.find(row=>!row.held && row.actions.some(action=>action==='pull'||action==='grasp'));
+  const held=options.find(row=>row.held);
+  const busy=!!snapshot?.active;
+  $('player-food-gather').disabled=!usable||busy||!free;
+  $('player-food-taste').disabled=!usable||busy||!held?.actions.includes('sample');
+  $('player-food-drop').disabled=!usable||busy||!held?.actions.includes('release');
+  const visibleName=row=>title(row?.appearance?.details || row?.appearance?.shape || 'fruit');
+  text('player-food-nearby',busy?
+    `Working with ${title(snapshot.active.type)} · ${Math.max(0, snapshot.active.seconds-snapshot.active.worked).toFixed(1)} s left`:
+    held?`Holding ${visibleName(held)}. Eat a sample or drop the rest.`:
+    free?`${visibleName(free)} within reach. Gather it to taste.`:
+    'No visible fruit within reach. Walk near an apple tree or ripe bramble.');
+}
+function startPlayerFood(kind) {
+  if(!foodControlsAvailable()||!playerFoodController)return;
+  const options=playerFoodController.visibleOptions();
+  const option=kind==='gather'?
+    options.find(row=>!row.held && row.actions.some(action=>action==='pull'||action==='grasp')):
+    options.find(row=>row.held && row.actions.includes(kind==='taste'?'sample':'release'));
+  if(!option){updatePlayerFoodControls();return;}
+  const type=kind==='gather'?(option.actions.includes('pull')?'pull':'grasp'):
+    kind==='taste'?'sample':'release';
+  const result=playerFoodController.start(type,option.targetId);
+  text('player-food-status',result.ok?
+    `Started ${type}. Stay in place until the paid action finishes.`:
+    'That action is no longer available from your current view.');
+  updatePlayerFoodControls();
+}
 
 function advancePlayer(dt, dx, dy, mode, sprint = false) {
   const acting = Boolean(dx || dy);
+  if(acting)cancelPlayerFood('movement');
+  const foodWorking=!!playerFoodController?.snapshot().active;
   const start = { ...state.player };
   const motion = geometry.advance(state.player, dx, dy, dt, sprint, mode);
   const body = state.playerBody;
@@ -241,7 +291,7 @@ function advancePlayer(dt, dx, dy, mode, sprint = false) {
   body.wetness = clamp(body.wetness + wet * 18 - (dt - wet) * 2, 0, 100);
   body.effort = clamp(body.effort + motion.effortSeconds * .065 - dt * .025, 0, 1);
   body.stamina = clamp(body.stamina - motion.effortSeconds * 2.4 +
-    (!acting ? dt * 1.2 : 0), 0, 100);
+    (!acting && !foodWorking ? dt * 1.2 : 0), 0, 100);
   if (motion.fallRiskSeconds > 0) body.health = clamp(body.health -
     motion.fallRiskSeconds * 8, 0, 100);
   if (motion.swimSeconds > 0 && body.stamina < 1)
@@ -249,7 +299,33 @@ function advancePlayer(dt, dx, dy, mode, sprint = false) {
   communicate('beforeTick');
   state.elapsed += dt;
   state.distance += motion.distance;
+  if(playerFoodController){
+    const food=state.playerFood.physiology;
+    food.health=body.health; food.stamina=body.stamina;
+    const playerActor={id:'player',species:'human',position:state.player,scene:'valley',
+      elapsed:state.elapsed,physiology:food,
+      thermal:{hot:0,cold:0,wetness:body.wetness}};
+    const conditions=environmentConditions(state.environment,{position:state.player,scene:'valley',
+      thermal:playerActor.thermal});
+    tickPhysiology(playerActor,dt,conditions);
+    // Movement already owns resting stamina recovery. Digestive and exposure
+    // effects use the ordinary human physiology without double recovery.
+    body.health=food.health; food.stamina=body.stamina;
+    const foodResult=playerFoodController.tick(dt);
+    body.health=food.health; body.stamina=food.stamina;
+    if(foodResult)text('player-food-status',foodResult.ok?
+      foodResult.type==='sample'?'You ate a real portion. Nearby agents may have seen it.':
+      foodResult.type==='release'?'You dropped the remaining portion.':
+      'The fruit is now in your hand.':
+      'Food action ended without completing.');
+  }
   population.tick(dt);
+  // Ecology can expire a held portion during the same tick. Its NPC-only
+  // cleanup does not own the avatar's hand; retire stale hand IDs before a
+  // current save could mistake ordinary decay for malformed ownership.
+  const expiredFood=playerFoodController?.reconcileHeld();
+  if(expiredFood && !expiredFood.ok)
+    text('player-food-status','The physical portion disappeared before the action finished.');
   communicate('afterTick');
   anim.moving = motion.distance > .01;
   if (acting) {
@@ -319,6 +395,7 @@ function updateHud(now) {
   $('waypoint-hud').classList.toggle('hidden', !waypoint);
   if (waypoint) text('waypoint-hud',
     `Waypoint · ${Math.round(Math.hypot(waypoint.x - viewed.x, waypoint.y - viewed.y))} world units direct`);
+  updatePlayerFoodControls();
 }
 function frame(now) {
   if (resetRetired) return;
@@ -358,7 +435,7 @@ communicationInspector = installCommunicationInspector({
   canOpen: () => started && paused && !loaded.blocked && !resetHeld && !resetRetired,
   openLearning: () => { hide('pause-panel'); npcPanel?.openLearning(); },
   closeLearning: () => npcPanel?.close(), learningVisible: () => !!npcPanel?.isVisible(),
-  onEnter: () => { keys.clear(); anim.moving = false; },
+  onEnter: () => { cancelPlayerFood('inspector'); keys.clear(); anim.moving = false; },
   onExit: () => { keys.clear(); },
 });
 
@@ -366,12 +443,14 @@ installWorldReset({
   document, storage, geometry, previous: () => loaded.blocked ? null : state,
   freeze: () => {
     if (started) setPause(true);
+    cancelPlayerFood('reset');
     npcPanel?.close();
     resetHeld = true; keys.clear(); anim.moving = false;
   },
   release: () => { resetHeld = false; },
   retire: () => {
     resetRetired = true; started = false; paused = true; keys.clear();
+    playerFoodController?.dispose();
     clearInterval(simulationTimer); communicationInspector?.dispose(); communicationLearning?.dispose(); population?.dispose();
   },
   reload: () => window.aincradWorldSave?.reloadCurrentWorld
@@ -385,6 +464,13 @@ $('help-button').addEventListener('click', () => togglePanel('help'));
 $('close-help').addEventListener('click', closePanel);
 $('resume').addEventListener('click', () => setPause(false));
 $('save-button').addEventListener('click', () => save(true));
+// The journal owns its bubble-phase click handlers. Retire physical work in
+// capture phase before either control can open an overlay.
+for(const id of ['open-npc','npc-short'])
+  $(id).addEventListener('click',()=>cancelPlayerFood('journal'),{capture:true});
+$('player-food-gather').addEventListener('click',()=>startPlayerFood('gather'));
+$('player-food-taste').addEventListener('click',()=>startPlayerFood('taste'));
+$('player-food-drop').addEventListener('click',()=>startPlayerFood('drop'));
 $('simulation-speed').addEventListener('change', event => {
   const speed = Number(event.target.value);
   if ([1, 4, 16, 60].includes(speed)) {
@@ -401,7 +487,7 @@ window.addEventListener('keydown', event => {
   }
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
   if (event.code === 'KeyN') {
-    event.preventDefault(); keys.clear(); npcPanel?.toggle(); return;
+    event.preventDefault(); cancelPlayerFood('journal'); keys.clear(); npcPanel?.toggle(); return;
   }
   if (event.code === 'KeyM') {
     event.preventDefault(); if (!event.repeat) togglePanel('map'); return;
@@ -420,15 +506,15 @@ window.addEventListener('keydown', event => {
 });
 window.addEventListener('keyup', event => keys.delete(event.code));
 function clearInput() { keys.clear(); anim.moving = false; }
-window.addEventListener('blur', () => { windowFocused = false; clearInput(); });
+window.addEventListener('blur', () => { windowFocused = false; cancelPlayerFood('blur'); clearInput(); });
 window.addEventListener('focus', () => { windowFocused = true; clearInput(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) clearInput(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) {cancelPlayerFood('hidden');clearInput();} });
 window.aincradAgent?.onWindowActive?.(active => {
-  windowFocused = active; clearInput();
+  windowFocused = active; if(!active)cancelPlayerFood('window-inactive'); clearInput();
 });
 window.addEventListener('resize', () => renderer.resize());
-window.addEventListener('pagehide', () => { if (started) save(); });
-window.addEventListener('beforeunload', () => { if (started) save(); });
+window.addEventListener('pagehide', () => { cancelPlayerFood('pagehide'); if (started) save(); });
+window.addEventListener('beforeunload', () => { cancelPlayerFood('beforeunload'); if (started) save(); });
 
 const atlas = $('atlas-map');
 function atlasPoint(event) {
@@ -558,6 +644,7 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     },
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
+    playerFoodSnapshot: () => playerFoodController?.snapshot() ?? null,
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
     // Test-only yes/no lifecycle probe. It exposes no partner rows, targets,
     // poses, or learner inputs, and never creates a new observation.

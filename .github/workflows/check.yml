@@ -1,11 +1,32 @@
 name: Verify world
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  compatibility-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check current feature guards and source syntax before the full suite
+        run: |
+          node --check src/ozark-world-features.js
+          node --check scripts/character-ordinary-pilot-protocol.mjs
+          node --check scripts/character-ordinary-motor-v3-protocol.mjs
+          node --check scripts/character-ordinary-motor-v4-protocol.mjs
+          node --test tests/character-ordinary-pilot-protocol.test.mjs tests/character-ordinary-motor-v3-protocol.test.mjs tests/character-ordinary-motor-v4-protocol.test.mjs
   rules-and-build:
+    needs: compatibility-preflight
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -38,6 +38,8 @@ function source(){
   });
   fresh={world:clone(state),measurement:{...learning.measurementSnapshot(),survival},
     reference:learning.snapshot()};
+  // Current-source native checks use the current five-feature start. The
+  // completed v3 run remains pinned to its original source and receipt.
   learning.dispose();
   return fresh;
 }
@@ -84,6 +86,9 @@ test('self-contained renderer guard requires an untrained zero motor and predict
   assert.deepEqual(Array.from(ready.individuals,row=>row.id),['aster','mira']);
   assert.equal(hash(original),before);
   for(const change of [
+    s=>{delete s.world.features.playerFood;},
+    s=>{s.world.features.playerFood=2;},
+    s=>{s.world.features.unapproved=1;},
     s=>{s.measurement.actors[0].freeHandObserver.decisionChecks=1;},
     s=>{s.measurement.actors[0].freeHandObserver.nextEligibleAt=0;},
     s=>{s.measurement.actors[1].freeHandObserver.sampleCounts.absent=1;},

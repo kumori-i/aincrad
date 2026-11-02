@@ -38,9 +38,10 @@ export function guardFreshCharacterMotorPilot(expected){
       Number(document.getElementById('simulation-speed')?.value)!==1)
     fail('nonfresh or nonordinary clock');
   const features=s.features;
-  if(!features||Reflect.ownKeys(features).length!==4||
+  if(!features||Reflect.ownKeys(features).length!==5||
       features.plantLifecycle!==1||features.finiteAquatic!==2||
-      features.worldStructures!==1||features.characterMessages!==2)
+      features.worldStructures!==1||features.characterMessages!==2||
+      features.playerFood!==1)
     fail('current feature marker');
   if(w.geometryIdentity!==expected.geometryIdentity||w.environment?.seed!==expected.worldSeed||
       w.visualReference?.seed!==expected.communicationSeed||
