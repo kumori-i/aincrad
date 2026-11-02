@@ -7,6 +7,7 @@ on:
       - 'desktop/**'
       - 'scripts/verify-learning-cycle-desktop.mjs'
       - 'scripts/verify-player-food-desktop.mjs'
+      - 'scripts/player-food-native-reopen-contract.mjs'
       - 'tests/fixtures/learning-cycle-native.mjs'
       - 'tests/learning-cycle-native-fixture.test.mjs'
       - 'tests/player-food-native-harness.test.mjs'

@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
 import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
+import { assertDurableFoodReopen } from './player-food-native-reopen-contract.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile,
   currentRouteSnapshot } from './carcass-native-contract.mjs';
 
@@ -88,6 +89,7 @@ const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
 assert.ok(['author', 'act', 'reopen'].includes(phase));
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const authorScene = ${authorPlayerFoodScene.toString()};
+const assertDurableFoodReopen = ${assertDurableFoodReopen.toString()};
 const currentRouteSnapshot = ${currentRouteSnapshot.toString()};
 const captureWithReadiness = ${captureWithReadiness.toString()};
 let running = false, closeObserved = false, allowQuit = false;
@@ -264,7 +266,8 @@ async function reopenPhase(win) {
   assert.equal(await evaluate(win,"localStorage.getItem('aincrad.world.v2')"),checkpoint.raw);
   const opened=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   assert.deepEqual(opened.playerFood,checkpoint.final.playerFood,'No duplicate swallow, holding or pending action after reopening');
-  assert.deepEqual(opened.environment.ecology,checkpoint.final.environment.ecology,'Finite food stocks and ledger resume exactly');
+  assertDurableFoodReopen(checkpoint.final.environment.ecology,
+    JSON.parse(checkpoint.raw).environment.ecology,opened.environment.ecology);
   assert.deepEqual(opened.agents.map(n=>n.discovery.inquiries),checkpoint.final.agents.map(n=>n.discovery.inquiries));
   assert.equal(opened.playerFood.inventory.items.length,0);
   assert.equal(opened.playerFood.physiology.totals.ingestedKcal,checkpoint.ingestedKcal);

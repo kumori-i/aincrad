@@ -6,9 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CONFIG, NPC_RULES } from '../src/config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState } from '../src/ozark-save.js';
+import { createOzarkState, loadOzarkSave, writeOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { interactEcologyObject } from '../src/ecology.js';
 import { createPlayerFoodController } from '../src/player-food.js';
 import { PopulationRuntime } from '../src/population.js';
+import { assertDurableFoodReopen } from '../scripts/player-food-native-reopen-contract.mjs';
 
 test('player food native preparation generates an isolated actual-input close/reopen runner', async () => {
   const output = await mkdtemp(join(tmpdir(), 'player-food-prepare-'));
@@ -48,6 +50,7 @@ test('player food native preparation generates an isolated actual-input close/re
     assert.match(runner, /inquiry\.actorId,'player'/);
     assert.match(runner, /inquiry\.attempts\.length,0/);
     assert.match(runner, /No duplicate swallow, holding or pending action after reopening/);
+    assert.match(runner, /assertDurableFoodReopen\(checkpoint\.final\.environment\.ecology,/);
     assert.match(runner, /captureWithReadiness\(\{/);
     assert.match(await readFile('scripts/verify-player-food-desktop.mjs', 'utf8'), /profile-evidence/);
     const acted = runner.split('async function actPhase(win) {')[1]?.split('async function reopenPhase(win) {')[0];
@@ -103,10 +106,50 @@ test('authored visible apple source keeps an independently acting witness in sig
   population.dispose();
 });
 
+test('native reopen contract excludes only transient animal projections and rejects lost food or ledger', () => {
+  const geometry = createOzarkWorldGeometry();
+  const state = createOzarkState(geometry, { communicationSeed: 211 });
+  const live = state.environment.ecology;
+  const source = live.plants.find(plant => plant.kind === 'apple_tree' && plant.quantity > 0);
+  assert.ok(source);
+  const pulled = interactEcologyObject(live, source.id, 'pull',
+    { actorId: 'aster', position: source.position });
+  assert.equal(pulled.ok, true);
+  assert.equal(interactEcologyObject(live, pulled.materialId, 'release',
+    { actorId: 'aster', position: source.position }).ok, true);
+  assert.ok(live.materials.some(material => material.id === pulled.materialId));
+  live.animals[0].feelings = { relief: 0 };
+  live.animals[0].actionHours = .25;
+  const bytes = new Map();
+  const storage = { getItem: key => bytes.get(key) ?? null,
+    setItem: (key, value) => bytes.set(key, value) };
+  assert.equal(writeOzarkSave(storage, state, geometry), true);
+  const saved = JSON.parse(storage.getItem(OZARK_SAVE_KEY)).environment.ecology;
+  const loaded = loadOzarkSave(storage, geometry);
+  assert.equal(loaded.blocked, false, loaded.error);
+  const reopened = loaded.state.environment.ecology;
+  assert.equal(Object.hasOwn(saved.animals[0], 'feelings'), false);
+  assert.equal(saved.animals[0].actionHours, 0);
+  assertDurableFoodReopen(live, saved, reopened);
+  for (const mutate of [
+    ecology => { ecology.plants.find(plant => plant.id === source.id).quantity--; },
+    ecology => { ecology.materials.find(material => material.id === pulled.materialId).massGrams--; },
+    ecology => { ecology.ledger.humanRemovedKcal++; },
+  ]) {
+    const lostOnSave = structuredClone(saved); mutate(lostOnSave);
+    assert.throws(() => assertDurableFoodReopen(live, lostOnSave, reopened),
+      /saved ecology must retain every physical stock/);
+    const lostOnReopen = structuredClone(reopened); mutate(lostOnReopen);
+    assert.throws(() => assertDurableFoodReopen(live, saved, lostOnReopen),
+      /Finite food stocks and ledger resume exactly/);
+  }
+});
+
 test('Linux and macOS native workflow includes player food evidence without experiment activation', async () => {
   const workflow = await readFile('.github/workflows/learning-cycle.yml', 'utf8');
   assert.match(workflow, /macos-latest, ubuntu-22\.04/);
   assert.match(workflow, /scripts\/verify-player-food-desktop\.mjs/);
+  assert.match(workflow, /scripts\/player-food-native-reopen-contract\.mjs/);
   assert.match(workflow, /test-results\/player-food-desktop\//);
   assert.match(workflow, /xvfb-run -a bash -c 'openbox/);
   assert.doesNotMatch(workflow, /on:\s*\n\s*create:/);
