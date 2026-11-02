@@ -94,7 +94,7 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     for(const token of [
       'getLastWebPreferences()', 'assert.equal(prefs.sandbox,true)',
       "sendInputEvent({type:'mouseDown'", "sendInputEvent({type:'mouseUp'",
-      "sendInputEvent({type:'char'", "sendInputEvent({type:'keyDown',keyCode:'ArrowDown'",
+      "sendInputEvent({type:'char'", "sendInputEvent({type:'keyDown',keyCode:'Tab'",
       'Pointing at a visible object. Food actions can resume afterward.',
       "assert.deepEqual(rendererEvents,[]",'01-paid-player-point.png',
       'captureWithReadiness({','sensor.captureVisible(actor,state,id)',
@@ -106,7 +106,7 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
       'No autonomous vocabulary', 'No resource, pixel, label, body outcome',
       'bindOzarkWorldAgent(actor,geometry,state)',
       'bindingModule.bindOzarkWorldAgent(npc,geometry,state)',
-      "phase+'-target-selection.jsonl'", 'after-Home', 'after-ArrowDown-', 'after-Return',
+      "phase+'-target-selection.jsonl'", 'after-Tab', 'before-typeahead', 'after-typeahead-', 'after-commit-Tab',
       'event.isTrusted', 'window.__ozarkWorld.saveFailure', 'Native live save validation failed:',
       'failure.live=', 'authored.agentPositions',
     ])assert.ok(runner.includes(token),'Missing native contract: '+token);
@@ -189,4 +189,63 @@ test('time-zero NPC teleport is rejected after its first genuine terrain observa
     assert.match(getOzarkSaveValidationFailure(state)?.message,/aster has invalid Ozark terrain or legacy-site memory/);
     assert.equal(values.get(OZARK_SAVE_KEY),bytes,'Strict failure protects prior bytes');
   } finally { population.dispose(); }
+});
+
+test('trusted target navigation uses closed-select label cycling and checks every actual keypress',async()=>{
+  const {runInNewContext}=await import('node:vm');
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const navigation=source.slice(source.indexOf('async function trustedChooseTarget('),
+    source.indexOf('async function trustedLesson('));
+  assert.doesNotMatch(navigation,/clickButton\(|keyCode:'(?:ArrowDown|Down|Home|Return)'|\.value\s*=(?!=)|dispatchEvent/);
+  const options=[{value:'',text:'Choose a visible object'},
+    {value:'object:671',text:'Ripe · 40 away'},
+    {value:'object:677',text:'Ripe · 64 away'},
+    {value:'object:679',text:'Small · 90 away'}];
+  let focused='player-lesson-word',selected=1,sequence=0;
+  const events=[],inputs=[],steps=[];
+  const win={webContents:{sendInputEvent(input){
+    inputs.push(input);
+    const type=input.type==='char'?'keypress':input.type==='keyDown'?'keydown':'keyup';
+    events.push({sequence:++sequence,type,key:input.keyCode,target:focused,trusted:true});
+    if(input.type==='keyDown'&&input.keyCode==='Tab')
+      focused=focused==='player-lesson-word'?'player-lesson-target':'player-lesson-say';
+    if(focused==='player-lesson-target'&&input.type==='char'){
+      for(let offset=1;offset<=options.length;offset++){
+        const candidate=(selected+offset)%options.length;
+        if(options[candidate].text.toLowerCase().startsWith(input.keyCode)){
+          selected=candidate;break;
+        }
+      }
+    }
+  }}};
+  let expected='object:677';
+  const context={assert,evaluate:async(_win,expression)=>expression==='document.activeElement?.id'?focused:undefined,
+    targetDiagnostic:async(_win,step)=>{steps.push({step,value:options[selected].value});
+      return {options,value:options[selected].value,activeElement:focused,disabled:false,
+        events:events.map(row=>({...row}))};},
+    waitFor:async()=>assert.equal(options[selected].value,expected)};
+  runInNewContext(navigation+';this.choose=trustedChooseTarget;',context);
+  await context.choose(win,expected);
+  assert.deepEqual(inputs.map(row=>row.keyCode),['Tab','Tab','r','Tab','Tab']);
+  assert.equal(focused,'player-lesson-say');
+  // Repeat from an already selected target: native cycling must wrap through
+  // the other duplicate label and back, never assign the desired DOM value.
+  focused='player-lesson-word';inputs.length=0;steps.length=0;
+  await context.choose(win,expected);
+  assert.deepEqual(steps.filter(row=>row.step.startsWith('after-typeahead-')).map(row=>row.value),
+    ['object:671','object:677']);
+  // A new visible initial is sourced from the label, not an object identity.
+  focused='player-lesson-word';expected='object:679';inputs.length=0;
+  await context.choose(win,expected);
+  assert.equal(inputs.find(row=>row.type==='char').keyCode,'s');
+  // Modelled selection alone cannot pass when the transport emits an invalid key.
+  focused='player-lesson-word';
+  const send=win.webContents.sendInputEvent;
+  win.webContents.sendInputEvent=input=>{send(input);if(input.type==='char')events.at(-1).key='';};
+  await assert.rejects(context.choose(win,expected),/trusted DOM keypress/);
+  focused='player-lesson-word';selected=1;expected='object:677';let attempts=0;
+  win.webContents.sendInputEvent=input=>{const prior=selected;send(input);
+    if(input.type==='char'){selected=prior;attempts++;}};
+  await assert.rejects(context.choose(win,expected),/Bounded visible-label cycling/);
+  assert.equal(attempts,options.length,'A stuck real selection fails within one bounded cycle');
 });

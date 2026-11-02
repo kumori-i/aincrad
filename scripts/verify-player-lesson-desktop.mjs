@@ -277,29 +277,48 @@ async function targetDiagnostic(win, step) {
 }
 async function trustedChooseTarget(win, sourceId) {
   await evaluate(win,'(() => { if(window.__lessonInputTrace)return;' +
-    'const rows=window.__lessonInputTrace=[];' +
-    'for(const name of ["focus","blur","focusin","focusout","change","keydown","keyup"])' +
+    'const rows=window.__lessonInputTrace=[];let sequence=0;' +
+    'for(const name of ["focus","blur","focusin","focusout","change","keydown","keypress","keyup"])' +
     'window.addEventListener(name,event=>{const p=document.getElementById("player-lesson-target");' +
-    'rows.push({type:event.type,key:event.key,target:event.target?.id,trusted:event.isTrusted,' +
+    'rows.push({sequence:++sequence,type:event.type,key:event.key,target:event.target?.id,trusted:event.isTrusted,' +
     'value:p.value,disabled:p.disabled,focused:document.hasFocus(),at:performance.now()});' +
     'if(rows.length>128)rows.shift();},true);})()');
-  const before=await targetDiagnostic(win,'before-click');
+  const before=await targetDiagnostic(win,'before-Tab');
   const index=before.options.findIndex(row=>row.value===sourceId);
   assert.ok(index>0&&index<=12,'Declared real source must be present in the visible UI selector');
-  await clickButton(win,'player-lesson-target');
-  await targetDiagnostic(win,'after-click');
+  // Tab from the actual typed input focuses the closed select. Clicking would
+  // open an OS popup whose keyboard events may not reach webContents on Linux.
+  assert.equal(await evaluate(win,'document.activeElement?.id'),'player-lesson-word');
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Tab'});
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Tab'});
+  await targetDiagnostic(win,'after-Tab');
   assert.equal(await evaluate(win,'document.activeElement?.id'),'player-lesson-target');
-  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'});
-  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'});
-  await targetDiagnostic(win,'after-Home');
-  for(let i=0;i<index;i++){
-    win.webContents.sendInputEvent({type:'keyDown',keyCode:'ArrowDown'});
-    win.webContents.sendInputEvent({type:'keyUp',keyCode:'ArrowDown'});
-    await targetDiagnostic(win,'after-ArrowDown-'+i);
+  // Mac arrows open an OS popup rather than stepping a closed select. Printable
+  // typeahead cycles visible option labels on both hosts, without opening it.
+  // Chromium HTMLSelectElement uses kMatchPrefix|kCycleFirstChar and resets the
+  // typeahead session on blur; trustedTypeWord supplied that blur before Tab.
+  const letter=before.options[index].text.trim().charAt(0).toLowerCase();
+  assert.match(letter,/^[a-z]$/,'Target label must expose a printable initial');
+  let current=await targetDiagnostic(win,'before-typeahead');
+  for(let i=0;i<before.options.length;i++){
+    const sequence=current.events.at(-1)?.sequence ?? 0;
+    win.webContents.sendInputEvent({type:'char',keyCode:letter});
+    current=await targetDiagnostic(win,'after-typeahead-'+i);
+    assert.ok(current.events.some(event=>event.sequence>sequence&&event.type==='keypress'&&
+      event.key.toLowerCase()===letter&&event.target==='player-lesson-target'&&event.trusted),
+      'Printable input must arrive as a new trusted DOM keypress');
+    assert.equal(current.activeElement,'player-lesson-target');
+    assert.equal(current.disabled,false);
+    const selected=current.options.find(row=>row.value===current.value);
+    assert.ok(selected?.text.trim().toLowerCase().startsWith(letter),
+      'Each trusted character must select a matching visible label');
+    if(current.value===sourceId)break;
   }
-  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Return'});
-  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Return'});
-  await targetDiagnostic(win,'after-Return');
+  assert.equal(current.value,sourceId,'Bounded visible-label cycling must reach the requested source');
+  // Commit by tabbing away, without Return opening a closed native popup.
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Tab'});
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Tab'});
+  await targetDiagnostic(win,'after-commit-Tab');
   await waitFor(win,'document.getElementById("player-lesson-target").value===' + JSON.stringify(sourceId));
   await targetDiagnostic(win,'selected');
 }
