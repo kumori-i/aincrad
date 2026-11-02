@@ -109,10 +109,15 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
       "phase+'-target-selection.jsonl'", 'after-Tab', 'before-typeahead', 'after-typeahead-', 'after-commit-Tab',
       'event.isTrusted', 'window.__ozarkWorld.saveFailure', 'Native live save validation failed:',
       'failure.live=', 'authored.agentPositions',
+      'advancePlayerLessonFixedSteps', 'fixedStepExpression(.1)',
+      'verifyPlayerLessonCaptureProgress', 'paidPoseWitness', 'captureLessonState',
+      "paidPoseScreenshot:{status:'pending-independent-pixel-review'",
     ])assert.ok(runner.includes(token),'Missing native contract: '+token);
     const acted=runner.split('async function actPhase(win) {')[1]
       ?.split('async function reopenPhase(win) {')[0];
     assert.ok(acted);
+    assert.doesNotMatch(runner,/__ozarkWorld\.step\(\.(?:1|2)\)/,
+      'Batched durations must use integer fixed ticks, never subtraction tails');
     assert.doesNotMatch(acted,/createPlayerLessonController\(|learnPlayerLesson\(|\.start\('nava'|\.onLessons\(/,
       'Actual lesson phase cannot inject a label or bypass paid UI');
     assert.doesNotMatch(acted,/crop\.features\s*=|features:\s*Array\(/,

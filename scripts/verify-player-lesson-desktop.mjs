@@ -8,6 +8,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApplication } from './build.mjs';
+import { CONFIG } from '../src/config.js';
+import { advancePlayerLessonFixedSteps } from './player-lesson-fixed-steps.mjs';
+import { verifyPlayerLessonCaptureProgress } from './player-lesson-capture-contract.mjs';
 import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile,
   currentRouteSnapshot } from './carcass-native-contract.mjs';
@@ -124,6 +127,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const authorScene = ${authorPlayerLessonScene.toString()};
 const currentRouteSnapshot = ${currentRouteSnapshot.toString()};
 const captureWithReadiness = ${captureWithReadiness.toString()};
+const advancePlayerLessonFixedSteps = ${advancePlayerLessonFixedSteps.toString()};
+const verifyPlayerLessonCaptureProgress = ${verifyPlayerLessonCaptureProgress.toString()};
+const FIXED_STEP = ${JSON.stringify(CONFIG.fixedStep)};
 let running = false, closeObserved = false, allowQuit = false;
 const rendererEvents = [], closeEvents = [];
 const deadline = setTimeout(() => { console.error('Player-lesson native QA timed out: ' + phase); app.exit(1); }, 300000);
@@ -154,14 +160,29 @@ async function clickButton(win, id, {allowDisabled=false}={}) {
   win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:box.x,y:box.y,clickCount:1});
   await delay(60);
 }
+function fixedStepExpression(seconds) {
+  return '('+advancePlayerLessonFixedSteps.toString()+')(window.__ozarkWorld.step,'+
+    FIXED_STEP+','+JSON.stringify(seconds)+')';
+}
+async function stepSeconds(win,seconds) { return evaluate(win,fixedStepExpression(seconds)); }
 async function driveUntil(win, predicate, maxSteps = 100) {
   for (let i = 0; i < maxSteps; i++) {
-    const reached = await evaluate(win, '(() => {if(!window.__ozarkWorld.step(.1))throw new Error("Fixed step refused");return (' + predicate + ');})()');
+    const reached = await evaluate(win, '(() => {if(!'+fixedStepExpression(.1)+')throw new Error("Fixed step refused");return (' + predicate + ');})()');
     if (reached) return i + 1;
   }
   throw new Error('Paid action did not reach expected state: ' + predicate);
 }
-async function capture(win, name) {
+async function captureLessonState(win) {
+  return evaluate(win,'(() => {const s=window.__ozarkWorld.fullSnapshot();' +
+    'return {elapsed:s.elapsed,at:performance.now(),paused:window.__ozarkWorld.snapshot().paused,' +
+    'active:window.__ozarkWorld.playerLessonSnapshot().active,' +
+    'asterExamples:s.playerLessons.agents.find(row=>row.agentId==="aster").examples.length,' +
+    'miraExamples:s.playerLessons.agents.find(row=>row.agentId==="mira").examples.length,' +
+    'metabolizedKcal:s.playerFood.physiology.totals.metabolizedKcal,' +
+    'status:document.getElementById("player-lesson-status").textContent,' +
+    'nearby:document.getElementById("player-food-nearby").textContent};})()');
+}
+async function capture(win, name, {paidPose=false}={}) {
   const ui=await evaluate(win,'(() => {const panel=document.getElementById("player-food-panel");' +
     'const status=document.getElementById("player-lesson-status");' +
     'const nearby=document.getElementById("player-food-nearby");' +
@@ -170,18 +191,27 @@ async function capture(win, name) {
     'const r=panel.getBoundingClientRect();if(r.width<=0||r.height<=0||r.left<0||r.top<0||' +
     'r.right>innerWidth||r.bottom>innerHeight)throw new Error("Food HUD is outside viewport");' +
     'return {status:status.textContent,nearby:nearby.textContent,rect:{x:r.x,y:r.y,width:r.width,height:r.height}};})()');
+  let witness=null;
   const {png,metadata} = await captureWithReadiness({
     prepare:async()=>{const readiness=await evaluate(win,'(' + ${JSON.stringify(waitForCaptureFrames.toString())} + ')()');
       await delay(100);return readiness;},
-    capture:()=>win.webContents.capturePage(),
+    capture:async()=>{
+      if(!paidPose)return win.webContents.capturePage();
+      witness={before:await captureLessonState(win)};
+      const image=await win.webContents.capturePage();
+      witness.after=await captureLessonState(win);
+      return image;
+    },
     retain:async(bytes,attempt)=>{const prefix=path.join(context.output,name+'.attempt-'+attempt.attempt);
       if(bytes!==undefined)await fs.writeFile(prefix+'.png',bytes);
-      await fs.writeFile(prefix+'.json',JSON.stringify({phase,name,...attempt},null,2));},
+      await fs.writeFile(prefix+'.json',JSON.stringify({phase,name,...attempt,paidPoseWitness:witness},null,2));},
   });
   assert.ok(png.length>10000,'Actual native world screenshot must be nonempty');
   await fs.writeFile(path.join(context.output,name),png);
+  if(paidPose)witness.progress=verifyPlayerLessonCaptureProgress(witness.before,witness.after);
+  if(paidPose)await fs.writeFile(path.join(context.output,name+'.paid-pose.json'),JSON.stringify(witness,null,2));
   return {file:name,bytes:png.length,width:metadata.width,height:metadata.height,
-    captureAttempts:metadata.attempt,ui};
+    captureAttempts:metadata.attempt,ui,paidPoseWitness:witness};
 }
 async function captureJournal(win,name) {
   const ui=await evaluate(win,'(() => {const panel=document.getElementById("npc-panel");' +
@@ -347,27 +377,30 @@ async function actPhase(win) {
   assert.equal(examplesOf(original,'mira').length,0);
   assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),true);
   const beforeCharacter=await evaluate(win,'window.__ozarkWorld.fullSnapshot().characterMessages');
-  await trustedLesson(win,'nava',authored.sourceId);
-  const first=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
-  assert.equal(await evaluate(win,'window.__ozarkWorld.step(.1)'),true);
-  const paid=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
+  const first=await trustedLesson(win,'nava',authored.sourceId);
+  // One exact-tick request and one coherent snapshot, rather than spending most
+  // of the 1.8-second action on separate renderer IPC reads before the screenshot.
+  const early=await evaluate(win,'(() => {if(!'+fixedStepExpression(.1)+')throw new Error("Fixed step refused");' +
+    'const s=window.__ozarkWorld.fullSnapshot();return {paid:window.__ozarkWorld.playerLessonSnapshot().active,' +
+    'disabled:document.getElementById("player-lesson-say").disabled,' +
+    'nearby:document.getElementById("player-food-nearby").textContent,' +
+    'examples:s.playerLessons.agents.find(row=>row.agentId==="aster").examples.length,' +
+    'metabolizedKcal:s.playerFood.physiology.totals.metabolizedKcal};})()');
+  const paid=early.paid;
   assert.ok(paid.worked>0 && paid.worked<paid.seconds,'The public point requires actual partial paid work');
-  assert.equal(await evaluate(win,'document.getElementById("player-lesson-say").disabled'),true);
-  assert.equal(await evaluate(win,'document.getElementById("player-food-nearby").textContent'),
-    'Pointing at a visible object. Food actions can resume afterward.');
+  assert.equal(early.disabled,true);
+  assert.equal(early.nearby,'Pointing at a visible object. Food actions can resume afterward.');
   assert.deepEqual(rendererEvents,[],'Main-loop HUD refresh and renderer remain error-free during paid point');
-  const early=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
-  assert.equal(examplesOf(early,'aster').length,0,'A partial point does not teach');
-  assert.ok(early.playerFood.physiology.totals.metabolizedKcal>original.playerFood.physiology.totals.metabolizedKcal);
-  const poseImage=await capture(win,'01-paid-player-point.png');
-  assert.deepEqual(rendererEvents,[],'Paid public-pose screenshot must not hide a renderer failure');
-  const afterCapture=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
-  assert.ok(afterCapture && afterCapture.worked>=paid.worked && afterCapture.worked<1.8,
-    'The actual public-pose screenshot is captured during funded work');
+  assert.equal(early.examples,0,'A partial point does not teach');
+  assert.ok(early.metabolizedKcal>original.playerFood.physiology.totals.metabolizedKcal);
+  // Exercise the disabled repeat while work is known to be active, before the
+  // potentially slower native screenshot/PNG encoding operation.
   await clickButton(win,'player-lesson-say',{allowDisabled:true});
   const repeat=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
   for(const key of ['word','seconds','startedAt','expiresAt'])assert.equal(repeat?.[key],first[key]);
   assert.ok(repeat.worked>=paid.worked && repeat.worked<=repeat.seconds);
+  const poseImage=await capture(win,'01-paid-player-point.png',{paidPose:true});
+  assert.deepEqual(rendererEvents,[],'Paid public-pose screenshot must not hide a renderer failure');
   await driveUntil(win,'window.__ozarkWorld.playerLessonSnapshot().active===null',40);
   const learned=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   const own=examplesOf(learned,'aster');
@@ -450,7 +483,7 @@ async function actPhase(win) {
   assert.deepEqual(JSON.parse(learnedRaw).playerLessons,savedBank);
   // A second paid point has no durable authority. Save while it is pending.
   await trustedLesson(win,'tomi',authored.sourceId);
-  assert.equal(await evaluate(win,'window.__ozarkWorld.step(.1)'),true);
+  assert.equal(await stepSeconds(win,.1),true);
   const pending=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
   assert.ok(pending?.worked>0 && pending?.worked<1.8);
   assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true);
@@ -486,7 +519,7 @@ async function reopenPhase(win) {
     checkpoint.savedBank);
   // A native focus transfer cancels paid work but does not pause simulation.
   await trustedLesson(win,'sela',checkpoint.authored.sourceId);
-  assert.equal(await evaluate(win,'window.__ozarkWorld.step(.1)'),true);
+  assert.equal(await stepSeconds(win,.1),true);
   assert.ok((await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active'))?.worked>0);
   const {BrowserWindow}=require('electron');
   const focusSink=new BrowserWindow({width:100,height:100,show:true,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
@@ -496,7 +529,7 @@ async function reopenPhase(win) {
   assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().paused'),false,
     'Focus loss cancels only the action, not the running world');
   const elapsed=await evaluate(win,'window.__ozarkWorld.fullSnapshot().elapsed');
-  assert.equal(await evaluate(win,'window.__ozarkWorld.step(.2)'),true);
+  assert.equal(await stepSeconds(win,.2),true);
   assert.ok(await evaluate(win,'window.__ozarkWorld.fullSnapshot().elapsed')>elapsed,
     'The world advances while the native window is unfocused');
   const canceled=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
@@ -513,6 +546,8 @@ async function reopenPhase(win) {
     nativeExecutionPerformed:true,sourceIdentity:context.sourceIdentity,
     sourceFingerprint:context.sourceFingerprint,
     trustedTypedInput:true,actualPaidPublicPoint:true,ownCanvasExample:true,
+    paidPoseScreenshot:{status:'pending-independent-pixel-review',file:checkpoint.poseImage.file,
+      progress:checkpoint.poseImage.paidPoseWitness.progress},
     noCharacterReward:true,exactSaveReopen:true,pendingCancel:true,
     nativeFocusCancellation:true,worldContinuedUnfocused:true,
     heldoutEvaluation:JSON.parse(await fs.readFile(path.join(context.output,'heldout-evaluation.json'),'utf8')),
