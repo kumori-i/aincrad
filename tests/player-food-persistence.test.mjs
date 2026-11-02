@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, loadOzarkSave, OZARK_SAVE_KEY,
+import { CONFIG } from '../src/config.js';
+import { createOzarkState, loadOzarkSave, getOzarkSaveFailure, OZARK_SAVE_KEY,
   writeOzarkSave } from '../src/ozark-save.js';
 import { interactEcologyObject } from '../src/ecology.js';
 import { validatePlayerFoodState } from '../src/player-food-state.js';
+import { createPlayerFoodController } from '../src/player-food.js';
+import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
+import { PopulationRuntime } from '../src/population.js';
+import { observeNpc, requestNpcAction } from '../src/npc.js';
+import { assertWitnessInquiriesReopen } from '../scripts/player-food-native-reopen-contract.mjs';
 
 const geometry = createOzarkWorldGeometry();
 const storage = () => {
@@ -91,6 +97,101 @@ test('real detached fruit ownership survives current save and does not copy agen
   assert.deepEqual(reset.playerFood.inventory.items, []);
   assert.equal(reset.environment.ecology.materials.some(row =>
     row.heldBy === 'player'), false);
+});
+
+test('real player observation survives idle save; unrelated interrupted work retires unresolved inquiries', () => {
+  const disk = storage(), state = createOzarkState(geometry, {communicationSeed: 211});
+  const ecology = state.environment.ecology;
+  const source = ecology.plants.filter(plant => plant.kind === 'apple_tree' &&
+    plant.stage === 'ripe' && plant.quantity > 2 &&
+    geometry.canOccupy(plant.position.x + 45, plant.position.y, CONFIG.playerRadius) &&
+    geometry.lineOfSight({x: plant.position.x + 45, y: plant.position.y}, plant.position))
+    .sort((a, b) =>
+      Math.hypot(a.position.x - geometry.agentSpawns.aster.x,
+        a.position.y - geometry.agentSpawns.aster.y) -
+      Math.hypot(b.position.x - geometry.agentSpawns.aster.x,
+        b.position.y - geometry.agentSpawns.aster.y))[0];
+  assert.ok(source);
+  const point = {x: source.position.x + 45, y: source.position.y};
+  state.player = {...point};
+  for (const npc of state.agents) {
+    npc.position = {...point};
+    bindOzarkWorldAgent(npc, geometry, state);
+  }
+  const population = new PopulationRuntime(state, {cardinal: false});
+  const player = createPlayerFoodController(state, geometry);
+  try {
+    const finish = (type, targetId) => {
+      assert.equal(player.start(type, targetId).code, 'ACTION_STARTED');
+      for (let i = 0; i < 1000; i++) {
+        state.elapsed += CONFIG.fixedStep;
+        state.environment.elapsed = ecology.elapsed = state.elapsed;
+        for (const npc of state.agents) npc.elapsed = state.elapsed;
+        const result = player.tick(CONFIG.fixedStep);
+        if (result) { assert.equal(result.ok, true, `${type}: ${result.code}`); return result; }
+      }
+      assert.fail(`${type} did not complete its paid work`);
+    };
+    const portion = finish('pull', source.id).materialId;
+    finish('sample', portion);
+    finish('release', portion);
+    for (const npc of state.agents) {
+      assert.equal(npc.active, null);
+      assert.deepEqual(npc.discovery.inquiries.map(q =>
+        ({actorId: q.actorId, sourceId: q.sourceId, attempts: q.attempts, retired: q.retired})),
+      [{actorId: 'player', sourceId: portion, attempts: [], retired: false}]);
+      assert.deepEqual(npc.discovery.experiments, [], 'The witness has no copied self-trial');
+    }
+    assert.equal(writeOzarkSave(disk, state, geometry), true, getOzarkSaveFailure(state));
+    const idleBytes = disk.getItem(OZARK_SAVE_KEY);
+    const idleRaw = JSON.parse(idleBytes);
+    const idle = loadOzarkSave(disk, geometry);
+    assert.equal(idle.blocked, false, idle.error);
+    assertWitnessInquiriesReopen(state.agents, idleRaw.agents, idle.state.agents, portion);
+    assert.deepEqual(idle.state.agents.map(n => n.discovery.inquiries),
+      state.agents.map(n => n.discovery.inquiries),
+      'An idle save retains the exact player-origin inquiry');
+    assert.deepEqual(idle.state.agents.map(n => n.discovery.experiments), [[], []]);
+    for (const change of [
+      q => { q.actorId = 'ghost'; },
+      q => { q.actorId = 'aster'; },
+      q => { q.sourceId = 'object:invalid'; },
+    ]) {
+      const bad = structuredClone(idleRaw);
+      change(bad.agents[0].discovery.inquiries[0]);
+      const bytes = JSON.stringify(bad);
+      assert.notEqual(bytes, idleBytes);
+      disk.setItem(OZARK_SAVE_KEY, bytes);
+      const rejected = loadOzarkSave(disk, geometry);
+      assert.equal(rejected.blocked, true, `accepted invalid witness identity: ${change}`);
+      assert.equal(disk.getItem(OZARK_SAVE_KEY), bytes);
+    }
+    disk.setItem(OZARK_SAVE_KEY, idleBytes);
+    observeNpc(state.agents[0], state.environment);
+    assert.equal(requestNpcAction(state.agents[0],
+      {type: 'inspect_object', targetId: source.id}, state.environment).code,
+    'ACTION_STARTED', 'The unrelated inspection is physically in progress');
+    assert.equal(state.agents[1].active, null);
+    assert.equal(writeOzarkSave(disk, state, geometry), true);
+    const interruptedRaw = JSON.parse(disk.getItem(OZARK_SAVE_KEY));
+    assert.equal(interruptedRaw.agents[0].interrupted, true);
+    assert.equal(Boolean(interruptedRaw.agents[1].interrupted), false);
+    const interrupted = loadOzarkSave(disk, geometry);
+    assert.equal(interrupted.blocked, false, interrupted.error);
+    assertWitnessInquiriesReopen(state.agents, interruptedRaw.agents,
+      interrupted.state.agents, portion);
+    assert.equal(interrupted.state.agents[0].discovery.inquiries[0].retired, true);
+    assert.equal(interrupted.state.agents[1].discovery.inquiries[0].retired, false);
+    assert.deepEqual(interrupted.state.agents.map(n => n.active), [null, null],
+      'No pending inspection authority resumes after reopening');
+    assert.ok(interrupted.state.agents[0].memory.experience.some(event =>
+      event.details?.result?.code === 'RESTART_INTERRUPTED'));
+    assert.deepEqual(interrupted.state.agents.map(n => n.discovery.experiments), [[], []],
+      'The witnessed player swallow never becomes a personal food result');
+  } finally {
+    player.dispose();
+    population.dispose();
+  }
 });
 
 test('feature and extension mismatch, malformed nutrition, and body divergence protect bytes', () => {

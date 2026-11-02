@@ -51,6 +51,7 @@ test('player food native preparation generates an isolated actual-input close/re
     assert.match(runner, /inquiry\.attempts\.length,0/);
     assert.match(runner, /No duplicate swallow, holding or pending action after reopening/);
     assert.match(runner, /assertDurableFoodReopen\(checkpoint\.final\.environment\.ecology,/);
+    assert.match(runner, /assertWitnessInquiriesReopen\(checkpoint\.final\.agents,/);
     assert.match(runner, /captureWithReadiness\(\{/);
     assert.match(await readFile('scripts/verify-player-food-desktop.mjs', 'utf8'), /profile-evidence/);
     const acted = runner.split('async function actPhase(win) {')[1]?.split('async function reopenPhase(win) {')[0];
