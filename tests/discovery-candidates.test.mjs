@@ -17,6 +17,22 @@ import { restoreNativeActor, restorationFor } from './fixtures/discovery-candida
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'utf8');
+const foodRunSeams = JSON.parse(readFileSync(new URL('./fixtures/discovery-candidates-food-run-seams.json', import.meta.url), 'utf8'));
+let sourceWithoutFoodObserver = source;
+for (const { before, after } of foodRunSeams.slice().reverse()) {
+  assert.equal(sourceWithoutFoodObserver.split(after).length - 1, 1,
+    'each food-run observer seam occurs exactly once');
+  sourceWithoutFoodObserver = sourceWithoutFoodObserver.replace(after, before);
+}
+let restoredFoodObserver = sourceWithoutFoodObserver;
+for (const { before, after } of foodRunSeams) {
+  assert.equal(restoredFoodObserver.split(before).length - 1, 1,
+    'each food-run observer seam restores exactly once');
+  restoredFoodObserver = restoredFoodObserver.replace(before, after);
+}
+assert.equal(restoredFoodObserver, source, 'only declared food-run observer seams are removed');
+assert.equal(sha(sourceWithoutFoodObserver), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7',
+  'exact pre-food-run controller bytes');
 // Paired instrumentation regression rebased onto the approved renewable/sharing
 // controller (a841114). This compares current behavior with/without capture,
 // not equivalence to historical f5f13c3e. Its previous normalized pin was
@@ -44,9 +60,9 @@ const source = readFileSync(new URL('../src/controller.js', import.meta.url), 'u
 // The neutral hand-motion action remains in BOTH controller arms. This pin
 // removes only candidate-capture instrumentation, so its current policy and
 // private motor-session lifecycle are still compared exactly.
-assert.equal(source.split('disposeDiscoveryCandidateCapture(this);').length-1,1,
+assert.equal(sourceWithoutFoodObserver.split('disposeDiscoveryCandidateCapture(this);').length-1,1,
   'The candidate-capture disposal seam must occur exactly once');
-const baselineSource = source
+const baselineSource = sourceWithoutFoodObserver
   .replace(/^import \{ setDiscoveryCandidateCapture, takeDiscoveryCandidateSnapshot, disposeDiscoveryCandidateCapture, captureDiscoveryCandidates \} from '\.\/discovery-candidates\.js';\n/m, '')
   .replace(/^  setDiscoveryCandidateCapture\(enabled\)\{setDiscoveryCandidateCapture\(this,enabled\);\}\n/m, '')
   .replace(/^  takeDiscoveryCandidateSnapshot\(\)\{return takeDiscoveryCandidateSnapshot\(this\);\}\n/m, '')

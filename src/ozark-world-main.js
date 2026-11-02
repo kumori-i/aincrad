@@ -9,6 +9,7 @@ import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
 import { createNpcPanel } from './npc-panel.js';
 import { survivalDecisionSnapshot } from './survival-decision-observer.js';
+import { foodRunSnapshot } from './food-run-observer.js';
 import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { SimulationClock } from './simulation-clock.js';
@@ -572,7 +573,7 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
       if(location.search!=='?test=1')return null;
       const measurement=communicationLearning?.measurementSnapshot();
       if(!measurement)return null;
-      return {...measurement,survival:state.agents.map(actor=>{
+      return {...measurement,foodRuns:state.agents.map(actor=>({agentId:actor.id,...foodRunSnapshot(actor)})),survival:state.agents.map(actor=>{
         const summary=survivalDecisionSnapshot(actor);
         return {agentId:actor.id,counters:summary.counters,gateCounts:summary.gateCounts,
           recordsRetained:summary.records.length,decisionActive:summary.active,

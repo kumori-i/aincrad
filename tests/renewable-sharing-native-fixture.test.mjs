@@ -41,6 +41,20 @@ test('native fixture exercises real renewal and paid transfer, roundtrips their 
   const { materialId, senderId, receiverId } = summary.transfer;
   const sender = loaded.state.agents.find(row => row.id === senderId);
   const receiver = loaded.state.agents.find(row => row.id === receiverId);
+  const feedback = summary.transfer.foodFeedback;
+  assert.equal(feedback.ingestionId, summary.transfer.sampled.ingestionId);
+  assert.equal(feedback.independentMeals, 1);
+  assert.equal(feedback.pendingCleared, true);
+  assert.equal(sender.discovery.samplesPending[materialId], undefined);
+  assert.ok(sender.discovery.experiments.some(row => row.id === feedback.pullExperimentId &&
+    row.actionId === summary.transfer.acquired.eventId && row.materialId === materialId));
+  assert.ok(sender.discovery.experiments.some(row => row.id === feedback.sampleExperimentId &&
+    row.actionId === summary.transfer.sampled.eventId && row.ingestionId === feedback.ingestionId));
+  assert.ok(sender.discovery.effects.some(row => row.id === feedback.effectId && row.effect === 'sustained' &&
+    row.actionId === summary.transfer.sampled.eventId && row.ingestionId === feedback.ingestionId));
+  assert.ok(sender.discovery.techniques.some(row => row.id === feedback.techniqueId &&
+    row.confidence === feedback.confidence && row.successes === feedback.successes &&
+    row.evidence.includes(feedback.pullExperimentId) && row.evidence.includes(feedback.sampleExperimentId)));
   assert.equal(loaded.state.environment.ecology.materials.find(row => row.id === materialId).heldBy, receiverId);
   assert.equal(sender.inventory.items.includes(materialId), false);
   assert.equal(receiver.inventory.items.includes(materialId), true);

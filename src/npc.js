@@ -1,4 +1,5 @@
 import { fundNpcEffort, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
+import { noteFoodRunPaid, finishFoodRunAction } from './food-run-observer.js';
 import { motorStalled, resetMotorWindow, recordMotorTrail, finishMotorEvidence, takeRecoveryRoute, markRecovery, isRecovery, recoverySafe } from './movement-recovery.js';
 import { CONFIG, NPC_RULES, NPC_PRESETS, BODY_RULES, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
 import { canStand, moveActor, distance, clamp } from './world.js';
@@ -65,6 +66,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
     if(ozarkPersistentWorldAgent(npc))result.movement.traversal=active.swimSeconds>0?'swimming':active.climbSeconds>0?'climbing':active.passiveDriftSeconds>0&&forward<3?'adrift':active.waterSeconds>0?'wading':'walking';
   }
   if(active?.startScene)startScene=active.startScene;
+  finishFoodRunAction(npc,active,request,result);
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
   finishMotorEvidence(npc,active,event);
   npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
@@ -464,6 +466,7 @@ function tickDiscoveryNpc(npc,dt,environment){
         (seconds,effort)=>fundNpcEffort(npc,seconds,effort).paidSeconds);
       integrated=duration;waterSeconds+=motion.waterSeconds||0;
       const paid=Number.isFinite(motion.paidSeconds)?motion.paidSeconds:0;
+      if(npc.active===active&&paid>0)noteFoodRunPaid(npc,active,paid);
       moved=motion.distance;
       const signedProgress=((motion.inputDx||0)*dx+(motion.inputDy||0)*dy)/d;
       forward=Math.max(0,signedProgress);
@@ -479,6 +482,7 @@ function tickDiscoveryNpc(npc,dt,environment){
     finishPassive();
   }else{
     const paid=fundNpcEffort(npc,duration,1).paidSeconds;
+    if(npc.active===active&&paid>0)noteFoodRunPaid(npc,active,paid);
     moved=moveActor(npc.position,dx,dy,paid,false,npc.scene);
     forward=moved;
   }

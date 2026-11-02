@@ -11,6 +11,7 @@ import {initialReferenceRandomStates} from '../src/visual-reference-random.js';
 import {createOzarkState} from '../src/ozark-save.js';
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {attachVisualReferenceLearning} from '../src/visual-reference-attachment.js';
+import {foodRunSnapshot} from '../src/food-run-observer.js';
 
 test('character-message native preparation is isolated, sandbox-preserving and never claims native execution',async()=>{
   const output=await mkdtemp(join(tmpdir(),'visual-reference-harness-contract-'));let passed=false;
@@ -51,18 +52,20 @@ test('character-message native preparation is isolated, sandbox-preserving and n
     }
     const score=()=>({model:{brier:.25,logLoss:.69},prior:{brier:.36,logLoss:.91},
       persistence:{brier:.81,logLoss:2.3}});
+    const freshState=createOzarkState(createOzarkWorldGeometry(),{communicationSeed:211});
     const publicMeasurement={actors:[0,1].map(()=>({gesturePrediction:{scores:score(),
-      scoresByTarget:{pose:score(),absent:score()}}})),survival:[{},{}]};
+      scoresByTarget:{pose:score(),absent:score()}}})),survival:[{},{}],
+      foodRuns:freshState.agents.map(actor=>({agentId:actor.id,...foodRunSnapshot(actor)}))};
     const originalMeasurement=JSON.stringify(publicMeasurement);
     assert.doesNotThrow(()=>sandbox.measurementPrivacyAssert(publicMeasurement,'fresh'),
       'Generated native walker accepts only documented public predictor score totals');
     assert.equal(JSON.stringify(publicMeasurement),originalMeasurement,
       'Privacy inspection must be read-only');
-    const freshState=createOzarkState(createOzarkWorldGeometry(),{communicationSeed:211});
     const learning=attachVisualReferenceLearning({state:freshState,protocol:'sequence',
       pixelSensor:{capture(){throw Error('Privacy inspection must not capture pixels');}}});
     try{
-      const realMeasurement=learning.measurementSnapshot();
+      const realMeasurement={...learning.measurementSnapshot(),
+        foodRuns:freshState.agents.map(actor=>({agentId:actor.id,...foodRunSnapshot(actor)}))};
       assert.equal(realMeasurement.actors[0].gesturePrediction.scores.model.brier,0);
       assert.doesNotThrow(()=>sandbox.measurementPrivacyAssert(realMeasurement,'actual-fresh'),
         'The generated privacy walker accepts the actual untrained main-world snapshot');
@@ -71,6 +74,7 @@ test('character-message native preparation is isolated, sandbox-preserving and n
       value=>{value.model={weights:[1]};},
       value=>{value.actors[0].character={model:{weights:[1]}};},
       value=>{value.survival[0].model={brier:0,logLoss:0};},
+      value=>{value.foodRuns[0].stages.travel.targetId='object:1';},
       value=>{value.actors[0].gesturePrediction.extra={model:{brier:0,logLoss:0}};},
       value=>{value.actors[0].gesturePrediction.scores.model.weights=[1];},
       value=>{value.actors[0].gesturePrediction.scores.model.bias=1;},

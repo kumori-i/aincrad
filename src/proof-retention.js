@@ -2,6 +2,7 @@ import { extractionOriginError, ownExtractionOrigins } from './food-source-cauti
 import { matchingFinishedMaterial } from './discovery-completion.js';
 import { retireHandlingInquiries } from './handling-inquiry.js';
 import { retireInquiries } from './observational-inquiry-state.js';
+import { endFoodRun } from './food-run-observer.js';
 import { matchingResultObject } from './discovery-result-object.js';
 import { CAVES, NPC_RULES } from './config.js';
 import { BIOLOGY_PROFILES, BIOLOGY_RULES } from './biology-config.js';
@@ -654,7 +655,10 @@ export function applyProofRetention(npc, plan) {
   retireInquiries(npc.discovery);
   retireHandlingInquiries(npc);
   if (nextTrials) { npc.discovery.trials = nextTrials; npc.discovery.practice = nextPractice; }
-  if (npc.discovery.run && !kept.techniques.some(t => t.id === npc.discovery.run.techniqueId)) npc.discovery.run = null;
+  if (npc.discovery.run && !kept.techniques.some(t => t.id === npc.discovery.run.techniqueId)) {
+    endFoodRun(npc, npc.discovery.run, 'proof-retired');
+    npc.discovery.run = null;
+  }
   originalPlans.delete(plan);
   return true;
 }

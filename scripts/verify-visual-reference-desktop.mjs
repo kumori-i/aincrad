@@ -133,6 +133,23 @@ function installRunner(context,helpers){
     assert.equal(result.identityPendingReconciliation,false);
     assert.equal(result.actors?.length,2);
     assert.equal(result.survival?.length,2);
+    assert.equal(result.foodRuns?.length,2,label+' exposes two session-only food-run observers');
+    for(const row of result.foodRuns){
+      assert.equal(row.version,1);
+      assert.deepEqual(Object.keys(row.stages),['travel','acquisition','sample']);
+      assert.equal(typeof row.pending?.active,'number');
+      assert.equal(typeof row.sessionLosses,'number');
+      assert.equal(typeof row.saturated,'boolean');
+    }
+    if(label==='fresh')for(const row of result.foodRuns){
+      assert.equal(row.pending.active,0);
+      assert.equal(row.pending.selected,0);
+      assert.equal(row.sessionLosses,0);
+      assert.equal(Object.values(row.runEnds).every(value=>value===0),true);
+      const zero=value=>value&&typeof value==='object'?
+        Object.values(value).every(zero):value===0;
+      assert.equal(zero(row.stages),true);
+    }
     assertPublicMeasurementPrivacy(result,label);
     measurementChecks.push({phase,label,counts:{...result.counts},eventsRetained:result.eventsRetained,
       eventsEvicted:result.eventsEvicted,eventsRetired:result.eventsRetired});

@@ -53,8 +53,23 @@ export async function createRenewableSharingFixture(moduleBase) {
   const acquired = finish(sender, {type:'pull',targetId:source.id});
   const sampled = finish(sender, {type:'sample',targetId:acquired.materialId});
   advance(90);
-  require(sender.discovery.effects.some(row => row.objectId === acquired.materialId && row.effect === 'sustained'),
-    'Sender must earn exact-object delayed feedback before offering');
+  const pullRecord = sender.discovery.experiments.find(row => row.primitive === 'pull' && row.ok &&
+    row.actionId === acquired.eventId && row.targetId === source.id && row.materialId === acquired.materialId);
+  const sampleRecord = sender.discovery.experiments.find(row => row.primitive === 'sample' && row.ok &&
+    row.actionId === sampled.eventId && row.targetId === acquired.materialId && row.ingestionId === sampled.ingestionId);
+  const sustained = sender.discovery.effects.filter(row => row.objectId === acquired.materialId &&
+    row.effect === 'sustained' && row.actionId === sampled.eventId && row.ingestionId === sampled.ingestionId);
+  const technique = sender.discovery.techniques.find(row => row.sourceId === source.id &&
+    row.steps[0]?.type === 'pull' && row.steps[1]?.type === 'sample' &&
+    row.evidence.includes(pullRecord?.id) && row.evidence.includes(sampleRecord?.id));
+  require(pullRecord && sampleRecord && sustained.length === 1 && technique?.confidence === 'tentative' &&
+    technique.successes === 1 && sender.stats.independentMeals === 1 &&
+    sender.discovery.samplesPending[acquired.materialId] === undefined,
+    'One real paid sample must earn exactly linked delayed source knowledge and clear its own pending wait');
+  const foodFeedback = {pullExperimentId:pullRecord.id,sampleExperimentId:sampleRecord.id,
+    ingestionId:sampled.ingestionId,effectId:sustained[0].id,techniqueId:technique.id,
+    confidence:technique.confidence,successes:technique.successes,independentMeals:sender.stats.independentMeals,
+    pendingCleared:true};
   const material = ecology.materials.find(row => row.id === acquired.materialId);
   require(material?.heldBy === sender.id && material.massGrams > 0, 'Sender must hold finite remainder');
   const social = new SocialCoordinator({communicationMode:'grounded',getAgents:()=>state.agents,getCommunity:()=>state.community,getEnvironment:()=>environment});
@@ -109,7 +124,7 @@ export async function createRenewableSharingFixture(moduleBase) {
     aquatic:{initial:initialAquatic.ledger,final:structuredClone(ecology.aquatic.ledger),
       initialFish:initialAquatic.fish.length,finalFish:ecology.aquatic.fish.length,audit},
     pendingConsent:{offerId:pendingOffer.offerId,materialId:material.id,senderId:receiver.id,receiverId:sender.id},
-    transfer:{senderId:sender.id,receiverId:receiver.id,materialId:material.id,acquired,sampled,
+    transfer:{senderId:sender.id,receiverId:receiver.id,materialId:material.id,acquired,sampled,foodFeedback,
       offer,acceptance,result:structuredClone(receiver.lastResult),before,
       after:transferAfter},
     fixtureDisclosure:'Manual local encounter placement; real shared-clock feeding, paid acquisition, sampling, delayed sender feedback, voluntary offer and timed recipient grasp. No autonomous travel, request policy, survival, multi-day growth or reproduction claim. Growth/reproduction are tested separately.'
