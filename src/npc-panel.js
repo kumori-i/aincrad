@@ -205,7 +205,7 @@ export function renderGroundedNames(parent, npc, agents = []) {
   if (rows.length > 8) add(parent, 'p', `Showing 8 of ${rows.length} retained names. Other names and conflicts remain in memory.`, 'small');
   if (npc.lexicon?.saturated) add(parent, 'p', 'New naming memory is full; reference checks unavailable.', 'small');
 }
-export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCommunity,selectAgent,renderer,getEnvironment,save,notify,getLearning=()=>null,getLearningError=()=>'',onClose=()=>{}}){
+export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCommunity,selectAgent,renderer,getEnvironment,save,notify,getLearning=()=>null,getLearningError=()=>'',getPlayerLessons=()=>null,getPlayerLessonLineage=()=>null,getPlayerLessonEvaluation=()=>null,onClose=()=>{}}){
   const panel=$('npc-panel'),bridge=window.aincradAgent;
   const grounded=getRuntime().communicationMode==='grounded';
   if(grounded){$('journal-form').classList.add('hidden');$('journal-pending').classList.add('hidden');$('npc-model-explanation').closest('details').classList.add('hidden');$('journal-conversation').querySelector('.eyebrow').textContent='CHARACTER MESSAGES';$('journal-conversation').querySelector('p').textContent='Exact emitted letter strings, paid recipient actions, and own-view learning appear here. Models and bounded examples can persist for each individual; event history is session-only. English annotations are for you, not messages sent to agents.';}
@@ -242,7 +242,7 @@ export function createNpcPanel({getNpc,getAgents,getController,getRuntime,getCom
   function updateConversation(){
     if(grounded){
       $('journal-unread').textContent='';
-      if(visible&&tab==='conversation'){try{renderLearningView($('journal-messages'),getLearning()?.snapshot(),getNpc().id,getLearningError(),getRuntime().social.foodSharing?.gestures?.()||[],survivalDecisionSnapshot(getNpc()));}catch{renderLearningView($('journal-messages'),null,getNpc().id,'Observer refresh failed.',[],survivalDecisionSnapshot(getNpc()));}}
+      if(visible&&tab==='conversation'){try{const lessonLineage=getPlayerLessonLineage();renderLearningView($('journal-messages'),getLearning()?.snapshot(),getNpc().id,getLearningError(),getRuntime().social.foodSharing?.gestures?.()||[],survivalDecisionSnapshot(getNpc()),getPlayerLessons(),lessonLineage,getPlayerLessonEvaluation(lessonLineage));}catch{renderLearningView($('journal-messages'),null,getNpc().id,'Observer refresh failed.',[],survivalDecisionSnapshot(getNpc()));}}
       const notes=$('npc-field-notes');notes.replaceChildren();add(notes,'p','Archived field notes are inert historical records; they are not read by agents.','small');
       for(const message of (getCommunity().messages||[]).slice(-40)){const entry=add(notes,'article','','journal-entry');entry.dataset.sender=message.senderId;add(entry,'p',message.text);add(entry,'p','Archived English message · inert; not a current agent utterance','small');}
       for(const note of (getCommunity().notes||[]).slice(-20).reverse()){const node=add(notes,'article','','field-note');add(node,'h3',note.title);add(node,'p',note.text);}

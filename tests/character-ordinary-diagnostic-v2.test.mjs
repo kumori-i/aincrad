@@ -52,7 +52,21 @@ test('v2 has distinct once-only identity and unchanged v1 physical and evidence 
     '.github/workflows/character-ordinary-pilot-once.yml',
   ]){
     const historical=execFileSync('git',['show','HEAD:'+path],{cwd:root});
-    assert.deepEqual(await readFile(new URL('../'+path,import.meta.url)),historical,path);
+    const current=await readFile(new URL('../'+path,import.meta.url));
+    if(path==='scripts/character-ordinary-pilot-protocol.mjs'){
+      // A current-main fresh-world guard must recognize the new player-lesson
+      // bank. Its exact six-marker contract is tested separately; the frozen
+      // v1 source/ref and the rest of this physical/evidence protocol are not
+      // changed by that compatibility guard.
+      const outsideGuard=bytes=>{
+        const source=bytes.toString('utf8');
+        const start=source.indexOf('export function guardFreshCharacterPilot(expected){');
+        const end=source.indexOf('export async function projectCharacterPilot(){',start);
+        assert.ok(start>=0&&end>start,'The current-source guard boundaries are explicit');
+        return source.slice(0,start)+source.slice(end);
+      };
+      assert.equal(outsideGuard(current),outsideGuard(historical),path);
+    }else assert.deepEqual(current,historical,path);
   }
 });
 

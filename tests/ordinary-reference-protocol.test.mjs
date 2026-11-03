@@ -63,7 +63,7 @@ async function mockedObserver({stopBeforeReady=false,unexpectedPause=false,disco
   const prefs={nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true};
   // The frozen observer contract stays unchanged, while this test's route
   // mock represents the current app and must pass its current feature guard.
-  const q={snapshot:()=>({elapsed,started,paused,blocked:false,version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1}}),referenceFixtureState:()=>null,start(){startCalls++;started=true;paused=false;return true;},pause(){pauseCalls++;paused=true;}};
+  const q={snapshot:()=>({elapsed,started,paused,blocked:false,version:12,features:{plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1,playerLessons:1}}),referenceFixtureState:()=>null,start(){startCalls++;started=true;paused=false;return true;},pause(){pauseCalls++;paused=true;}};
   const renderer={window:{__ozarkWorld:q,location:{href:'aincrad://app/index.html?test=1'}},document:{getElementById:id=>id==='simulation-speed'?{value:'1'}:null},Date,Number,Boolean};
   contents.getLastWebPreferences=()=>prefs;contents.executeJavaScript=async source=>{
     if(source.includes('projectOrdinaryReference'))return snapshot(elapsed);

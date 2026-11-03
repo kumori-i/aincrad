@@ -49,7 +49,9 @@ test('authentic paid v1 save migrates in memory without rewriting old bytes or e
   assert.equal(disk.getItem(OZARK_SAVE_KEY),archived,'Every occupied v1 byte survives load');
   assert.equal(migrated.state.worldLineage.version,2);
   assert.deepEqual(migrated.state.features,
-    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1});
+    {plantLifecycle:1,finiteAquatic:2,worldStructures:1,characterMessages:2,playerFood:1,playerLessons:1});
+  assert.deepEqual(migrated.state.playerLessons.agents.map(row=>row.examples),[[],[]],
+    'Historical symbol anchors never become player word lessons');
   assert.deepEqual(migrated.state.playerFood.inventory.items,[],
     'The historical save predates avatar food ownership');
   assert.equal(migrated.state.playerFood.physiology.health,old.playerBody.health);
@@ -75,6 +77,7 @@ test('authentic paid v1 save migrates in memory without rewriting old bytes or e
   assert.deepEqual({...stored.worldLineage,version:1},old.worldLineage);
   assert.deepEqual(stored.visualReference,old.visualReference);
   assert.deepEqual(stored.characterMessages,migrated.state.characterMessages);
+  assert.deepEqual(stored.playerLessons,migrated.state.playerLessons);
   const reopened=loadOzarkSave(disk,geometry);
   assert.equal(reopened.blocked,false,reopened.error);
   assert.deepEqual(reopened.state.characterMessages,migrated.state.characterMessages);

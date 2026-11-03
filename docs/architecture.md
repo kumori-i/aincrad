@@ -144,6 +144,41 @@ and [sender feedback](visual-reference/SENDER-FEEDBACK.md). Sparse ordinary
 exchanges establish no stable vocabulary, composition, generalization or
 survival improvement.
 
+## Player Say and point lessons
+
+`player-lesson-action.js` admits one avatar-owned, target-bound point toward an
+object the player can currently see. It pays 1.8 seconds of 0.25-effort work
+through ordinary player physiology and draws the same public indication segment
+used by the local gesture parser. The target identity is actuator bookkeeping,
+not a model label. Each recipient must personally see consecutive funded pose
+samples and uniquely resolve the point against its complete own visible set.
+At completion, `communication-pixels.js` reacquires that recipient's fresh
+actual Canvas crop. Occlusion, ambiguous geometry, identity change, incomplete
+work or missing pixels censor that individual's example. Pending action authority
+is session-only and cancelled on movement, interruption, disposal or reopening.
+
+`player-lesson-bank.js` stores only the literal one-to-six-letter lowercase
+word and a 48-number own-view crop, at most 64 completed examples per actual
+individual. It does not receive the target ID, English meaning, food result,
+another actor's pixels or character-message reward. A nearest-example
+prediction requires at least two distinct words and abstains on distance or a
+small runner gap; its prequential prediction is computed before the new example
+is added and grants no action authority. The bank is independent of the
+character sender/listener models and food inquiry. New saves require an exact
+`features.playerLessons:1` marker and strictly shaped, world- and
+incarnation-bound rows. Older valid current-world feature formats gain an
+empty bank in memory, without converting archival associations or writing at
+load. Only completed examples persist; pending points and observations do not.
+`player-lesson-evaluation.js` keeps bounded, session-only counts of pre-update
+known-label guesses, abstentions and frozen uniform-choice expectation. These
+observer counts are not saved or used by any policy, and do not measure held-out
+generalization.
+
+This is an authored sensory and motor teaching bridge, not a pretrained
+interpreter, assigned dictionary, learned request convention or evidence of
+category transfer. Typed input is local; microphone capture, transcription and
+cloud services are absent. See [player teaching](PLAYER-TEACHING.md).
+
 ## Observation-driven inquiry
 
 A runtime-only consumption transport admits actual accepted bites/samples, not feeding activity labels or post-hoc reconstruction. Event-time perception gates a bounded separate inquiry ledger. A sequential generic experiment scaffold can influence ordinary action selection, while outcomes and delayed feedback remain linked to the observer's own canonical receipts. Rendering only projects that state. This is an initial observation-to-experiment cycle, not learned pursuit, broad causal reasoning, parallel deliberation or human cognition. See [the scope and evidence boundaries](OBSERVATIONAL-LEARNING.md).

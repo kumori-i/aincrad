@@ -58,7 +58,7 @@ export function renderSurvivalObserver(parent, snapshot, restoreFocus = false) {
   if(focused)view.summary.focus({preventScroll:true});
 }
 
-export function renderLearningView(parent, snapshot, agentId, error = '', gestures = [], survival = null) {
+export function renderLearningView(parent, snapshot, agentId, error = '', gestures = [], survival = null, playerLessons = null, playerLessonLineage = null, playerLessonEvaluation = null) {
   const document = parent.ownerDocument || globalThis.document;
   const add = (into, tag, text, className = '') => { const e=document.createElement(tag);e.textContent=text;e.className=className;into.append(e);return e; };
   const scrollTop=parent.scrollTop||0;
@@ -74,6 +74,27 @@ export function renderLearningView(parent, snapshot, agentId, error = '', gestur
     'Bodies, survival memories, private character models and bounded own-view examples save locally per individual. Legacy symbol associations remain archival. Fresh or reset worlds and replacement individuals begin untrained. Events in this view are session-only.':
     'Bodies, survival memories and private visual associations save locally per individual. Those associations can be used after app reopen; fresh or reset worlds and replacement individuals start empty. Events in this view are session-only.','small');
   renderSurvivalObserver(parent,survival,restoreSurvivalFocus);
+  add(parent,'h3','Player word examples (separate from character messages)');
+  const currentSerial=playerLessonLineage?.agents?.find(row=>row.agentId===agentId)?.serial;
+  const playerRow=playerLessons?.version===1 &&
+    playerLessons.worldId===playerLessonLineage?.instanceId &&
+    Number.isSafeInteger(currentSerial) && Array.isArray(playerLessons.agents)?
+    playerLessons.agents.find(row=>row.agentId===agentId&&row.serial===currentSerial):null;
+  const playerExamples=Array.isArray(playerRow?.examples)?playerRow.examples:[];
+  add(parent,'p',`${count(playerExamples.length)} retained personally seen image examples. Your typed letters are shown exactly; they are not English definitions, food advice, or Aster–Mira sender rewards. A gesture may finish with no usable witness.`,'small');
+  const playerWords=new Map();
+  for(const row of playerExamples)if(typeof row?.word==='string'&&/^[a-z]{1,6}$/.test(row.word))
+    playerWords.set(row.word,(playerWords.get(row.word)||0)+1);
+  for(const [word,examples]of [...playerWords].slice(0,8)){
+    const shown=add(parent,'p',`${word} · ${count(examples)} own-image example${examples===1?'':'s'}`,'learning-symbols');
+    shown.dataset.playerLessonWord=word;
+  }
+  if(!playerWords.size)add(parent,'p','No completed player word lesson for this individual yet.','small');
+  const score=playerLessonEvaluation?.sessionOnly===true &&
+    playerLessonEvaluation.agents?.find(row=>row.agentId===agentId&&
+      row.serial===currentSerial);
+  if(score)add(parent,'p',`This session, ${count(score.completedExamples)} completed own-image examples; ${count(score.comparable)} prior-known word comparisons, ${count(score.predicted)} guesses, ${count(score.correct)} correct, ${count(score.abstained)} abstentions. Frozen uniform-choice expectation: ${Number.isFinite(score.uniformChanceSum)?score.uniformChanceSum.toFixed(2):'—'} correct on comparable examples${score.saturated?' · counts saturated':''}. Training stream only; no held-out score.`, 'small');
+  add(parent,'p','A nearest-crop guess needs at least two different learned strings and can abstain. Distinct-instance accuracy and general meaning are unproven in ordinary play.','small');
   if(!snapshot){parent.scrollTop=scrollTop;add(parent,'p',`Communication learning unavailable. ${String(error).slice(0,160)}`,'small');return;}
   add(parent,'p',`${count(snapshot.elapsed)} simulation seconds · same main-world clock`,'small');
   const associations=snapshot.phase==='private-visual-association';

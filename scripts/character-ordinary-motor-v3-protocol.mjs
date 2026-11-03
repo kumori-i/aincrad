@@ -38,10 +38,10 @@ export function guardFreshCharacterMotorPilot(expected){
       Number(document.getElementById('simulation-speed')?.value)!==1)
     fail('nonfresh or nonordinary clock');
   const features=s.features;
-  if(!features||Reflect.ownKeys(features).length!==5||
+  if(!features||Reflect.ownKeys(features).length!==6||
       features.plantLifecycle!==1||features.finiteAquatic!==2||
       features.worldStructures!==1||features.characterMessages!==2||
-      features.playerFood!==1)
+      features.playerFood!==1||features.playerLessons!==1)
     fail('current feature marker');
   if(w.geometryIdentity!==expected.geometryIdentity||w.environment?.seed!==expected.worldSeed||
       w.visualReference?.seed!==expected.communicationSeed||
@@ -68,6 +68,9 @@ export function guardFreshCharacterMotorPilot(expected){
       !Array.isArray(reference.learners)||reference.learners.length!==2||
       !Array.isArray(w.visualReference?.learners)||w.visualReference.learners.length!==2||
       !Array.isArray(w.characterMessages?.learners)||w.characterMessages.learners.length!==2||
+      w.playerLessons?.version!==1||Reflect.ownKeys(w.playerLessons).length!==3||
+      w.playerLessons.worldId!==lineage.instanceId||
+      !Array.isArray(w.playerLessons.agents)||w.playerLessons.agents.length!==2||
       lineage?.nextSerial!==3||lineage.agents?.length!==2)fail('fresh individual count');
   const zeroScores=score=>score&&['model','prior','persistence'].every(key=>
     score[key]?.brier===0&&score[key]?.logLoss===0);
@@ -75,6 +78,7 @@ export function guardFreshCharacterMotorPilot(expected){
     const id=ids[index],partner=ids[1-index],serial=index+1,
       actor=w.agents[index],measured=m.actors[index],legacy=reference.learners[index],
       savedLegacy=w.visualReference.learners[index],savedCharacter=w.characterMessages.learners[index],
+      savedPlayerLesson=w.playerLessons.agents[index],
       savedPartner=savedCharacter?.partners?.[0],bank=measured?.character?.partnerBanks?.[0],
       hand=measured?.freeHandObserver,memory=measured?.gestureMemory,
       predictor=measured?.gesturePrediction;
@@ -86,6 +90,9 @@ export function guardFreshCharacterMotorPilot(expected){
         savedLegacy.anchors?.length!==0||savedLegacy.partners?.length!==0||
         Object.values(legacy.counts||{}).some(value=>value!==0)||
         savedCharacter?.agentId!==id||savedCharacter.serial!==serial||
+        savedPlayerLesson?.agentId!==id||Reflect.ownKeys(savedPlayerLesson).length!==3||
+        savedPlayerLesson.serial!==serial||!Array.isArray(savedPlayerLesson.examples)||
+        savedPlayerLesson.examples.length!==0||
         savedCharacter.sender?.emissions!==0||savedCharacter.sender?.updates!==0||
         savedCharacter.sender?.revision!==0||savedCharacter.sender?.baseline!==0||
         savedCharacter.partners?.length!==1||savedPartner.agentId!==partner||

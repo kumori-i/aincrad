@@ -58,6 +58,8 @@ test('fresh food state is bounded, independent, and reset by a new world', () =>
 
 test('complete historical four-feature save migrates only in memory and retains learner evidence', () => {
   const {disk, raw} = savedWorld();
+  delete raw.features.playerLessons;
+  delete raw.playerLessons;
   delete raw.features.playerFood;
   delete raw.playerFood;
   const previous = JSON.stringify(raw);
@@ -67,6 +69,8 @@ test('complete historical four-feature save migrates only in memory and retains 
   assert.equal(opened.exists, true);
   assert.equal(disk.getItem(OZARK_SAVE_KEY), previous, 'load never writes occupied bytes');
   assert.equal(opened.state.features.playerFood, 1);
+  assert.equal(opened.state.features.playerLessons, 1);
+  assert.deepEqual(opened.state.playerLessons.agents.map(row => row.examples), [[], []]);
   assert.deepEqual(opened.state.playerFood.inventory.items, []);
   assert.equal(opened.state.playerFood.physiology.health, raw.playerBody.health);
   assert.equal(opened.state.playerFood.physiology.stamina, raw.playerBody.stamina);
@@ -75,6 +79,8 @@ test('complete historical four-feature save migrates only in memory and retains 
   assert.equal(writeOzarkSave(disk, opened.state, geometry), true);
   const current = JSON.parse(disk.getItem(OZARK_SAVE_KEY));
   assert.equal(current.features.playerFood, 1);
+  assert.equal(current.features.playerLessons, 1);
+  assert.deepEqual(current.playerLessons, opened.state.playerLessons);
   assert.deepEqual(current.playerFood, opened.state.playerFood);
   for (const field of ['worldLineage', 'visualReference', 'characterMessages'])
     assert.deepEqual(current[field], raw[field]);

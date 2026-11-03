@@ -35,6 +35,11 @@ test('player food native preparation generates an isolated actual-input close/re
     const runner = await readFile(prepared.harness, 'utf8');
     assert.match(runner, /getLastWebPreferences\(\)/);
     assert.match(runner, /assert\.equal\(prefs\.sandbox,true\)/);
+    assert.match(runner, /characterMessages:2,playerFood:1,playerLessons:1/);
+    assert.match(runner, /await assertFreshLessonBank\(win\)/);
+    assert.match(runner, /bank\.worldId,lineage\.instanceId/);
+    assert.match(runner, /bank\.agents\[i\]\.serial,lineage\.agents\[i\]\.serial/);
+    assert.match(runner, /Food-only native exercise must not grant or restore typed word lessons/);
     assert.match(runner, /sendInputEvent\(\{type:'mouseDown'/);
     assert.match(runner, /sendInputEvent\(\{type:'mouseUp'/);
     assert.match(runner, /player-food-gather/);

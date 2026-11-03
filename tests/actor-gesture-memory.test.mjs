@@ -393,7 +393,7 @@ test('hostile observer copies and repeated reads cannot change action, RNG or le
   const comparison=createOzarkState(geometry,{communicationSeed:211});
   const predictorDisabled=createOzarkState(geometry,{communicationSeed:211});
   for(const state of [comparison,predictorDisabled])
-    for(const key of ['worldLineage','visualReference','characterMessages'])
+    for(const key of ['worldLineage','visualReference','characterMessages','playerLessons'])
       state[key]=structuredClone(original[key]);
   const a=fixture({state:original}),b=fixture({enabled:false,state:comparison}),
     c=fixture({predictionEnabled:false,state:predictorDisabled}),all=[a,b,c];

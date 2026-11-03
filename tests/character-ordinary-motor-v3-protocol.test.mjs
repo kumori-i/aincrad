@@ -38,7 +38,7 @@ function source(){
   });
   fresh={world:clone(state),measurement:{...learning.measurementSnapshot(),survival},
     reference:learning.snapshot()};
-  // Current-source native checks use the current five-feature start. The
+  // Current-source native checks use the current six-feature start. The
   // completed v3 run remains pinned to its original source and receipt.
   learning.dispose();
   return fresh;
@@ -88,7 +88,12 @@ test('self-contained renderer guard requires an untrained zero motor and predict
   for(const change of [
     s=>{delete s.world.features.playerFood;},
     s=>{s.world.features.playerFood=2;},
+    s=>{delete s.world.features.playerLessons;},
+    s=>{s.world.features.playerLessons=2;},
     s=>{s.world.features.unapproved=1;},
+    s=>{s.world.playerLessons.agents[0].serial=9;},
+    s=>{s.world.playerLessons.agents[0].futureAuthority=true;},
+    s=>{s.world.playerLessons.agents[1].examples.push({word:'xyz',features:Array(48).fill(.5)});},
     s=>{s.measurement.actors[0].freeHandObserver.decisionChecks=1;},
     s=>{s.measurement.actors[0].freeHandObserver.nextEligibleAt=0;},
     s=>{s.measurement.actors[1].freeHandObserver.sampleCounts.absent=1;},

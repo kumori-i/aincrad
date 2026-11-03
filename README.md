@@ -148,6 +148,24 @@ ecology: gather a reachable apple or berry, eat a paid sample, and drop the
 remainder. An agent must actually see the eating, then reach and test the
 same remaining piece with its own body to learn anything. No demonstration
 grants a technique or makes the agent obey the player.
+
+The player can also type one to six lowercase `a`–`z` letters, select a
+currently visible object and use **Say and point** in the **Your hands** panel.
+Stay still during the 1.8-second paid point. Aster and Mira can each retain a
+tentative link between the literal letters and a fresh crop rendered from
+their **own** clear view. Each individual must continuously see a uniquely
+resolvable point; an occluded, ambiguous or interrupted point adds no example
+for that individual. Their private banks hold at most 64 completed examples
+each. The **Learning** tab shows these player-word examples separately from
+character messages and legacy associations. The words do not supply food
+knowledge, an English definition or a command. See [player teaching](docs/PLAYER-TEACHING.md).
+
+The bank can make a conservative image-to-word prediction after hearing at
+least two distinct raw words, but it abstains when the new image is distant or
+the alternatives are too similar. A prediction made before an example is
+added is diagnostic, not an action or reward. No broad vocabulary, category
+transfer or useful ordinary-world comprehension has been established.
+
 A bounded [own-failure-led handling inquiry](docs/HANDLING-CURIOSITY.md) can compare
 a failed grasp with a personally successful pull on another currently similar
 source. It does not automatically sample or infer safety.
@@ -160,10 +178,11 @@ uses actual failed walking and recent personal travel, without guaranteeing esca
 Food sharing uses supplied nonverbal requests, offers and consent. A real timed
 handoff still requires a visible held item, locality, capacity, voluntary acceptance
 and a paid grasp. No message grants nutrition or firsthand knowledge. The
-**Learning** tab separates these motor gestures from actual character-message events
-and English observer/debug narration. There is no English agent conversation or
-active human instruction entry in the main world. Ollama is not needed for the
-current offline survival or character-message channel.
+**Learning** tab separates these motor gestures, player-word examples, actual
+character-message events and English observer/debug narration. Typed player
+letters are local visual examples, not English agent conversation or human
+instructions. Ollama is not needed for the current offline survival or
+character-message channel.
 
 ### Historical communication mechanisms — disabled in the main world
 
@@ -190,6 +209,7 @@ generalization have been established.
 | --- | --- |
 | WASD / arrows | Move the player avatar |
 | Gather / Eat sample / Drop rest | Work with visible, reachable fruit in the Your hands panel |
+| Say and point | Type 1–6 lowercase letters, choose a visible object, then stay still for the paid point |
 | Shift | Run while moving |
 | Space / G while moving | Attempt swimming / climbing |
 | Mouse wheel / + / − | World-camera zoom |

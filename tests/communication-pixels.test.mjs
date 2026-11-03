@@ -43,3 +43,61 @@ test('held crop uses the same visual projection only after personal acquisition'
   const material=state.environment.ecology.materials.find(m=>m.id===id);assert.equal(material.heldBy,n.id,'rendering must preserve ownership');
   material.heldBy='other';assert.equal(sensor.capture(n,state).has(id),false);sensor.dispose();
 });
+
+test('public lesson crop rechecks current recipient sight without inventing an observation',()=>{
+  const {n,plant,state}=fixture(),drawn=[];
+  const sensor=createCommunicationPixelSensor(documentFixture(),
+    {draw:(g,sprite)=>drawn.push(sprite.id)});
+  try{
+    const prior=sensor.capture(n,state).get(plant.id);
+    assert.ok(prior);
+    n.elapsed=state.elapsed=2;
+    assert.equal(sensor.capture(n,state).has(plant.id),false,
+      'Ordinary candidate capture still requires its recent discovery record');
+    const fresh=sensor.captureVisible(n,state,plant.id);
+    assert.ok(fresh,'Current own sight can render a personally visible object');
+    assert.deepEqual(fresh.pixels,prior.pixels);
+    assert.deepEqual(fresh.features,prior.features);
+    assert.equal(fresh.at,2);
+    assert.equal(fresh.observedAt,2);
+    assert.ok(drawn.includes(plant.id));
+    assert.equal(sensor.captureVisible(n,state,'object:invalid'),null);
+    plant.heldBy='player';
+    assert.equal(sensor.captureVisible(n,state,plant.id),null,
+      'Another actor holding a piece removes it from this view');
+    delete plant.heldBy;
+    const original={...plant.position};
+    plant.position={x:n.position.x+10000,y:n.position.y};
+    assert.equal(sensor.captureVisible(n,state,plant.id),null);
+    plant.position=original;
+    n.lifecycle='COLLAPSED';
+    assert.equal(sensor.captureVisible(n,state,plant.id),null);
+  }finally{sensor.dispose();}
+  n.lifecycle='AWAKE';
+  assert.equal(sensor.captureVisible(n,state,plant.id),null,'Disposed sensor has no authority');
+});
+
+test('missing rendered pixels and incomplete local object inventory censor lesson crops',()=>{
+  const {n,plant,state}=fixture();
+  const empty=documentFixture();
+  empty.createElement=()=>{
+    const canvas={width:0,height:0};
+    canvas.getContext=()=>({setTransform(){},clearRect(){},fillRect(){},drawImage(){},
+      getImageData(x,y,w,h){return {data:new Uint8ClampedArray(w*h*4)};}});
+    return canvas;
+  };
+  const sensor=createCommunicationPixelSensor(empty,{draw(){}});
+  try{
+    assert.equal(sensor.captureVisible(n,state,plant.id),null,
+      'No rendered alpha means there is no visual crop');
+  }finally{sensor.dispose();}
+  const opaque=createCommunicationPixelSensor(documentFixture(),{draw(){}});
+  try{
+    const ecology=state.environment.ecology;
+    const extras=Array.from({length:96},(_,index)=>({...plant,
+      id:`object:${900000+index}`,position:{...plant.position}}));
+    ecology.plants.push(...extras);
+    assert.equal(opaque.captureVisible(n,state,plant.id),null,
+      'An exact-cap local object set is incomplete, never a unique referent');
+  }finally{opaque.dispose();}
+});

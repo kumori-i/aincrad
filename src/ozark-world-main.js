@@ -3,7 +3,7 @@
 import { CONFIG } from './config.js';
 import { clockTime } from './world.js';
 import { createOzarkWorldGeometry } from './ozark-world-geometry.js';
-import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure, OZARK_SAVE_KEY } from './ozark-save.js';
+import { loadOzarkSave, writeOzarkSave, getOzarkSaveFailure, getOzarkSaveValidationFailure, OZARK_SAVE_KEY } from './ozark-save.js';
 import { bindOzarkWorldAgent } from './ozark-agent-world.js';
 import { OzarkWorldRenderer } from './ozark-world-renderer.js';
 import { PopulationRuntime } from './population.js';
@@ -14,6 +14,11 @@ import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { tickPhysiology } from './biology.js';
 import { createPlayerFoodController } from './player-food.js';
+import { createPlayerLessonController } from './player-lesson-action.js';
+import { reconcilePlayerLessonOptions } from './player-lesson-options.js';
+import { learnPlayerLesson, reconcilePlayerLessons } from './player-lesson-bank.js';
+import { createPlayerLessonEvaluation, reconcilePlayerLessonEvaluation,
+  recordPlayerLessonEvaluation, playerLessonEvaluationSnapshot } from './player-lesson-evaluation.js';
 import { SimulationClock } from './simulation-clock.js';
 import { installWorldReset } from './world-reset-ui.js';
 import { installCommunicationInspector } from './communication-inspector.js';
@@ -52,12 +57,18 @@ let npcPanel = null;
 let communicationInspector = null;
 let communicationLearning = null;
 let playerFoodController = null;
+let playerLessonController = null;
+let playerLessonEvaluation = null;
 const referenceSaveGate=createVisualReferenceSaveGate();
 let communicationError = '';
 // Capture completed personal learning before disposal can censor in-flight
 // actions. If current memory cannot be validated, no ordinary save may replace
 // the last good bytes with a blank or older learner checkpoint.
 function stopCommunication() {
+  // Both channels share one Canvas sensor. Retiring the character learner
+  // disposes it, so the player cannot start a point with a dead sensor.
+  playerLessonController?.dispose();
+  playerLessonController = null;
   const previous = communicationLearning;
   communicationLearning = null;
   referenceSaveGate.retire(previous);
@@ -114,12 +125,42 @@ function cancelPlayerFood(reason) {
   if(result && !result.ok)text('player-food-status', 'Food action stopped. Time and effort already spent remain spent.');
   return result;
 }
+function cancelPlayerLesson(reason) {
+  const result=playerLessonController?.cancel(reason);
+  if(result && !result.ok)text('player-lesson-status',
+    'The point stopped. Time and effort already spent remain spent; no word association was added.');
+  return result;
+}
+function currentLessonLineage() {
+  const exportResult=referenceSaveGate.current(communicationLearning);
+  return exportResult.ok ? exportResult.persistence.worldLineage : null;
+}
+function commitPlayerLessons(records) {
+  const lineage=currentLessonLineage();
+  if(!lineage||!Array.isArray(records))throw new Error('Player lesson lineage is unavailable');
+  let bank=reconcilePlayerLessons(state.playerLessons,lineage);
+  let scores=reconcilePlayerLessonEvaluation(playerLessonEvaluation,lineage);
+  for(const record of records){
+    const learned=learnPlayerLesson(bank,record);
+    bank=learned.bank;
+    scores=recordPlayerLessonEvaluation(scores,{agentId:record.agentId,
+      serial:record.serial,prequential:learned.prequential});
+  }
+  // One completed gesture commits all personally observed examples together.
+  state.playerLessons=bank;
+  playerLessonEvaluation=scores;
+}
 function save(explicit = false, referenceCheckpoint = false) {
   if(referenceFixtureOwner&&!referenceCheckpoint)return false;
   if (resetHeld || resetRetired || loaded.blocked || !state) return false;
   const reference=referenceSaveGate.current(communicationLearning);
-  const ok=reference.ok&&writeOzarkSave(storage,state,geometry,{referencePersistence:reference.persistence});
-  const failure=ok?'':!reference.ok?
+  let lessonReady=false;
+  if(reference.ok)try{
+    state.playerLessons=reconcilePlayerLessons(state.playerLessons,reference.persistence.worldLineage);
+    lessonReady=true;
+  }catch{/* The occupied bytes stay protected by the ordinary save gate. */}
+  const ok=reference.ok&&lessonReady&&writeOzarkSave(storage,state,geometry,{referencePersistence:reference.persistence});
+  const failure=ok?'':!reference.ok||!lessonReady?
     'Saving is blocked because current visual learning could not be safely exported. Your previous saved bytes remain protected.':
     saveFailureMessage(getOzarkSaveFailure(state));
   text('save-status', ok ? 'Ozark world saved locally' : failure);
@@ -177,8 +218,19 @@ if (loaded.blocked) {
     performed: (...args) => communicate('performed', ...args),
   } });
   playerFoodController = createPlayerFoodController(state, geometry);
+  if (communicationLearning && sensor) {
+    try {
+      playerLessonEvaluation=createPlayerLessonEvaluation(currentLessonLineage());
+      playerLessonController = createPlayerLessonController({state,geometry,pixelSensor:sensor,
+        getLineage:currentLessonLineage,onLessons:commitPlayerLessons});
+    } catch {
+      playerLessonController = null;
+      notify('Player word lessons are unavailable; ordinary survival continues.', 12);
+    }
+  }
 }
 renderer = new OzarkWorldRenderer($('world'), geometry);
+renderer.playerIndication = () => playerLessonController?.publicPose() ?? null;
 try {
   await renderer.prepareAtlas();
 } catch (error) {
@@ -197,6 +249,12 @@ if (population) {
     getController: () => population.controller(selectedAgent().id),
     getRuntime: () => population, getCommunity: () => state.community,
     getLearning: () => communicationLearning, getLearningError: () => communicationError,
+    getPlayerLessons: () => state.playerLessons,
+    getPlayerLessonLineage: currentLessonLineage,
+    getPlayerLessonEvaluation: lineage => {
+      return lineage && playerLessonEvaluation ? playerLessonEvaluationSnapshot(
+        reconcilePlayerLessonEvaluation(playerLessonEvaluation,lineage)) : null;
+    },
     onClose: () => { if(paused && !resetHeld && !resetRetired) show('pause-panel'); },
     selectAgent: id => {
       if (!population.getAgent(id)) return;
@@ -215,6 +273,7 @@ function begin() {
   keys.clear(); $('world').focus({ preventScroll: true });
   clock.reset(performance.now() / 1000);
   updatePlayerFoodControls();
+  updatePlayerLessonControls();
   if (!loaded.exists) notify('Aster and Mira begin exploring. Press N to inspect their observations and character messages.');
   return true;
 }
@@ -225,6 +284,7 @@ function closePanel() {
 function openPanel(name) {
   if (!started || loaded.blocked) return;
   cancelPlayerFood('panel');
+  cancelPlayerLesson('panel');
   closePanel(); panel = name; show(name + '-panel');
   if (name === 'map') updateAtlas();
   $(name + '-panel').querySelector('button')?.focus();
@@ -232,7 +292,7 @@ function openPanel(name) {
 function togglePanel(name) { if (panel === name) closePanel(); else openPanel(name); }
 function setPause(value) {
   if (!started || resetHeld || resetRetired) return;
-  if(value)cancelPlayerFood('pause');
+  if(value){cancelPlayerFood('pause');cancelPlayerLesson('pause');}
   paused = value; keys.clear(); anim.moving = false;
   clock.reset(performance.now() / 1000);
   if (value) { closePanel(); show('pause-panel'); $('resume').focus(); }
@@ -243,9 +303,9 @@ function updateAtlas() {
   const status = renderer.atlasStatus();
   text('atlas-zoom-label', `${status.zoom.toFixed(1)}×`);
 }
-function foodControlsAvailable() {
+function foodControlsAvailable(requireFocus = true) {
   return started && !paused && !panel && !resetHeld && !resetRetired && !loaded.blocked &&
-    windowFocused && !referenceFixtureOwner && $('npc-panel').classList.contains('hidden');
+    (!requireFocus || windowFocused) && !referenceFixtureOwner && $('npc-panel').classList.contains('hidden');
 }
 function updatePlayerFoodControls() {
   const usable=foodControlsAvailable() && !!playerFoodController;
@@ -253,19 +313,22 @@ function updatePlayerFoodControls() {
   const options=usable?playerFoodController.visibleOptions():[];
   const free=options.find(row=>!row.held && row.actions.some(action=>action==='pull'||action==='grasp'));
   const held=options.find(row=>row.held);
-  const busy=!!snapshot?.active;
+  const foodBusy=!!snapshot?.active;
+  const lessonBusy=!!playerLessonController?.snapshot().active;
+  const busy=foodBusy||lessonBusy;
   $('player-food-gather').disabled=!usable||busy||!free;
   $('player-food-taste').disabled=!usable||busy||!held?.actions.includes('sample');
   $('player-food-drop').disabled=!usable||busy||!held?.actions.includes('release');
   const visibleName=row=>title(row?.appearance?.details || row?.appearance?.shape || 'fruit');
-  text('player-food-nearby',busy?
+  text('player-food-nearby',foodBusy?
     `Working with ${title(snapshot.active.type)} · ${Math.max(0, snapshot.active.seconds-snapshot.active.worked).toFixed(1)} s left`:
+    lessonBusy?'Pointing at a visible object. Food actions can resume afterward.':
     held?`Holding ${visibleName(held)}. Eat a sample or drop the rest.`:
     free?`${visibleName(free)} within reach. Gather it to taste.`:
     'No visible fruit within reach. Walk near an apple tree or ripe bramble.');
 }
 function startPlayerFood(kind) {
-  if(!foodControlsAvailable()||!playerFoodController)return;
+  if(!foodControlsAvailable()||!playerFoodController||playerLessonController?.snapshot().active)return;
   const options=playerFoodController.visibleOptions();
   const option=kind==='gather'?
     options.find(row=>!row.held && row.actions.some(action=>action==='pull'||action==='grasp')):
@@ -278,12 +341,42 @@ function startPlayerFood(kind) {
     `Started ${type}. Stay in place until the paid action finishes.`:
     'That action is no longer available from your current view.');
   updatePlayerFoodControls();
+  updatePlayerLessonControls();
+}
+function updatePlayerLessonControls() {
+  const usable=foodControlsAvailable() && !!playerLessonController;
+  const active=playerLessonController?.snapshot().active;
+  const foodBusy=!!playerFoodController?.snapshot().active;
+  // View contents are independent of action availability. Native select menus
+  // can transiently transfer window focus; that must not erase their options.
+  const options=playerLessonController?.visibleOptions() ?? [];
+  const picker=$('player-lesson-target');
+  reconcilePlayerLessonOptions(picker,options);
+  const word=$('player-lesson-word');
+  const validWord=/^[a-z]{1,6}$/.test(word.value);
+  word.disabled=!usable||!!active||foodBusy;
+  // Focus gates starting paid work, not the native menu's own lifetime.
+  picker.disabled=!foodControlsAvailable(false)||!playerLessonController||!!active||foodBusy||!options.length;
+  $('player-lesson-say').disabled=!usable||!!active||foodBusy||!validWord||!picker.value;
+  if(active)text('player-lesson-status',
+    `Saying and pointing · ${Math.max(0,active.seconds-active.worked).toFixed(1)} s of paid work left. Stay in place.`);
+}
+function startPlayerLesson() {
+  if(!foodControlsAvailable()||!playerLessonController||playerFoodController?.snapshot().active)return;
+  const word=$('player-lesson-word').value,targetId=$('player-lesson-target').value;
+  if(!/^[a-z]{1,6}$/.test(word)||!targetId){updatePlayerLessonControls();return;}
+  const result=playerLessonController.start(word,targetId);
+  text('player-lesson-status',result.ok?
+    `Started a paid point for “${word}”. Stay in place until it finishes.`:
+    'That word or source is no longer available from your current view.');
+  updatePlayerLessonControls();updatePlayerFoodControls();
 }
 
 function advancePlayer(dt, dx, dy, mode, sprint = false) {
   const acting = Boolean(dx || dy);
-  if(acting)cancelPlayerFood('movement');
+  if(acting){cancelPlayerFood('movement');cancelPlayerLesson('movement');}
   const foodWorking=!!playerFoodController?.snapshot().active;
+  const lessonWorking=!!playerLessonController?.snapshot().active;
   const start = { ...state.player };
   const motion = geometry.advance(state.player, dx, dy, dt, sprint, mode);
   const body = state.playerBody;
@@ -291,7 +384,7 @@ function advancePlayer(dt, dx, dy, mode, sprint = false) {
   body.wetness = clamp(body.wetness + wet * 18 - (dt - wet) * 2, 0, 100);
   body.effort = clamp(body.effort + motion.effortSeconds * .065 - dt * .025, 0, 1);
   body.stamina = clamp(body.stamina - motion.effortSeconds * 2.4 +
-    (!acting && !foodWorking ? dt * 1.2 : 0), 0, 100);
+    (!acting && !foodWorking && !lessonWorking ? dt * 1.2 : 0), 0, 100);
   if (motion.fallRiskSeconds > 0) body.health = clamp(body.health -
     motion.fallRiskSeconds * 8, 0, 100);
   if (motion.swimSeconds > 0 && body.stamina < 1)
@@ -319,7 +412,17 @@ function advancePlayer(dt, dx, dy, mode, sprint = false) {
       'The fruit is now in your hand.':
       'Food action ended without completing.');
   }
+  const lessonPaid=playerLessonController?.tickPaid(dt);
   population.tick(dt);
+  const lessonResult=playerLessonController?.observePaidStep();
+  for(const result of [lessonPaid,lessonResult])if(typeof result?.ok==='boolean')
+    text('player-lesson-status',result.ok?
+      result.code==='POINT_COMPLETED_LESSON_REJECTED'?
+        'The paid point ended, but its image examples could not be safely retained. No association was added.':
+      result.recipients>0?
+        `The paid point ended. ${result.recipients} character${result.recipients===1?'':'s'} made a tentative own-image link to “${result.word}”.`:
+        'The paid point ended, but no character had a complete clear view and fresh image. No association was added.':
+      'The point stopped before completion. Time and effort already spent remain spent; no association was added.');
   // Ecology can expire a held portion during the same tick. Its NPC-only
   // cleanup does not own the avatar's hand; retire stale hand IDs before a
   // current save could mistake ordinary decay for malformed ownership.
@@ -396,6 +499,7 @@ function updateHud(now) {
   if (waypoint) text('waypoint-hud',
     `Waypoint · ${Math.round(Math.hypot(waypoint.x - viewed.x, waypoint.y - viewed.y))} world units direct`);
   updatePlayerFoodControls();
+  updatePlayerLessonControls();
 }
 function frame(now) {
   if (resetRetired) return;
@@ -435,7 +539,7 @@ communicationInspector = installCommunicationInspector({
   canOpen: () => started && paused && !loaded.blocked && !resetHeld && !resetRetired,
   openLearning: () => { hide('pause-panel'); npcPanel?.openLearning(); },
   closeLearning: () => npcPanel?.close(), learningVisible: () => !!npcPanel?.isVisible(),
-  onEnter: () => { cancelPlayerFood('inspector'); keys.clear(); anim.moving = false; },
+  onEnter: () => { cancelPlayerFood('inspector'); cancelPlayerLesson('inspector'); keys.clear(); anim.moving = false; },
   onExit: () => { keys.clear(); },
 });
 
@@ -444,6 +548,7 @@ installWorldReset({
   freeze: () => {
     if (started) setPause(true);
     cancelPlayerFood('reset');
+    cancelPlayerLesson('reset');
     npcPanel?.close();
     resetHeld = true; keys.clear(); anim.moving = false;
   },
@@ -451,6 +556,7 @@ installWorldReset({
   retire: () => {
     resetRetired = true; started = false; paused = true; keys.clear();
     playerFoodController?.dispose();
+    playerLessonController?.dispose();
     clearInterval(simulationTimer); communicationInspector?.dispose(); communicationLearning?.dispose(); population?.dispose();
   },
   reload: () => window.aincradWorldSave?.reloadCurrentWorld
@@ -467,10 +573,16 @@ $('save-button').addEventListener('click', () => save(true));
 // The journal owns its bubble-phase click handlers. Retire physical work in
 // capture phase before either control can open an overlay.
 for(const id of ['open-npc','npc-short'])
-  $(id).addEventListener('click',()=>cancelPlayerFood('journal'),{capture:true});
+  $(id).addEventListener('click',()=>{cancelPlayerFood('journal');cancelPlayerLesson('journal');},{capture:true});
 $('player-food-gather').addEventListener('click',()=>startPlayerFood('gather'));
 $('player-food-taste').addEventListener('click',()=>startPlayerFood('taste'));
 $('player-food-drop').addEventListener('click',()=>startPlayerFood('drop'));
+$('player-lesson-word').addEventListener('input',updatePlayerLessonControls);
+$('player-lesson-target').addEventListener('change',updatePlayerLessonControls);
+$('player-lesson-say').addEventListener('click',startPlayerLesson);
+$('player-lesson-word').addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&!event.repeat){event.preventDefault();startPlayerLesson();}
+});
 $('simulation-speed').addEventListener('change', event => {
   const speed = Number(event.target.value);
   if ([1, 4, 16, 60].includes(speed)) {
@@ -487,7 +599,7 @@ window.addEventListener('keydown', event => {
   }
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
   if (event.code === 'KeyN') {
-    event.preventDefault(); cancelPlayerFood('journal'); keys.clear(); npcPanel?.toggle(); return;
+    event.preventDefault(); cancelPlayerFood('journal'); cancelPlayerLesson('journal'); keys.clear(); npcPanel?.toggle(); return;
   }
   if (event.code === 'KeyM') {
     event.preventDefault(); if (!event.repeat) togglePanel('map'); return;
@@ -506,15 +618,15 @@ window.addEventListener('keydown', event => {
 });
 window.addEventListener('keyup', event => keys.delete(event.code));
 function clearInput() { keys.clear(); anim.moving = false; }
-window.addEventListener('blur', () => { windowFocused = false; cancelPlayerFood('blur'); clearInput(); });
+window.addEventListener('blur', () => { windowFocused = false; cancelPlayerFood('blur'); cancelPlayerLesson('blur'); clearInput(); });
 window.addEventListener('focus', () => { windowFocused = true; clearInput(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) {cancelPlayerFood('hidden');clearInput();} });
+document.addEventListener('visibilitychange', () => { if (document.hidden) {cancelPlayerFood('hidden');cancelPlayerLesson('hidden');clearInput();} });
 window.aincradAgent?.onWindowActive?.(active => {
-  windowFocused = active; if(!active)cancelPlayerFood('window-inactive'); clearInput();
+  windowFocused = active; if(!active){cancelPlayerFood('window-inactive');cancelPlayerLesson('window-inactive');} clearInput();
 });
 window.addEventListener('resize', () => renderer.resize());
-window.addEventListener('pagehide', () => { cancelPlayerFood('pagehide'); if (started) save(); });
-window.addEventListener('beforeunload', () => { cancelPlayerFood('beforeunload'); if (started) save(); });
+window.addEventListener('pagehide', () => { cancelPlayerFood('pagehide'); cancelPlayerLesson('pagehide'); if (started) save(); });
+window.addEventListener('beforeunload', () => { cancelPlayerFood('beforeunload'); cancelPlayerLesson('beforeunload'); if (started) save(); });
 
 const atlas = $('atlas-map');
 function atlasPoint(event) {
@@ -569,6 +681,7 @@ for (const id of ['you', 'aster', 'mira'])
 if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
   window.__ozarkWorld = Object.freeze({
     start: begin, pause: () => setPause(true), save: () => save(true),
+    saveFailure: () => ({code:getOzarkSaveFailure(state),validation:getOzarkSaveValidationFailure(state)}),
     // The reviewed native engineering harness supplies this installer directly;
     // no provider, saved data, message or agent action can enter this test route.
     referenceFixture: async (install, options={}) => {
@@ -645,6 +758,7 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
     playerFoodSnapshot: () => playerFoodController?.snapshot() ?? null,
+    playerLessonSnapshot: () => playerLessonController?.snapshot() ?? null,
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
     // Test-only yes/no lifecycle probe. It exposes no partner rows, targets,
     // poses, or learner inputs, and never creates a new observation.
