@@ -288,3 +288,140 @@ test('preprepared paid capture has no renderer IPC or readiness sleep before cap
   assert.equal(result.paidPoseWitness.before,before);
   assert.equal(result.ui.status,'paid');
 });
+
+// Exercise the extracted native editing driver; this models ordinary text
+// editing semantics, not successful OS dispatch or actual desktop execution.
+async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuckTyping=false,
+  trustedKeys=true,trustedTyping=true}={}) {
+  const {createContext,runInContext}=await import('node:vm');
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const driver=source.slice(source.indexOf('async function trustedTypeWord('),
+    source.indexOf('async function targetDiagnostic('));
+  assert.doesNotMatch(driver,/selectAll|modifiers:|\.value\s*=(?!=)|\.select\(|setSelectionRange|dispatchEvent/);
+  const handlers=[],inputs=[],diagnostics=[];
+  const input={id:'player-lesson-word',value,selectionStart:caret,selectionEnd:caret,
+    addEventListener(type,listener,options){handlers.push({type,listener,signal:options?.signal});}};
+  const document={activeElement:null,getElementById:id=>id==='player-lesson-word'?input:null};
+  const emit=(type,properties={})=>{
+    for(const row of handlers)if(row.type===type&&!row.signal?.aborted)
+      row.listener({type,isTrusted:['keydown','keyup'].includes(type)?trustedKeys:
+        properties.inputType==='insertText'?trustedTyping:true,...properties});
+  };
+  function edit(inputType,letter='') {
+    emit('beforeinput',{inputType});
+    const before=input.value;
+    let start=input.selectionStart,end=input.selectionEnd;
+    if(start===end&&inputType==='deleteContentBackward')start=Math.max(0,start-1);
+    if(start===end&&inputType==='deleteContentForward')end=Math.min(input.value.length,end+1);
+    if(inputType==='insertText') {
+      if(stuckTyping)return;
+      letter=letter.slice(0,6-(input.value.length-(end-start)));
+    } else if(stuckDelete)return;
+    input.value=input.value.slice(0,start)+letter+input.value.slice(end);
+    input.selectionStart=input.selectionEnd=start+letter.length;
+    if(input.value!==before)emit('input',{inputType});
+  }
+  const win={webContents:{sendInputEvent(event){
+    inputs.push(event);
+    if(event.type==='keyDown'){
+      emit('keydown',{key:event.keyCode});
+      if(event.keyCode==='Backspace')edit('deleteContentBackward');
+      else if(event.keyCode==='Delete')edit('deleteContentForward');
+    }else if(event.type==='keyUp')emit('keyup',{key:event.keyCode});
+    else if(event.type==='char')edit('insertText',event.keyCode);
+  }}};
+  const context=createContext({assert,document,window:{},AbortController,
+    phase:'act',context:{output:'/isolated'},path:{join:(...parts)=>parts.join('/')},
+    fs:{appendFile:async(file,bytes)=>{assert.equal(file,'/isolated/act-word-input.jsonl');
+      diagnostics.push(JSON.parse(bytes.slice(0,bytes.lastIndexOf('}')+1)));}},
+    clickButton:async(_win,id)=>{assert.equal(id,'player-lesson-word');document.activeElement=input;},
+  });
+  context.evaluate=async(_win,expression)=>runInContext(expression,context);
+  runInContext(driver+';this.typeWord=trustedTypeWord;',context);
+  return {input,inputs,diagnostics,type:word=>context.typeWord(win,word)};
+}
+
+test('trusted word editing clears both sides of start/middle/end carets and types all six characters',async()=>{
+  for(const caret of [0,3,6]){
+    const fixture=await wordEditingFixture({caret});
+    await fixture.type('uvwxyz');
+    assert.equal(fixture.input.value,'uvwxyz');
+    assert.equal(fixture.inputs.filter(row=>row.type==='keyDown').length,12);
+    assert.deepEqual(fixture.inputs.filter(row=>row.type==='keyDown').map(row=>row.keyCode),
+      Array.from({length:6},()=>['Backspace','Delete']).flat());
+    assert.deepEqual(fixture.inputs.filter(row=>row.type==='char').map(row=>row.keyCode),Array.from('uvwxyz'));
+    assert.deepEqual(fixture.diagnostics.map(row=>row.stage),['cleared','typed']);
+    const [cleared,typed]=fixture.diagnostics;
+    assert.equal(cleared.before.start,caret);assert.equal(cleared.before.end,caret);
+    assert.equal(cleared.before.value,'abcdef');assert.equal(cleared.after.value,'');
+    assert.equal(typed.after.value,'uvwxyz');assert.equal(typed.after.focused,true);
+    assert.ok(typed.after.events.some(row=>row.type==='input'&&row.inputType==='insertText'&&row.trusted));
+    assert.ok(typed.after.events.some(row=>row.type==='keydown'&&row.key==='Delete'&&row.trusted));
+    assert.ok(typed.after.events.length<=96);
+    // A later request starts from existing text; aborted listeners cannot append
+    // duplicate rows or restore the previous word's diagnostic buffer.
+    fixture.input.selectionStart=fixture.input.selectionEnd=2;
+    await fixture.type('tomi');
+    assert.equal(fixture.input.value,'tomi');
+    assert.equal(fixture.diagnostics.at(-1).after.events.filter(row=>row.type==='input'&&row.inputType==='insertText').length,4);
+  }
+});
+
+test('trusted word editing rejects stuck deletion before typing and records stuck typed input',async()=>{
+  const deletion=await wordEditingFixture({caret:3,stuckDelete:true});
+  await assert.rejects(deletion.type('tomi'),/Trusted deletion must empty/);
+  assert.equal(deletion.inputs.some(row=>row.type==='char'),false);
+  assert.equal(deletion.diagnostics.length,1);
+  assert.equal(deletion.diagnostics[0].after.value,'abcdef');
+  const typing=await wordEditingFixture({caret:0,stuckTyping:true});
+  await assert.rejects(typing.type('tomi'),/Actual native input must contain/);
+  assert.deepEqual(typing.diagnostics.map(row=>row.stage),['cleared','typed']);
+  assert.equal(typing.diagnostics[1].after.value,'');
+});
+
+test('trusted word editing refuses a correct field value without trusted native event evidence',async()=>{
+  const deletion=await wordEditingFixture({caret:3,trustedKeys:false});
+  await assert.rejects(deletion.type('tomi'),/Deletion must arrive as a real trusted native key/);
+  assert.equal(deletion.input.value,'');
+  assert.equal(deletion.inputs.some(row=>row.type==='char'),false);
+  const typing=await wordEditingFixture({value:'',trustedTyping:false});
+  await assert.rejects(typing.type('tomi'),/Typed word must arrive through trusted native input/);
+  assert.equal(typing.input.value,'tomi','A matching value is insufficient without the actual trusted event');
+  assert.equal(typing.diagnostics.at(-1).stage,'typed');
+});
+
+test('close checkpoint uses trusted pause and retained pending bytes; read purity is checked in one renderer turn',async()=>{
+  const {runInNewContext}=await import('node:vm');
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const act=source.slice(source.indexOf('async function actPhase('),source.indexOf('async function reopenPhase('));
+  assert.match(act,/const pendingSave=await evaluate/);
+  assert.match(act,/const \{pending,raw:pendingRaw,pauseSequence\}=pendingSave/);
+  assert.match(act,/event\.key==='Escape'&&event\.trusted/);
+  assert.match(act,/pendingRaw\.includes\('tomi'\),false/);
+  assert.match(act,/sendInputEvent\(\{type:'keyDown',keyCode:'ESC'\}\)/);
+  assert.ok(act.indexOf("keyCode:'ESC'")<act.indexOf('const closeCheckpoint='));
+  assert.match(act,/assert\.equal\(closeCheckpoint\.paused,true\);assert\.equal\(closeCheckpoint\.active,null\)/);
+  assert.match(act,/const raw=closeCheckpoint\.raw/);
+  assert.match(act,/JSON\.stringify\(\{raw,pendingRaw,closeCheckpoint,authored/);
+  const reopen=source.slice(source.indexOf('async function reopenPhase('));
+  assert.match(reopen,/persistenceScope:'Mid-action save excludes pending authority; trusted Escape/);
+  assert.match(reopen,/A live pending action is not carried across native close/);
+  assert.match(reopen,/localStorage\.getItem\('aincrad\.world\.v2'\).*checkpoint\.raw/);
+  const readAssertion=reopen.slice(reopen.indexOf('  const reads=await evaluate('),
+    reopen.indexOf('  await openLessonJournal('));
+  assert.ok(readAssertion);
+  const world={elapsed:7,playerLessons:{agents:[]}};
+  let evaluations=0,reads=0;
+  const context={assert,evaluate:async(_win,expression)=>{
+    evaluations++;
+    const result=runInNewContext(expression,{window:{__ozarkWorld:{
+      fullSnapshot:()=>structuredClone(world),
+      playerLessonSnapshot:()=>{reads++;return {active:null};},
+    }}});
+    // Ordinary time may advance between IPC turns, not inside this atomic read.
+    world.elapsed++;
+    return result;
+  },win:{}};
+  await runInNewContext('(async()=>{'+readAssertion+'})()',context);
+  assert.equal(evaluations,1);assert.equal(reads,2);assert.equal(world.elapsed,8);
+});

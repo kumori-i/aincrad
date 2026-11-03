@@ -300,13 +300,39 @@ async function authorPhase(win) {
 async function trustedTypeWord(win, word) {
   await clickButton(win,'player-lesson-word');
   assert.equal(await evaluate(win,'document.activeElement?.id'),'player-lesson-word');
-  const selectAll=process.platform==='darwin'?'meta':'control';
-  win.webContents.sendInputEvent({type:'keyDown',keyCode:'A',modifiers:[selectAll]});
-  win.webContents.sendInputEvent({type:'keyUp',keyCode:'A',modifiers:[selectAll]});
-  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Backspace'});
-  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Backspace'});
+  await evaluate(win,'(() => {const input=document.getElementById("player-lesson-word");' +
+    'window.__lessonWordAbort?.abort();window.__lessonWordAbort=new AbortController();' +
+    'window.__lessonWordTrace=[];for(const type of ["keydown","keyup","beforeinput","input"])' +
+    'input.addEventListener(type,event=>{const rows=window.__lessonWordTrace;' +
+    'rows.push({type:event.type,key:event.key,inputType:event.inputType,trusted:event.isTrusted,' +
+    'value:input.value,start:input.selectionStart,end:input.selectionEnd});if(rows.length>96)rows.shift();},' +
+    '{signal:window.__lessonWordAbort.signal});})()');
+  const inspect=()=>evaluate(win,'(() => {const p=document.getElementById("player-lesson-word");return ' +
+    '{value:p.value,start:p.selectionStart,end:p.selectionEnd,focused:document.activeElement===p,' +
+    'events:window.__lessonWordTrace};})()');
+  const before=await inspect();
+  assert.ok(before.value.length<=6 && before.focused);
+  // Clicking can place the caret anywhere. Backspace AND Delete remove the
+  // visible bounded text on either side without platform select-all shortcuts.
+  for(let i=0;i<before.value.length;i++)for(const keyCode of ['Backspace','Delete']) {
+    win.webContents.sendInputEvent({type:'keyDown',keyCode});
+    win.webContents.sendInputEvent({type:'keyUp',keyCode});
+  }
+  const cleared=await inspect();
+  await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
+    JSON.stringify({word,stage:'cleared',before,after:cleared})+'\\n');
+  assert.equal(cleared.value,'','Trusted deletion must empty the real field before typing');
+  assert.equal(cleared.focused,true);
+  if(before.value.length>0)for(const key of ['Backspace','Delete'])assert.ok(
+    cleared.events.some(event=>event.type==='keydown'&&event.key===key&&event.trusted),
+    'Deletion must arrive as a real trusted native key: '+key);
   for (const letter of word)win.webContents.sendInputEvent({type:'char',keyCode:letter});
-  await waitFor(win,'document.getElementById("player-lesson-word").value===' + JSON.stringify(word));
+  const typed=await inspect();
+  await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
+    JSON.stringify({word,stage:'typed',after:typed})+'\\n');
+  assert.equal(typed.value,word,'Actual native input must contain the complete requested word');
+  assert.ok(typed.events.some(event=>event.type==='input'&&event.trusted&&event.value===word),
+    'Typed word must arrive through trusted native input');
 }
 async function targetDiagnostic(win, step) {
   const row=await evaluate(win,'(() => { const p=document.getElementById("player-lesson-target");' +
@@ -503,16 +529,36 @@ async function actPhase(win) {
   assert.deepEqual(JSON.parse(learnedRaw).playerLessons,savedBank);
   // A second paid point has no durable authority. Save while it is pending.
   await trustedLesson(win,'tomi',authored.sourceId);
-  assert.equal(await stepSeconds(win,.1),true);
-  const pending=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
+  const pendingSave=await evaluate(win,'(() => {const w=window.__ozarkWorld;' +
+    'const stepped='+fixedStepExpression(.1)+';const pending=w.playerLessonSnapshot().active;' +
+    'return {stepped,pending,saved:w.save(),raw:localStorage.getItem("aincrad.world.v2"),' +
+    'pauseSequence:window.__lessonInputTrace.at(-1)?.sequence??0};})()');
+  const {pending,raw:pendingRaw,pauseSequence}=pendingSave;
+  assert.equal(pendingSave.stepped,true);assert.equal(pendingSave.saved,true);
   assert.ok(pending?.worked>0 && pending?.worked<1.8);
-  assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true);
-  const raw=await evaluate(win,"localStorage.getItem('aincrad.world.v2')");
-  assert.deepEqual(JSON.parse(raw).playerLessons,savedBank,
+  assert.deepEqual(JSON.parse(pendingRaw).playerLessons,savedBank,
     'An incomplete point persists no lesson or pending authority');
-  assert.equal(JSON.stringify(raw).includes('tomi'),false,'Pending word is absent from saved bytes');
+  assert.equal(pendingRaw.includes('tomi'),false,'Pending word is absent from saved bytes');
+  // A running checkpoint is not the final close save: beforeunload saves again.
+  // Use the real pause control to cancel pending authority and stabilize time.
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESC'});
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESC'});
+  await waitFor(win,'window.__ozarkWorld.snapshot().paused');
+  const closeCheckpoint=await evaluate(win,'(() => {const w=window.__ozarkWorld;' +
+    'return {paused:w.snapshot().paused,active:w.playerLessonSnapshot().active,saved:w.save(),' +
+    'raw:localStorage.getItem("aincrad.world.v2"),world:w.fullSnapshot(),events:window.__lessonInputTrace};})()');
+  assert.ok(closeCheckpoint.events.some(event=>event.sequence>pauseSequence&&event.type==='keydown'&&
+    event.key==='Escape'&&event.trusted),'Pause must follow a real trusted Escape key');
+  assert.equal(closeCheckpoint.paused,true);assert.equal(closeCheckpoint.active,null);
+  assert.equal(closeCheckpoint.saved,true);
+  const raw=closeCheckpoint.raw;
+  assert.deepEqual(JSON.parse(raw).playerLessons,savedBank);
+  assert.equal(raw.includes('tomi'),false);
+  await delay(200);
+  assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),closeCheckpoint.world,
+    'The real pause keeps the final close checkpoint stable');
   await session.defaultSession.flushStorageData();
-  await fs.writeFile(path.join(context.output,'act-checkpoint.json'),JSON.stringify({raw,authored,
+  await fs.writeFile(path.join(context.output,'act-checkpoint.json'),JSON.stringify({raw,pendingRaw,closeCheckpoint,authored,
     savedBank,learnedRaw,poseImage,journalImage,paidSeconds:pending.worked},null,2));
 }
 async function reopenPhase(win) {
@@ -523,13 +569,12 @@ async function reopenPhase(win) {
     'Completed own-image example resumes exactly; pending second point does not');
   assert.equal(await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active'),null);
   assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),true);
-  const before=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
-  const afterRead=await evaluate(win,'(() => {const a=window.__ozarkWorld.playerLessonSnapshot();' +
-    'const b=window.__ozarkWorld.playerLessonSnapshot();try{a.active={word:"forged"}}catch{}' +
-    'return b;})()');
-  assert.equal(afterRead.active,null);
-  assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),before,
-    'Repeated lesson reads cannot train or mutate the world');
+  const reads=await evaluate(win,'(() => {const w=window.__ozarkWorld,before=w.fullSnapshot();' +
+    'const a=w.playerLessonSnapshot();try{a.active={word:"forged"}}catch{}' +
+    'const b=w.playerLessonSnapshot();return {before,after:w.fullSnapshot(),active:b.active};})()');
+  assert.equal(reads.active,null);
+  assert.deepEqual(reads.after,reads.before,
+    'Repeated lesson reads in one JS turn cannot train or mutate the world');
   await openLessonJournal(win);
   const reopenedJournal=await captureJournal(win,'03-reopened-player-word-journal.png');
   assert.match(reopenedJournal.ui.text,/This session, 0 completed own-image examples/,
@@ -569,6 +614,7 @@ async function reopenPhase(win) {
     paidPoseScreenshot:{status:'pending-independent-pixel-review',file:checkpoint.poseImage.file,
       progress:checkpoint.poseImage.paidPoseWitness.progress},
     noCharacterReward:true,exactSaveReopen:true,pendingCancel:true,
+    persistenceScope:'Mid-action save excludes pending authority; trusted Escape cancels it before a stable paused normal-close checkpoint is reopened byte-for-byte. A live pending action is not carried across native close.',
     nativeFocusCancellation:true,worldContinuedUnfocused:true,
     heldoutEvaluation:JSON.parse(await fs.readFile(path.join(context.output,'heldout-evaluation.json'),'utf8')),
     screenshots:[checkpoint.poseImage,checkpoint.journalImage,reopenedJournal,screenshot],fixtureDisclosure:checkpoint.authored.fixtureDisclosure,
