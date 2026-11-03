@@ -3,11 +3,12 @@
 This follows the negative optional-motor comparison and the test-only
 [personal sensory window](OPTIONAL-SENSORY-VALUE-GATE.md). It asks whether a
 finer, source-blind body trend can honestly become an action-value target.
-The controlled cases in `tests/optional-interoception-assay.test.mjs` directly
-exercise physiology; they are **not paid food actions, ordinary trajectories,
-or a held-out performance evaluation**. The previous real paid pull/sample
-window remains separate evidence. Production selection and learning are
-unchanged, and no new model is trained.
+Most controlled cases in `tests/optional-interoception-assay.test.mjs`
+directly exercise physiology; a separate engineered case performs real paid
+pull/sample actions. None is an ordinary trajectory or held-out performance
+evaluation. The previous real paid pull/sample window remains separate
+evidence. Production selection and learning are unchanged, and no new model
+is trained.
 
 ## Candidate signals
 
@@ -57,6 +58,40 @@ pending sensory authority is saved. The preceding test-only window cancels
 when its actor is copied or reopened. Its 120-second result is descriptive
 and repeatable, not a one-use learner update.
 
+## Physical and source-blind negative controls
+
+The further controlled assay uses two actual funded `pull` then `sample`
+actions on finite apple material. The fruit's toxicity and digestion duration
+are authored only in the evaluator fixture before sampling; the actor does
+not receive those fields. Both branches pay the same action time and have no
+absorbed calories at sample completion. Over the next 120 simulation seconds,
+the harmful branch loses aggregate health and receives a private digestion
+`discomfort` record, yet all four candidate felt categories (hunger, thirst,
+energy and pain) match the safe branch at every sampled tick. Pain remains
+`none`. This demonstrates a missing *sensation*, not food safety or a failed
+paid action. The private feedback record is an existing separate learning
+path; it is not an independent bodily-sensation input.
+
+The controls also show that an unrelated physical injury can lower aggregate
+health with no intake and no pain-band crossing. Two concurrent tastes with
+opposite source assignments produce the same source-blind body categories;
+their private item-linked feedback differs. Timing and aggregate change alone
+cannot assign either effect to a particular food. At fixed tick sizes of
+0.05, 0.1, 0.2 and 0.25 seconds, internal mild harm develops while the felt
+pain band stays unchanged. Repeated reads do not mutate the actor or append a
+sensory history. A one-tick boundary flicker can be filtered by the earlier
+three-sample check, and a missing observation censors that check. No candidate
+threshold was fitted to the harmful taste; no new sensory state or learner
+memory was installed. The 120-second bound describes this assay only, not a
+guarantee that later harm will be absent.
+
+These cases cover no intake, delayed digestion, mixed exertion, non-food
+injury, a small toxic dose, tick granularity, category noise and multiple
+sources. They are engineered controls, not a new ordinary-world cohort or
+held-out proof of predictive usefulness. Internal health and per-item tags
+are assertion-only diagnostics; the existing actor-local signal is the coarse
+`bodySignals` projection.
+
 ## Decision
 
 These controls do **not** support an action-value update or production sensor
@@ -67,12 +102,18 @@ cannot become its label. No new rule, frequency or no-update value scores are
 reported because there is no defensible new value target to score. The
 earlier optional-motor Brier and physical-cost comparisons remain intact.
 
-A later candidate needs a separately reviewed actor-local sensor contract:
-freeze a pre-sample sensation through one-use paid-action authority, retain
-immediate fullness and delayed body changes as separate channels, use limited
-precision and prospectively fixed hysteresis, and test whether a source-blind
-aggregate discomfort signal can detect small cumulative harm without reading
-per-item toxicity. Even then, concurrent activity, reserve mobilization,
-environment and delayed effects require censors and descriptive wording.
-No hidden food identity, exact nutrients, evaluator control, or automatic
-credit to the most recent item may enter that contract.
+A later candidate needs a separately reviewed physiology and actor-local
+sensor contract. Current `bodySignals.pain` reports `none` until health falls
+to 90, so it contains no reliable below-band information about the small
+damage demonstrated here. Reading exact internal health as a new felt value
+would silently add high-resolution perception; selecting a threshold just
+below this controlled dose would tune to it without a noise floor. A proposed
+new aggregate somatic-change sensation would need prospective precision and
+hysteresis, quantified healing and environmental noise, non-food-injury and
+multiple-intake controls, delayed-effect windows, bounded session memory,
+missing-observation censorship, and independent held-out validation. Even a
+valid sensation would describe the actor's condition; it would not establish
+which recent action caused it. No per-item toxicity, exact nutrients, source
+identity, evaluator control or automatic credit to the latest food may enter
+the sensation. The present batch therefore leaves production selection,
+learning, physiology and saves unchanged.

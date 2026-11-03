@@ -3,12 +3,18 @@ import assert from 'node:assert/strict';
 import { createNpc } from '../src/npc-state.js';
 import { bodySignals } from '../src/interoception.js';
 import { ingestMaterial, exertPhysiology, projectPhysiology,
-  tickPhysiology, validatePhysiology } from '../src/biology.js';
+  harmPhysiology, tickPhysiology, validatePhysiology } from '../src/biology.js';
 import { gameHours } from '../src/biology-config.js';
+import { createEnvironment } from '../src/environment.js';
+import { lookupEcologyObject } from '../src/ecology.js';
+import { canStand } from '../src/world.js';
+import { lineOfSight } from '../src/perception.js';
+import { observeNpc, requestNpcAction, tickNpc } from '../src/npc.js';
 
-// Development assay only: directly authored physiological inputs isolate what
-// an actor can feel. They are NOT paid food trials, training labels, a world
-// cohort, or a replacement for the private action/ingestion proof chain.
+// Development assay only: most controls directly author physiological inputs;
+// one separate engineered fixture completes real paid pull/sample actions.
+// Neither is a training label, world cohort, or replacement for the private
+// action/ingestion proof chain.
 const STEP = .1, HORIZON = 120, TICKS = HORIZON / STEP;
 const comfortable = Object.freeze({ hour: 10, feltTemperature: 18, sheltered: true });
 const SENSE_KEYS = ['hunger', 'thirst', 'energy', 'pain'];
@@ -52,6 +58,40 @@ function advance(value, { effort = 0 } = {}) {
   }
   return { baseline, final: sensed(value), counts,
     projectedEnergyDelta: value.energy - startEnergy };
+}
+
+// This authored physical fixture checks the existing signal limit after real
+// funded actions. The object intervention is evaluator-only; no agent receives
+// toxicity or the other branch's state. It is not an ordinary-world cohort.
+function paidTaste(toxicity) {
+  const value = createNpc({ mode: 'discovery', seed: 74193 });
+  const environment = createEnvironment(74193, { mode: 'discovery' });
+  const plant = environment.ecology.plants.find(row => row.kind === 'apple_tree' && row.quantity > 0);
+  assert.ok(plant);
+  value.position = [[45, 0], [-45, 0], [0, 45], [0, -45]]
+    .map(([x, y]) => ({ x: plant.position.x + x, y: plant.position.y + y }))
+    .find(point => canStand(point.x, point.y, 'valley') && lineOfSight(point, plant.position));
+  assert.ok(value.position);
+  observeNpc(value, environment);
+  const finish = (type, targetId) => {
+    assert.equal(requestNpcAction(value, { type, targetId }, environment).code, 'ACTION_STARTED');
+    for (let i = 0; value.active && i < 200; i++) tickNpc(value, STEP, environment);
+    assert.equal(value.active, null);
+    assert.equal(value.lastResult.ok, true);
+    return value.lastResult;
+  };
+  finish('pull', plant.id);
+  const materialId = value.inventory.items[0];
+  assert.ok(materialId);
+  const material = lookupEcologyObject(environment.ecology, materialId);
+  assert.ok(material);
+  Object.assign(material, { toxicity, digestHours: .1 });
+  const beforeSample = value.physiology.totals.absorbedKcal;
+  const result = finish('sample', materialId);
+  assert.equal(result.delayed, true);
+  assert.equal(value.physiology.totals.absorbedKcal, beforeSample);
+  assert.ok(result.handling?.activeActionSeconds > 0);
+  return { value, environment, result };
 }
 
 test('no intake can raise projected energy by reserve mobilization, while a real taste digests slowly', () => {
@@ -105,6 +145,86 @@ test('mild toxic harm is real but below the present pain category resolution', (
   assert.equal(harmfulTrend.counts.pain.worse, 0);
   assert.ok(harmful.physiology.feedback.some(row => row.effect === 'discomfort'),
     'private engine evidence establishes that missing pain is not safety');
+});
+
+test('real paid safe and mildly toxic tastes remain pain-indistinguishable while harm arrives later', () => {
+  const safe = paidTaste(0), harmful = paidTaste(1);
+  assert.deepEqual(sensed(safe.value), sensed(harmful.value));
+  assert.equal(safe.result.handling.activeActionSeconds, harmful.result.handling.activeActionSeconds);
+  const safeStartHealth = safe.value.physiology.health;
+  let firstHealthLossAt = null;
+  for (let i = 0; i < TICKS; i++) {
+    tickNpc(safe.value, STEP, safe.environment);
+    tickNpc(harmful.value, STEP, harmful.environment);
+    if (firstHealthLossAt === null && harmful.value.physiology.health < safe.value.physiology.health)
+      firstHealthLossAt = (i + 1) * STEP;
+    assert.deepEqual(sensed(safe.value), sensed(harmful.value),
+      'the available qualitative channels do not sense this small difference');
+  }
+  assert.ok(firstHealthLossAt > 0 && firstHealthLossAt <= HORIZON);
+  assert.equal(safe.value.physiology.health, safeStartHealth);
+  assert.ok(harmful.value.physiology.health < safe.value.physiology.health);
+  assert.equal(bodySignals(harmful.value).pain, 'none');
+  assert.ok(harmful.value.physiology.feedback.some(row => row.effect === 'discomfort'),
+    'private feedback can detect the injury, but cannot become this independent sensor');
+  assert.equal(safe.value.physiology.totals.absorbedKcal,
+    harmful.value.physiology.totals.absorbedKcal);
+});
+
+test('a separate physical injury can worsen health without an intake cause or a pain-band crossing', () => {
+  const uninjured = actor(), injured = actor();
+  const before = sensed(injured);
+  const impact = harmPhysiology(injured, .1, { stimulus: 'contact' });
+  assert.equal(impact.ok, true);
+  assert.equal(injured.physiology.totals.ingestedKcal, 0);
+  assert.deepEqual(sensed(injured), before);
+  const plain = advance(uninjured), hurt = advance(injured);
+  assert.deepEqual(plain.final, hurt.final);
+  assert.equal(hurt.counts.pain.worse, 0);
+  assert.ok(injured.physiology.health < uninjured.physiology.health);
+});
+
+test('two concurrent tastes can yield the same body categories with opposite source assignments', () => {
+  const left = actor(), right = actor();
+  for (const [value, sourceOrder] of [[left, ['a', 'b']], [right, ['b', 'a']]]) {
+    for (const [index, source] of sourceOrder.entries()) {
+      const result = ingestMaterial(value, { massGrams: 30, energyKcal: 95 / 6,
+        waterMl: 153 / 6, digestHours: .1, toxicity: index },
+      { objectId: `object:${source === 'a' ? 1 : 2}`, actionId: index + 1, provenance: 'sampled' });
+      assert.equal(result.ok, true);
+    }
+  }
+  assert.deepEqual(sensed(left), sensed(right));
+  const leftTrend = advance(left), rightTrend = advance(right);
+  assert.deepEqual(leftTrend, rightTrend);
+  assert.equal(leftTrend.final.pain, 'none');
+  assert.notDeepEqual(left.physiology.feedback.map(row => row.objectId),
+    right.physiology.feedback.map(row => row.objectId),
+    'private per-item evidence differs even though the aggregate body projection does not');
+});
+
+test('small harm stays below felt resolution across fixed tick sizes and repeated reads add no memory', () => {
+  for (const dt of [.05, .1, .2, .25]) {
+    const value = actor(); taste(value, 1);
+    const baselineHealth = value.physiology.health;
+    let firstInternalLossAt = null;
+    const count = Math.round(HORIZON / dt);
+    for (let i = 0; i < count; i++) {
+      value.elapsed += dt;
+      tickPhysiology(value, dt, comfortable);
+      if (firstInternalLossAt === null && value.physiology.health < baselineHealth)
+        firstInternalLossAt = (i + 1) * dt;
+      const beforeRead = structuredClone(value);
+      const first = sensed(value), second = sensed(value);
+      assert.deepEqual(first, second);
+      assert.deepEqual(value, beforeRead, 'reading cannot append a hidden sensory history');
+      assert.equal(first.pain, 'none');
+    }
+    assert.ok(firstInternalLossAt > 0 && firstInternalLossAt <= HORIZON);
+    assert.ok(value.physiology.health < baselineHealth,
+      `private aggregate health changes at ${dt}s ticks, but the actor's pain band does not`);
+    assert.equal('optionalBodilySensation' in value, false);
+  }
 });
 
 test('tiny near-threshold body variation can flip a categorical endpoint', () => {
