@@ -26,8 +26,8 @@ function authorPhysicalScene() {
   state.player={...player};
   for(const actor of state.agents)bindOzarkWorldAgent(actor,geometry,state);
   for(const [id,position] of Object.entries({
-    [ids.apple]:{x:276,y:580},[ids.bramble]:{x:340,y:620},
-    [ids.heldApple]:{x:240,y:660},[ids.heldBramble]:{x:320,y:680},
+    [ids.apple]:{x:180,y:540},[ids.bramble]:{x:380,y:620},
+    [ids.heldApple]:{x:140,y:700},[ids.heldBramble]:{x:380,y:730},
   }))state.environment.ecology.plants.find(row=>row.id===id).position=position;
   return {state,geometry};
 }
@@ -116,6 +116,15 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     const acted=runner.split('async function actPhase(win) {')[1]
       ?.split('async function reopenPhase(win) {')[0];
     assert.ok(acted);
+    const headingAssertion=runner.split('\n').find(line=>line.includes("assert.ok(ui.text.includes('Player word examples (separate from character messages)'))"));
+    assert.ok(headingAssertion,'Generated journal heading check must retain literal parentheses');
+    const checkHeading=new Function('assert','ui',headingAssertion);
+    checkHeading(assert,{text:'Player word examples (separate from character messages) nava'});
+    assert.throws(()=>checkHeading(assert,{text:'Player word examples separate from character messages'}));
+    assert.ok(acted.indexOf('const posePreparation=await prepareCapture(win)')<acted.indexOf("settleMs:0"));
+    assert.ok(acted.indexOf('const poseImage=')<acted.indexOf('const repeat='),
+      'Disabled-repeat IPC must not consume the first paid screenshot window');
+
     assert.doesNotMatch(runner,/__ozarkWorld\.step\(\.(?:1|2)\)/,
       'Batched durations must use integer fixed ticks, never subtraction tails');
     assert.doesNotMatch(acted,/createPlayerLessonController\(|learnPlayerLesson\(|\.start\('nava'|\.onLessons\(/,
@@ -253,4 +262,29 @@ test('trusted target navigation uses closed-select label cycling and checks ever
     if(input.type==='char'){selected=prior;attempts++;}};
   await assert.rejects(context.choose(win,expected),/Bounded visible-label cycling/);
   assert.equal(attempts,options.length,'A stuck real selection fails within one bounded cycle');
+});
+
+
+test('preprepared paid capture has no renderer IPC or readiness sleep before capturePage',async()=>{
+  const {runInNewContext}=await import('node:vm');
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const captureSource=source.slice(source.indexOf('async function capture(win, name,'),
+    source.indexOf('async function captureJournal('));
+  const calls=[],png=Buffer.alloc(11000),before={status:'paid',nearby:'pointing'},after={};
+  const context={assert,phase:'act',context:{output:'/evidence'},path:{join:(...parts)=>parts.join('/')},
+    fs:{writeFile:async()=>{}},prepareCapture:async()=>{throw new Error('Late readiness');},
+    captureLessonState:async()=>{calls.push('after-state');return after;},
+    verifyPlayerLessonCaptureProgress:(a,b)=>{assert.equal(a,before);assert.equal(b,after);return {pngVisualReviewRequired:true};},
+    captureWithReadiness:async({prepare,capture,retain,maxAttempts})=>{
+      assert.equal(maxAttempts,1,'Do not reuse an old paid witness across screenshot retries');
+      await prepare();const image=await capture();assert.equal(image,'native-image');
+      await retain(png,{attempt:1});return {png,metadata:{attempt:1,width:1280,height:900}};
+    }};
+  runInNewContext(captureSource+';this.capturePaid=capture;',context);
+  const win={webContents:{capturePage:async()=>{calls.push('capture-page');return 'native-image';}}};
+  const result=await context.capturePaid(win,'paid.png',{paidPose:true,
+    prepared:{ui:{rect:{width:100}},readiness:{readyState:'complete'}},before});
+  assert.deepEqual(calls,['capture-page','after-state']);
+  assert.equal(result.paidPoseWitness.before,before);
+  assert.equal(result.ui.status,'paid');
 });

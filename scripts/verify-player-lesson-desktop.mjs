@@ -63,10 +63,10 @@ async function authorPlayerLessonScene(moduleBase) {
         row.stage!=='ripe'||row.quantity<=3))
     throw new Error('Prospective distinct existing plant instances changed');
   // Existing objects only; fixed authored geometry, not selected by pixel score.
-  source.position={x:276,y:580};
-  trainedBramble.position={x:340,y:620};
-  heldApple.position={x:240,y:660};
-  heldBramble.position={x:320,y:680};
+  source.position={x:180,y:540};
+  trainedBramble.position={x:380,y:620};
+  heldApple.position={x:140,y:700};
+  heldBramble.position={x:380,y:730};
   const ids=[source.id,trainedBramble.id,heldApple.id,heldBramble.id];
   const sender={id:'player',lifecycle:'AWAKE',scene:'valley',position:point};
   for (const target of [source,trainedBramble]) {
@@ -100,7 +100,7 @@ async function authorPlayerLessonScene(moduleBase) {
     heldoutAppleId:heldApple.id,heldoutBrambleId:heldBramble.id,
     sourcePosition:{...source.position},point,recipientPosition:{...state.agents[0].position},agentPositions:state.agents.map(actor=>({id:actor.id,position:{...actor.position}})),sourceQuantity:source.quantity,
     recipientId:state.agents[0].id,parserReasons:['resolved','resolved'],cropLengths,
-    fixtureDisclosure:'Fresh normal Ozark ecology with physical seed 74193 and communication seed 211. Aster and Mira retain their original fixed spawns. Only the player and four existing plant positions are authored before time or action: player (276,620), training apple object:671 (276,580), training bramble object:677 (340,620), held-out apple object:679 (240,660), held-out bramble object:670 (320,680). The player is initially outside Mira’s ordinary peer-gesture range; Aster resolves both trained points uniquely. No resource, pixel, label, body outcome, action, or learner is injected. This is authored engineering geometry, not an ordinary encounter or evidence of language emergence.'};
+    fixtureDisclosure:'Fresh normal Ozark ecology with physical seed 74193 and communication seed 211. Aster and Mira retain their original fixed spawns. Only the player and four existing plant positions are authored before time or action: player (276,620), training apple object:671 (180,540), training bramble object:677 (380,620), held-out apple object:679 (140,700), held-out bramble object:670 (380,730). The authored plants are separated from the player to keep their crowns off the avatar and short pointing segment. The player is initially outside Mira’s ordinary peer-gesture range; Aster resolves both trained points uniquely. No resource, pixel, label, body outcome, action, or learner is injected. This is authored engineering geometry, not an ordinary encounter or evidence of language emergence.'};
 }
 const outputRoot = resolve(process.env.AINCRAD_PLAYER_LESSON_QA_OUTPUT || join(root, 'test-results/player-lesson-desktop'));
 await mkdir(outputRoot, { recursive: true });
@@ -147,7 +147,7 @@ async function waitFor(win, expression) {
   }
   throw new Error('Native condition missing: ' + expression);
 }
-async function clickButton(win, id, {allowDisabled=false}={}) {
+async function clickButton(win, id, {allowDisabled=false,settleMs=60}={}) {
   const box = await evaluate(win, '(() => { const button=document.getElementById(' + JSON.stringify(id) + ');' +
     'if(!button||' + (allowDisabled?'false':'button.disabled') + '||button.getClientRects().length!==1)throw new Error("Food button unavailable: ' + id + '");' +
     'button.scrollIntoView({block:"nearest"});const rect=button.getBoundingClientRect();' +
@@ -158,7 +158,7 @@ async function clickButton(win, id, {allowDisabled=false}={}) {
   win.webContents.sendInputEvent({type:'mouseMove',x:box.x,y:box.y});
   win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:box.x,y:box.y,clickCount:1});
   win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:box.x,y:box.y,clickCount:1});
-  await delay(60);
+  if(settleMs)await delay(settleMs);
 }
 function fixedStepExpression(seconds) {
   return '('+advancePlayerLessonFixedSteps.toString()+')(window.__ozarkWorld.step,'+
@@ -172,17 +172,20 @@ async function driveUntil(win, predicate, maxSteps = 100) {
   }
   throw new Error('Paid action did not reach expected state: ' + predicate);
 }
-async function captureLessonState(win) {
-  return evaluate(win,'(() => {const s=window.__ozarkWorld.fullSnapshot();' +
-    'return {elapsed:s.elapsed,at:performance.now(),paused:window.__ozarkWorld.snapshot().paused,' +
-    'active:window.__ozarkWorld.playerLessonSnapshot().active,' +
-    'asterExamples:s.playerLessons.agents.find(row=>row.agentId==="aster").examples.length,' +
-    'miraExamples:s.playerLessons.agents.find(row=>row.agentId==="mira").examples.length,' +
-    'metabolizedKcal:s.playerFood.physiology.totals.metabolizedKcal,' +
-    'status:document.getElementById("player-lesson-status").textContent,' +
-    'nearby:document.getElementById("player-food-nearby").textContent};})()');
+function readLessonCaptureState() {
+  const s=window.__ozarkWorld.fullSnapshot();
+  return {elapsed:s.elapsed,at:performance.now(),paused:window.__ozarkWorld.snapshot().paused,
+    active:window.__ozarkWorld.playerLessonSnapshot().active,
+    asterExamples:s.playerLessons.agents.find(row=>row.agentId==='aster').examples.length,
+    miraExamples:s.playerLessons.agents.find(row=>row.agentId==='mira').examples.length,
+    metabolizedKcal:s.playerFood.physiology.totals.metabolizedKcal,
+    status:document.getElementById('player-lesson-status').textContent,
+    nearby:document.getElementById('player-food-nearby').textContent};
 }
-async function capture(win, name, {paidPose=false}={}) {
+async function captureLessonState(win) {
+  return evaluate(win,'('+readLessonCaptureState.toString()+')()');
+}
+async function prepareCapture(win) {
   const ui=await evaluate(win,'(() => {const panel=document.getElementById("player-food-panel");' +
     'const status=document.getElementById("player-lesson-status");' +
     'const nearby=document.getElementById("player-food-nearby");' +
@@ -191,13 +194,23 @@ async function capture(win, name, {paidPose=false}={}) {
     'const r=panel.getBoundingClientRect();if(r.width<=0||r.height<=0||r.left<0||r.top<0||' +
     'r.right>innerWidth||r.bottom>innerHeight)throw new Error("Food HUD is outside viewport");' +
     'return {status:status.textContent,nearby:nearby.textContent,rect:{x:r.x,y:r.y,width:r.width,height:r.height}};})()');
-  let witness=null;
+  const readiness=await evaluate(win,'(' + ${JSON.stringify(waitForCaptureFrames.toString())} + ')()');
+  await delay(100);
+  return {ui,readiness};
+}
+async function capture(win, name, {paidPose=false,prepared=null,before=null}={}) {
+  // For the timed paid frame, all asset/viewport readiness occurred BEFORE the
+  // trusted start; before is the atomic post-step/post-draw witness. No further
+  // renderer IPC or sleep may sit between that witness and capturePage().
+  const preparation=prepared ?? await prepareCapture(win);
+  const ui=paidPose&&before?{...preparation.ui,status:before.status,nearby:before.nearby}:preparation.ui;
+  let witness=null,attempt=0;
   const {png,metadata} = await captureWithReadiness({
-    prepare:async()=>{const readiness=await evaluate(win,'(' + ${JSON.stringify(waitForCaptureFrames.toString())} + ')()');
-      await delay(100);return readiness;},
+    maxAttempts:paidPose?1:4,
+    prepare:async()=>++attempt===1?preparation.readiness:(await prepareCapture(win)).readiness,
     capture:async()=>{
       if(!paidPose)return win.webContents.capturePage();
-      witness={before:await captureLessonState(win)};
+      witness={before:before ?? await captureLessonState(win)};
       const image=await win.webContents.capturePage();
       witness.after=await captureLessonState(win);
       return image;
@@ -229,7 +242,7 @@ async function captureJournal(win,name) {
     'const all=list.textContent,at=all.indexOf(heading.textContent);' +
     'return {text:all.slice(at,at+1400),' +
     'rect:{x:r.x,y:r.y,width:r.width,height:r.height}};})()');
-  assert.match(ui.text,/Player word examples \(separate from character messages\)/);
+  assert.ok(ui.text.includes('Player word examples (separate from character messages)'));
   assert.match(ui.text,/nava · 1 own-image example/);
   assert.match(ui.text,/movo · 1 own-image example/);
   assert.match(ui.text,/This session, [0-9]+ completed own-image examples/);
@@ -377,29 +390,30 @@ async function actPhase(win) {
   assert.equal(examplesOf(original,'mira').length,0);
   assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),true);
   const beforeCharacter=await evaluate(win,'window.__ozarkWorld.fullSnapshot().characterMessages');
-  const first=await trustedLesson(win,'nava',authored.sourceId);
-  // One exact-tick request and one coherent snapshot, rather than spending most
-  // of the 1.8-second action on separate renderer IPC reads before the screenshot.
-  const early=await evaluate(win,'(() => {if(!'+fixedStepExpression(.1)+')throw new Error("Fixed step refused");' +
-    'const s=window.__ozarkWorld.fullSnapshot();return {paid:window.__ozarkWorld.playerLessonSnapshot().active,' +
-    'disabled:document.getElementById("player-lesson-say").disabled,' +
-    'nearby:document.getElementById("player-food-nearby").textContent,' +
-    'examples:s.playerLessons.agents.find(row=>row.agentId==="aster").examples.length,' +
-    'metabolizedKcal:s.playerFood.physiology.totals.metabolizedKcal};})()');
-  const paid=early.paid;
-  assert.ok(paid.worked>0 && paid.worked<paid.seconds,'The public point requires actual partial paid work');
+  await trustedTypeWord(win,'nava');
+  await trustedChooseTarget(win,authored.sourceId);
+  await waitFor(win,'!document.getElementById("player-lesson-say").disabled');
+  // Do slow viewport/asset preparation before the timed action exists.
+  const posePreparation=await prepareCapture(win);
+  await clickButton(win,'player-lesson-say',{settleMs:0});
+  // One renderer turn does admission inspection, exact paid ticks, actual draw
+  // readiness, and the before-capture witness. The ordinary clock stays live.
+  const early=await evaluate(win,'(async () => {const first=window.__ozarkWorld.playerLessonSnapshot().active;' +
+    'if(!'+fixedStepExpression(.1)+')throw new Error("Fixed step refused");' +
+    'await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));' +
+    'return {first,capture:('+readLessonCaptureState.toString()+')(),' +
+    'disabled:document.getElementById("player-lesson-say").disabled};})()');
+  const first=early.first,paid=early.capture.active;
+  assert.equal(first?.word,'nava','Trusted Say and point button starts the selected literal word');
+  assert.equal(first.seconds,1.8);
+  assert.ok(paid?.worked>0 && paid.worked<paid.seconds,'The public point requires actual partial paid work');
   assert.equal(early.disabled,true);
-  assert.equal(early.nearby,'Pointing at a visible object. Food actions can resume afterward.');
+  assert.equal(early.capture.nearby,'Pointing at a visible object. Food actions can resume afterward.');
   assert.deepEqual(rendererEvents,[],'Main-loop HUD refresh and renderer remain error-free during paid point');
-  assert.equal(early.examples,0,'A partial point does not teach');
-  assert.ok(early.metabolizedKcal>original.playerFood.physiology.totals.metabolizedKcal);
-  // Exercise the disabled repeat while work is known to be active, before the
-  // potentially slower native screenshot/PNG encoding operation.
-  await clickButton(win,'player-lesson-say',{allowDisabled:true});
-  const repeat=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
-  for(const key of ['word','seconds','startedAt','expiresAt'])assert.equal(repeat?.[key],first[key]);
-  assert.ok(repeat.worked>=paid.worked && repeat.worked<=repeat.seconds);
-  const poseImage=await capture(win,'01-paid-player-point.png',{paidPose:true});
+  assert.equal(early.capture.asterExamples,0,'A partial point does not teach');
+  assert.ok(early.capture.metabolizedKcal>original.playerFood.physiology.totals.metabolizedKcal);
+  const poseImage=await capture(win,'01-paid-player-point.png',
+    {paidPose:true,prepared:posePreparation,before:early.capture});
   assert.deepEqual(rendererEvents,[],'Paid public-pose screenshot must not hide a renderer failure');
   await driveUntil(win,'window.__ozarkWorld.playerLessonSnapshot().active===null',40);
   const learned=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
@@ -415,7 +429,13 @@ async function actPhase(win) {
     'Pointing cannot consume a fruit');
   assert.match(await evaluate(win,'document.getElementById("player-lesson-status").textContent'),/tentative own-image link/);
   // Second literal label, same genuine paid input and recipient own sensor.
-  await trustedLesson(win,'movo',authored.brambleId);
+  const second=await trustedLesson(win,'movo',authored.brambleId);
+  // Test disabled repeat on the separate second action, never spend the short
+  // first screenshot window on a second click and its IPC/settling round trips.
+  await clickButton(win,'player-lesson-say',{allowDisabled:true});
+  const repeat=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
+  for(const key of ['word','seconds','startedAt','expiresAt'])assert.equal(repeat?.[key],second[key]);
+  assert.ok(repeat.worked>=second.worked && repeat.worked<repeat.seconds);
   await driveUntil(win,'window.__ozarkWorld.playerLessonSnapshot().active===null',40);
   const twice=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   const learnedRows=examplesOf(twice,'aster');

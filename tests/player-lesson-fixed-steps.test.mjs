@@ -48,8 +48,8 @@ function lessonFixture() {
   const state = createOzarkState(geometry, { communicationSeed: 211 });
   state.player = { x: 276, y: 620 };
   const positions = {
-    'object:671': { x: 276, y: 580 }, 'object:677': { x: 340, y: 620 },
-    'object:679': { x: 240, y: 660 }, 'object:670': { x: 320, y: 680 },
+    'object:671': { x: 180, y: 540 }, 'object:677': { x: 380, y: 620 },
+    'object:679': { x: 140, y: 700 }, 'object:670': { x: 380, y: 730 },
   };
   for (const [id, position] of Object.entries(positions))
     state.environment.ecology.plants.find(plant => plant.id === id).position = position;
