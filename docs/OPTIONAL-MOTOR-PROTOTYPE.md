@@ -59,9 +59,10 @@ of physical `ok`. Inspection and pulling have different durations, effort,
 information and material effects, so their raw success labels are not a common
 value measure. Moreover, this first one-step choice occurred **after** the
 apple outcomes were fitted. It is a development diagnostic, not a held-out
-policy comparison. A prospective second split is fixed in
+policy comparison. A second split was fixed in
 [OPTIONAL-MOTOR-HELDOUT-PLAN.md](OPTIONAL-MOTOR-HELDOUT-PLAN.md) before its paid
-evaluation actions.
+evaluation actions; its separate negative evidence is in
+[OPTIONAL-MOTOR-HELDOUT-RESULT.md](OPTIONAL-MOTOR-HELDOUT-RESULT.md).
 
 The model is session-only; there is no save/reopen retention. Its tests cover
 numeric gradients, clipping, one-use paid receipt handling, cross-actor
