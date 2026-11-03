@@ -128,6 +128,36 @@ async function driveUntil(win, predicate, maxSteps = 100) {
   }
   throw new Error('Paid action did not reach expected state: ' + predicate);
 }
+function assertPublicFoodSight(sight, {pose=false, hand=0}={}) {
+  assert.deepEqual(Object.keys(sight).sort(),['at','hand','player','reach','visibility']);
+  assert.equal(sight.visibility,'visible');
+  assert.ok(Number.isFinite(sight.at));
+  assert.deepEqual(Object.keys(sight.player).sort(),['dx','dy']);
+  assert.ok([sight.player.dx,sight.player.dy].every(Number.isFinite));
+  assert.deepEqual(Object.keys(sight.reach).sort(),['geometry','status']);
+  assert.equal(sight.reach.status,pose?'pose':'absent');
+  if(pose){
+    const geometry=sight.reach.geometry;
+    assert.deepEqual(Object.keys(geometry).sort(),['origin','progress','tip']);
+    assert.ok(Number.isFinite(geometry.progress) && geometry.progress>0 && geometry.progress<1);
+    for(const point of [geometry.origin,geometry.tip]){
+      assert.deepEqual(Object.keys(point).sort(),['dx','dy']);
+      assert.ok([point.dx,point.dy].every(Number.isFinite));
+    }
+  }else assert.equal(sight.reach.geometry,null);
+  assert.deepEqual(Object.keys(sight.hand).sort(),['items','status']);
+  assert.equal(sight.hand.status,'visible');
+  assert.equal(sight.hand.items.length,hand);
+  for(const item of sight.hand.items){
+    assert.deepEqual(Object.keys(item).sort(),['appearance','id','position']);
+    assert.match(item.id,/^object:[1-9][0-9]{0,8}$/);
+    assert.deepEqual(Object.keys(item.position).sort(),['dx','dy']);
+    assert.ok([item.position.dx,item.position.dy].every(Number.isFinite));
+    assert.ok(['shape','color','texture'].every(key=>typeof item.appearance[key]==='string'&&item.appearance[key]));
+  }
+  assert.doesNotMatch(JSON.stringify(sight),/"(?:targetId|sourceId|materialId|actionId|paidKcal|energyKcal|materialType|kind|word|features)"/,
+    'Actor-local sight cannot contain private action, nutrition, or language fields');
+}
 async function capture(win, name) {
   const ui=await evaluate(win,'(() => {const panel=document.getElementById("player-food-panel");' +
     'const status=document.getElementById("player-food-status");' +
@@ -223,6 +253,24 @@ async function actPhase(win) {
   assert.equal(await evaluate(win,'window.__ozarkWorld.fullSnapshot().environment.ecology.plants.find(p=>p.id===' +
     JSON.stringify(authored.sourceId) + ').quantity'),firstStock,
   'A disabled repeated click cannot take an extra fruit before the paid pull completes');
+  await driveUntil(win,'window.__ozarkWorld.playerFoodSightSnapshot("aster")?.reach.status==="pose"',20);
+  const activeSight=await evaluate(win,'(() => {const before=window.__ozarkWorld.fullSnapshot();' +
+    'const first=window.__ozarkWorld.playerFoodSightSnapshot("aster");' +
+    'const second=window.__ozarkWorld.playerFoodSightSnapshot("aster");' +
+    'try{first.reach.geometry.tip.dx=999999;first.hand.items.push({id:"object:999"});}catch{}' +
+    'return {second,third:window.__ozarkWorld.playerFoodSightSnapshot("aster"),' +
+    'before,after:window.__ozarkWorld.fullSnapshot(),active:window.__ozarkWorld.playerFoodSnapshot().active};})()');
+  assert.ok(activeSight.active?.worked>0 && activeSight.active.worked<activeSight.active.seconds,
+    'Only a still-funded active pull may display the reach');
+  assertPublicFoodSight(activeSight.second,{pose:true,hand:0});
+  assert.deepEqual(activeSight.second,activeSight.third,'Actor-local visual rows are defensive copies');
+  assert.deepEqual(activeSight.after,activeSight.before,
+    'Repeated sight reads cannot move resources, train, or draw RNG');
+  const activeScreenshot=await capture(win,'00-player-paid-pull-active.png');
+  assert.equal((await evaluate(win,'window.__ozarkWorld.playerFoodSnapshot()')).active?.type,'pull',
+    'The actual paid pull must still be active in its captured frame');
+  assert.equal((await evaluate(win,'window.__ozarkWorld.playerFoodSightSnapshot("aster")'))?.reach.status,
+    'pose','The funded public reach must still be personally visible after capture');
   await driveUntil(win,'window.__ozarkWorld.fullSnapshot().playerFood.inventory.items.length===1');
   const gathered=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   assert.ok(gathered.playerFood.physiology.totals.metabolizedKcal>
@@ -237,6 +285,15 @@ async function actPhase(win) {
   assert.equal(material?.materialType,'apple','The authored real apple tree must yield a real apple');
   assert.equal(material.heldBy,'player');
   assert.equal(gathered.environment.ecology.plants.find(p=>p.id===authored.sourceId).quantity,authored.sourceQuantity-1);
+  const heldSight=await evaluate(win,'window.__ozarkWorld.playerFoodSightSnapshot("aster")');
+  assertPublicFoodSight(heldSight,{hand:1});
+  assert.equal(heldSight.hand.items[0].id,materialId,
+    'The actor sees the same fruit rendered in the physical player hand');
+  const heldScreenshot=await capture(win,'00-player-held-fruit-before-taste.png');
+  assert.equal((await evaluate(win,'window.__ozarkWorld.fullSnapshot()')).playerFood.inventory.items[0],materialId,
+    'The held-fruit screenshot precedes Taste and Drop');
+  assert.equal((await evaluate(win,'window.__ozarkWorld.playerFoodSightSnapshot("aster")'))?.hand.items[0]?.id,
+    materialId,'The same fruit must remain personally visible after capture');
   const beforeTaste=gathered.playerFood.physiology.totals.ingestedKcal;
   await waitFor(win,"!document.getElementById('player-food-taste').disabled");
   await clickButton(win,'player-food-taste');
@@ -264,6 +321,8 @@ async function actPhase(win) {
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESC'});
   win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESC'});
   await waitFor(win,'window.__ozarkWorld.snapshot().paused');
+  assert.equal(await evaluate(win,'window.__ozarkWorld.playerFoodSightSnapshot("aster")'),null,
+    'Interrupting a paid pull immediately retires its actor-local pose');
   assert.deepEqual((await evaluate(win,'window.__ozarkWorld.fullSnapshot()')).playerFood.inventory,beforeCancel.playerFood.inventory);
   assert.equal(await evaluate(win,'window.__ozarkWorld.save()'),true);
   const raw=await evaluate(win,"localStorage.getItem('aincrad.world.v2')");
@@ -277,7 +336,8 @@ async function actPhase(win) {
     'Canvas capture cannot rewrite the exact saved bytes');
   await fs.writeFile(path.join(context.output,'act-checkpoint.json'),JSON.stringify({raw,authored,
     materialId,inquiry,initialPlantQuantity:authored.sourceQuantity,
-    final,ingestedKcal:final.playerFood.physiology.totals.ingestedKcal,screenshots:[screenshot]},null,2));
+    final,ingestedKcal:final.playerFood.physiology.totals.ingestedKcal,
+    screenshots:[activeScreenshot,heldScreenshot,screenshot]},null,2));
 }
 async function reopenPhase(win) {
   const checkpoint=JSON.parse(await fs.readFile(path.join(context.output,'act-checkpoint.json'),'utf8'));
@@ -294,6 +354,8 @@ async function reopenPhase(win) {
   assert.equal(opened.playerFood.inventory.items.length,0);
   assert.equal(opened.playerFood.physiology.totals.ingestedKcal,checkpoint.ingestedKcal);
   assert.equal(await evaluate(win,'window.__ozarkWorld.playerFoodSnapshot().active'),null);
+  assert.equal(await evaluate(win,'window.__ozarkWorld.playerFoodSightSnapshot("aster")'),null,
+    'Reopen cannot recreate the pending paid reach or its sight row');
   assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),true);
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESC'});
   win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESC'});
@@ -305,9 +367,10 @@ async function reopenPhase(win) {
   await fs.writeFile(path.join(context.output,'result.json'),JSON.stringify({passed:true,nativeExecutionPerformed:true,
     sourceIdentity:context.sourceIdentity,sourceFingerprint:context.sourceFingerprint,
     actualTrustedPlayerInput:true,realFruitAndBodyDebit:true,uncertainPlayerWitness:true,
-    noCopiedAgentProof:true,repeatAndPauseNoDuplicate:true,exactSaveReopen:true,
+    publicPaidReachAndHeldFruit:true,noCopiedAgentProof:true,
+    repeatAndPauseNoDuplicate:true,exactSaveReopen:true,
     screenshots:[...checkpoint.screenshots,screenshot],fixtureDisclosure:checkpoint.authored.fixtureDisclosure,
-    scope:'Controlled player UI fruit handling and one agent-visible swallow in actual sandboxed Electron. The inquiry is uncertain; native proof does not claim autonomous recipient trial, learned category transfer, ordinary encounter rate or survival benefit.'},null,2));
+    scope:'Controlled player UI fruit handling, a visible funded reach, a rendered and actor-visible held fruit, and one witnessed swallow in actual sandboxed Electron. The inquiry is uncertain; native proof does not claim a learned pull-to-fruit relation, autonomous recipient trial, category transfer, ordinary encounter rate or survival benefit.'},null,2));
 }
 async function closeNormally(win) {
   await session.defaultSession.flushStorageData();await delay(200);

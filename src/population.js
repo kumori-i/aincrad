@@ -1,6 +1,7 @@
 import { defineCommunicationMode } from './communication-mode.js';
 import { subscribeConsumption } from './consumption-events.js';
 import { witnessConsumption } from './observational-learning.js';
+import { recordPublicPlayerFood, clearPublicPlayerFood } from './player-food-visibility.js';
 import { rememberDiscoveryObservation } from './discovery.js';
 import { NpcController } from './controller.js';
 import { tickEnvironment } from './environment.js';
@@ -19,10 +20,11 @@ import { BUILD_SOURCE_FINGERPRINT } from './build-info.js';
 
 /** Owns the two characters and the single shared simulation clock. */
 export class PopulationRuntime {
-  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true,experimentalDiscovery=null,communicationMode='grounded'}={}) {
+  constructor(state,{providerFactory,cardinal=true,experimentFactory,discoveryFoodLearning=true,experimentalDiscovery=null,communicationMode='grounded',playerFoodReach=null}={}) {
     defineCommunicationMode(this,communicationMode);
     this.state=state;
     this.providerFactory=providerFactory;
+    this.playerFoodReach=typeof playerFoodReach==='function'?playerFoodReach:null;
     this.controllers=new Map();
     this.observedAt=new Map();
     this.unsubscribeConsumption=state.environment.ecology?subscribeConsumption(state.environment.ecology,event=>{for(const npc of state.agents)witnessConsumption(npc,event,(actor,object)=>rememberDiscoveryObservation(actor,[object]));}):null;
@@ -93,6 +95,12 @@ export class PopulationRuntime {
         this.observedAt.set(npc.id,npc.elapsed);
       }
     }
+    // Read-only actor-local public sight. The callback exposes numeric reach
+    // geometry only; no private player action target or result reaches policy.
+    if(this.playerFoodReach){
+      const reach=this.playerFoodReach();
+      for(const npc of agents)recordPublicPlayerFood(npc,this.state,reach);
+    }
     this.social.tick(step);
     this.cardinal?.tick(step);
   }
@@ -112,6 +120,7 @@ export class PopulationRuntime {
     if(this.disposed)return;
     this.disposed=true;
     this.unsubscribeConsumption?.();
+    for(const npc of this.state.agents)clearPublicPlayerFood(npc);
     for(const controller of this.controllers.values())controller.dispose();
     this.social.dispose?.();
     this.cardinal?.dispose();

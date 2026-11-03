@@ -45,6 +45,16 @@ test('player food native preparation generates an isolated actual-input close/re
     assert.match(runner, /player-food-gather/);
     assert.match(runner, /player-food-taste/);
     assert.match(runner, /player-food-drop/);
+    assert.match(runner, /playerFoodSightSnapshot\("aster"\)/);
+    assert.match(runner, /function assertPublicFoodSight\(/);
+    assert.match(runner, /assertPublicFoodSight\(activeSight\.second,\{pose:true,hand:0\}\)/);
+    assert.match(runner, /assertPublicFoodSight\(heldSight,\{hand:1\}\)/);
+    assert.match(runner, /heldSight\.hand\.items\[0\]\.id,materialId/);
+    assert.match(runner, /00-player-paid-pull-active\.png/);
+    assert.match(runner, /00-player-held-fruit-before-taste\.png/);
+    assert.match(runner, /Interrupting a paid pull immediately retires its actor-local pose/);
+    assert.match(runner, /Reopen cannot recreate the pending paid reach or its sight row/);
+    assert.match(runner, /Actor-local sight cannot contain private action, nutrition, or language fields/);
     assert.match(runner, /afterRepeatedClick\.active\.worked>=firstAction\.active\.worked/);
     assert.match(runner, /Gather must be disabled while its first paid action remains active/);
     assert.match(runner, /afterRepeatedClick\.active\?\.\[key\],firstAction\.active\[key\]/);
@@ -64,7 +74,7 @@ test('player food native preparation generates an isolated actual-input close/re
     assert.doesNotMatch(acted, /referenceFixture\(|createPlayerFoodController\(|ingestMaterial\(|interactEcologyObject\(/,
       'The action phase must use actual UI input and ordinary runtime hooks');
     assert.match(runner, /this is not an ordinary encounter/);
-    assert.match(runner, /does not claim autonomous recipient trial/);
+    assert.match(runner, /does not claim a learned pull-to-fruit relation, autonomous recipient trial/);
     const preservation = JSON.parse(await readFile(join(prepared.output, 'profile-evidence.json'), 'utf8'));
     assert.equal(preservation.nativeExecutionPerformed, false);
     assert.equal(preservation.copiedAfterProcessesClosed, false);

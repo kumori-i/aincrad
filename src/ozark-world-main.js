@@ -14,6 +14,7 @@ import { bodySignals, sensedEnvironment } from './interoception.js';
 import { environmentConditions, environmentHour } from './environment.js';
 import { tickPhysiology } from './biology.js';
 import { createPlayerFoodController } from './player-food.js';
+import { readPublicPlayerFood, clearPublicPlayerFood } from './player-food-visibility.js';
 import { createPlayerLessonController } from './player-lesson-action.js';
 import { reconcilePlayerLessonOptions } from './player-lesson-options.js';
 import { learnPlayerLesson, reconcilePlayerLessons } from './player-lesson-bank.js';
@@ -122,6 +123,7 @@ function selectedAgent() {
 }
 function cancelPlayerFood(reason) {
   const result=playerFoodController?.cancel(reason);
+  if(result)for(const actor of state.agents)clearPublicPlayerFood(actor);
   if(result && !result.ok)text('player-food-status', 'Food action stopped. Time and effort already spent remain spent.');
   return result;
 }
@@ -216,7 +218,7 @@ if (loaded.blocked) {
     performOptional: (...args) => communicate('performOptional', ...args),
     decision: (...args) => communicate('decision', ...args),
     performed: (...args) => communicate('performed', ...args),
-  } });
+  }, playerFoodReach: () => playerFoodController?.publicPose() ?? null });
   playerFoodController = createPlayerFoodController(state, geometry);
   if (communicationLearning && sensor) {
     try {
@@ -231,6 +233,7 @@ if (loaded.blocked) {
 }
 renderer = new OzarkWorldRenderer($('world'), geometry);
 renderer.playerIndication = () => playerLessonController?.publicPose() ?? null;
+renderer.playerFoodReach = () => playerFoodController?.publicPose() ?? null;
 try {
   await renderer.prepareAtlas();
 } catch (error) {
@@ -758,6 +761,8 @@ if (['?test=1','?test=1&smoke=1'].includes(location.search)) {
     detailReady: () => renderedPreviewVersion === previewVersion && renderer.pendingChunks.size === 0,
     fullSnapshot: () => structuredClone(state),
     playerFoodSnapshot: () => playerFoodController?.snapshot() ?? null,
+    playerFoodSightSnapshot: id => location.search === '?test=1' ?
+      readPublicPlayerFood(state.agents.find(actor => actor.id === id)) : null,
     playerLessonSnapshot: () => playerLessonController?.snapshot() ?? null,
     communicationSnapshot: () => communicationLearning?.snapshot() ?? null,
     // Test-only yes/no lifecycle probe. It exposes no partner rows, targets,

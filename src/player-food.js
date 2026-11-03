@@ -120,6 +120,7 @@ export function createPlayerFoodController(state, geometry) {
       return {ok: false, code: 'INVALID_TIME'};
     const seconds = DISCOVERY_RULES.durations[type];
     active = {type, targetId, object: eligibility.object, position: {...state.player},
+      targetPosition:{...eligibility.object.position},
       startedAt: state.elapsed, lastAt: state.elapsed,
       expiresAt: state.elapsed + DEADLINE_SECONDS, seconds,
       effort: DISCOVERY_RULES.effort[type], worked: 0, paidKcal: 0};
@@ -255,5 +256,17 @@ export function createPlayerFoodController(state, geometry) {
       expiresAt: active.expiresAt} : null,
     held: ownerValid() ? [...inventory.items] : []};
   }
-  return {visibleOptions, start, tick, reconcileHeld, cancel, dispose, snapshot};
+  // Read-only public motor geometry. The paid source binding stays private to
+  // this actuator; neither renderer nor observer receives its target ID.
+  function publicPose() {
+    if (!active || active.type !== 'pull' || !(active.worked > 0) ||
+        !(active.paidKcal > 0) || active.lastAt !== state.elapsed ||
+        state.elapsed > active.expiresAt + EPSILON || !ownerValid() ||
+        !conscious() || !samePoint(state.player, active.position) ||
+        !samePoint(active.object.position, active.targetPosition) ||
+        !check('pull', active.targetId, active.object).ok) return null;
+    return {scene:'valley', origin:{...active.position},
+      tip:{...active.targetPosition}, progress:Math.min(1, active.worked / active.seconds)};
+  }
+  return {visibleOptions, start, tick, reconcileHeld, cancel, dispose, snapshot, publicPose};
 }

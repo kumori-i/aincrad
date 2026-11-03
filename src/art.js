@@ -477,6 +477,14 @@ export function drawIndicationGeometry(g,geometry){
   g.beginPath();g.moveTo(geometry.origin.x,geometry.origin.y);
   g.lineTo(geometry.tip.x,geometry.tip.y);g.stroke();g.restore();
 }
+/** Draw the exact funded player reach segment. It carries no target binding or
+ * claim that the fruit at its endpoint is useful to another body. */
+export function drawPlayerFoodReachGeometry(g,geometry){
+  if(!geometry)return;
+  g.save();g.strokeStyle='#d7aa73';g.lineWidth=4;g.lineCap='round';
+  g.beginPath();g.moveTo(geometry.origin.x,geometry.origin.y);
+  g.lineTo(geometry.tip.x,geometry.tip.y);g.stroke();g.restore();
+}
 export function drawNpc(g,npc,time){
   const p=npc.position,collapsed=npc.lifecycle==='COLLAPSED',moving=npc.active?.request.type==='move'&&npc.active.blockedFor<.1;
   const target=npc.active?.route?.[npc.active.index],dx=target?target.x-p.x:0,dy=target?target.y-p.y:1,len=Math.hypot(dx,dy)||1,facing={x:dx/len,y:dy/len};

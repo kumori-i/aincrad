@@ -6,6 +6,15 @@ This is a chance for an agent to learn, not a command to learn. Aster or Mira mu
 
 The player can demonstrate berries as well as apples, but a berry is small. A 30 g sample from a 35 g berry leaves only 5 g; an apple leaves a larger remainder for an agent's own test. The material must remain reachable after the player drops it.
 
+The player's funded pull now has a visible reach segment, and fruit actually
+held in the avatar's finite hand has a public sprite. A nearby agent can sample
+that pose and hand sprite through its own ordinary sight; an occluded hand is
+unknown rather than empty. This is public motor perception only. The agent does
+not yet retain a pull-to-fruit chain, receive a new tree inquiry, or learn a
+tree technique from the pose. The existing witnessed bite still asks about the
+exact detached fruit. The sight readout is session-only and adds no save field,
+food reward, language label, or decision rule.
+
 A controlled integration test places the player and agents beside an existing ripe apple tree and holds the agents' policies only during the short paid player demonstration. After the remainder is dropped, the player departs and the ordinary population controller chooses the agent's actions. In this authored physical setup, a visible swallow leads to the agent's own paid grasp, sample, and delayed bodily feedback; an occluded swallow with the same player actions and remaining portion creates no player-origin inquiry. This verifies that the autonomous policy path exists. It does not establish that agents will notice or use lessons reliably during ordinary survival, or that they generalize food categories.
 
 ## Typed Say and point lessons

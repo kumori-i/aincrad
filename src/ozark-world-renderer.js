@@ -1,10 +1,11 @@
 // Read-only presentation of the single playable Ozark world.
 // Every terrain pixel comes from the same geometry used by movement and sight.
-import { ART_PIXEL, drawAvatar, drawNpc, drawEcologyObject, drawFieldNote, drawIndicationGeometry } from './art.js';
+import { ART_PIXEL, drawAvatar, drawNpc, drawEcologyObject, drawFieldNote, drawIndicationGeometry, drawPlayerFoodReachGeometry } from './art.js';
 import { AtlasViewport, atlasActors } from './atlas.js';
 import { CONFIG } from './config.js';
 import { aquaticEnabled } from './aquatic-state.js';
 import { renderEcology } from './ecology.js';
+import { playerHeldFoodProjection } from './player-food-visibility.js';
 import { environmentHour } from './environment.js';
 import { landscapeGroundColor, landscapeWaterDistance, drawLandscapeSubstrate, drawLandscapeWater, drawStructuralObject, drawLandscapeShadows, drawLandscapeLight, drawAtlasStructures } from './ozark-landscape-art.js';
 
@@ -86,6 +87,7 @@ export class OzarkWorldRenderer {
     this.followId = 'aster';
     // A runtime-only paid player pose. Drawing never grants its authority.
     this.playerIndication = null;
+    this.playerFoodReach = null;
     this.inspectorOpen = false;
     this.chunks = new Map();
     this.pendingChunks = new Map();
@@ -309,6 +311,9 @@ export class OzarkWorldRenderer {
       else if (object.kind === 'player') {
         drawAvatar(g, state.player, anim.facing ?? DEFAULT_ANIM.facing,
           anim.time ?? time, Boolean(anim.moving), 'valley');
+        drawPlayerFoodReachGeometry(g, this.playerFoodReach?.() ?? null);
+        for (const held of playerHeldFoodProjection(state).items)
+          drawEcologyObject(g, held.sprite, time, subject);
         drawIndicationGeometry(g, this.playerIndication?.() ?? null);
       }
       else {
