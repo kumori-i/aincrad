@@ -4,6 +4,7 @@ import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
 import { createOzarkState, loadOzarkSave, writeOzarkSave, getOzarkSaveValidationFailure, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { referenceGeometry } from '../src/discovery-actions.js';
@@ -124,6 +125,40 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     assert.ok(acted.indexOf('const posePreparation=await prepareCapture(win)')<acted.indexOf("settleMs:0"));
     assert.ok(acted.indexOf('const poseImage=')<acted.indexOf('const repeat='),
       'Disabled-repeat IPC must not consume the first paid screenshot window');
+    const reopened=runner.split('async function reopenPhase(win) {')[1]
+      ?.split('async function closeNormally(win) {')[0];
+    assert.ok(reopened);
+    const focusSteps=["show:false,webPreferences:","await focusSink.loadURL('about:blank')",
+      "await trustedLesson(win,'sela'",'const partial=await evaluate(win,',
+      'focusSink.show()','focusSink.focus()','await waitFor(win,'];
+    for(const step of focusSteps)assert.ok(reopened.includes(step),
+      'Missing native focus cancellation step: '+step);
+    for(let i=1;i<focusSteps.length;i++)assert.ok(
+      reopened.indexOf(focusSteps[i])>reopened.indexOf(focusSteps[i-1]),
+      'The sandboxed focus sink must load hidden before paid work and transfer focus immediately afterward');
+    const paidStart=reopened.indexOf("await trustedLesson(win,'sela'");
+    const focusTransfer=reopened.indexOf('focusSink.focus()',paidStart);
+    assert.doesNotMatch(reopened.slice(paidStart,focusTransfer),
+      /focusSink\.loadURL\(|new BrowserWindow\(/,
+      'No asynchronous window construction or load may consume the paid point interval');
+    assert.match(reopened.slice(paidStart,focusTransfer),
+      /partial\?\.worked>0&&partial\.worked<partial\.seconds/,
+      'The focus transfer must start during certified partial paid work');
+    const witness=reopened.match(/const stoppedStatus=([^\n]+);\s*await waitFor\(win,([\s\S]*?)\);/);
+    assert.ok(witness,'The focus fixture must wait for an interrupted-action witness');
+    const stoppedStatus=runInNewContext(witness[1]);
+    const witnessExpression=runInNewContext(witness[2],{stoppedStatus});
+    const observed=(active,status)=>runInNewContext(witnessExpression,{
+      window:{__ozarkWorld:{playerLessonSnapshot:()=>({active})}},
+      document:{getElementById:()=>({textContent:status})},
+    });
+    assert.equal(observed(null,stoppedStatus),true);
+    assert.equal(observed(null,'The paid point ended. A character made a tentative own-image link.'),false,
+      'Natural completion must not masquerade as focus cancellation');
+    assert.equal(observed({worked:.1},stoppedStatus),false);
+    const worldMain=await readFile('src/ozark-world-main.js','utf8');
+    assert.match(worldMain,/function cancelPlayerLesson\(reason\) \{[\s\S]*?text\('player-lesson-status',\s*'The point stopped\. Time and effort already spent remain spent; no word association was added\.'/,
+      'The witness must be emitted by the actual runtime cancellation path');
 
     assert.doesNotMatch(runner,/__ozarkWorld\.step\(\.(?:1|2)\)/,
       'Batched durations must use integer fixed ticks, never subtraction tails');

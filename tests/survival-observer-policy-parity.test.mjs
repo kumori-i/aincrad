@@ -18,10 +18,11 @@ let original=source;
 for(const {before,after} of seams.slice().reverse()){
  assert.equal(original.split(after).length-1,1,'each reverse seam occurs exactly once');original=original.replace(after,before);
 }
-// The neutral optional motor choice belongs to the policy under comparison in
-// both arms; both survival and food-run observer seams are reversed to obtain
-// the original exact policy baseline without changing its hash or scenarios.
-assert.equal(sha(original),'9bf8516e5c00b12e5386672c6f85f7d34d3edf97d3345abbfa50f82256b7da5f','exact pre-observer policy, not a rewritten approximation');
+// Both arms retain the same current policy, including the bounded remembered
+// route detour. Reverse only the survival and food-run observer seams. This
+// source pin changes when an intentional policy change changes both arms; the
+// frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
+assert.equal(sha(original),'53eb5356dc299dda36f00fc66382cda15baa0f4e47230ce20a57881b3aa58515','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}

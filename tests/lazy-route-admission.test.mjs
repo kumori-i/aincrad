@@ -74,13 +74,21 @@ function captureSelection(npc,goal){
   const indices=[],queries=[];
   const routeTarget=compileRouteTarget(lazyRouteTargetSource,(...args)=>{
     const index=createKnownRouteIndex(...args);indices.push(index);
-    return {metrics(to,maxSteps){
+    return {route:(to,maxSteps)=>index.route(to,maxSteps),metrics(to,maxSteps){
       const before={...index.stats},metrics=index.metrics(to,maxSteps);
       queries.push({key:tileKey(to),metrics,before,after:{...index.stats}});return metrics;
     }};
   });
   const snapshot=structuredClone(npc),action=routeTarget(npc,goal);
-  assert.deepEqual(action,eagerRouteTarget(npc,goal),'Exact lazy private routeTarget action matches the frozen eager selection.');
+  const old=eagerRouteTarget(npc,goal);
+  if(old)assert.deepEqual(action,old,'An existing closing choice keeps its exact frozen selection.');
+  else if(action){
+    assert.equal(action.type,'move');
+    assert.ok(indices[0].route(goal,30)?.slice(0,-1).some(p=>
+      p.x===action.target.x&&p.y===action.target.y),
+    'A new non-closing choice must lie on the actor’s known route to the goal.');
+    assert.ok(distance(action.target,goal)>=distance(npc.position,goal)-20);
+  }
   assert.deepEqual(npc,snapshot,'Selection cannot change the NPC, graph, blocked evidence or RNG.');
   assert.equal(indices.length,1,'One selection owns exactly one shared index.');
   return {action,index:indices[0],queries};
@@ -303,6 +311,53 @@ test('no-progress selection checks exactly 24 admissible endpoints and retains s
   assert.deepEqual(captureSelection(tied,point(1,1)).action,{type:'move',target:point(0,1)});
 });
 
+function rememberedDetour(){
+  const keys=['0,0'];
+  for(let x=-1;x>=-10;x--)keys.push(`${x},0`);
+  keys.push('-10,1','-10,2');
+  for(let x=-9;x<=0;x++)keys.push(`${x},2`);
+  return {npc:npcFor(cellsFor(keys)),goal:point(0,2)};
+}
+
+test('a personally remembered U route can need a safe first move away from food',()=>{
+  const {npc,goal}=rememberedDetour(),start={...npc.position};
+  const before=structuredClone(npc),route=knownRoute(npc.memory.cells,start,goal,30);
+  assert.ok(route,'The whole detour is in this actor’s remembered walkable cells');
+  assert.equal(sumRoute(start,route),22*NPC_RULES.tileSize);
+  assert.ok(sumRoute(start,route)<CONFIG.walkSpeed*NPC_RULES.maxActionSeconds);
+  const safe=CONFIG.walkSpeed*(NPC_RULES.maxActionSeconds-1);
+  const index=createKnownRouteIndex(npc.memory.cells,start),candidate=point(-1,2);
+  assert.equal(index.metrics(candidate,30).returnedLength,21*NPC_RULES.tileSize);
+  assert.ok(index.metrics(candidate,30).returnedLength>safe);
+  const original=eagerRouteTarget(npc,goal);
+  assert.equal(original,null,'The old closing-only planner rejects every safe detour waypoint');
+  const {action,index:selection,queries}=captureSelection(npc,goal);
+  assert.ok(action&&action.type==='move');
+  assert.ok(route.some(p=>p.x===action.target.x&&p.y===action.target.y));
+  assert.ok(distance(start,action.target)>45&&distance(start,action.target)<900);
+  assert.ok(index.metrics(action.target,30).returnedLength<safe);
+  assert.ok(distance(action.target,goal)>=distance(start,goal)-20,
+    'The chosen first waypoint is an honest non-closing detour, not a fabricated short cut');
+  assert.ok(queries.length<=Object.keys(npc.memory.cells).length);
+  assert.ok(selection.stats.expansions<=2500&&selection.stats.examinedEdges<=10000,
+    'The fallback shares the bounded existing observed search');
+  assert.deepEqual(npc,before,'Route selection must not change body, knowledge, or RNG');
+});
+
+test('an absent, temporarily blocked or too-slow detour never manufactures a route',()=>{
+  const missing=rememberedDetour();delete missing.npc.memory.cells['-10,1'];
+  assert.equal(captureSelection(missing.npc,missing.goal).action,null);
+  const blocked=rememberedDetour(),edgeKey=edge('-10,0','-10,1');
+  blocked.npc.memory.blockedEdges[edgeKey]={retryAfter:200};
+  assert.equal(captureSelection(blocked.npc,blocked.goal).action,null);
+  blocked.npc.elapsed=200;
+  assert.ok(captureSelection(blocked.npc,blocked.goal).action,
+    'Only a currently expired personally known edge can reopen the detour');
+  const slow=rememberedDetour();slow.npc.cognition.travel.secondsPerUnit=1/5;
+  assert.equal(captureSelection(slow.npc,slow.goal).action,null,
+    'No first observed tile fits the same safe physical action window');
+});
+
 test('selection rereads fallback anchors, blocked-edge expiry, current scenes and sensed-speed boundaries',()=>{
   const base=npcFor(rectangle(-4,-4,4,4),{x:0,y:6});
   const variants=[-1,0,NaN,Infinity,-Infinity,1/CONFIG.walkSpeed,1/50,(NPC_RULES.maxActionSeconds-1)/80];
@@ -330,8 +385,8 @@ test('selection rereads fallback anchors, blocked-edge expiry, current scenes an
   }
 });
 
-test('seeded ranked selections preserve exact eager actions without repeated endpoint admission or RNG changes',()=>{
-  const rng=random(0x28b7af10);let accepted=0,rejected=0;
+test('seeded ranked selections preserve eager closing choices and bound new observed detours',()=>{
+  const rng=random(0x28b7af10);let accepted=0,rejected=0,detours=0;
   for(let trial=0;trial<64;trial++){
     const cells=rectangle(-10,-10,10,10),npc=npcFor(cells,{x:trial%3?6:0,y:trial%2?3:0},trial+1);
     for(const cell of Object.values(cells)){cell.walkable=rng()>.22;const [x,y]=cell.key.split(',').map(Number);if(rng()<.1)npc.memory.blockedEdges[edge(cell.key,`${x+1},${y}`)]={retryAfter:trial%2?101:100};}
@@ -346,7 +401,7 @@ test('seeded ranked selections preserve exact eager actions without repeated end
     assert.equal(new Set(queries.map(q=>q.key)).size,queries.length,'Admission never retries an endpoint.');
     assert.deepEqual(queries.map(q=>q.key),ranked(npc,goal).slice(0,queries.length).map(c=>c.key));
     assert.ok(index.stats.expansions<=2500&&index.stats.examinedEdges<=10000);
-    if(action)accepted++;else rejected++;
+    if(action){accepted++;if(!eagerRouteTarget(npc,goal))detours++;}else rejected++;
   }
-  assert.ok(accepted>30&&rejected>=10,`${accepted} selected actions and ${rejected} refusals`);
+  assert.deepEqual({accepted,rejected,detours},{accepted:57,rejected:7,detours:4});
 });

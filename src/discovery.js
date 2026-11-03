@@ -216,7 +216,18 @@ function routeTarget(npc,point){
   const choices=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>45&&distance(c,npc.position)<900).sort((a,b)=>distance(a,point)-distance(b,point));
   let admitted=0;
   for(const c of choices){if(admitted>=24)break;const route=routes.metrics(c,30);if(!route||!(route.returnedLength<speed*(NPC_RULES.maxActionSeconds-1)))continue;admitted++;if(distance(c,point)>=distance(npc.position,point)-20)continue;return {type:'move',target:{x:c.x,y:c.y}};}
-  return null;
+  // A personally remembered route can begin by moving away from its goal.
+  // Only after the usual closing choice fails, take one bounded waypoint on
+  // that same observed route. Physical movement still checks the real ground.
+  const path=routes.route(point,30),safeLength=speed*(NPC_RULES.maxActionSeconds-1);
+  let travelled=0,prior=npc.position,detour=null;
+  if(path)for(let i=0;i<path.length-1;i++){
+    const c=path[i],from=distance(c,npc.position);
+    travelled+=distance(prior,c);prior=c;
+    if(!(travelled<safeLength))break;
+    if(from>45&&from<900&&distance(c,point)>=distance(npc.position,point)-20)detour=c;
+  }
+  return detour?{type:'move',target:{x:detour.x,y:detour.y}}:null;
 }
 // A terrain attempt begins with a sighting or a failed bodily step. Geometry
 // remains the arbiter only when the action runs; this policy never probes a

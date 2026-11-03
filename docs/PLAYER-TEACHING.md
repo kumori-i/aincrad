@@ -19,6 +19,26 @@ the lesson caused it. Applying the demonstrated procedure to another tree
 requires a later personally visible, physically grounded pull-to-fruit link
 and a new paid trial; no category or tree method is inferred from this check.
 
+A further authored continuation starts from a checkpoint with that same fruit
+released and its remaining stock intact. After loading, the ordinary population
+controller independently chooses and pays for a new grasp and sample of the
+exact fruit, then receives a separate delayed bodily result. The sample removes
+30 g and 15.8333 kcal from the finite portion. A matched reload with food
+learning disabled still makes 37 decisions but does not retry that fruit during
+the same 162.8-second window. This isolates the food-learning mechanism in one
+controlled encounter; it is not a native desktop close/reopen check or evidence
+of transfer to another tree.
+
+The same batch also checks a narrow navigation limit for personally remembered
+food routes. A controlled U-shaped map contains a 1,760-pixel known path whose
+first safely reachable waypoint does not reduce straight-line distance to the
+goal. The earlier selector gave up; a bounded fallback may now choose a waypoint
+on that actor-owned path when its usual nearer choice fails. Physical movement
+and survival priority still decide whether the trip succeeds. This map test does
+not establish that the route occurred in an ordinary world or caused a historical
+food deficit. Sparse ingestion in prior observations does not justify changing
+calorie values or granting food knowledge.
+
 ## Typed Say and point lessons
 
 In the **Your hands** panel, enter one to six lowercase `a`–`z` letters,
