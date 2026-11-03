@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONFIG } from '../src/config.js';
+import { CONFIG, NPC_RULES } from '../src/config.js';
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState } from '../src/ozark-save.js';
+import { createOzarkState, loadOzarkSave, writeOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { createPlayerFoodController } from '../src/player-food.js';
 import { PopulationRuntime } from '../src/population.js';
@@ -151,9 +151,13 @@ test('visible player eating can lead to an autonomous paid own trial; occluded e
             assert.equal(pending.status, 'waiting');
             assert.deepEqual(pending.ownEffects, [],
               'The physical swallow precedes delayed personal feedback');
+            assert.equal(f.mira.discovery.techniques.some(t => t.sourceId === id), false,
+              'Seeing the player and swallowing is not yet personal benefit proof');
             sampleBeforeFeedback = true;
           }
         }
+        if (!occluded && observationalInquiries(f.mira).some(q =>
+          q.actorId === 'player' && q.sourceId === id && q.status === 'supported')) break;
       }
       const own = observationalInquiries(f.mira).find(q =>
         q.actorId === 'player' && q.sourceId === id);
@@ -176,6 +180,41 @@ test('visible player eating can lead to an autonomous paid own trial; occluded e
           row.effect === 'sustained' && row.source === 'experienced' &&
           row.actionId === ownSample.actionId && row.ingestionId === ownSample.ingestionId &&
           row.at > ownSample.at));
+        const original = f.mira.discovery.techniques.find(t => t.sourceId === id);
+        assert.ok(original, 'Own delayed benefit creates an exact-source technique');
+        assert.deepEqual(original.steps, [
+          {type: 'grasp', targetId: '$source'},
+          {type: 'sample', targetId: '$material'},
+        ]);
+
+        // A second personally seen tree with matching supplied appearance
+        // does not turn the detached-fruit lesson into a tree pull procedure.
+        const other = f.ecology.plants.find(plant => plant.id !== f.plant.id &&
+          plant.kind === 'apple_tree' && plant.stage === 'ripe' && plant.quantity > 2 &&
+          Math.hypot(plant.position.x - f.plant.position.x,
+            plant.position.y - f.plant.position.y) < NPC_RULES.visionRadius);
+        assert.ok(other, 'The controlled world contains another nearby ripe apple tree');
+        const firstView = f.mira.discovery.observations[f.plant.id];
+        const otherView = f.mira.discovery.observations[other.id];
+        assert.ok(firstView && otherView,
+          'Both distinct trees entered the agent’s ordinary personal observation ledger');
+        assert.deepEqual(Object.fromEntries(['shape', 'color', 'texture'].map(key =>
+          [key, firstView.appearance[key]])),
+        Object.fromEntries(['shape', 'color', 'texture'].map(key =>
+          [key, otherView.appearance[key]])),
+        'Matching supplied appearance cues do not link a detached-fruit bite to a tree pull');
+        assert.equal(f.mira.discovery.techniques.some(t => t.sourceId === f.plant.id ||
+          t.sourceId === other.id), false);
+
+        const data = new Map();
+        const storage = {getItem: key => data.get(key) ?? null,
+          setItem: (key, value) => data.set(key, value)};
+        assert.equal(writeOzarkSave(storage, f.state, f.geometry), true);
+        assert.ok(data.get(OZARK_SAVE_KEY));
+        const reopened = loadOzarkSave(storage, f.geometry);
+        assert.equal(reopened.blocked, false, reopened.error);
+        assert.deepEqual(reopened.state.agents[1].discovery.techniques.find(t => t.sourceId === id),
+          original, 'The personally earned exact-source proof survives reopening');
       }
     } finally {f.dispose();}
   }
