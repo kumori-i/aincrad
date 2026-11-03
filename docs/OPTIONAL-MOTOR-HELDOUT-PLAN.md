@@ -41,7 +41,8 @@ At the same pre-action apple boundary, clone the actor and world for a separate
 one-step choice comparison. Compare the existing authored rule, the numeric
 ranker, cold/no-update abstention, frozen per-primitive frequency ranking,
 fixed first eligible object action, and a deterministic independently seeded
-uniform eligible-object-action control. Each pays its own chosen action once.
+uniform eligible-object-action control using seed `0x12d3a5` XOR the declared
+world seed. Each pays its own chosen action once.
 Report action, admission/censor, physical result, paid seconds, total
 metabolized kcal, same-duration idle-control kcal, excess over idle, water
 deficit and physical stock/held changes. Warm-up time and energy are reported
