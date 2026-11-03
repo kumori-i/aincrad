@@ -583,14 +583,24 @@ async function reopenPhase(win) {
   assert.deepEqual((await evaluate(win,'window.__ozarkWorld.fullSnapshot()')).playerLessons,
     checkpoint.savedBank);
   // A native focus transfer cancels paid work but does not pause simulation.
+  // Prepare the hidden sandboxed recipient before paid work starts. Loading it
+  // after the point begins can spend the entire 1.8-second action deadline.
+  const {BrowserWindow}=require('electron');
+  const focusSink=new BrowserWindow({width:100,height:100,show:false,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
+  await focusSink.loadURL('about:blank');
+  assert.equal(focusSink.isVisible(),false);
   await trustedLesson(win,'sela',checkpoint.authored.sourceId);
   assert.equal(await stepSeconds(win,.1),true);
-  assert.ok((await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active'))?.worked>0);
-  const {BrowserWindow}=require('electron');
-  const focusSink=new BrowserWindow({width:100,height:100,show:true,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
-  await focusSink.loadURL('about:blank');
+  const partial=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
+  assert.ok(partial?.worked>0&&partial.worked<partial.seconds,
+    'The point is partially paid and still active before focus transfers');
+  focusSink.show();
   focusSink.focus();
-  await waitFor(win,'window.__ozarkWorld.playerLessonSnapshot().active===null');
+  // Active=null alone also describes a successfully completed point. Require
+  // the runtime's interrupted-action status from the real blur/inactive path.
+  const stoppedStatus='The point stopped. Time and effort already spent remain spent; no word association was added.';
+  await waitFor(win,'window.__ozarkWorld.playerLessonSnapshot().active===null && ' +
+    'document.getElementById("player-lesson-status").textContent===' + JSON.stringify(stoppedStatus));
   assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().paused'),false,
     'Focus loss cancels only the action, not the running world');
   const elapsed=await evaluate(win,'window.__ozarkWorld.fullSnapshot().elapsed');
