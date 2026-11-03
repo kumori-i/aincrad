@@ -8,6 +8,17 @@ The player can demonstrate berries as well as apples, but a berry is small. A 30
 
 A controlled integration test places the player and agents beside an existing ripe apple tree and holds the agents' policies only during the short paid player demonstration. After the remainder is dropped, the player departs and the ordinary population controller chooses the agent's actions. In this authored physical setup, a visible swallow leads to the agent's own paid grasp, sample, and delayed bodily feedback; an occluded swallow with the same player actions and remaining portion creates no player-origin inquiry. This verifies that the autonomous policy path exists. It does not establish that agents will notice or use lessons reliably during ordinary survival, or that they generalize food categories.
 
+A continuation check follows that autonomous trial through delayed feedback and
+save/reopen. The personally earned technique remains a `grasp → sample` sequence
+for the exact detached fruit. A second nearby ripe tree enters the agent's own
+ordinary observation ledger with matching supplied shape, color and texture
+cues, but neither tree gains a `pull` technique. The player pulling fruit from
+the first tree is not currently a witnessed, linked part of the agent's food
+lesson. An unrelated exploratory pull at another tree would not establish that
+the lesson caused it. Applying the demonstrated procedure to another tree
+requires a later personally visible, physically grounded pull-to-fruit link
+and a new paid trial; no category or tree method is inferred from this check.
+
 ## Typed Say and point lessons
 
 In the **Your hands** panel, enter one to six lowercase `a`–`z` letters,
