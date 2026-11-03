@@ -52,6 +52,17 @@ whole-game performance estimate or a calibrated population result. A separate
 finite-stock case shows probabilities can fall after this actor's fully paid
 pull failures, but it does not establish helpful reversal under bodily harm.
 
+The frequency prior separates grasp and pull quickly after one result of each
+type, while the fixed-rate SGD model remains near 0.5. The authored rule gives
+an untried inspection a novelty bonus; the prototype ranks only the probability
+of physical `ok`. Inspection and pulling have different durations, effort,
+information and material effects, so their raw success labels are not a common
+value measure. Moreover, this first one-step choice occurred **after** the
+apple outcomes were fitted. It is a development diagnostic, not a held-out
+policy comparison. A prospective second split is fixed in
+[OPTIONAL-MOTOR-HELDOUT-PLAN.md](OPTIONAL-MOTOR-HELDOUT-PLAN.md) before its paid
+evaluation actions.
+
 The model is session-only; there is no save/reopen retention. Its tests cover
 numeric gradients, clipping, one-use paid receipt handling, cross-actor
 isolation, holdout-before-update order, interruption censorship, bounded
