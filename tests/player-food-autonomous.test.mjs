@@ -10,9 +10,161 @@ import { PopulationRuntime } from '../src/population.js';
 import { tickNpc } from '../src/npc.js';
 import { observationalInquiries } from '../src/observational-learning.js';
 import { lookupEcologyObject } from '../src/ecology.js';
+import { successfulDiscoveryActionCompletion } from '../src/discovery-actions.js';
 
 const near = (actual, expected) =>
   assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} differs from ${expected}`);
+
+// One authored engineering continuation, not a scientific cohort or native
+// desktop persistence test. At this checkpoint the fruit was actually released.
+// A held-item sample would prove less: here a fresh paid grasp is required too.
+// Reopen only restores/binds the saved actors and advances normal population
+// ticks. It injects no body state, inventory, memories, choices or actions.
+function verifyReopenedFruitReuse(storage, geometry, id, oldSample) {
+  const opened = loadOzarkSave(storage, geometry);
+  assert.equal(opened.blocked, false, opened.error);
+  const state = opened.state, npc = state.agents[1], ecology = state.environment.ecology;
+  for (const actor of state.agents) bindOzarkWorldAgent(actor, geometry, state);
+  assert.equal(npc.active, null);
+  assert.equal(npc.discovery.run, null, 'A saved active procedure is not resumed');
+  const fruit = lookupEcologyObject(ecology, id);
+  assert.equal(fruit.heldBy, null);
+  assert.equal(npc.inventory.items.includes(id), false);
+  assert.ok(fruit.massGrams > DISCOVERY_RULES.sampleGrams);
+  const snapshot = actor => structuredClone({position: actor.position,
+    elapsed: actor.elapsed, discovery: actor.discovery, physiology: actor.physiology,
+    inventory: actor.inventory, nextReceiptId: actor.memory.nextId});
+  const baseline = snapshot(npc), firstNewReceiptId = npc.memory.nextId;
+  const before = {elapsed: state.elapsed, mass: fruit.massGrams,
+    energy: fruit.energyKcal, removed: ecology.ledger.humanRemovedKcal};
+  const choices = [], actions = [];
+  const population = new PopulationRuntime(state, {cardinal: false,
+    experimentalDiscovery: {
+      decision: (actor, result) => {
+        if (actor === npc) choices.push({action: structuredClone(result.action),
+          reason: result.reason});
+      },
+      performed: (actor, action, result, active) => {
+        if (actor === npc && active) actions.push({active, choice: choices.at(-1)});
+      },
+    }});
+  let ticks = 0, grasp = null, sample = null, feedback = null, depletion = null;
+  try {
+    // No-time control: construction and zero time cannot fabricate a new trial.
+    population.tick(0);
+    assert.deepEqual(snapshot(npc), baseline);
+    assert.deepEqual({elapsed: state.elapsed, mass: fruit.massGrams,
+      energy: fruit.energyKcal, removed: ecology.ledger.humanRemovedKcal}, before);
+    assert.deepEqual(choices, []);
+    const fresh = row => row.targetId === id && row.ok &&
+      row.actionId >= firstNewReceiptId && row.at > baseline.elapsed;
+    // Predeclared bound: 180 simulation seconds, as in the original lesson.
+    for (; ticks < 1800;) {
+      const prior = {mass: fruit.massGrams, energy: fruit.energyKcal,
+        ingested: npc.physiology.totals.ingestedKcal,
+        removed: ecology.ledger.humanRemovedKcal};
+      state.elapsed += .1;
+      population.tick(.1);
+      ticks++;
+      if (!grasp) {
+        grasp = npc.discovery.experiments.find(row => fresh(row) && row.primitive === 'grasp');
+        if (grasp) {
+          assert.equal(fruit.heldBy, npc.id);
+          assert.ok(npc.inventory.items.includes(id));
+        }
+      }
+      if (!sample) {
+        sample = npc.discovery.experiments.find(row => fresh(row) && row.primitive === 'sample');
+        if (sample) {
+          assert.ok(grasp && grasp.actionId < sample.actionId && grasp.at < sample.at);
+          assert.equal(fruit.heldBy, npc.id);
+          assert.ok(npc.inventory.items.includes(id));
+          depletion = {mass: prior.mass - fruit.massGrams,
+            energy: prior.energy - fruit.energyKcal,
+            expectedEnergy: prior.energy * DISCOVERY_RULES.sampleGrams / prior.mass,
+            ingested: npc.physiology.totals.ingestedKcal - prior.ingested,
+            removed: ecology.ledger.humanRemovedKcal - prior.removed};
+          assert.equal(npc.discovery.effects.some(effect =>
+            effect.ingestionId === sample.ingestionId), false,
+          'A new physical swallow still precedes its own delayed feedback');
+        }
+      }
+      if (sample) {
+        feedback = npc.discovery.effects.find(effect => effect.effect === 'sustained' &&
+          effect.source === 'experienced' && effect.objectId === id &&
+          effect.actionId === sample.actionId && effect.ingestionId === sample.ingestionId);
+        if (feedback) break;
+      }
+    }
+    assert.ok(sample, 'The ordinary reopened runtime must finish a new grasp and sample');
+    assert.notEqual(sample.actionId, oldSample.actionId);
+    assert.notEqual(sample.ingestionId, oldSample.ingestionId);
+    for (const trial of [grasp, sample]) {
+      const receipt = npc.memory.experience.find(event => event.id === trial.actionId);
+      assert.equal(receipt.type, 'action');
+      assert.equal(receipt.at, trial.at);
+      assert.equal(receipt.details.action.type, trial.primitive);
+      assert.equal(receipt.details.action.targetId, id);
+      assert.equal(receipt.details.result.ok, true);
+      assert.equal(receipt.details.result.durationSeconds, trial.durationSeconds);
+      if (trial === sample) assert.equal(receipt.details.result.ingestionId, sample.ingestionId);
+      const certified = actions.map(row => ({...row,
+        proof: successfulDiscoveryActionCompletion(npc, row.active)}))
+        .find(row => row.proof?.eventId === trial.actionId);
+      assert.ok(certified, `${trial.primitive} needs a fresh runtime-only paid-work witness`);
+      near(certified.proof.worked, trial.durationSeconds);
+      assert.ok(certified.proof.worked > 0);
+      assert.deepEqual(certified.choice.action, {type: trial.primitive, targetId: id});
+      assert.equal(certified.choice.reason,
+        'I am repeating an operation sequence supported by my own bodily feedback.');
+    }
+    near(depletion.mass, DISCOVERY_RULES.sampleGrams);
+    assert.ok(depletion.energy > 0);
+    near(depletion.energy, depletion.expectedEnergy);
+    near(depletion.ingested, depletion.energy);
+    near(depletion.removed, depletion.energy);
+    assert.ok(feedback && feedback.at > sample.at,
+      'The new receipt must earn its own later benefit, not reuse the old effect');
+    const recognition = npc.memory.experience.find(row => row.id === feedback.proofEventId);
+    assert.equal(recognition.type, 'condition');
+    assert.ok(recognition.at >= feedback.at);
+    assert.equal(recognition.details.code, 'DISCOVERY_EFFECT');
+    assert.equal(recognition.details.feedback.objectId, id);
+    assert.equal(recognition.details.feedback.effect, 'sustained');
+    assert.equal(recognition.details.feedback.actionId, sample.actionId);
+    assert.equal(recognition.details.feedback.ingestionId, sample.ingestionId);
+  } finally {population.dispose();}
+
+  // Same-save mechanism control: retain all real memories, body and ownership.
+  // Disabling food learning disables its policy use, not curiosity or digestion.
+  // Run the same bounded duration; do not assert that no action of any kind occurs.
+  const control = loadOzarkSave(storage, geometry);
+  assert.equal(control.blocked, false, control.error);
+  const controlNpc = control.state.agents[1], controlChoices = [];
+  for (const actor of control.state.agents) bindOzarkWorldAgent(actor, geometry, control.state);
+  assert.deepEqual(snapshot(controlNpc), baseline);
+  const controlPopulation = new PopulationRuntime(control.state, {cardinal: false,
+    discoveryFoodLearning: false,
+    experimentalDiscovery: {decision: (actor, result) => {
+      if (actor === controlNpc) controlChoices.push(structuredClone(result));
+    }}});
+  try {
+    for (let i = 0; i < ticks; i++) {
+      control.state.elapsed += .1;
+      controlPopulation.tick(.1);
+    }
+    assert.ok(controlChoices.length > 0, 'The control runtime actually makes decisions');
+    assert.equal(controlChoices.some(choice => choice.reason ===
+      'I am repeating an operation sequence supported by my own bodily feedback.'), false);
+    const controlTrials = controlNpc.discovery.experiments.filter(row =>
+      row.targetId === id && row.at > baseline.elapsed && row.actionId >= firstNewReceiptId);
+    assert.deepEqual(controlTrials, [],
+      'This same-save control does not retry the exact fruit during the matched window');
+    return {sourceId: id, reopenedAt: baseline.elapsed, elapsedSeconds: ticks * .1,
+      oldSample, grasp, sample, feedback, depletion,
+      controlDecisions: controlChoices.length, controlExactFruitTrials: controlTrials.length};
+  } finally {controlPopulation.dispose();}
+}
 
 // The authored opening keeps policies still only during the short player
 // lesson. After release, PopulationRuntime owns every NPC decision and action.
@@ -84,7 +236,7 @@ function lesson({occluded}) {
     dispose: () => {player.dispose();population.dispose();}};
 }
 
-test('visible player eating can lead to an autonomous paid own trial; occluded eating cannot create its inquiry', () => {
+test('visible player eating supports own learning and autonomous fruit reuse after reopen; occluded eating cannot create its inquiry', t => {
   let visiblePhysical = null;
   for (const occluded of [false, true]) {
     const f = lesson({occluded});
@@ -209,12 +361,23 @@ test('visible player eating can lead to an autonomous paid own trial; occluded e
         const data = new Map();
         const storage = {getItem: key => data.get(key) ?? null,
           setItem: (key, value) => data.set(key, value)};
+        const savedFruit = lookupEcologyObject(f.ecology, id);
+        assert.equal(savedFruit.heldBy, null,
+          'The ordinary controller released the fruit before delayed support arrived');
+        assert.equal(f.mira.inventory.items.includes(id), false);
+        assert.ok(f.mira.discovery.experiments.some(row => row.primitive === 'release' &&
+          row.targetId === id && row.ok && row.at > ownSample.at),
+        'The unheld checkpoint must follow a real personal release');
         assert.equal(writeOzarkSave(storage, f.state, f.geometry), true);
         assert.ok(data.get(OZARK_SAVE_KEY));
         const reopened = loadOzarkSave(storage, f.geometry);
         assert.equal(reopened.blocked, false, reopened.error);
+        assert.deepEqual(lookupEcologyObject(reopened.state.environment.ecology, id), savedFruit,
+          'Reopen preserves the actual fruit, including its unheld ownership and remaining stock');
         assert.deepEqual(reopened.state.agents[1].discovery.techniques.find(t => t.sourceId === id),
           original, 'The personally earned exact-source proof survives reopening');
+        t.diagnostic(`Reopened exact-fruit reuse: ${JSON.stringify(
+          verifyReopenedFruitReuse(storage, f.geometry, id, ownSample))}`);
       }
     } finally {f.dispose();}
   }
