@@ -436,8 +436,30 @@ test('a source technique keeps an alternate complete real witness when its oldes
   assert.deepEqual(discoveryDecision(reopened).action, beforeAction, 'effect-driven held sampling remains eligible');
   const normalized = reopened.discovery.techniques.find(row => row.id === technique.id);
   assert.ok(normalized);
-  assert.equal(retained.successes, 2, 'two genuine live sustained portions were counted');
-  assert.equal(normalized.successes, 1, 'restore derives only one retained complete witness');
-  assert.equal(retained.confidence, 'supported');
+  assert.equal(retained.successes, 1, 'live retirement counts only complete retained witnesses');
+  assert.equal(normalized.successes, 1, 'restore keeps the same count from retained proof');
+  assert.equal(retained.confidence, 'tentative');
   assert.equal(normalized.confidence, 'tentative');
+  assert.deepEqual(normalized, retained, 'reopening cannot change a retained technique');
+});
+
+test('optional trial counts normalize when sight and an older paid receipt retire', () => {
+  const { npc, environment, plant } = fixture();
+  assert.equal(finish(npc, environment, { type: 'inspect_object', targetId: plant.id }).ok, true);
+  assert.equal(finish(npc, environment, { type: 'inspect_object', targetId: plant.id }).ok, true);
+  const key = `${plant.id}|inspect_object`;
+  const [first, second] = npc.discovery.experiments.filter(row => row.targetId === plant.id && row.primitive === 'inspect_object');
+  assert.ok(first && second && first.actionId !== second.actionId);
+  assert.equal(npc.discovery.trials[key].attempts, 2);
+  delete npc.discovery.observations[plant.id];
+  npc.discovery.experiments = npc.discovery.experiments.filter(row => row.id !== first.id);
+  npc.memory.experience = npc.memory.experience.filter(row => row.id !== first.actionId);
+  const plan = planProofRetention(npc);
+  assert.equal(plan.ok, true, plan.reason);
+  assert.equal(applyProofRetention(npc, plan), true);
+  const live = npc.discovery.trials[key];
+  const reopened = validateNpc(structuredClone(npc));
+  assert.equal(live.attempts, 1, 'unobserved trial cannot retain count from lost receipt');
+  assert.deepEqual(reopened.discovery.trials[key], live);
+  assert.deepEqual(reopened.discovery.practice, npc.discovery.practice);
 });

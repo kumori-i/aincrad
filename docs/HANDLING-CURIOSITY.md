@@ -30,4 +30,16 @@ Focused fixtures arrange exposure to two distinct naturally generated sources an
 
 A matched selector-only ablation holds initial state, receipts, world and RNG fixed. In the fixed encounter, control inspected the target (1.8 simulation seconds, 1.68 metabolized kcal, no detached item), while the inquiry selected pulling (4.9 simulation seconds, approximately 11.091 metabolized kcal, one item detached). No sampling or food technique resulted. This demonstrates changed choice and physical acquisition in that encounter, not a general success-rate, sample-efficiency, causal-learning or survival claim.
 
+A separate controlled integration fixture now follows the encounter farther. The
+test authors the initial two-source exposure and pays for the first source's
+pull and the second source's failed grasp. The ordinary population controller
+then chooses and pays for the second pull, independently samples its detached
+portion and receives delayed personal feedback. It creates a food technique
+for that exact second source only after that feedback. The test also checks no
+earlier personal pull, occluded sight and personally experienced adverse
+feedback controls. This one engineered encounter shows a narrow motor analogy
+can lead to a new personally verified food experience; it does not establish
+general tree-category transfer, retained survival benefit or ordinary-world
+frequency.
+
 Tests cover absent/forged/testimonial proof, source identity, fresh appearance and access, care, one-shot completion, depleted physical stock, optional-field corruption, pending/completed/selected/interrupted save continuity and proof retirement. Native desktop evidence is recorded separately from JavaScript fixtures. A source-level or JSON roundtrip pass must not be described as native close/reopen or screenshot verification.

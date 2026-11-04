@@ -1,9 +1,10 @@
-# Deferred discovery count normalization
+# Discovery count normalization at proof retirement
 
-The proof-retention repair preserves learned effects and their exact sample,
-action, and condition evidence. It does not make every live discovery aggregate
-identical after save and reopen. The validator and proof/timestamp rules remain
-unchanged.
+The original proof-retention repair preserved learned effects and their exact
+sample, action, and condition evidence. It left some live aggregates above what
+the save validator could reconstruct after old evidence retired. The historical
+diagnosis below remains an observation of that earlier source, not a current
+outcome claim.
 
 In the copied `000045` historical world, after 3,600 fixed steps (60 simulated
 seconds), Mira's `object:2765|sample` trial changes from 3 attempts / 3 successes
@@ -19,9 +20,20 @@ that ignored diagnostic file must accompany any distribution of this note. The
 earlier red 900-second probe remains in the test source, outside the scoped
 3,600-step acceptance.
 
-These changes can affect future choices. Trial counts and duration feed discovery
-scoring; technique successes and confidence can affect the
-`failures <= successes + 2` eligibility gate. This is an unresolved, separate
-behavioral continuity issue. The current repair neither changes those counts
-nor claims universal decision or memory parity. A future fix needs its own
-design and acceptance criteria under the existing history caps.
+The current repair reconciles the live actor at the same bounded proof-retirement
+commit. A technique counts only distinct retained acquisition, sample and
+sustained-effect chains; its `revised` adverse status remains sticky. An optional
+trial without retained sight is rebuilt from its retained paid action receipts,
+or removed if none survive. Missing keys backed by retained receipts are
+reconstructed. At most 768 trial keys remain; only optional observed summaries
+can lose a slot to proof-backed keys. Practice is derived from the resulting
+trial ledger. The save validator uses the same bounded proof and trial reduction.
+
+For supported live actors within the existing caps, a later reopen does not
+silently change these proof-derived counts or the confidence gate. Retirement
+itself can lower a count and alter future choices, because the older physical
+proof is no longer stored. Cumulative lifetime success is not promised.
+Existing observed-object trial summaries and technique failure summaries remain
+historical aggregates subject to the save validator's limits, not newly
+authenticated evidence. No word meanings, food identities, nutrients, or
+safety labels are inferred.
