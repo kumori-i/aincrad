@@ -137,7 +137,13 @@ app.on('will-quit', event => { if (!allowQuit) { event.preventDefault(); return;
   if (!closeObserved) process.exitCode = 1;
   else console.log('PLAYER_LESSON_NATIVE_WILL_QUIT ' + phase);
 });
-async function evaluate(win, source) { return win.webContents.executeJavaScript(source); }
+async function evaluate(win, source, label=null) {
+  try { return await win.webContents.executeJavaScript(source); }
+  catch(error) {
+    const location=label ?? String(source).replace(/\\s+/g,' ').slice(0,120);
+    throw new Error('Native renderer expression failed ['+location+']: '+String(error),{cause:error});
+  }
+}
 async function waitFor(win, expression) {
   for (let i = 0; i < 400; i++) {
     try { if (await evaluate(win, expression)) return; } catch {}
@@ -147,17 +153,22 @@ async function waitFor(win, expression) {
   }
   throw new Error('Native condition missing: ' + expression);
 }
-async function clickButton(win, id, {allowDisabled=false,settleMs=60}={}) {
+async function clickButton(win, id, {settleMs=60,repeatImmediately=false}={}) {
   const box = await evaluate(win, '(() => { const button=document.getElementById(' + JSON.stringify(id) + ');' +
-    'if(!button||' + (allowDisabled?'false':'button.disabled') + '||button.getClientRects().length!==1)throw new Error("Food button unavailable: ' + id + '");' +
+    'if(!button||button.disabled||button.getClientRects().length!==1)throw new Error("Food button unavailable: ' + id + '");' +
     'button.scrollIntoView({block:"nearest"});const rect=button.getBoundingClientRect();' +
     'const x=Math.round(rect.left+rect.width/2),y=Math.round(rect.top+rect.height/2);' +
     'if(x<0||y<0||x>=innerWidth||y>=innerHeight||!button.contains(document.elementFromPoint(x,y)))' +
-    'throw new Error("Food button is outside or obscured: ' + id + '");return {x,y};})()');
+    'throw new Error("Food button is outside or obscured: ' + id + '");return {x,y};})()',
+    'button hit test '+id);
   win.webContents.focus();
   win.webContents.sendInputEvent({type:'mouseMove',x:box.x,y:box.y});
-  win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:box.x,y:box.y,clickCount:1});
-  win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:box.x,y:box.y,clickCount:1});
+  // A disabled-repeat probe must send its second genuine input immediately.
+  // A fresh IPC between clicks can outlast the 1.8 s point on a busy host.
+  for(let press=0;press<(repeatImmediately?2:1);press++){
+    win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:box.x,y:box.y,clickCount:1});
+    win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:box.x,y:box.y,clickCount:1});
+  }
   if(settleMs)await delay(settleMs);
 }
 function fixedStepExpression(seconds) {
@@ -298,6 +309,24 @@ async function authorPhase(win) {
   await session.defaultSession.flushStorageData();
 }
 async function trustedTypeWord(win, word) {
+  // A hidden focus sink in the reopen exercise can transfer native focus.
+  // Restore the actual window and wait for the runtime to re-enable its word
+  // field; never force-enable the DOM or attempt a paid action while unfocused.
+  win.focus();
+  try { await waitFor(win,'document.hasFocus() && ' +
+    '!document.getElementById("player-lesson-word").disabled && ' +
+    'document.getElementById("player-lesson-word").getClientRects().length===1'); }
+  catch(error){
+    const state=await evaluate(win,'(() => {const p=document.getElementById("player-lesson-word");' +
+      'const panel=document.getElementById("npc-panel");return {focused:document.hasFocus(),' +
+      'activeElement:document.activeElement?.id,wordPresent:!!p,disabled:p?.disabled,' +
+      'rects:p?.getClientRects().length,panelHidden:panel?.classList.contains("hidden"),' +
+      'paused:window.__ozarkWorld.snapshot().paused,' +
+      'playerLessonActive:window.__ozarkWorld.playerLessonSnapshot().active};})()',
+      'word focus readiness').catch(readError=>({readError:String(readError)}));
+    console.log('PLAYER_LESSON_WORD_READY_DIAGNOSTIC '+JSON.stringify(state).slice(0,2048));
+    throw error;
+  }
   await clickButton(win,'player-lesson-word');
   assert.equal(await evaluate(win,'document.activeElement?.id'),'player-lesson-word');
   await evaluate(win,'(() => {const input=document.getElementById("player-lesson-word");' +
@@ -305,10 +334,12 @@ async function trustedTypeWord(win, word) {
     'window.__lessonWordTrace=[];for(const type of ["keydown","keyup","beforeinput","input"])' +
     'input.addEventListener(type,event=>{const rows=window.__lessonWordTrace;' +
     'rows.push({type:event.type,key:event.key,inputType:event.inputType,trusted:event.isTrusted,' +
-    'value:input.value,start:input.selectionStart,end:input.selectionEnd});if(rows.length>96)rows.shift();},' +
+    'value:input.value,start:input.selectionStart,end:input.selectionEnd,at:performance.now()});' +
+    'if(rows.length>96)rows.shift();},' +
     '{signal:window.__lessonWordAbort.signal});})()');
   const inspect=()=>evaluate(win,'(() => {const p=document.getElementById("player-lesson-word");return ' +
-    '{value:p.value,start:p.selectionStart,end:p.selectionEnd,focused:document.activeElement===p,' +
+    '{at:performance.now(),value:p.value,start:p.selectionStart,end:p.selectionEnd,' +
+    'focused:document.activeElement===p,windowFocused:document.hasFocus(),disabled:p.disabled,' +
     'events:window.__lessonWordTrace};})()');
   const before=await inspect();
   assert.ok(before.value.length<=6 && before.focused);
@@ -318,29 +349,65 @@ async function trustedTypeWord(win, word) {
     win.webContents.sendInputEvent({type:'keyDown',keyCode});
     win.webContents.sendInputEvent({type:'keyUp',keyCode});
   }
-  const cleared=await inspect();
+  const deletionArrived=row=>row.value===''&&['Backspace','Delete'].every(key=>
+    row.events.filter(event=>event.type==='keydown'&&event.key===key&&event.trusted).length>=
+      before.value.length);
+  const clearedImmediately=await inspect();
+  let cleared=clearedImmediately;
+  const compact=row=>({at:row.at,value:row.value,start:row.start,end:row.end,
+    focused:row.focused,windowFocused:row.windowFocused,disabled:row.disabled,
+    eventCount:row.events?.length??0,events:row.events?.slice(-8)});
+  const observations=[{stage:'immediate',...compact(cleared)}];
+  for(let i=1;i<=100&&!deletionArrived(cleared);i++){
+    await delay(50); // Read only: no key may be replayed while delivery settles.
+    cleared=await inspect();
+    if(i<=4||deletionArrived(cleared)||i===100)
+      observations.push({stage:'after-'+i*50,...compact(cleared)});
+  }
   await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
-    JSON.stringify({word,stage:'cleared',before,after:cleared})+'\\n');
+    JSON.stringify({word,stage:'cleared',before,immediate:clearedImmediately,after:cleared})+'\\n');
+  if(!deletionArrived(cleared)){
+    console.log('PLAYER_LESSON_WORD_CLEAR_DIAGNOSTIC '+
+      JSON.stringify({word,before:compact(before),observations}).slice(0,8192));
+  }
   assert.equal(cleared.value,'','Trusted deletion must empty the real field before typing');
   assert.equal(cleared.focused,true);
   if(before.value.length>0)for(const key of ['Backspace','Delete'])assert.ok(
-    cleared.events.some(event=>event.type==='keydown'&&event.key===key&&event.trusted),
+    cleared.events.filter(event=>event.type==='keydown'&&event.key===key&&event.trusted).length>=
+      before.value.length,
     'Deletion must arrive as a real trusted native key: '+key);
   for (const letter of word)win.webContents.sendInputEvent({type:'char',keyCode:letter});
-  const typed=await inspect();
+  // sendInputEvent delivery may lag the next read on a real desktop. Observe its
+  // effects without replaying input; a slow or lost dispatch must not create
+  // a second lesson or silently pass on a matching field value alone.
+  const typedImmediately=await inspect();
+  let typed=typedImmediately;
+  const hasTrustedWord=row=>row.value===word&&row.events.some(event=>
+    event.type==='input'&&event.trusted&&event.value===word);
+  for(let i=0;i<100&&!hasTrustedWord(typed);i++){
+    await delay(50);
+    typed=await inspect();
+  }
   await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
-    JSON.stringify({word,stage:'typed',after:typed})+'\\n');
+    JSON.stringify({word,stage:'typed',immediate:typedImmediately,after:typed})+'\\n');
+  if(!hasTrustedWord(typed)){
+    const compact=row=>({at:row.at,value:row.value,start:row.start,end:row.end,
+      focused:row.focused,windowFocused:row.windowFocused,disabled:row.disabled,
+      eventCount:row.events?.length??0,events:row.events?.slice(-12)});
+    console.log('PLAYER_LESSON_WORD_TYPE_DIAGNOSTIC '+
+      JSON.stringify({word,immediate:compact(typedImmediately),final:compact(typed)}).slice(0,8192));
+  }
   assert.equal(typed.value,word,'Actual native input must contain the complete requested word');
-  assert.ok(typed.events.some(event=>event.type==='input'&&event.trusted&&event.value===word),
+  assert.ok(hasTrustedWord(typed),
     'Typed word must arrive through trusted native input');
 }
-async function targetDiagnostic(win, step) {
+async function targetDiagnostic(win, step, {record=true}={}) {
   const row=await evaluate(win,'(() => { const p=document.getElementById("player-lesson-target");' +
     'return {value:p.value,disabled:p.disabled,options:Array.from(p.options,o=>({value:o.value,text:o.textContent})),' +
     'activeElement:document.activeElement?.id,focused:document.hasFocus(),hidden:document.hidden,' +
     'world:(()=>{const s=window.__ozarkWorld.snapshot();return {elapsed:s.elapsed,started:s.started,paused:s.paused,blocked:s.blocked,saveStatus:s.saveStatus};})(),' +
     'events:window.__lessonInputTrace||[],saveFailure:window.__ozarkWorld.saveFailure?.()};})()');
-  await fs.appendFile(path.join(context.output,phase+'-target-selection.jsonl'),
+  if(record)await fs.appendFile(path.join(context.output,phase+'-target-selection.jsonl'),
     JSON.stringify({step,at:Date.now(),...row})+'\\n');
   return row;
 }
@@ -372,9 +439,20 @@ async function trustedChooseTarget(win, sourceId) {
   for(let i=0;i<before.options.length;i++){
     const sequence=current.events.at(-1)?.sequence ?? 0;
     win.webContents.sendInputEvent({type:'char',keyCode:letter});
+    const keypressArrived=row=>row.events.some(event=>event.sequence>sequence&&
+      event.type==='keypress'&&event.key.toLowerCase()===letter&&
+      event.target==='player-lesson-target'&&event.trusted);
+    current=await targetDiagnostic(win,'after-typeahead-'+i,{record:false});
+    for(let read=0;read<100&&!keypressArrived(current);read++){
+      await delay(50); // Observe native delivery; never send another character here.
+      current=await targetDiagnostic(win,'after-typeahead-'+i,{record:false});
+    }
+    if(!keypressArrived(current))console.log('PLAYER_LESSON_TARGET_KEY_DIAGNOSTIC '+
+      JSON.stringify({letter,sequence,step:i,focused:current.focused,
+        activeElement:current.activeElement,disabled:current.disabled,value:current.value,
+        events:current.events.slice(-12)}).slice(0,4096));
     current=await targetDiagnostic(win,'after-typeahead-'+i);
-    assert.ok(current.events.some(event=>event.sequence>sequence&&event.type==='keypress'&&
-      event.key.toLowerCase()===letter&&event.target==='player-lesson-target'&&event.trusted),
+    assert.ok(keypressArrived(current),
       'Printable input must arrive as a new trusted DOM keypress');
     assert.equal(current.activeElement,'player-lesson-target');
     assert.equal(current.disabled,false);
@@ -391,12 +469,29 @@ async function trustedChooseTarget(win, sourceId) {
   await waitFor(win,'document.getElementById("player-lesson-target").value===' + JSON.stringify(sourceId));
   await targetDiagnostic(win,'selected');
 }
-async function trustedLesson(win, word, sourceId) {
+async function trustedLesson(win, word, sourceId, {repeatImmediately=false}={}) {
   await trustedTypeWord(win,word);
   await trustedChooseTarget(win,sourceId);
   await waitFor(win,'!document.getElementById("player-lesson-say").disabled');
-  await clickButton(win,'player-lesson-say');
-  const active = await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
+  if(repeatImmediately)await evaluate(win,'(() => {const button=document.getElementById("player-lesson-say");' +
+    'window.__lessonRepeatClicks=[];button.addEventListener("click",event=>{' +
+    'const row={trusted:event.isTrusted,at:performance.now(),elapsed:window.__ozarkWorld.snapshot().elapsed,' +
+    'before:window.__ozarkWorld.playerLessonSnapshot().active};window.__lessonRepeatClicks.push(row);' +
+    '},{capture:true});button.addEventListener("click",()=>{' +
+    'const row=window.__lessonRepeatClicks.at(-1);row.after=window.__ozarkWorld.playerLessonSnapshot().active;' +
+    'row.afterAt=performance.now();});})()','arm disabled-repeat click trace');
+  await clickButton(win,'player-lesson-say',{settleMs:repeatImmediately?0:60,repeatImmediately});
+  if(repeatImmediately)await waitFor(win,'window.__lessonRepeatClicks?.[0]?.after?.word===' + JSON.stringify(word));
+  const result=await evaluate(win,'({active:window.__ozarkWorld.playerLessonSnapshot().active,' +
+    'clicks:window.__lessonRepeatClicks||[]})','read disabled-repeat click trace');
+  if(repeatImmediately){
+    await fs.writeFile(path.join(context.output,phase+'-disabled-repeat.json'),JSON.stringify(result,null,2));
+    assert.equal(result.clicks.length,1,'The second immediate genuine click must be disabled');
+    assert.equal(result.clicks[0].trusted,true,'The first point must use trusted native input');
+    assert.equal(result.clicks[0].before,null,'The point must start from an idle action');
+    assert.equal(result.clicks[0].after?.word,word,'The first click must start the selected paid point');
+  }
+  const active=result.active ?? (repeatImmediately?result.clicks[0].after:null);
   assert.equal(active?.word,word,'Trusted Say and point button starts the selected literal word');
   assert.equal(active.seconds,1.8);
   return active;
@@ -455,13 +550,9 @@ async function actPhase(win) {
     'Pointing cannot consume a fruit');
   assert.match(await evaluate(win,'document.getElementById("player-lesson-status").textContent'),/tentative own-image link/);
   // Second literal label, same genuine paid input and recipient own sensor.
-  const second=await trustedLesson(win,'movo',authored.brambleId);
-  // Test disabled repeat on the separate second action, never spend the short
-  // first screenshot window on a second click and its IPC/settling round trips.
-  await clickButton(win,'player-lesson-say',{allowDisabled:true});
-  const repeat=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
-  for(const key of ['word','seconds','startedAt','expiresAt'])assert.equal(repeat?.[key],second[key]);
-  assert.ok(repeat.worked>=second.worked && repeat.worked<repeat.seconds);
+  // Test disabled repeat on the separate second action. Both actual mouse
+  // presses are sent from the already-known button box without an IPC gap.
+  await trustedLesson(win,'movo',authored.brambleId,{repeatImmediately:true});
   await driveUntil(win,'window.__ozarkWorld.playerLessonSnapshot().active===null',40);
   const twice=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   const learnedRows=examplesOf(twice,'aster');
@@ -585,6 +676,7 @@ async function reopenPhase(win) {
   // A native focus transfer cancels paid work but does not pause simulation.
   // Prepare the hidden sandboxed recipient before paid work starts. Loading it
   // after the point begins can spend the entire 1.8-second action deadline.
+  await waitFor(win,'document.getElementById("npc-panel").classList.contains("hidden")');
   const {BrowserWindow}=require('electron');
   const focusSink=new BrowserWindow({width:100,height:100,show:false,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
   await focusSink.loadURL('about:blank');
@@ -661,6 +753,9 @@ app.on('browser-window-created',(_event,win)=>{
       await closeNormally(win);
     }catch(error){
       console.error(error);const failure={phase,error:String(error?.stack||error),rendererEvents};
+      try{console.error('PLAYER_LESSON_RENDERER_EVENTS '+
+        JSON.stringify(rendererEvents.slice(-16)).slice(0,8192));}
+      catch{console.error('PLAYER_LESSON_RENDERER_EVENTS unavailable');}
       try{failure.live=await evaluate(win,'({world:window.__ozarkWorld?.fullSnapshot(),saveFailure:window.__ozarkWorld?.saveFailure?.()})');
         failure.target=await targetDiagnostic(win,'failure');}
       catch(diagnosticError){failure.diagnosticError=String(diagnosticError);}

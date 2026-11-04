@@ -33,7 +33,7 @@ export function cleanSensoryObject(raw){
 }
 export function createDiscoveryMemory(){return {version:1,nextId:1,handlingAdmissions:[],handlingQuestions:[],methodTrials:[],inquiries:[],observations:{},experiments:[],effects:[],reports:[],techniques:[],practice:{},trials:{},seenFeedback:[],run:null,lastAttemptAt:0,lastDialogueAt:-60,reportCursor:0,search:{home:null,startedAt:0},samplesPending:{},foodDiscoveries:0};}
 function primitive(raw){return raw&&DISCOVERY_RULES.allPrimitives.includes(raw.type)&&['$source','$material'].includes(raw.targetId)?{type:raw.type,targetId:raw.targetId}:null;}
-function techniqueProof(raw,d){
+export function techniqueProof(raw,d){
   if(!objectId(raw?.sourceId)||!Array.isArray(raw.evidence)||!Array.isArray(raw.steps)||raw.steps.length!==2)return null;
   const evidence=[...new Set(raw.evidence)].filter(id=>d.experiments.some(e=>e.id===id));if(evidence.length<2)return null;
   const chains=[];
@@ -53,6 +53,14 @@ export function deriveDiscoveryPractice(experiments,trialsByObject){
   const entries=Object.entries(trialsByObject);
   for(const type of DISCOVERY_RULES.allPrimitives){const trials=entries.filter(([key])=>key.endsWith(`|${type}`));if(trials.length)practice[type]={successes:trials.reduce((sum,[,v])=>sum+v.successes,0),failures:trials.reduce((sum,[,v])=>sum+v.failures,0),seconds:trials.reduce((sum,[,v])=>sum+v.seconds,0)};}
   return practice;
+}
+/** Reconstruct one optional trial only from retained paid action receipts. */
+export function trialFromRetainedExperiments(experiments,key){
+  const tail=experiments.filter(e=>`${e.targetId}|${e.primitive}`===key);
+  if(!tail.length)return null;
+  const latest=tail.at(-1),successful=tail.filter(e=>e.ok);
+  return {attempts:tail.length,successes:successful.length,failures:tail.length-successful.length,
+    seconds:successful.reduce((sum,e)=>sum+e.durationSeconds,0),lastAt:latest.at,lastCode:latest.code,lastOk:latest.ok};
 }
 /** Persistence restores data only. A forged routine cannot outlive its executed evidence. */
 export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.experience,interruption=null){
@@ -92,7 +100,7 @@ export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.
   }
   for(const e of d.experiments){
     const key=`${e.targetId}|${e.primitive}`;
-    if(!d.trials[key]){const tail=d.experiments.filter(x=>x.targetId===e.targetId&&x.primitive===e.primitive),latest=tail.at(-1);d.trials[key]={attempts:tail.length,successes:tail.filter(x=>x.ok).length,failures:tail.filter(x=>!x.ok).length,seconds:tail.filter(x=>x.ok).reduce((sum,x)=>sum+x.durationSeconds,0),lastAt:latest.at,lastCode:latest.code,lastOk:latest.ok};}
+    if(!d.trials[key])d.trials[key]=trialFromRetainedExperiments(d.experiments,key);
   }
   for(const trial of Object.values(d.trials)){trial.successes=Math.min(trial.attempts,trial.successes);trial.failures=Math.min(trial.attempts-trial.successes,trial.failures);trial.seconds=Math.min(trial.seconds,trial.successes*30);}
   d.practice=deriveDiscoveryPractice(d.experiments,d.trials);

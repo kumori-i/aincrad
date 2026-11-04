@@ -7,7 +7,8 @@ import { matchingResultObject } from './discovery-result-object.js';
 import { CAVES, NPC_RULES } from './config.js';
 import { BIOLOGY_PROFILES, BIOLOGY_RULES } from './biology-config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
-import { cleanSensoryObject, deriveDiscoveryPractice, objectId, discoveryAcquires, validCaptureExperiment } from './discovery-state.js';
+import { cleanSensoryObject, deriveDiscoveryPractice, objectId, discoveryAcquires, validCaptureExperiment,
+  techniqueProof, trialFromRetainedExperiments } from './discovery-state.js';
 
 // These are derived obligations, not additional persisted buffers. A biological
 // feedback append must finish its own FIFO trim before entering this module.
@@ -620,6 +621,19 @@ export function planProofRetention(npc, { stagingEventIds = [] } = {}) {
     reports: source.reports.filter((_, i) => reports.has(i)),
     techniques: owners.filter(o => o.kind === 'technique' && techniques.has(o.index)).map(o => o.row),
     skills: source.skills.filter((_, i) => skills.has(i)), observations };
+  // The restore validator counts only distinct sustained chains that remain
+  // physically witnessed. Reconcile at the retirement boundary so a reopen
+  // cannot silently change a technique's confidence or future eligibility.
+  const retained = { experiments: kept.experiments, effects: kept.effects };
+  const techniquesWithProof = [];
+  for (const technique of kept.techniques) {
+    const proof = techniqueProof(technique, retained);
+    if (!proof) return fail('incomplete-learned-provenance');
+    techniquesWithProof.push({ ...technique, successes: proof.successes,
+      confidence: technique.confidence === 'revised' ? 'revised' :
+        proof.successes >= 2 ? 'supported' : 'tentative' });
+  }
+  kept.techniques = techniquesWithProof;
   Object.assign(diagnostics, { retirements: retirements.length, keptExperiments: kept.experiments.length,
     keptExperience: kept.experience.length, removedExperiments: source.experiments.length - kept.experiments.length,
     removedExperience: source.experience.length - kept.experience.length });
@@ -636,25 +650,38 @@ export function applyProofRetention(npc, plan) {
   if (original?.npc !== npc || npc.memory.experience !== original.source.experience || npc.discovery.experiments !== original.source.experiments)
     return false;
   const { kept } = plan;
-  // Trials are optional summaries. Once both their observation and last
-  // matching experiment have retired, drop them in this same proof commit.
-  // Prepare the entire derived update before changing any retained array.
-  const retainedTrials = new Set(kept.experiments.map(e => `${e.targetId}|${e.primitive}`));
+  // A trial without a retained sight can only count paid receipts that still
+  // exist. A receipt key displaced by the live 768-key FIFO must be restored,
+  // since the save validator would synthesize it. Existing observed summaries
+  // remain optional history; they do not become new evidence.
   const trials = npc.discovery.trials || {};
-  let nextTrials = null;
-  for (const key of Object.keys(trials)) {
+  const retainedTrials = new Set(kept.experiments.map(e => `${e.targetId}|${e.primitive}`));
+  const nextTrials = {};
+  for (const key of new Set([...Object.keys(trials), ...retainedTrials])) {
     const [id, type] = key.split('|');
-    if (key !== `${id}|${type}` || !objectId(id) || !DISCOVERY_RULES.allPrimitives.includes(type) ||
-        kept.observations[id] || retainedTrials.has(key)) continue;
-    nextTrials ??= { ...trials };
-    delete nextTrials[key];
+    if (key !== `${id}|${type}` || !objectId(id) || !DISCOVERY_RULES.allPrimitives.includes(type)) continue;
+    if (kept.observations[id] && trials[key]) nextTrials[key] = trials[key];
+    else if (retainedTrials.has(key)) nextTrials[key] = trialFromRetainedExperiments(kept.experiments, key);
   }
-  const nextPractice = nextTrials && deriveDiscoveryPractice(kept.experiments, nextTrials);
+  // All paid receipt keys fit within 168 slots. Retire only optional observed
+  // summaries if the remaining 768-key dictionary is full.
+  if (Object.keys(nextTrials).length > 768) {
+    const protectedSources = new Set(kept.techniques.map(t => t.sourceId));
+    const optional = Object.keys(nextTrials).filter(key => !retainedTrials.has(key))
+      .sort((a,b) => Number(protectedSources.has(a.split('|')[0])) - Number(protectedSources.has(b.split('|')[0])) ||
+        nextTrials[a].lastAt - nextTrials[b].lastAt || a.localeCompare(b));
+    let count = Object.keys(nextTrials).length;
+    for (const key of optional) {
+      if (count <= 768) break;
+      delete nextTrials[key]; count--;
+    }
+  }
+  const nextPractice = deriveDiscoveryPractice(kept.experiments, nextTrials);
   npc.memory.experience = kept.experience; npc.memory.skills = kept.skills;
   for (const key of ['experiments','effects','reports','techniques','observations']) npc.discovery[key] = kept[key];
   retireInquiries(npc.discovery);
   retireHandlingInquiries(npc);
-  if (nextTrials) { npc.discovery.trials = nextTrials; npc.discovery.practice = nextPractice; }
+  npc.discovery.trials = nextTrials; npc.discovery.practice = nextPractice;
   if (npc.discovery.run && !kept.techniques.some(t => t.id === npc.discovery.run.techniqueId)) {
     endFoodRun(npc, npc.discovery.run, 'proof-retired');
     npc.discovery.run = null;

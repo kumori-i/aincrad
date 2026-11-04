@@ -114,6 +114,24 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
       'verifyPlayerLessonCaptureProgress', 'paidPoseWitness', 'captureLessonState',
       "paidPoseScreenshot:{status:'pending-independent-pixel-review'",
     ])assert.ok(runner.includes(token),'Missing native contract: '+token);
+    const evaluateSource=runner.slice(runner.indexOf('async function evaluate('),
+      runner.indexOf('async function waitFor(')).trim();
+    assert.ok(evaluateSource.includes('replace(/\\s+/g'),
+      'The generated runner must normalize whitespace, not the letter s');
+    const nativeEvaluate=runInNewContext('('+evaluateSource+')',{Error,String});
+    assert.equal(await nativeEvaluate({webContents:{executeJavaScript:async()=>42}},'6*7','read result'),42);
+    await assert.rejects(nativeEvaluate({webContents:{executeJavaScript:async()=>{
+      throw new Error('Script failed to execute');
+    }}},'x'.repeat(300),'arm disabled-repeat click trace'),
+    /Native renderer expression failed \[arm disabled-repeat click trace\]: Error: Script failed to execute/);
+    await assert.rejects(nativeEvaluate({webContents:{executeJavaScript:async()=>{
+      throw new Error('Script failed to execute');
+    }}},'x'.repeat(300)),error=>error.message.includes('x'.repeat(120)) &&
+      !error.message.includes('x'.repeat(121)),
+    'Unlabelled renderer exceptions retain a bounded expression prefix');
+    assert.match(runner,/PLAYER_LESSON_RENDERER_EVENTS/);
+    assert.match(runner,/rendererEvents\.slice\(-16\)/,
+      'Failure stderr must retain a bounded renderer console/error tail');
     const acted=runner.split('async function actPhase(win) {')[1]
       ?.split('async function reopenPhase(win) {')[0];
     assert.ok(acted);
@@ -123,14 +141,24 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     checkHeading(assert,{text:'Player word examples (separate from character messages) nava'});
     assert.throws(()=>checkHeading(assert,{text:'Player word examples separate from character messages'}));
     assert.ok(acted.indexOf('const posePreparation=await prepareCapture(win)')<acted.indexOf("settleMs:0"));
-    assert.ok(acted.indexOf('const poseImage=')<acted.indexOf('const repeat='),
-      'Disabled-repeat IPC must not consume the first paid screenshot window');
+    assert.ok(acted.indexOf('const poseImage=')<acted.indexOf("await trustedLesson(win,'movo'"),
+      'Disabled-repeat input must not consume the first paid screenshot window');
+    assert.match(acted,/trustedLesson\(win,'movo',authored\.brambleId,\{repeatImmediately:true\}\)/);
+    assert.doesNotMatch(acted,/allowDisabled:true/,
+      'A repeat cannot re-check the enabled state after the first paid action expires');
+    for(const token of ['window.__lessonRepeatClicks=[]','},{capture:true});button.addEventListener("click"',
+      "phase+'-disabled-repeat.json'",
+      "assert.equal(result.clicks.length,1"])
+      assert.ok(runner.includes(token),'Missing real disabled-repeat witness: '+token);
     const reopened=runner.split('async function reopenPhase(win) {')[1]
       ?.split('async function closeNormally(win) {')[0];
     assert.ok(reopened);
+    assert.ok(reopened.indexOf('document.getElementById("npc-panel").classList.contains("hidden")')<
+      reopened.indexOf("await focusSink.loadURL('about:blank')"),
+      'The trusted journal close must be observed before the focus sink is created');
     const focusSteps=["show:false,webPreferences:","await focusSink.loadURL('about:blank')",
       "await trustedLesson(win,'sela'",'const partial=await evaluate(win,',
-      'focusSink.show()','focusSink.focus()','await waitFor(win,'];
+      'focusSink.show()','focusSink.focus()'];
     for(const step of focusSteps)assert.ok(reopened.includes(step),
       'Missing native focus cancellation step: '+step);
     for(let i=1;i<focusSteps.length;i++)assert.ok(
@@ -138,6 +166,8 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
       'The sandboxed focus sink must load hidden before paid work and transfer focus immediately afterward');
     const paidStart=reopened.indexOf("await trustedLesson(win,'sela'");
     const focusTransfer=reopened.indexOf('focusSink.focus()',paidStart);
+    assert.ok(reopened.indexOf("await waitFor(win,'window.__ozarkWorld.playerLessonSnapshot().active===null",focusTransfer)>
+      focusTransfer,'The canceled paid action must be witnessed after the focus transfer');
     assert.doesNotMatch(reopened.slice(paidStart,focusTransfer),
       /focusSink\.loadURL\(|new BrowserWindow\(/,
       'No asynchronous window construction or load may consume the paid point interval');
@@ -175,6 +205,27 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     if(passed)await rm(output,{recursive:true,force:true});
     else console.error('Failed player-lesson preparation retained at '+output);
   }
+});
+
+test('native duplicate probe sends two real click pairs without a second IPC or timer', async () => {
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const helper=source.slice(source.indexOf('async function clickButton('),
+    source.indexOf('function fixedStepExpression(')).trim();
+  const events=[];
+  let evaluations=0,delays=0,clock=0;
+  const clickButton=runInNewContext('('+helper+')',{
+    JSON,evaluate:async()=>{evaluations++;clock+=8;return {x:42,y:17};},
+    delay:async()=>{delays++;clock+=8;},
+  });
+  const win={webContents:{focus:()=>{},sendInputEvent:event=>events.push({event,clock})}};
+  await clickButton(win,'player-lesson-say',{settleMs:0,repeatImmediately:true});
+  assert.equal(evaluations,1,'The button box is read before either native press');
+  assert.equal(delays,0,'The repeat cannot wait for the 1.8-second action to finish');
+  assert.deepEqual(events.map(({event})=>event.type),
+    ['mouseMove','mouseDown','mouseUp','mouseDown','mouseUp']);
+  assert.ok(events.every(row=>row.clock===8),'No renderer round trip can separate the presses');
+  for(const {event} of events.slice(1))assert.equal(event.clickCount,1,
+    'The two ordinary mouse presses must not become one double-click command');
 });
 
 test('native workflow is separate, bounded and inert on experiment refs', async () => {
@@ -250,10 +301,9 @@ test('trusted target navigation uses closed-select label cycling and checks ever
     {value:'object:671',text:'Ripe · 40 away'},
     {value:'object:677',text:'Ripe · 64 away'},
     {value:'object:679',text:'Small · 90 away'}];
-  let focused='player-lesson-word',selected=1,sequence=0;
-  const events=[],inputs=[],steps=[];
-  const win={webContents:{sendInputEvent(input){
-    inputs.push(input);
+  let focused='player-lesson-word',selected=1,sequence=0,deferChars=false;
+  const events=[],inputs=[],steps=[],pending=[];
+  const applyInput=input=>{
     const type=input.type==='char'?'keypress':input.type==='keyDown'?'keydown':'keyup';
     events.push({sequence:++sequence,type,key:input.keyCode,target:focused,trusted:true});
     if(input.type==='keyDown'&&input.keyCode==='Tab')
@@ -266,12 +316,19 @@ test('trusted target navigation uses closed-select label cycling and checks ever
         }
       }
     }
+  };
+  const win={webContents:{sendInputEvent(input){
+    inputs.push(input);
+    if(deferChars&&input.type==='char')pending.push(input);
+    else applyInput(input);
   }}};
   let expected='object:677';
   const context={assert,evaluate:async(_win,expression)=>expression==='document.activeElement?.id'?focused:undefined,
-    targetDiagnostic:async(_win,step)=>{steps.push({step,value:options[selected].value});
+    targetDiagnostic:async(_win,step,{record=true}={})=>{if(record)steps.push({step,value:options[selected].value});
       return {options,value:options[selected].value,activeElement:focused,disabled:false,
         events:events.map(row=>({...row}))};},
+    delay:async()=>{if(pending.length)applyInput(pending.shift());},
+    console:{log:()=>{}},
     waitFor:async()=>assert.equal(options[selected].value,expected)};
   runInNewContext(navigation+';this.choose=trustedChooseTarget;',context);
   await context.choose(win,expected);
@@ -287,6 +344,14 @@ test('trusted target navigation uses closed-select label cycling and checks ever
   focused='player-lesson-word';expected='object:679';inputs.length=0;
   await context.choose(win,expected);
   assert.equal(inputs.find(row=>row.type==='char').keyCode,'s');
+  // The trusted native character can arrive after the first renderer read.
+  // The driver must wait for that one character without sending it again.
+  focused='player-lesson-word';selected=1;expected='object:677';inputs.length=0;
+  deferChars=true;
+  await context.choose(win,expected);
+  assert.deepEqual(inputs.filter(row=>row.type==='char').map(row=>row.keyCode),['r']);
+  assert.equal(pending.length,0);
+  deferChars=false;
   // Modelled selection alone cannot pass when the transport emits an invalid key.
   focused='player-lesson-word';
   const send=win.webContents.sendInputEvent;
@@ -327,16 +392,21 @@ test('preprepared paid capture has no renderer IPC or readiness sleep before cap
 // Exercise the extracted native editing driver; this models ordinary text
 // editing semantics, not successful OS dispatch or actual desktop execution.
 async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuckTyping=false,
-  trustedKeys=true,trustedTyping=true}={}) {
+  trustedKeys=true,trustedTyping=true,deferredTyping=false,deferredDeletion=false,
+  focusLag=0,neverReady=false}={}) {
   const {createContext,runInContext}=await import('node:vm');
   const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
   const driver=source.slice(source.indexOf('async function trustedTypeWord('),
     source.indexOf('async function targetDiagnostic('));
   assert.doesNotMatch(driver,/selectAll|modifiers:|\.value\s*=(?!=)|\.select\(|setSelectionRange|dispatchEvent/);
-  const handlers=[],inputs=[],diagnostics=[];
+  const handlers=[],inputs=[],inputAt=[],diagnostics=[],logs=[],delays=[],pending=[];
+  let focusCalls=0,windowFocused=focusLag===0&&!neverReady;
   const input={id:'player-lesson-word',value,selectionStart:caret,selectionEnd:caret,
+    disabled:!windowFocused,
+    getClientRects:()=>[{width:100,height:20}],
     addEventListener(type,listener,options){handlers.push({type,listener,signal:options?.signal});}};
-  const document={activeElement:null,getElementById:id=>id==='player-lesson-word'?input:null};
+  const document={activeElement:null,hasFocus:()=>windowFocused,
+    getElementById:id=>id==='player-lesson-word'?input:null};
   const emit=(type,properties={})=>{
     for(const row of handlers)if(row.type===type&&!row.signal?.aborted)
       row.listener({type,isTrusted:['keydown','keyup'].includes(type)?trustedKeys:
@@ -356,25 +426,58 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
     input.selectionStart=input.selectionEnd=start+letter.length;
     if(input.value!==before)emit('input',{inputType});
   }
-  const win={webContents:{sendInputEvent(event){
-    inputs.push(event);
+  const deliver=event=>{
     if(event.type==='keyDown'){
       emit('keydown',{key:event.keyCode});
       if(event.keyCode==='Backspace')edit('deleteContentBackward');
       else if(event.keyCode==='Delete')edit('deleteContentForward');
     }else if(event.type==='keyUp')emit('keyup',{key:event.keyCode});
     else if(event.type==='char')edit('insertText',event.keyCode);
+  };
+  const win={focus(){focusCalls++;},webContents:{sendInputEvent(event){
+    inputs.push(event);
+    inputAt.push(delays.length);
+    if((deferredTyping&&event.type==='char')||
+        (deferredDeletion&&['keyDown','keyUp'].includes(event.type)))pending.push(event);
+    else deliver(event);
   }}};
   const context=createContext({assert,document,window:{},AbortController,
+    performance:{now:()=>inputs.length},delay:async ms=>{
+      delays.push(ms);
+      if(focusCalls&&delays.length>=focusLag&&!neverReady){windowFocused=true;input.disabled=false;}
+      if(pending.length)deliver(pending.shift());
+    },
+    console:{log:message=>logs.push(message)},
     phase:'act',context:{output:'/isolated'},path:{join:(...parts)=>parts.join('/')},
     fs:{appendFile:async(file,bytes)=>{assert.equal(file,'/isolated/act-word-input.jsonl');
       diagnostics.push(JSON.parse(bytes.slice(0,bytes.lastIndexOf('}')+1)));}},
-    clickButton:async(_win,id)=>{assert.equal(id,'player-lesson-word');document.activeElement=input;},
+    clickButton:async(_win,id)=>{assert.equal(id,'player-lesson-word');
+      assert.equal(input.disabled,false);document.activeElement=input;},
   });
   context.evaluate=async(_win,expression)=>runInContext(expression,context);
+  context.waitFor=async(_win,expression)=>{
+    for(let i=0;i<6;i++){
+      if(runInContext(expression,context))return;
+      await context.delay(50);
+    }
+    throw new Error('Native condition missing: '+expression);
+  };
   runInContext(driver+';this.typeWord=trustedTypeWord;',context);
-  return {input,inputs,diagnostics,type:word=>context.typeWord(win,word)};
+  return {input,inputs,inputAt,diagnostics,logs,delays,
+    focusCalls:()=>focusCalls,type:word=>context.typeWord(win,word)};
 }
+
+test('trusted word editing waits for the real window and enabled field before input',async()=>{
+  const delayed=await wordEditingFixture({value:'',focusLag:2});
+  await delayed.type('sela');
+  assert.equal(delayed.focusCalls(),1);
+  assert.equal(delayed.input.value,'sela');
+  assert.ok(delayed.inputAt.every(tick=>tick>=2),'No input precedes actual focus readiness');
+  const unavailable=await wordEditingFixture({value:'',neverReady:true});
+  await assert.rejects(unavailable.type('sela'),/Native condition missing/);
+  assert.deepEqual(unavailable.inputs,[],'Unavailable field cannot receive native keys');
+  assert.match(unavailable.logs.at(-1),/^PLAYER_LESSON_WORD_READY_DIAGNOSTIC /);
+});
 
 test('trusted word editing clears both sides of start/middle/end carets and types all six characters',async()=>{
   for(const caret of [0,3,6]){
@@ -402,16 +505,58 @@ test('trusted word editing clears both sides of start/middle/end carets and type
   }
 });
 
+test('trusted word editing observes delayed native characters without resending any input',async()=>{
+  const fixture=await wordEditingFixture({value:'nava',caret:2,deferredTyping:true});
+  await fixture.type('sela');
+  assert.equal(fixture.input.value,'sela');
+  assert.deepEqual(fixture.inputs.filter(row=>row.type==='char').map(row=>row.keyCode),
+    ['s','e','l','a'],'No character is replayed while waiting for native delivery');
+  assert.deepEqual(fixture.delays,[50,50,50,50]);
+  assert.equal(fixture.diagnostics.at(-1).immediate.value,'');
+  assert.equal(fixture.diagnostics.at(-1).after.value,'sela');
+  assert.equal(fixture.logs.length,0);
+});
+
+test('trusted word editing waits for every delayed deletion key before typing',async()=>{
+  const fixture=await wordEditingFixture({value:'nava',caret:2,deferredDeletion:true});
+  await fixture.type('sela');
+  assert.equal(fixture.input.value,'sela');
+  assert.deepEqual(fixture.inputs.filter(row=>row.type==='keyDown').map(row=>row.keyCode),
+    Array.from({length:4},()=>['Backspace','Delete']).flat(),
+    'No deletion key is replayed while waiting for native delivery');
+  assert.equal(fixture.delays.length,15,
+    'All keydowns must arrive; trailing keyup cannot remove newly typed text');
+  assert.equal(fixture.diagnostics[0].immediate.value,'nava');
+  assert.equal(fixture.diagnostics[0].after.value,'');
+  assert.equal(fixture.diagnostics[1].after.value,'sela');
+  assert.equal(fixture.logs.length,0);
+});
+
 test('trusted word editing rejects stuck deletion before typing and records stuck typed input',async()=>{
   const deletion=await wordEditingFixture({caret:3,stuckDelete:true});
   await assert.rejects(deletion.type('tomi'),/Trusted deletion must empty/);
   assert.equal(deletion.inputs.some(row=>row.type==='char'),false);
+  assert.equal(deletion.delays.length,100,
+    'Bounded failure observation never replays a native key');
+  assert.equal(deletion.logs.length,1);
+  const clearDiagnostic=JSON.parse(deletion.logs[0].replace('PLAYER_LESSON_WORD_CLEAR_DIAGNOSTIC ',''));
+  assert.equal(clearDiagnostic.before.value,'abcdef');
+  assert.deepEqual(clearDiagnostic.observations.map(row=>row.stage),
+    ['immediate','after-50','after-100','after-150','after-200','after-5000']);
+  assert.ok(clearDiagnostic.observations.every(row=>row.value==='abcdef'&&
+    row.focused===true&&row.windowFocused===true&&row.disabled===false));
+  assert.equal(deletion.inputs.filter(row=>row.type==='keyDown').length,12,
+    'The diagnostic cannot repeat a failed deletion');
   assert.equal(deletion.diagnostics.length,1);
   assert.equal(deletion.diagnostics[0].after.value,'abcdef');
   const typing=await wordEditingFixture({caret:0,stuckTyping:true});
   await assert.rejects(typing.type('tomi'),/Actual native input must contain/);
   assert.deepEqual(typing.diagnostics.map(row=>row.stage),['cleared','typed']);
   assert.equal(typing.diagnostics[1].after.value,'');
+  assert.equal(typing.inputs.filter(row=>row.type==='char').length,4,
+    'A failed native dispatch never triggers a second typing attempt');
+  assert.equal(typing.delays.length,100);
+  assert.match(typing.logs.at(-1),/^PLAYER_LESSON_WORD_TYPE_DIAGNOSTIC /);
 });
 
 test('trusted word editing refuses a correct field value without trusted native event evidence',async()=>{
