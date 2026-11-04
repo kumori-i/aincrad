@@ -55,7 +55,8 @@ or separate mobilization from food absorption.
 
 The existing physical physiology round-trips through validation; no trend or
 pending sensory authority is saved. The preceding test-only window cancels
-when its actor is copied or reopened. Its 120-second result is descriptive
+when the actor object is copied; no pending window is saved. An actual
+save/load or native reopen was not tested. Its 120-second result is descriptive
 and repeatable, not a one-use learner update.
 
 ## Physical and source-blind negative controls
