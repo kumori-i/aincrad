@@ -123,8 +123,15 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     checkHeading(assert,{text:'Player word examples (separate from character messages) nava'});
     assert.throws(()=>checkHeading(assert,{text:'Player word examples separate from character messages'}));
     assert.ok(acted.indexOf('const posePreparation=await prepareCapture(win)')<acted.indexOf("settleMs:0"));
-    assert.ok(acted.indexOf('const poseImage=')<acted.indexOf('const repeat='),
-      'Disabled-repeat IPC must not consume the first paid screenshot window');
+    assert.ok(acted.indexOf('const poseImage=')<acted.indexOf("await trustedLesson(win,'movo'"),
+      'Disabled-repeat input must not consume the first paid screenshot window');
+    assert.match(acted,/trustedLesson\(win,'movo',authored\.brambleId,\{repeatImmediately:true\}\)/);
+    assert.doesNotMatch(acted,/allowDisabled:true/,
+      'A repeat cannot re-check the enabled state after the first paid action expires');
+    for(const token of ['window.__lessonRepeatClicks=[]','},{capture:true});button.addEventListener("click"',
+      "phase+'-disabled-repeat.json'",
+      "assert.equal(result.clicks.length,1"])
+      assert.ok(runner.includes(token),'Missing real disabled-repeat witness: '+token);
     const reopened=runner.split('async function reopenPhase(win) {')[1]
       ?.split('async function closeNormally(win) {')[0];
     assert.ok(reopened);
@@ -175,6 +182,27 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
     if(passed)await rm(output,{recursive:true,force:true});
     else console.error('Failed player-lesson preparation retained at '+output);
   }
+});
+
+test('native duplicate probe sends two real click pairs without a second IPC or timer', async () => {
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const helper=source.slice(source.indexOf('async function clickButton('),
+    source.indexOf('function fixedStepExpression(')).trim();
+  const events=[];
+  let evaluations=0,delays=0,clock=0;
+  const clickButton=runInNewContext('('+helper+')',{
+    JSON,evaluate:async()=>{evaluations++;clock+=8;return {x:42,y:17};},
+    delay:async()=>{delays++;clock+=8;},
+  });
+  const win={webContents:{focus:()=>{},sendInputEvent:event=>events.push({event,clock})}};
+  await clickButton(win,'player-lesson-say',{settleMs:0,repeatImmediately:true});
+  assert.equal(evaluations,1,'The button box is read before either native press');
+  assert.equal(delays,0,'The repeat cannot wait for the 1.8-second action to finish');
+  assert.deepEqual(events.map(({event})=>event.type),
+    ['mouseMove','mouseDown','mouseUp','mouseDown','mouseUp']);
+  assert.ok(events.every(row=>row.clock===8),'No renderer round trip can separate the presses');
+  for(const {event} of events.slice(1))assert.equal(event.clickCount,1,
+    'The two ordinary mouse presses must not become one double-click command');
 });
 
 test('native workflow is separate, bounded and inert on experiment refs', async () => {

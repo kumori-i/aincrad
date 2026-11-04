@@ -33,6 +33,8 @@ For supported live actors within the existing caps, a later reopen does not
 silently change these proof-derived counts or the confidence gate. Retirement
 itself can lower a count and alter future choices, because the older physical
 proof is no longer stored. Cumulative lifetime success is not promised.
+The current-save regression uses Map-backed storage through the production
+serializer and validator. It does not establish native disk close/reopen.
 Existing observed-object trial summaries and technique failure summaries remain
 historical aggregates subject to the save validator's limits, not newly
 authenticated evidence. No word meanings, food identities, nutrients, or

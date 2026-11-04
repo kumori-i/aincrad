@@ -147,17 +147,21 @@ async function waitFor(win, expression) {
   }
   throw new Error('Native condition missing: ' + expression);
 }
-async function clickButton(win, id, {allowDisabled=false,settleMs=60}={}) {
+async function clickButton(win, id, {settleMs=60,repeatImmediately=false}={}) {
   const box = await evaluate(win, '(() => { const button=document.getElementById(' + JSON.stringify(id) + ');' +
-    'if(!button||' + (allowDisabled?'false':'button.disabled') + '||button.getClientRects().length!==1)throw new Error("Food button unavailable: ' + id + '");' +
+    'if(!button||button.disabled||button.getClientRects().length!==1)throw new Error("Food button unavailable: ' + id + '");' +
     'button.scrollIntoView({block:"nearest"});const rect=button.getBoundingClientRect();' +
     'const x=Math.round(rect.left+rect.width/2),y=Math.round(rect.top+rect.height/2);' +
     'if(x<0||y<0||x>=innerWidth||y>=innerHeight||!button.contains(document.elementFromPoint(x,y)))' +
     'throw new Error("Food button is outside or obscured: ' + id + '");return {x,y};})()');
   win.webContents.focus();
   win.webContents.sendInputEvent({type:'mouseMove',x:box.x,y:box.y});
-  win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:box.x,y:box.y,clickCount:1});
-  win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:box.x,y:box.y,clickCount:1});
+  // A disabled-repeat probe must send its second genuine input immediately.
+  // A fresh IPC between clicks can outlast the 1.8 s point on a busy host.
+  for(let press=0;press<(repeatImmediately?2:1);press++){
+    win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:box.x,y:box.y,clickCount:1});
+    win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:box.x,y:box.y,clickCount:1});
+  }
   if(settleMs)await delay(settleMs);
 }
 function fixedStepExpression(seconds) {
@@ -391,12 +395,29 @@ async function trustedChooseTarget(win, sourceId) {
   await waitFor(win,'document.getElementById("player-lesson-target").value===' + JSON.stringify(sourceId));
   await targetDiagnostic(win,'selected');
 }
-async function trustedLesson(win, word, sourceId) {
+async function trustedLesson(win, word, sourceId, {repeatImmediately=false}={}) {
   await trustedTypeWord(win,word);
   await trustedChooseTarget(win,sourceId);
   await waitFor(win,'!document.getElementById("player-lesson-say").disabled');
-  await clickButton(win,'player-lesson-say');
-  const active = await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
+  if(repeatImmediately)await evaluate(win,'(() => {const button=document.getElementById("player-lesson-say");' +
+    'window.__lessonRepeatClicks=[];button.addEventListener("click",event=>{' +
+    'const row={trusted:event.isTrusted,at:performance.now(),elapsed:window.__ozarkWorld.snapshot().elapsed,' +
+    'before:window.__ozarkWorld.playerLessonSnapshot().active};window.__lessonRepeatClicks.push(row);' +
+    '},{capture:true});button.addEventListener("click",()=>{' +
+    'const row=window.__lessonRepeatClicks.at(-1);row.after=window.__ozarkWorld.playerLessonSnapshot().active;' +
+    'row.afterAt=performance.now();});})()');
+  await clickButton(win,'player-lesson-say',{settleMs:repeatImmediately?0:60,repeatImmediately});
+  if(repeatImmediately)await waitFor(win,'window.__lessonRepeatClicks?.[0]?.after?.word===' + JSON.stringify(word));
+  const result=await evaluate(win,'({active:window.__ozarkWorld.playerLessonSnapshot().active,' +
+    'clicks:window.__lessonRepeatClicks||[]})');
+  if(repeatImmediately){
+    await fs.writeFile(path.join(context.output,phase+'-disabled-repeat.json'),JSON.stringify(result,null,2));
+    assert.equal(result.clicks.length,1,'The second immediate genuine click must be disabled');
+    assert.equal(result.clicks[0].trusted,true,'The first point must use trusted native input');
+    assert.equal(result.clicks[0].before,null,'The point must start from an idle action');
+    assert.equal(result.clicks[0].after?.word,word,'The first click must start the selected paid point');
+  }
+  const active=result.active ?? (repeatImmediately?result.clicks[0].after:null);
   assert.equal(active?.word,word,'Trusted Say and point button starts the selected literal word');
   assert.equal(active.seconds,1.8);
   return active;
@@ -455,13 +476,9 @@ async function actPhase(win) {
     'Pointing cannot consume a fruit');
   assert.match(await evaluate(win,'document.getElementById("player-lesson-status").textContent'),/tentative own-image link/);
   // Second literal label, same genuine paid input and recipient own sensor.
-  const second=await trustedLesson(win,'movo',authored.brambleId);
-  // Test disabled repeat on the separate second action, never spend the short
-  // first screenshot window on a second click and its IPC/settling round trips.
-  await clickButton(win,'player-lesson-say',{allowDisabled:true});
-  const repeat=await evaluate(win,'window.__ozarkWorld.playerLessonSnapshot().active');
-  for(const key of ['word','seconds','startedAt','expiresAt'])assert.equal(repeat?.[key],second[key]);
-  assert.ok(repeat.worked>=second.worked && repeat.worked<repeat.seconds);
+  // Test disabled repeat on the separate second action. Both actual mouse
+  // presses are sent from the already-known button box without an IPC gap.
+  await trustedLesson(win,'movo',authored.brambleId,{repeatImmediately:true});
   await driveUntil(win,'window.__ozarkWorld.playerLessonSnapshot().active===null',40);
   const twice=await evaluate(win,'window.__ozarkWorld.fullSnapshot()');
   const learnedRows=examplesOf(twice,'aster');

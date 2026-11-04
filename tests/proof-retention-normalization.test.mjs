@@ -129,7 +129,7 @@ test('normalization does not change the next optional decision or RNG on reopen'
   assert.deepEqual(reopened.discovery.techniques, live.discovery.techniques);
 });
 
-test('current Ozark save keeps the reconciled paid trial after occupied-disk reopen', () => {
+test('current Ozark serializer and validator retain the reconciled paid trial through Map-backed save/load', () => {
   const bytes = new Map();
   const storage = { getItem: key => bytes.get(key) ?? null,
     setItem: (key, value) => bytes.set(key, value) };
