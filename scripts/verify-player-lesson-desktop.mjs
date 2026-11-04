@@ -316,10 +316,12 @@ async function trustedTypeWord(win, word) {
     'window.__lessonWordTrace=[];for(const type of ["keydown","keyup","beforeinput","input"])' +
     'input.addEventListener(type,event=>{const rows=window.__lessonWordTrace;' +
     'rows.push({type:event.type,key:event.key,inputType:event.inputType,trusted:event.isTrusted,' +
-    'value:input.value,start:input.selectionStart,end:input.selectionEnd});if(rows.length>96)rows.shift();},' +
+    'value:input.value,start:input.selectionStart,end:input.selectionEnd,at:performance.now()});' +
+    'if(rows.length>96)rows.shift();},' +
     '{signal:window.__lessonWordAbort.signal});})()');
   const inspect=()=>evaluate(win,'(() => {const p=document.getElementById("player-lesson-word");return ' +
-    '{value:p.value,start:p.selectionStart,end:p.selectionEnd,focused:document.activeElement===p,' +
+    '{at:performance.now(),value:p.value,start:p.selectionStart,end:p.selectionEnd,' +
+    'focused:document.activeElement===p,windowFocused:document.hasFocus(),disabled:p.disabled,' +
     'events:window.__lessonWordTrace};})()');
   const before=await inspect();
   assert.ok(before.value.length<=6 && before.focused);
@@ -332,6 +334,19 @@ async function trustedTypeWord(win, word) {
   const cleared=await inspect();
   await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
     JSON.stringify({word,stage:'cleared',before,after:cleared})+'\\n');
+  if(cleared.value!==''){
+    const compact=row=>({at:row.at,value:row.value,start:row.start,end:row.end,
+      focused:row.focused,windowFocused:row.windowFocused,disabled:row.disabled,
+      eventCount:row.events?.length??0,events:row.events?.slice(-8)});
+    const observations=[{stage:'immediate',...compact(cleared)}];
+    for(let i=1;i<=4;i++){
+      await delay(50); // Read only: never resend a key or accept a late edit here.
+      try{observations.push({stage:'after-'+i*50,...compact(await inspect())});}
+      catch(error){observations.push({stage:'read-failed',error:String(error).slice(0,120)});break;}
+    }
+    console.log('PLAYER_LESSON_WORD_CLEAR_DIAGNOSTIC '+
+      JSON.stringify({word,before:compact(before),observations}).slice(0,8192));
+  }
   assert.equal(cleared.value,'','Trusted deletion must empty the real field before typing');
   assert.equal(cleared.focused,true);
   if(before.value.length>0)for(const key of ['Backspace','Delete'])assert.ok(

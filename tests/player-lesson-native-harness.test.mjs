@@ -379,10 +379,11 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
   const driver=source.slice(source.indexOf('async function trustedTypeWord('),
     source.indexOf('async function targetDiagnostic('));
   assert.doesNotMatch(driver,/selectAll|modifiers:|\.value\s*=(?!=)|\.select\(|setSelectionRange|dispatchEvent/);
-  const handlers=[],inputs=[],diagnostics=[];
-  const input={id:'player-lesson-word',value,selectionStart:caret,selectionEnd:caret,
+  const handlers=[],inputs=[],diagnostics=[],logs=[],delays=[];
+  const input={id:'player-lesson-word',value,selectionStart:caret,selectionEnd:caret,disabled:false,
     addEventListener(type,listener,options){handlers.push({type,listener,signal:options?.signal});}};
-  const document={activeElement:null,getElementById:id=>id==='player-lesson-word'?input:null};
+  const document={activeElement:null,hasFocus:()=>true,
+    getElementById:id=>id==='player-lesson-word'?input:null};
   const emit=(type,properties={})=>{
     for(const row of handlers)if(row.type===type&&!row.signal?.aborted)
       row.listener({type,isTrusted:['keydown','keyup'].includes(type)?trustedKeys:
@@ -412,6 +413,8 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
     else if(event.type==='char')edit('insertText',event.keyCode);
   }}};
   const context=createContext({assert,document,window:{},AbortController,
+    performance:{now:()=>inputs.length},delay:async ms=>delays.push(ms),
+    console:{log:message=>logs.push(message)},
     phase:'act',context:{output:'/isolated'},path:{join:(...parts)=>parts.join('/')},
     fs:{appendFile:async(file,bytes)=>{assert.equal(file,'/isolated/act-word-input.jsonl');
       diagnostics.push(JSON.parse(bytes.slice(0,bytes.lastIndexOf('}')+1)));}},
@@ -419,7 +422,7 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
   });
   context.evaluate=async(_win,expression)=>runInContext(expression,context);
   runInContext(driver+';this.typeWord=trustedTypeWord;',context);
-  return {input,inputs,diagnostics,type:word=>context.typeWord(win,word)};
+  return {input,inputs,diagnostics,logs,delays,type:word=>context.typeWord(win,word)};
 }
 
 test('trusted word editing clears both sides of start/middle/end carets and types all six characters',async()=>{
@@ -452,6 +455,17 @@ test('trusted word editing rejects stuck deletion before typing and records stuc
   const deletion=await wordEditingFixture({caret:3,stuckDelete:true});
   await assert.rejects(deletion.type('tomi'),/Trusted deletion must empty/);
   assert.equal(deletion.inputs.some(row=>row.type==='char'),false);
+  assert.deepEqual(deletion.delays,[50,50,50,50],
+    'Failure observation waits briefly without replaying any native key');
+  assert.equal(deletion.logs.length,1);
+  const clearDiagnostic=JSON.parse(deletion.logs[0].replace('PLAYER_LESSON_WORD_CLEAR_DIAGNOSTIC ',''));
+  assert.equal(clearDiagnostic.before.value,'abcdef');
+  assert.deepEqual(clearDiagnostic.observations.map(row=>row.stage),
+    ['immediate','after-50','after-100','after-150','after-200']);
+  assert.ok(clearDiagnostic.observations.every(row=>row.value==='abcdef'&&
+    row.focused===true&&row.windowFocused===true&&row.disabled===false));
+  assert.equal(deletion.inputs.filter(row=>row.type==='keyDown').length,12,
+    'The diagnostic cannot repeat a failed deletion');
   assert.equal(deletion.diagnostics.length,1);
   assert.equal(deletion.diagnostics[0].after.value,'abcdef');
   const typing=await wordEditingFixture({caret:0,stuckTyping:true});
