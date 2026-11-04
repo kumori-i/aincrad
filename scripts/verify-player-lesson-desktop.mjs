@@ -309,6 +309,24 @@ async function authorPhase(win) {
   await session.defaultSession.flushStorageData();
 }
 async function trustedTypeWord(win, word) {
+  // A hidden focus sink in the reopen exercise can transfer native focus.
+  // Restore the actual window and wait for the runtime to re-enable its word
+  // field; never force-enable the DOM or attempt a paid action while unfocused.
+  win.focus();
+  try { await waitFor(win,'document.hasFocus() && ' +
+    '!document.getElementById("player-lesson-word").disabled && ' +
+    'document.getElementById("player-lesson-word").getClientRects().length===1'); }
+  catch(error){
+    const state=await evaluate(win,'(() => {const p=document.getElementById("player-lesson-word");' +
+      'const panel=document.getElementById("npc-panel");return {focused:document.hasFocus(),' +
+      'activeElement:document.activeElement?.id,wordPresent:!!p,disabled:p?.disabled,' +
+      'rects:p?.getClientRects().length,panelHidden:panel?.classList.contains("hidden"),' +
+      'paused:window.__ozarkWorld.snapshot().paused,' +
+      'playerLessonActive:window.__ozarkWorld.playerLessonSnapshot().active};})()',
+      'word focus readiness').catch(readError=>({readError:String(readError)}));
+    console.log('PLAYER_LESSON_WORD_READY_DIAGNOSTIC '+JSON.stringify(state).slice(0,2048));
+    throw error;
+  }
   await clickButton(win,'player-lesson-word');
   assert.equal(await evaluate(win,'document.activeElement?.id'),'player-lesson-word');
   await evaluate(win,'(() => {const input=document.getElementById("player-lesson-word");' +
@@ -383,13 +401,13 @@ async function trustedTypeWord(win, word) {
   assert.ok(hasTrustedWord(typed),
     'Typed word must arrive through trusted native input');
 }
-async function targetDiagnostic(win, step) {
+async function targetDiagnostic(win, step, {record=true}={}) {
   const row=await evaluate(win,'(() => { const p=document.getElementById("player-lesson-target");' +
     'return {value:p.value,disabled:p.disabled,options:Array.from(p.options,o=>({value:o.value,text:o.textContent})),' +
     'activeElement:document.activeElement?.id,focused:document.hasFocus(),hidden:document.hidden,' +
     'world:(()=>{const s=window.__ozarkWorld.snapshot();return {elapsed:s.elapsed,started:s.started,paused:s.paused,blocked:s.blocked,saveStatus:s.saveStatus};})(),' +
     'events:window.__lessonInputTrace||[],saveFailure:window.__ozarkWorld.saveFailure?.()};})()');
-  await fs.appendFile(path.join(context.output,phase+'-target-selection.jsonl'),
+  if(record)await fs.appendFile(path.join(context.output,phase+'-target-selection.jsonl'),
     JSON.stringify({step,at:Date.now(),...row})+'\\n');
   return row;
 }
@@ -421,9 +439,20 @@ async function trustedChooseTarget(win, sourceId) {
   for(let i=0;i<before.options.length;i++){
     const sequence=current.events.at(-1)?.sequence ?? 0;
     win.webContents.sendInputEvent({type:'char',keyCode:letter});
+    const keypressArrived=row=>row.events.some(event=>event.sequence>sequence&&
+      event.type==='keypress'&&event.key.toLowerCase()===letter&&
+      event.target==='player-lesson-target'&&event.trusted);
+    current=await targetDiagnostic(win,'after-typeahead-'+i,{record:false});
+    for(let read=0;read<100&&!keypressArrived(current);read++){
+      await delay(50); // Observe native delivery; never send another character here.
+      current=await targetDiagnostic(win,'after-typeahead-'+i,{record:false});
+    }
+    if(!keypressArrived(current))console.log('PLAYER_LESSON_TARGET_KEY_DIAGNOSTIC '+
+      JSON.stringify({letter,sequence,step:i,focused:current.focused,
+        activeElement:current.activeElement,disabled:current.disabled,value:current.value,
+        events:current.events.slice(-12)}).slice(0,4096));
     current=await targetDiagnostic(win,'after-typeahead-'+i);
-    assert.ok(current.events.some(event=>event.sequence>sequence&&event.type==='keypress'&&
-      event.key.toLowerCase()===letter&&event.target==='player-lesson-target'&&event.trusted),
+    assert.ok(keypressArrived(current),
       'Printable input must arrive as a new trusted DOM keypress');
     assert.equal(current.activeElement,'player-lesson-target');
     assert.equal(current.disabled,false);
@@ -647,6 +676,7 @@ async function reopenPhase(win) {
   // A native focus transfer cancels paid work but does not pause simulation.
   // Prepare the hidden sandboxed recipient before paid work starts. Loading it
   // after the point begins can spend the entire 1.8-second action deadline.
+  await waitFor(win,'document.getElementById("npc-panel").classList.contains("hidden")');
   const {BrowserWindow}=require('electron');
   const focusSink=new BrowserWindow({width:100,height:100,show:false,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
   await focusSink.loadURL('about:blank');
