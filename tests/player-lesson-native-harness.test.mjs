@@ -373,13 +373,13 @@ test('preprepared paid capture has no renderer IPC or readiness sleep before cap
 // Exercise the extracted native editing driver; this models ordinary text
 // editing semantics, not successful OS dispatch or actual desktop execution.
 async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuckTyping=false,
-  trustedKeys=true,trustedTyping=true}={}) {
+  trustedKeys=true,trustedTyping=true,deferredTyping=false,deferredDeletion=false}={}) {
   const {createContext,runInContext}=await import('node:vm');
   const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
   const driver=source.slice(source.indexOf('async function trustedTypeWord('),
     source.indexOf('async function targetDiagnostic('));
   assert.doesNotMatch(driver,/selectAll|modifiers:|\.value\s*=(?!=)|\.select\(|setSelectionRange|dispatchEvent/);
-  const handlers=[],inputs=[],diagnostics=[],logs=[],delays=[];
+  const handlers=[],inputs=[],diagnostics=[],logs=[],delays=[],pending=[];
   const input={id:'player-lesson-word',value,selectionStart:caret,selectionEnd:caret,disabled:false,
     addEventListener(type,listener,options){handlers.push({type,listener,signal:options?.signal});}};
   const document={activeElement:null,hasFocus:()=>true,
@@ -403,17 +403,25 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
     input.selectionStart=input.selectionEnd=start+letter.length;
     if(input.value!==before)emit('input',{inputType});
   }
-  const win={webContents:{sendInputEvent(event){
-    inputs.push(event);
+  const deliver=event=>{
     if(event.type==='keyDown'){
       emit('keydown',{key:event.keyCode});
       if(event.keyCode==='Backspace')edit('deleteContentBackward');
       else if(event.keyCode==='Delete')edit('deleteContentForward');
     }else if(event.type==='keyUp')emit('keyup',{key:event.keyCode});
     else if(event.type==='char')edit('insertText',event.keyCode);
+  };
+  const win={webContents:{sendInputEvent(event){
+    inputs.push(event);
+    if((deferredTyping&&event.type==='char')||
+        (deferredDeletion&&['keyDown','keyUp'].includes(event.type)))pending.push(event);
+    else deliver(event);
   }}};
   const context=createContext({assert,document,window:{},AbortController,
-    performance:{now:()=>inputs.length},delay:async ms=>delays.push(ms),
+    performance:{now:()=>inputs.length},delay:async ms=>{
+      delays.push(ms);
+      if(pending.length)deliver(pending.shift());
+    },
     console:{log:message=>logs.push(message)},
     phase:'act',context:{output:'/isolated'},path:{join:(...parts)=>parts.join('/')},
     fs:{appendFile:async(file,bytes)=>{assert.equal(file,'/isolated/act-word-input.jsonl');
@@ -451,17 +459,44 @@ test('trusted word editing clears both sides of start/middle/end carets and type
   }
 });
 
+test('trusted word editing observes delayed native characters without resending any input',async()=>{
+  const fixture=await wordEditingFixture({value:'nava',caret:2,deferredTyping:true});
+  await fixture.type('sela');
+  assert.equal(fixture.input.value,'sela');
+  assert.deepEqual(fixture.inputs.filter(row=>row.type==='char').map(row=>row.keyCode),
+    ['s','e','l','a'],'No character is replayed while waiting for native delivery');
+  assert.deepEqual(fixture.delays,[50,50,50,50]);
+  assert.equal(fixture.diagnostics.at(-1).immediate.value,'');
+  assert.equal(fixture.diagnostics.at(-1).after.value,'sela');
+  assert.equal(fixture.logs.length,0);
+});
+
+test('trusted word editing waits for every delayed deletion key before typing',async()=>{
+  const fixture=await wordEditingFixture({value:'nava',caret:2,deferredDeletion:true});
+  await fixture.type('sela');
+  assert.equal(fixture.input.value,'sela');
+  assert.deepEqual(fixture.inputs.filter(row=>row.type==='keyDown').map(row=>row.keyCode),
+    Array.from({length:4},()=>['Backspace','Delete']).flat(),
+    'No deletion key is replayed while waiting for native delivery');
+  assert.equal(fixture.delays.length,15,
+    'All keydowns must arrive; trailing keyup cannot remove newly typed text');
+  assert.equal(fixture.diagnostics[0].immediate.value,'nava');
+  assert.equal(fixture.diagnostics[0].after.value,'');
+  assert.equal(fixture.diagnostics[1].after.value,'sela');
+  assert.equal(fixture.logs.length,0);
+});
+
 test('trusted word editing rejects stuck deletion before typing and records stuck typed input',async()=>{
   const deletion=await wordEditingFixture({caret:3,stuckDelete:true});
   await assert.rejects(deletion.type('tomi'),/Trusted deletion must empty/);
   assert.equal(deletion.inputs.some(row=>row.type==='char'),false);
-  assert.deepEqual(deletion.delays,[50,50,50,50],
-    'Failure observation waits briefly without replaying any native key');
+  assert.equal(deletion.delays.length,100,
+    'Bounded failure observation never replays a native key');
   assert.equal(deletion.logs.length,1);
   const clearDiagnostic=JSON.parse(deletion.logs[0].replace('PLAYER_LESSON_WORD_CLEAR_DIAGNOSTIC ',''));
   assert.equal(clearDiagnostic.before.value,'abcdef');
   assert.deepEqual(clearDiagnostic.observations.map(row=>row.stage),
-    ['immediate','after-50','after-100','after-150','after-200']);
+    ['immediate','after-50','after-100','after-150','after-200','after-5000']);
   assert.ok(clearDiagnostic.observations.every(row=>row.value==='abcdef'&&
     row.focused===true&&row.windowFocused===true&&row.disabled===false));
   assert.equal(deletion.inputs.filter(row=>row.type==='keyDown').length,12,
@@ -472,6 +507,10 @@ test('trusted word editing rejects stuck deletion before typing and records stuc
   await assert.rejects(typing.type('tomi'),/Actual native input must contain/);
   assert.deepEqual(typing.diagnostics.map(row=>row.stage),['cleared','typed']);
   assert.equal(typing.diagnostics[1].after.value,'');
+  assert.equal(typing.inputs.filter(row=>row.type==='char').length,4,
+    'A failed native dispatch never triggers a second typing attempt');
+  assert.equal(typing.delays.length,100);
+  assert.match(typing.logs.at(-1),/^PLAYER_LESSON_WORD_TYPE_DIAGNOSTIC /);
 });
 
 test('trusted word editing refuses a correct field value without trusted native event evidence',async()=>{

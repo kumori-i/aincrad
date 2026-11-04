@@ -331,33 +331,56 @@ async function trustedTypeWord(win, word) {
     win.webContents.sendInputEvent({type:'keyDown',keyCode});
     win.webContents.sendInputEvent({type:'keyUp',keyCode});
   }
-  const cleared=await inspect();
+  const deletionArrived=row=>row.value===''&&['Backspace','Delete'].every(key=>
+    row.events.filter(event=>event.type==='keydown'&&event.key===key&&event.trusted).length>=
+      before.value.length);
+  const clearedImmediately=await inspect();
+  let cleared=clearedImmediately;
+  const compact=row=>({at:row.at,value:row.value,start:row.start,end:row.end,
+    focused:row.focused,windowFocused:row.windowFocused,disabled:row.disabled,
+    eventCount:row.events?.length??0,events:row.events?.slice(-8)});
+  const observations=[{stage:'immediate',...compact(cleared)}];
+  for(let i=1;i<=100&&!deletionArrived(cleared);i++){
+    await delay(50); // Read only: no key may be replayed while delivery settles.
+    cleared=await inspect();
+    if(i<=4||deletionArrived(cleared)||i===100)
+      observations.push({stage:'after-'+i*50,...compact(cleared)});
+  }
   await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
-    JSON.stringify({word,stage:'cleared',before,after:cleared})+'\\n');
-  if(cleared.value!==''){
-    const compact=row=>({at:row.at,value:row.value,start:row.start,end:row.end,
-      focused:row.focused,windowFocused:row.windowFocused,disabled:row.disabled,
-      eventCount:row.events?.length??0,events:row.events?.slice(-8)});
-    const observations=[{stage:'immediate',...compact(cleared)}];
-    for(let i=1;i<=4;i++){
-      await delay(50); // Read only: never resend a key or accept a late edit here.
-      try{observations.push({stage:'after-'+i*50,...compact(await inspect())});}
-      catch(error){observations.push({stage:'read-failed',error:String(error).slice(0,120)});break;}
-    }
+    JSON.stringify({word,stage:'cleared',before,immediate:clearedImmediately,after:cleared})+'\\n');
+  if(!deletionArrived(cleared)){
     console.log('PLAYER_LESSON_WORD_CLEAR_DIAGNOSTIC '+
       JSON.stringify({word,before:compact(before),observations}).slice(0,8192));
   }
   assert.equal(cleared.value,'','Trusted deletion must empty the real field before typing');
   assert.equal(cleared.focused,true);
   if(before.value.length>0)for(const key of ['Backspace','Delete'])assert.ok(
-    cleared.events.some(event=>event.type==='keydown'&&event.key===key&&event.trusted),
+    cleared.events.filter(event=>event.type==='keydown'&&event.key===key&&event.trusted).length>=
+      before.value.length,
     'Deletion must arrive as a real trusted native key: '+key);
   for (const letter of word)win.webContents.sendInputEvent({type:'char',keyCode:letter});
-  const typed=await inspect();
+  // sendInputEvent delivery may lag the next read on a real desktop. Observe its
+  // effects without replaying input; a slow or lost dispatch must not create
+  // a second lesson or silently pass on a matching field value alone.
+  const typedImmediately=await inspect();
+  let typed=typedImmediately;
+  const hasTrustedWord=row=>row.value===word&&row.events.some(event=>
+    event.type==='input'&&event.trusted&&event.value===word);
+  for(let i=0;i<100&&!hasTrustedWord(typed);i++){
+    await delay(50);
+    typed=await inspect();
+  }
   await fs.appendFile(path.join(context.output,phase+'-word-input.jsonl'),
-    JSON.stringify({word,stage:'typed',after:typed})+'\\n');
+    JSON.stringify({word,stage:'typed',immediate:typedImmediately,after:typed})+'\\n');
+  if(!hasTrustedWord(typed)){
+    const compact=row=>({at:row.at,value:row.value,start:row.start,end:row.end,
+      focused:row.focused,windowFocused:row.windowFocused,disabled:row.disabled,
+      eventCount:row.events?.length??0,events:row.events?.slice(-12)});
+    console.log('PLAYER_LESSON_WORD_TYPE_DIAGNOSTIC '+
+      JSON.stringify({word,immediate:compact(typedImmediately),final:compact(typed)}).slice(0,8192));
+  }
   assert.equal(typed.value,word,'Actual native input must contain the complete requested word');
-  assert.ok(typed.events.some(event=>event.type==='input'&&event.trusted&&event.value===word),
+  assert.ok(hasTrustedWord(typed),
     'Typed word must arrive through trusted native input');
 }
 async function targetDiagnostic(win, step) {
