@@ -114,6 +114,24 @@ test('prepare-only generates a sandboxed trusted-input and real Canvas close/reo
       'verifyPlayerLessonCaptureProgress', 'paidPoseWitness', 'captureLessonState',
       "paidPoseScreenshot:{status:'pending-independent-pixel-review'",
     ])assert.ok(runner.includes(token),'Missing native contract: '+token);
+    const evaluateSource=runner.slice(runner.indexOf('async function evaluate('),
+      runner.indexOf('async function waitFor(')).trim();
+    assert.ok(evaluateSource.includes('replace(/\\s+/g'),
+      'The generated runner must normalize whitespace, not the letter s');
+    const nativeEvaluate=runInNewContext('('+evaluateSource+')',{Error,String});
+    assert.equal(await nativeEvaluate({webContents:{executeJavaScript:async()=>42}},'6*7','read result'),42);
+    await assert.rejects(nativeEvaluate({webContents:{executeJavaScript:async()=>{
+      throw new Error('Script failed to execute');
+    }}},'x'.repeat(300),'arm disabled-repeat click trace'),
+    /Native renderer expression failed \[arm disabled-repeat click trace\]: Error: Script failed to execute/);
+    await assert.rejects(nativeEvaluate({webContents:{executeJavaScript:async()=>{
+      throw new Error('Script failed to execute');
+    }}},'x'.repeat(300)),error=>error.message.includes('x'.repeat(120)) &&
+      !error.message.includes('x'.repeat(121)),
+    'Unlabelled renderer exceptions retain a bounded expression prefix');
+    assert.match(runner,/PLAYER_LESSON_RENDERER_EVENTS/);
+    assert.match(runner,/rendererEvents\.slice\(-16\)/,
+      'Failure stderr must retain a bounded renderer console/error tail');
     const acted=runner.split('async function actPhase(win) {')[1]
       ?.split('async function reopenPhase(win) {')[0];
     assert.ok(acted);

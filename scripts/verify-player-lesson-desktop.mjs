@@ -137,7 +137,13 @@ app.on('will-quit', event => { if (!allowQuit) { event.preventDefault(); return;
   if (!closeObserved) process.exitCode = 1;
   else console.log('PLAYER_LESSON_NATIVE_WILL_QUIT ' + phase);
 });
-async function evaluate(win, source) { return win.webContents.executeJavaScript(source); }
+async function evaluate(win, source, label=null) {
+  try { return await win.webContents.executeJavaScript(source); }
+  catch(error) {
+    const location=label ?? String(source).replace(/\\s+/g,' ').slice(0,120);
+    throw new Error('Native renderer expression failed ['+location+']: '+String(error),{cause:error});
+  }
+}
 async function waitFor(win, expression) {
   for (let i = 0; i < 400; i++) {
     try { if (await evaluate(win, expression)) return; } catch {}
@@ -153,7 +159,8 @@ async function clickButton(win, id, {settleMs=60,repeatImmediately=false}={}) {
     'button.scrollIntoView({block:"nearest"});const rect=button.getBoundingClientRect();' +
     'const x=Math.round(rect.left+rect.width/2),y=Math.round(rect.top+rect.height/2);' +
     'if(x<0||y<0||x>=innerWidth||y>=innerHeight||!button.contains(document.elementFromPoint(x,y)))' +
-    'throw new Error("Food button is outside or obscured: ' + id + '");return {x,y};})()');
+    'throw new Error("Food button is outside or obscured: ' + id + '");return {x,y};})()',
+    'button hit test '+id);
   win.webContents.focus();
   win.webContents.sendInputEvent({type:'mouseMove',x:box.x,y:box.y});
   // A disabled-repeat probe must send its second genuine input immediately.
@@ -405,11 +412,11 @@ async function trustedLesson(win, word, sourceId, {repeatImmediately=false}={}) 
     'before:window.__ozarkWorld.playerLessonSnapshot().active};window.__lessonRepeatClicks.push(row);' +
     '},{capture:true});button.addEventListener("click",()=>{' +
     'const row=window.__lessonRepeatClicks.at(-1);row.after=window.__ozarkWorld.playerLessonSnapshot().active;' +
-    'row.afterAt=performance.now();});})()');
+    'row.afterAt=performance.now();});})()','arm disabled-repeat click trace');
   await clickButton(win,'player-lesson-say',{settleMs:repeatImmediately?0:60,repeatImmediately});
   if(repeatImmediately)await waitFor(win,'window.__lessonRepeatClicks?.[0]?.after?.word===' + JSON.stringify(word));
   const result=await evaluate(win,'({active:window.__ozarkWorld.playerLessonSnapshot().active,' +
-    'clicks:window.__lessonRepeatClicks||[]})');
+    'clicks:window.__lessonRepeatClicks||[]})','read disabled-repeat click trace');
   if(repeatImmediately){
     await fs.writeFile(path.join(context.output,phase+'-disabled-repeat.json'),JSON.stringify(result,null,2));
     assert.equal(result.clicks.length,1,'The second immediate genuine click must be disabled');
@@ -678,6 +685,9 @@ app.on('browser-window-created',(_event,win)=>{
       await closeNormally(win);
     }catch(error){
       console.error(error);const failure={phase,error:String(error?.stack||error),rendererEvents};
+      try{console.error('PLAYER_LESSON_RENDERER_EVENTS '+
+        JSON.stringify(rendererEvents.slice(-16)).slice(0,8192));}
+      catch{console.error('PLAYER_LESSON_RENDERER_EVENTS unavailable');}
       try{failure.live=await evaluate(win,'({world:window.__ozarkWorld?.fullSnapshot(),saveFailure:window.__ozarkWorld?.saveFailure?.()})');
         failure.target=await targetDiagnostic(win,'failure');}
       catch(diagnosticError){failure.diagnosticError=String(diagnosticError);}
