@@ -435,8 +435,13 @@ function learnedStep(npc){
   if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){endFoodRun(npc,run,'complete');d.run=null;return survivalReturn(npc,'run:complete',null);}
   const step=technique.steps[run.cursor],id=step.targetId==='$source'?technique.sourceId:run.materialId;
   if(!id){endFoodRun(npc,run,'no-target');d.run=null;return survivalReturn(npc,'run:no-target',null);}
+  const object=d.observations[id];
+  // A retained technique does not recreate sight of its source. Losing the
+  // observation while travelling must not leave an unadmitted step awaiting,
+  // even when a prior failure would also defer another attempt.
+  if(!npc.inventory.items.includes(id)&&!object){endFoodRun(npc,run,'unavailable');d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}
   if(availabilityBlocked(npc,step.type,id)){endFoodRun(npc,run,'availability-blocked');d.run=null;return survivalReturn(npc,'run:availability-blocked',null);}
-  if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return survivalReturn(npc,'run:eligibility-blocked',null);const object=d.observations[id];
+  if(recentlyFailed(npc,step.type,id)||step.type==='sample'&&!sampleEligible(npc,id))return survivalReturn(npc,'run:eligibility-blocked',null);
   if(!npc.inventory.items.includes(id)&&object&&distance(npc.position,object.position)>DISCOVERY_RULES.reach){const move=routeTarget(npc,object.position);if(move){markNpcRunTravel(npc,move);markFoodRunChoice(npc,run,move,'travel');return survivalReturn(npc,'run:travel',move);}endFoodRun(npc,run,'no-route');d.run=null;return survivalReturn(npc,'run:route-missing',null);}
   run.awaiting=true;run.expectedType=step.type;run.expectedId=id;
   const request={type:step.type,targetId:id};
