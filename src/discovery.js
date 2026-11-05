@@ -21,7 +21,7 @@ import { admitMethodTrial } from './method-transfer-state.js';
 import { CONFIG,NPC_RULES } from './config.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
 import { createDiscoveryMemory,cleanSensoryObject,objectId } from './discovery-state.js';
-import { bodySignals,sensedEnvironment } from './interoception.js';
+import { bodySignals,sensedEnvironment,restUnsafe } from './interoception.js';
 import { distance } from './world.js';
 import { rememberedCells,rememberedEdges,actorLineOfSight } from './perception.js';
 import { createKnownRouteIndex } from './navigation.js';
@@ -465,6 +465,11 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   processDiscoveryFeedback(npc,{foodLearning});availabilityScans.set(npc,new Map());const d=memory(npc),body=bodySignals(npc),senses=sensedEnvironment(npc);
   survivalScope=survivalObserve(beginSurvivalDecision,npc,body);
   const restDeferred=deferRestRetry(npc,body),depletedAfterRefusal=restDeferred&&body.energy==='depleted';
+  const dangerous=body.thermal.startsWith('dangerously')||['overheated','shivering'].includes(body.thermal);
+  const sleepDue=!restDeferred&&['sleepy','struggling to stay awake'].includes(body.sleepiness)&&!dangerous&&body.thirst!=='desperate thirst';
+  const restDue=!restDeferred&&(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue));
+  const deferWaterTravel=ozarkPersistentWorldAgent(npc)&&body.thirst==='dry mouth'&&
+    (sleepDue||restDue)&&!restUnsafe(npc);
   const trialHunger=['hungry','ravenous','faint with hunger'].includes(body.hunger);
   // Evaluation can ablate positive food associations without erasing perception,
   // navigation, practice, novelty, failures, or experienced discomfort.
@@ -483,6 +488,9 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
     const sources=Object.values(npc.memory.sources).filter(s=>s.available!==false&&(s.retryAfter||0)<=npc.elapsed).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
     for(const source of ozarkPersistentWorldAgent(npc)?sources:sources.slice(0,1)){
       if(distance(source,npc.position)<=NPC_RULES.collectionRange)return wrap({type:'fill_flask',sourceId:source.id},'I can reach the water I actually observed.','water');
+      // Mild thirst need not add a journey before safe recovery. Keep nearby
+      // collection, then fall through the existing safety/food/recovery order.
+      if(deferWaterTravel)continue;
       const move=routeTarget(npc,source);if(move){
         // Do not let a remembered-water walk bypass an existing local safety action.
         const safety=terrainTraversalDecision(npc);
@@ -491,7 +499,6 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
       }
     }
   }
-  const dangerous=body.thermal.startsWith('dangerously')||['overheated','shivering'].includes(body.thermal);
   if(dangerous&&npc.scene==='valley'){
     const refuge=Object.values(npc.memory.shelters).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];if(refuge){if(distance(refuge,npc.position)<=100)return wrap({type:'enter_shelter',shelterId:refuge.id},'Exposure hurts; the observed opening may provide cover.','thermal');const move=routeTarget(npc,refuge);if(move)return wrap(move,'I am moving toward an observed opening.','thermal');}
   }
@@ -521,8 +528,8 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
       }
     }
   }
-  if(!restDeferred&&['sleepy','struggling to stay awake'].includes(body.sleepiness)&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'sleep',seconds:CONFIG.dayRealSeconds/3},'I can hardly remain awake; a longer sleep may restore alertness.','rest');
-  if(!restDeferred&&(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue)))return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
+  if(sleepDue)return wrap({type:'sleep',seconds:CONFIG.dayRealSeconds/3},'I can hardly remain awake; a longer sleep may restore alertness.','rest');
+  if(restDue)return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
   if(depletedAfterRefusal&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'wait',seconds:5},'Rest was interrupted or refused while I felt depleted; without an available learned relief action, I can keep still briefly and reassess my sensations.','rest');
   if(d.run){const action=learnedStep(npc);if(action)return wrap(action,'I am repeating an operation sequence supported by my own bodily feedback.','food');}
   // Appetite is not fuel: a content stomach can coexist with waning energy.

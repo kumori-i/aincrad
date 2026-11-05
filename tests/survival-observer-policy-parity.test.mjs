@@ -19,10 +19,11 @@ for(const {before,after} of seams.slice().reverse()){
  assert.equal(original.split(after).length-1,1,'each reverse seam occurs exactly once');original=original.replace(after,before);
 }
 // Both arms retain the same current policy, including the bounded remembered
-// route detour. Reverse only the survival and food-run observer seams. This
+// route detour and mild-thirst recovery priority. Reverse only the survival
+// and food-run observer seams. This
 // source pin changes when an intentional policy change changes both arms; the
 // frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
-assert.equal(sha(original),'4e0e975971e00b2b1a59812340b4525ac4f0f8c26aad9bbaeb84ba49cb75d47b','exact current policy with observer seams reversed, not a rewritten approximation');
+assert.equal(sha(original),'1f550e55bae9a422e05d6702d9c7827aa8d1666efca475de4b534294b3958fd2','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}
