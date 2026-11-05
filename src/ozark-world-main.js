@@ -28,6 +28,7 @@ import { createFreshCharacterMessages } from './visual-reference-save.js';
 import { createCommunicationPixelSensor } from './communication-pixels.js';
 import { saveFailureMessage } from './save-failure-message.js';
 import { createVisualReferenceSaveGate } from './visual-reference-save-gate.js';
+import { atlasEventPoint, installAtlasGesture } from './atlas-gesture.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -59,6 +60,7 @@ let communicationLearning = null;
 let playerFoodController = null;
 let playerLessonController = null;
 let playerLessonEvaluation = null;
+let atlasGesture = null;
 const referenceSaveGate=createVisualReferenceSaveGate();
 let communicationError = '';
 // Capture completed personal learning before disposal can censor in-flight
@@ -168,7 +170,7 @@ function save(explicit = false, referenceCheckpoint = false) {
   if (explicit) notify(ok ? 'The world was saved.' : failure, 12);
   if (!ok && started) {
     paused = true;
-    keys.clear();
+    clearInput();
     show('pause-panel');
   }
   return ok;
@@ -278,8 +280,9 @@ function begin() {
   return true;
 }
 function closePanel() {
+  clearInput();
   if (panel) hide(panel + '-panel');
-  panel = null; keys.clear(); $('world').focus({ preventScroll: true });
+  panel = null; $('world').focus({ preventScroll: true });
 }
 function openPanel(name) {
   if (!started || loaded.blocked) return;
@@ -293,7 +296,7 @@ function togglePanel(name) { if (panel === name) closePanel(); else openPanel(na
 function setPause(value) {
   if (!started || resetHeld || resetRetired) return;
   if(value){cancelPlayerFood('pause');cancelPlayerLesson('pause');}
-  paused = value; keys.clear(); anim.moving = false;
+  paused = value; clearInput();
   clock.reset(performance.now() / 1000);
   if (value) { closePanel(); show('pause-panel'); $('resume').focus(); }
   else { hide('pause-panel'); $('world').focus({ preventScroll: true }); }
@@ -550,11 +553,12 @@ installWorldReset({
     cancelPlayerFood('reset');
     cancelPlayerLesson('reset');
     npcPanel?.close();
-    resetHeld = true; keys.clear(); anim.moving = false;
+    resetHeld = true; clearInput();
   },
   release: () => { resetHeld = false; },
   retire: () => {
-    resetRetired = true; started = false; paused = true; keys.clear();
+    resetRetired = true; started = false; paused = true; clearInput();
+    atlasGesture?.dispose();
     playerFoodController?.dispose();
     playerLessonController?.dispose();
     clearInterval(simulationTimer); communicationInspector?.dispose(); communicationLearning?.dispose(); population?.dispose();
@@ -608,7 +612,8 @@ window.addEventListener('keydown', event => {
     event.preventDefault(); if (!event.repeat) togglePanel('help'); return;
   }
   if (panel === 'map' && ['Equal', 'NumpadAdd', 'Minus', 'NumpadSubtract'].includes(event.code)) {
-    event.preventDefault(); renderer.atlasZoom(['Equal', 'NumpadAdd'].includes(event.code) ? 1.35 : 1 / 1.35);
+    event.preventDefault(); atlasGesture?.cancel();
+    renderer.atlasZoom(['Equal', 'NumpadAdd'].includes(event.code) ? 1.35 : 1 / 1.35);
     updateAtlas(); return;
   }
   if (!paused && !panel && movementCodes.has(event.code) &&
@@ -617,64 +622,53 @@ window.addEventListener('keydown', event => {
   }
 });
 window.addEventListener('keyup', event => keys.delete(event.code));
-function clearInput() { keys.clear(); anim.moving = false; }
+function clearInput() { keys.clear(); anim.moving = false; atlasGesture?.cancel(); }
 window.addEventListener('blur', () => { windowFocused = false; cancelPlayerFood('blur'); cancelPlayerLesson('blur'); clearInput(); });
 window.addEventListener('focus', () => { windowFocused = true; clearInput(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) {cancelPlayerFood('hidden');cancelPlayerLesson('hidden');clearInput();} });
 window.aincradAgent?.onWindowActive?.(active => {
   windowFocused = active; if(!active){cancelPlayerFood('window-inactive');cancelPlayerLesson('window-inactive');} clearInput();
 });
-window.addEventListener('resize', () => renderer.resize());
-window.addEventListener('pagehide', () => { cancelPlayerFood('pagehide'); cancelPlayerLesson('pagehide'); if (started) save(); });
-window.addEventListener('beforeunload', () => { cancelPlayerFood('beforeunload'); cancelPlayerLesson('beforeunload'); if (started) save(); });
+window.addEventListener('resize', () => { atlasGesture?.cancel(); renderer.resize(); });
+window.addEventListener('pagehide', () => { cancelPlayerFood('pagehide'); cancelPlayerLesson('pagehide'); clearInput(); if (started) save(); });
+window.addEventListener('beforeunload', () => { cancelPlayerFood('beforeunload'); cancelPlayerLesson('beforeunload'); clearInput(); if (started) save(); });
 
 const atlas = $('atlas-map');
-function atlasPoint(event) {
-  const rect = atlas.getBoundingClientRect();
-  return { x: (event.clientX - rect.left) / rect.width * atlas.width,
-    y: (event.clientY - rect.top) / rect.height * atlas.height };
+function atlasAvailable() {
+  return started && panel === 'map' && !resetHeld && !resetRetired && !loaded.blocked &&
+    windowFocused && !document.hidden;
 }
-let gesture = null;
-atlas.addEventListener('pointerdown', event => {
-  if (event.button !== 0) return;
-  gesture = { id: event.pointerId, at: atlasPoint(event), moved: false };
-  atlas.setPointerCapture(event.pointerId);
-});
-atlas.addEventListener('pointermove', event => {
-  if (!gesture || gesture.id !== event.pointerId) return;
-  const at = atlasPoint(event);
-  if (Math.hypot(at.x - gesture.at.x, at.y - gesture.at.y) > 2) gesture.moved = true;
-  if (gesture.moved) { renderer.atlasPan(at.x - gesture.at.x, at.y - gesture.at.y);
-    updateAtlas(); }
-  gesture.at = at;
-});
-atlas.addEventListener('pointerup', event => {
-  if (!gesture || gesture.id !== event.pointerId) return;
-  const moved = gesture.moved;
-  gesture = null;
-  if (atlas.hasPointerCapture(event.pointerId)) atlas.releasePointerCapture(event.pointerId);
-  if (moved) return;
-  const point = atlasPoint(event);
-  const marker = renderer.atlasMarkerAt(point.x, point.y);
-  if (marker) { renderer.atlasCenter(marker, state); updateAtlas(); return; }
-  const world = renderer.atlasPoint(point.x, point.y);
-  if (!world || !geometry.canOccupy(world.x, world.y)) return;
-  state.waypoint = world; updateAtlas(); save();
+atlasGesture = installAtlasGesture({
+  atlas, enabled: atlasAvailable,
+  onPan: (dx, dy) => { renderer.atlasPan(dx, dy); updateAtlas(); },
+  onClick: point => {
+    const marker = renderer.atlasMarkerAt(point.x, point.y);
+    if (marker) { renderer.atlasCenter(marker, state); updateAtlas(); return; }
+    const world = renderer.atlasPoint(point.x, point.y);
+    if (!world || !geometry.canOccupy(world.x, world.y)) return;
+    state.waypoint = world; updateAtlas(); save();
+  },
 });
 atlas.addEventListener('contextmenu', event => {
-  event.preventDefault(); state.waypoint = null; updateAtlas(); save();
+  event.preventDefault();
+  if (!atlasAvailable()) return;
+  atlasGesture.cancel(); state.waypoint = null; updateAtlas(); save();
 });
 atlas.addEventListener('wheel', event => {
-  event.preventDefault(); const point = atlasPoint(event);
-  renderer.atlasZoom(Math.exp(-event.deltaY * .0015), point.x, point.y);
+  event.preventDefault();
+  if (!atlasAvailable()) return;
+  const point = atlasEventPoint(atlas, event), factor = Math.exp(-event.deltaY * .0015);
+  if (!point || !Number.isFinite(factor) || factor <= 0) return;
+  atlasGesture.cancel();
+  renderer.atlasZoom(factor, point.x, point.y);
   updateAtlas();
 }, { passive: false });
 for (const [id, factor] of [['atlas-zoom-in', 1.35], ['atlas-zoom-out', 1 / 1.35]])
-  $(id).addEventListener('click', () => { renderer.atlasZoom(factor); updateAtlas(); });
-$('atlas-fit').addEventListener('click', () => { renderer.atlasFit(); updateAtlas(); });
+  $(id).addEventListener('click', () => { atlasGesture.cancel(); renderer.atlasZoom(factor); updateAtlas(); });
+$('atlas-fit').addEventListener('click', () => { atlasGesture.cancel(); renderer.atlasFit(); updateAtlas(); });
 for (const id of ['you', 'aster', 'mira'])
   $('atlas-center-' + id).addEventListener('click', () => {
-    renderer.atlasCenter(id, state); updateAtlas();
+    atlasGesture.cancel(); renderer.atlasCenter(id, state); updateAtlas();
   });
 
 // Local test hooks exist only in a disposable native test profile.
