@@ -1,4 +1,4 @@
-import { unproductiveClimbApproach } from './traversal-evidence.js';
+import { unproductiveClimbApproach, successfulClimbHeading } from './traversal-evidence.js';
 import { beginSurvivalDecision, noteSurvivalDecision, noteCurrentSurvivalDecision, finishSurvivalDecision, closeSurvivalDecision } from './survival-decision-observer.js';
 // Observer failures are deliberately outside policy authority. No callbacks or data are installed in actors.
 function survivalObserve(fn,...args){try{return fn(...args);}catch{return null;}}
@@ -294,6 +294,16 @@ function terrainTraversalDecision(npc){
       const next=nearby.filter(cell=>['surface-water','internal-pond'].includes(cell.terrain)&&
         !attempted('swim',cell,npc.elapsed-45)).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];
       if(next)return {action:{type:'swim',target:{x:next.x,y:next.y}},reason:'A previous swim actually moved me through water; I can try another visible water patch.',need:'understanding'};
+    }
+  }
+  if(felt==='steep-ground'){
+    const heading=successfulClimbHeading(npc);
+    if(heading){
+      const next=nearby.filter(cell=>cell.terrain==='visible-divide'&&
+        !attempted('climb',cell,npc.elapsed-45)&&
+        ((cell.x-npc.position.x)*heading.x+(cell.y-npc.position.y)*heading.y)/distance(cell,npc.position)>.72)
+        .sort((a,b)=>distance(a,npc.position)-distance(b,npc.position))[0];
+      if(next)return {action:{type:'climb',target:{x:next.x,y:next.y}},reason:'My last climb actually carried me forward; I still feel steep ground and can cautiously test another visible divide ahead.',need:'understanding'};
     }
   }
   // A first water or visible divide attempt is curiosity, not a promised
