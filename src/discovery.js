@@ -1,3 +1,4 @@
+import { unproductiveClimbApproach } from './traversal-evidence.js';
 import { beginSurvivalDecision, noteSurvivalDecision, noteCurrentSurvivalDecision, finishSurvivalDecision, closeSurvivalDecision } from './survival-decision-observer.js';
 // Observer failures are deliberately outside policy authority. No callbacks or data are installed in actors.
 function survivalObserve(fn,...args){try{return fn(...args);}catch{return null;}}
@@ -241,7 +242,7 @@ function terrainTraversalDecision(npc){
     actorLineOfSight(npc,npc.position,cell));
   const events=npc.memory.experience.filter(event=>event.type==='action'&&
     event.at<=npc.elapsed&&npc.elapsed-event.at<90);
-  const attempted=(type,cell,since=0)=>events.some(event=>
+  const attempted=(type,cell,since=0)=>(type==='climb'&&unproductiveClimbApproach(npc,cell))||events.some(event=>
     event.at>=since&&event.details.action?.type===type&&
     event.details.action?.target?.x===cell.x&&
     event.details.action?.target?.y===cell.y);
