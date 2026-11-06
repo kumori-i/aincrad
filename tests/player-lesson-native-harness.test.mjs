@@ -213,11 +213,28 @@ test('native duplicate probe sends two real click pairs without a second IPC or 
     source.indexOf('function fixedStepExpression(')).trim();
   const events=[];
   let evaluations=0,delays=0,clock=0;
+  const listeners=[];let active=null;
+  const button={disabled:false,getClientRects:()=>[{}],scrollIntoView:()=>{},
+    getBoundingClientRect:()=>({left:40,top:15,width:4,height:4}),
+    contains:node=>node===button,
+    addEventListener:(type,listener,options)=>listeners.push({type,listener,capture:!!options?.capture})};
+  const renderer={document:{getElementById:()=>button,elementFromPoint:()=>button},
+    innerWidth:100,innerHeight:100,performance:{now:()=>clock},
+    window:{__ozarkWorld:{snapshot:()=>({elapsed:3}),playerLessonSnapshot:()=>({active})}}};
   const clickButton=runInNewContext('('+helper+')',{
-    JSON,evaluate:async()=>{evaluations++;clock+=8;return {x:42,y:17};},
+    JSON,evaluate:async(_win,expression)=>{
+      evaluations++;clock+=8;return runInNewContext(expression,renderer);
+    },
     delay:async()=>{delays++;clock+=8;},
   });
-  const win={webContents:{focus:()=>{},sendInputEvent:event=>events.push({event,clock})}};
+  const win={webContents:{focus:()=>{},sendInputEvent:event=>{
+    events.push({event,clock});
+    if(event.type==='mouseUp'&&!button.disabled){
+      for(const row of listeners.filter(row=>row.capture))row.listener({isTrusted:true});
+      active={word:'movo',worked:0,seconds:1.8};button.disabled=true;
+      for(const row of listeners.filter(row=>!row.capture))row.listener({isTrusted:true});
+    }
+  }}};
   await clickButton(win,'player-lesson-say',{settleMs:0,repeatImmediately:true});
   assert.equal(evaluations,1,'The button box is read before either native press');
   assert.equal(delays,0,'The repeat cannot wait for the 1.8-second action to finish');
@@ -226,6 +243,10 @@ test('native duplicate probe sends two real click pairs without a second IPC or 
   assert.ok(events.every(row=>row.clock===8),'No renderer round trip can separate the presses');
   for(const {event} of events.slice(1))assert.equal(event.clickCount,1,
     'The two ordinary mouse presses must not become one double-click command');
+  assert.equal(renderer.window.__lessonRepeatClicks.length,1,'The hit-test turn arms the trace before native input');
+  assert.equal(renderer.window.__lessonRepeatClicks[0].before,null);
+  assert.equal(renderer.window.__lessonRepeatClicks[0].after.word,'movo');
+  assert.equal(renderer.window.__lessonRepeatClicks[0].trusted,true);
 });
 
 test('native workflow is separate, bounded and inert on experiment refs', async () => {
@@ -301,7 +322,8 @@ test('trusted target navigation uses closed-select label cycling and checks ever
     {value:'object:671',text:'Ripe · 40 away'},
     {value:'object:677',text:'Ripe · 64 away'},
     {value:'object:679',text:'Small · 90 away'}];
-  let focused='player-lesson-word',selected=1,sequence=0,deferChars=false;
+  let focused='player-lesson-word',selected=1,sequence=0,deferChars=false,deferTabs=false,dropTabs=false;
+  let evaluations=0,diagnosticReads=0;
   const events=[],inputs=[],steps=[],pending=[];
   const applyInput=input=>{
     const type=input.type==='char'?'keypress':input.type==='keyDown'?'keydown':'keyup';
@@ -319,14 +341,19 @@ test('trusted target navigation uses closed-select label cycling and checks ever
   };
   const win={webContents:{sendInputEvent(input){
     inputs.push(input);
-    if(deferChars&&input.type==='char')pending.push(input);
+    if(dropTabs&&input.keyCode==='Tab')return;
+    if(pending.length||deferChars&&input.type==='char'||deferTabs&&input.keyCode==='Tab')pending.push(input);
     else applyInput(input);
   }}};
   let expected='object:677';
-  const context={assert,evaluate:async(_win,expression)=>expression==='document.activeElement?.id'?focused:undefined,
-    targetDiagnostic:async(_win,step,{record=true}={})=>{if(record)steps.push({step,value:options[selected].value});
-      return {options,value:options[selected].value,activeElement:focused,disabled:false,
-        events:events.map(row=>({...row}))};},
+  const context={assert,evaluate:async(_win,expression)=>{
+      evaluations++;return expression==='document.activeElement?.id'?focused:undefined;
+    },
+    targetDiagnostic:async(_win,step,{record=true,row=null}={})=>{
+      if(!row){diagnosticReads++;row={options,value:options[selected].value,activeElement:focused,disabled:false,
+        events:events.map(event=>({...event}))};}
+      if(record)steps.push({step,value:row.value});return row;
+    },
     delay:async()=>{if(pending.length)applyInput(pending.shift());},
     console:{log:()=>{}},
     waitFor:async()=>assert.equal(options[selected].value,expected)};
@@ -334,12 +361,14 @@ test('trusted target navigation uses closed-select label cycling and checks ever
   await context.choose(win,expected);
   assert.deepEqual(inputs.map(row=>row.keyCode),['Tab','Tab','r','Tab','Tab']);
   assert.equal(focused,'player-lesson-say');
+  assert.equal(evaluations+diagnosticReads,5,'One character needs only trace setup and four observed rows');
   // Repeat from an already selected target: native cycling must wrap through
   // the other duplicate label and back, never assign the desired DOM value.
-  focused='player-lesson-word';inputs.length=0;steps.length=0;
+  focused='player-lesson-word';inputs.length=0;steps.length=0;evaluations=diagnosticReads=0;
   await context.choose(win,expected);
   assert.deepEqual(steps.filter(row=>row.step.startsWith('after-typeahead-')).map(row=>row.value),
     ['object:671','object:677']);
+  assert.equal(evaluations+diagnosticReads,6,'Two characters must not re-read rows merely to log or assert them');
   // A new visible initial is sourced from the label, not an object identity.
   focused='player-lesson-word';expected='object:679';inputs.length=0;
   await context.choose(win,expected);
@@ -352,6 +381,18 @@ test('trusted target navigation uses closed-select label cycling and checks ever
   assert.deepEqual(inputs.filter(row=>row.type==='char').map(row=>row.keyCode),['r']);
   assert.equal(pending.length,0);
   deferChars=false;
+  // Both Tabs may arrive after their first read, including the commit Tab.
+  // Keep waiting for the sent events without sending another Tab or character.
+  focused='player-lesson-word';selected=1;inputs.length=0;deferTabs=true;
+  await context.choose(win,expected);
+  assert.equal(focused,'player-lesson-say');
+  assert.deepEqual(inputs.map(row=>row.keyCode),['Tab','Tab','r','Tab','Tab']);
+  assert.ok(pending.every(row=>row.type==='keyUp'),'Only the trailing Tab keyup may remain queued');
+  pending.length=0;deferTabs=false;
+  focused='player-lesson-word';selected=1;inputs.length=0;dropTabs=true;
+  await assert.rejects(context.choose(win,expected),/player-lesson-target/);
+  assert.deepEqual(inputs.map(row=>row.keyCode),['Tab','Tab'],'Lost focus delivery cannot replay Tab or type ahead');
+  dropTabs=false;
   // Modelled selection alone cannot pass when the transport emits an invalid key.
   focused='player-lesson-word';
   const send=win.webContents.sendInputEvent;
@@ -362,6 +403,24 @@ test('trusted target navigation uses closed-select label cycling and checks ever
     if(input.type==='char'){selected=prior;attempts++;}};
   await assert.rejects(context.choose(win,expected),/Bounded visible-label cycling/);
   assert.equal(attempts,options.length,'A stuck real selection fails within one bounded cycle');
+});
+
+test('target diagnostics record an observed row without a second renderer read',async()=>{
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const helper=source.slice(source.indexOf('async function targetDiagnostic('),
+    source.indexOf('async function trustedChooseTarget('));
+  const row={value:'object:677',activeElement:'player-lesson-target',events:[]};
+  let reads=0;const records=[];
+  const context={evaluate:async()=>{reads++;return row;},Date,JSON,
+    phase:'act',context:{output:'/isolated'},path:{join:(...parts)=>parts.join('/')},
+    fs:{appendFile:async(file,bytes)=>{assert.equal(file,'/isolated/act-target-selection.jsonl');
+      records.push(JSON.parse(bytes.slice(0,bytes.lastIndexOf('}')+1)));}}};
+  runInNewContext(helper+';this.read=targetDiagnostic;',context);
+  const observed=await context.read(null,'after-typeahead-0',{record:false});
+  assert.equal(await context.read(null,'after-typeahead-0',{row:observed}),observed);
+  assert.equal(reads,1);
+  assert.equal(records.length,1);
+  assert.equal(records[0].value,'object:677');
 });
 
 
@@ -399,7 +458,7 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
   const driver=source.slice(source.indexOf('async function trustedTypeWord('),
     source.indexOf('async function targetDiagnostic('));
   assert.doesNotMatch(driver,/selectAll|modifiers:|\.value\s*=(?!=)|\.select\(|setSelectionRange|dispatchEvent/);
-  const handlers=[],inputs=[],inputAt=[],diagnostics=[],logs=[],delays=[],pending=[];
+  const handlers=[],inputs=[],inputAt=[],diagnostics=[],logs=[],delays=[],pending=[],evaluations=[];
   let focusCalls=0,windowFocused=focusLag===0&&!neverReady;
   const input={id:'player-lesson-word',value,selectionStart:caret,selectionEnd:caret,
     disabled:!windowFocused,
@@ -454,7 +513,7 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
     clickButton:async(_win,id)=>{assert.equal(id,'player-lesson-word');
       assert.equal(input.disabled,false);document.activeElement=input;},
   });
-  context.evaluate=async(_win,expression)=>runInContext(expression,context);
+  context.evaluate=async(_win,expression)=>{evaluations.push(expression);return runInContext(expression,context);};
   context.waitFor=async(_win,expression)=>{
     for(let i=0;i<6;i++){
       if(runInContext(expression,context))return;
@@ -463,7 +522,7 @@ async function wordEditingFixture({value='abcdef',caret=0,stuckDelete=false,stuc
     throw new Error('Native condition missing: '+expression);
   };
   runInContext(driver+';this.typeWord=trustedTypeWord;',context);
-  return {input,inputs,inputAt,diagnostics,logs,delays,
+  return {input,inputs,inputAt,diagnostics,logs,delays,evaluations,
     focusCalls:()=>focusCalls,type:word=>context.typeWord(win,word)};
 }
 
@@ -484,6 +543,7 @@ test('trusted word editing clears both sides of start/middle/end carets and type
     const fixture=await wordEditingFixture({caret});
     await fixture.type('uvwxyz');
     assert.equal(fixture.input.value,'uvwxyz');
+    assert.equal(fixture.evaluations.length,3,'Focus/trace setup and initial value share one renderer read');
     assert.equal(fixture.inputs.filter(row=>row.type==='keyDown').length,12);
     assert.deepEqual(fixture.inputs.filter(row=>row.type==='keyDown').map(row=>row.keyCode),
       Array.from({length:6},()=>['Backspace','Delete']).flat());
