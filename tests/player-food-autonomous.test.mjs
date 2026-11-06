@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { CONFIG, NPC_RULES } from '../src/config.js';
 import { DISCOVERY_RULES } from '../src/discovery-config.js';
 import { createOzarkWorldGeometry } from '../src/ozark-world-geometry.js';
-import { createOzarkState, loadOzarkSave, writeOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
+import { createOzarkState, loadOzarkSave, writeOzarkSave, getOzarkSaveValidationFailure, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 import { bindOzarkWorldAgent } from '../src/ozark-agent-world.js';
 import { createPlayerFoodController } from '../src/player-food.js';
 import { PopulationRuntime } from '../src/population.js';
-import { tickNpc } from '../src/npc.js';
+import { tickNpc, requestNpcAction } from '../src/npc.js';
 import { observationalInquiries } from '../src/observational-learning.js';
 import { lookupEcologyObject } from '../src/ecology.js';
 import { successfulDiscoveryActionCompletion } from '../src/discovery-actions.js';
@@ -16,7 +16,8 @@ const near = (actual, expected) =>
   assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} differs from ${expected}`);
 
 // One authored engineering continuation, not a scientific cohort or native
-// desktop persistence test. At this checkpoint the fruit was actually released.
+// desktop persistence test. Its unheld checkpoint is staged with a real paid
+// release after the autonomous learner retains its pending portion through feedback.
 // A held-item sample would prove less: here a fresh paid grasp is required too.
 // Reopen only restores/binds the saved actors and advances normal population
 // ticks. It injects no body state, inventory, memories, choices or actions.
@@ -167,8 +168,10 @@ function verifyReopenedFruitReuse(storage, geometry, id, oldSample) {
 }
 
 // The authored opening keeps policies still only during the short player
-// lesson. After release, PopulationRuntime owns every NPC decision and action.
-// No controller action is issued, and no food knowledge is inserted.
+// lesson. After the player releases, PopulationRuntime owns every NPC decision
+// and action until the feedback checkpoint.
+// No controller action is issued during that lesson and no food knowledge is
+// inserted. The later unheld reopen checkpoint uses an explicitly staged release.
 function lesson({occluded}) {
   const base = createOzarkWorldGeometry();
   let sight = true;
@@ -362,13 +365,32 @@ test('visible player eating supports own learning and autonomous fruit reuse aft
         const storage = {getItem: key => data.get(key) ?? null,
           setItem: (key, value) => data.set(key, value)};
         const savedFruit = lookupEcologyObject(f.ecology, id);
-        assert.equal(savedFruit.heldBy, null,
-          'The ordinary controller released the fruit before delayed support arrived');
-        assert.equal(f.mira.inventory.items.includes(id), false);
-        assert.ok(f.mira.discovery.experiments.some(row => row.primitive === 'release' &&
-          row.targetId === id && row.ok && row.at > ownSample.at),
-        'The unheld checkpoint must follow a real personal release');
-        assert.equal(writeOzarkSave(storage, f.state, f.geometry), true);
+        assert.equal(savedFruit.heldBy, f.mira.id,
+          'The ordinary controller retains its sampled portion through delayed support');
+        assert.ok(f.mira.inventory.items.includes(id));
+        assert.equal(f.mira.discovery.experiments.some(row => row.primitive === 'release' &&
+          row.targetId === id && row.ok && row.at > ownSample.at), false);
+
+        // Preserve the separate unheld-reopen regression: deliberately stage a
+        // real paid release, without changing ownership, stock or learned proof
+        // directly. This setup action is not an autonomous policy outcome.
+        for(let i=0;f.mira.active&&i<900;i++)f.tickAutonomous();
+        assert.equal(f.mira.active,null);
+        const stockBeforeRelease={mass:savedFruit.massGrams,energy:savedFruit.energyKcal};
+        assert.equal(requestNpcAction(f.mira,{type:'release',targetId:id},f.state.environment).code,'ACTION_STARTED');
+        const activeRelease=f.mira.active;
+        for(let i=0;f.mira.active&&i<120;i++)f.tickAutonomous();
+        assert.equal(f.mira.active,null);
+        const released=f.mira.discovery.experiments.findLast(row=>row.primitive==='release'&&row.targetId===id);
+        assert.ok(released?.ok&&released.at>ownSample.at&&released.durationSeconds>0);
+        const releaseProof=successfulDiscoveryActionCompletion(f.mira,activeRelease);
+        assert.equal(releaseProof?.eventId,released.actionId);
+        near(releaseProof.worked,released.durationSeconds);
+        assert.equal(savedFruit.heldBy,null);
+        assert.equal(f.mira.inventory.items.includes(id),false);
+        near(savedFruit.massGrams,stockBeforeRelease.mass);
+        near(savedFruit.energyKcal,stockBeforeRelease.energy);
+        assert.equal(writeOzarkSave(storage, f.state, f.geometry), true, JSON.stringify(getOzarkSaveValidationFailure(f.state)));
         assert.ok(data.get(OZARK_SAVE_KEY));
         const reopened = loadOzarkSave(storage, f.geometry);
         assert.equal(reopened.blocked, false, reopened.error);
