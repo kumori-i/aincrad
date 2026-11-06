@@ -212,3 +212,74 @@ test('legacy discovery dry mouth keeps its existing experiment priority', () => 
   assert.equal(decision.provider, 'discovery-learner');
   assert.equal(decision.action.type, 'move');
 });
+
+// Supplied competing run is a branch-order unit fixture, not earned food proof.
+// Paid ordinary-controller outcomes are assessed separately in bounded scenes.
+function competingFoodRun(actor, observation) {
+  const object=observation.objects.find(o=>Math.hypot(o.position.x-actor.position.x,o.position.y-actor.position.y)<=80);
+  assert.ok(object);
+  actor.physiology.hoursSinceMeal=20;actor.physiology.satietyHours=0;
+  actor.discovery.techniques=[{id:'unit-run',sourceId:object.id,confidence:'tentative',successes:1,failures:0,
+    steps:[{type:'inspect_object',targetId:'$source'}]}];
+  actor.discovery.run={techniqueId:'unit-run',cursor:0,materialId:null,awaiting:false,startedAt:actor.elapsed};
+  return structuredClone(actor.discovery.run);
+}
+for(const [deficitMl,thirst] of [[2000,'parched'],[4000,'desperate thirst']])test(`${thirst} searches before continuing a competing food experiment`,()=>{
+  const {actor,observation,forbidPrivateProbe}=freshOzark({deficitMl,guardGeometry:true});
+  const run=competingFoodRun(actor,observation),frontier=explorationFrontier(actor,{reportedHints:false});
+  assert.equal(bodySignals(actor).thirst,thirst);assert.ok(frontier);assert.deepEqual(actor.memory.sources,{});
+  forbidPrivateProbe();
+  const decision=discoveryDecision(actor);
+  assert.equal(decision.need,'water');assert.deepEqual(decision.action,{type:'move',target:frontier.target});
+  assert.deepEqual(actor.discovery.run,run,'care interruption does not discard or advance the experiment');
+  assert.deepEqual(actor.memory.sources,{},'no invented water source');
+});
+test('ordinary thirst does not gain the new severe-thirst priority over urgent food',()=>{
+  const {actor,observation}=freshOzark({deficitMl:1000});
+  competingFoodRun(actor,observation);assert.equal(bodySignals(actor).thirst,'thirsty');
+  assert.equal(discoveryDecision(actor).need,'food');
+});
+test('severe thirst still drinks held water before surveying or a food experiment',()=>{
+  const {actor,observation}=freshOzark({deficitMl:4000});
+  competingFoodRun(actor,observation);actor.flask.water=.5;
+  assert.deepEqual(discoveryDecision(actor).action,{type:'drink'});
+});
+test('severe thirst without a viable observed frontier falls through without inventing a route',()=>{
+  const {actor,observation}=freshOzark({deficitMl:4000});
+  competingFoodRun(actor,observation);actor.memory.cells={};
+  assert.equal(explorationFrontier(actor,{reportedHints:false}),null);
+  const decision=discoveryDecision(actor);assert.equal(decision.need,'food');assert.equal(decision.action.type,'inspect_object');
+});
+test('severe thirst leaves actual deep-water escape ahead of survey and food',()=>{
+  const {actor,observation}=freshOzark({position:{x:-920,y:-500},deficitMl:4000});
+  assert.equal(geometry.observe(actor.position).ground,'deep-water');
+  actor.memory.sources={}; // Isolate the unknown-source survey competition.
+  actor.physiology.hoursSinceMeal=20;actor.physiology.satietyHours=0;
+  const decision=discoveryDecision(actor);
+  assert.equal(decision.need,'safety');assert.equal(decision.action.type,'swim');
+});
+
+test('urgent supported held relief still precedes unknown-water survey',()=>{
+  const {actor,observation}=freshOzark({deficitMl:4000});
+  competingFoodRun(actor,observation);const id=actor.discovery.techniques[0].sourceId;
+  actor.inventory.items=[id];actor.discovery.effects=[{objectId:id,effect:'sustained'}];
+  const decision=discoveryDecision(actor);
+  assert.equal(decision.need,'food');assert.deepEqual(decision.action,{type:'sample',targetId:id});
+});
+test('depleted rescue after refused rest keeps precedence over unknown-water survey',()=>{
+  const {actor,observation}=freshOzark({deficitMl:4000});
+  competingFoodRun(actor,observation);actor.energy=0;
+  actor.memory.experience.push({id:actor.memory.nextId++,type:'action',at:actor.elapsed,
+    details:{action:{type:'rest'},result:{ok:false,code:'UNSAFE_TO_REST',body:bodySignals(actor)}}});
+  assert.equal(bodySignals(actor).energy,'depleted');
+  const decision=discoveryDecision(actor);assert.equal(decision.need,'food');assert.equal(decision.action.type,'inspect_object');
+});
+test('depleted body preserves the food and rest path before any rest refusal',()=>{
+  const {actor,observation}=freshOzark({deficitMl:4000});
+  competingFoodRun(actor,observation);actor.energy=0;
+  assert.equal(actor.memory.experience.some(e=>e.details.result?.code==='UNSAFE_TO_REST'),false);
+  const decision=discoveryDecision(actor);assert.equal(decision.need,'food');assert.equal(decision.action.type,'inspect_object');
+  actor.discovery.run=null;actor.discovery.techniques=[];
+  actor.physiology.stamina=5;
+  assert.equal(discoveryDecision(actor).need,'rest');
+});

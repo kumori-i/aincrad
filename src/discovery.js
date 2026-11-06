@@ -1,3 +1,4 @@
+import { pendingSampleRetention } from './pending-sample-retention.js';
 import { learnedCapacityRelease } from './learned-capacity-release.js';
 import { unproductiveClimbApproach, successfulClimbHeading } from './traversal-evidence.js';
 import { beginSurvivalDecision, noteSurvivalDecision, noteCurrentSurvivalDecision, finishSurvivalDecision, closeSurvivalDecision } from './survival-decision-observer.js';
@@ -517,6 +518,18 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(npc.scene!=='valley'&&(!dangerous||body.thirst==='desperate thirst'||body.hunger==='faint with hunger')&&(thirsty||['hungry','ravenous','faint with hunger'].includes(body.hunger))){const exit=npc.memory.caveExits?.[npc.scene];if(exit){if(distance(npc.position,exit)<100)return wrap({type:'exit_shelter'},'My body needs something outside this refuge.','survival');const move=routeTarget(npc,exit);if(move)return wrap(move,'I remember this route toward the opening.','survival');}}
   const waterEscape=terrainTraversalDecision(npc);
   if(waterEscape?.need==='safety')return wrap(waterEscape.action,waterEscape.reason,'safety');
+  // Preserve immediate relief and depleted-energy rescue; otherwise severe
+  // unresolved thirst can interrupt a new food experiment. A survey is only
+  // a supplied care priority, never knowledge of an unseen water location.
+  const urgentWaterSurvey=()=>{
+    if(body.energy!=='depleted'&&!depletedAfterRefusal&&ozarkPersistentWorldAgent(npc)&&npc.scene==='valley'&&
+       npc.flask.water<=0&&['parched','desperate thirst'].includes(body.thirst)){
+      const frontier=explorationFrontier(npc,{reportedHints:false});
+      if(frontier)return wrap({type:'move',target:frontier.target},
+        'My thirst is severe; I can search another edge of ground I have actually seen.','water');
+    }
+    return null;
+  };
   survivalObserve(noteSurvivalDecision,survivalScope,'visit:urgent-food');
   if(foodLearning&&(['ravenous','faint with hunger'].includes(body.hunger)||depletedAfterRefusal)&&!samplingBlocked(npc,body)){
     survivalObserve(noteSurvivalDecision,survivalScope,'enter:urgent-food');
@@ -524,6 +537,7 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
     const carried=npc.inventory.items.find(id=>d.effects.some(e=>e.objectId===id&&e.effect==='sustained')&&sampleEligible(npc,id,body,foodLearning));
     survivalObserve(noteSurvivalDecision,survivalScope,'food:held-supported-found',carried?1:0);
     if(carried)return wrap({type:'sample',targetId:carried},depletedAfterRefusal?'Rest was refused while I felt depleted; a previous portion of this held material brought relief, so I can test another.':'My hunger is urgent, and a previous portion of this held material brought relief; I can test another before resting.','food');
+    const waterSurvey=urgentWaterSurvey();if(waterSurvey)return waterSurvey;
     if(trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
     const reason=depletedAfterRefusal?'Rest was refused while I felt depleted; I can try an observed route and operation sequence that previously brought bodily relief.':'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.';
     if(d.run){const action=learnedStep(npc);if(action)return wrap(action,reason,'food');}
@@ -543,6 +557,7 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
       }
     }
   }
+  const waterSurvey=urgentWaterSurvey();if(waterSurvey)return waterSurvey;
   if(!restDeferred&&['sleepy','struggling to stay awake'].includes(body.sleepiness)&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'sleep',seconds:CONFIG.dayRealSeconds/3},'I can hardly remain awake; a longer sleep may restore alertness.','rest');
   if(!restDeferred&&(['winded','exhausted'].includes(body.stamina)||['weary','exhausted'].includes(body.fatigue)))return wrap({type:'rest',seconds:CONFIG.dayRealSeconds/48},'My muscles and breathing ask for a vulnerable rest.','rest');
   if(depletedAfterRefusal&&!dangerous&&body.thirst!=='desperate thirst')return wrap({type:'wait',seconds:5},'Rest was interrupted or refused while I felt depleted; without an available learned relief action, I can keep still briefly and reassess my sensations.','rest');
@@ -608,7 +623,11 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   for(const object of objects){
     const held=npc.inventory.items.includes(object.id),near=held||distance(npc.position,object.position)<=DISCOVERY_RULES.reach;
     if(!near)continue;
+    const pending=ozarkPersistentWorldAgent(npc)&&held&&pendingSampleRetention(npc,object.id);
     for(const type of discoveryPrimitives(npc)){
+      // Keep an unresolved personal trial intact; this supplies no food value
+      // and does not restrict explicit actions or earlier bodily care choices.
+      if(pending&&['release','strike','pull'].includes(type))continue;
       if(['release','sample'].includes(type)&&!held)continue;
       if(['grasp','catch'].includes(type)&&held)continue;
       if(type==='pull'&&held&&!ozarkFiniteAquaticAgent(npc))continue;
