@@ -23,3 +23,23 @@ export function unproductiveClimbApproach(npc,target){
       r.movement?.traversal==='climbing'&&r.movement.progress==='negligible'&&
       r.movement.resistance==='strong'&&r.movement.effort==='rising';
 }
+
+// A personally completed climb can motivate another local test ahead, not a
+// certified crossing. Any later movement replaces this short-lived support.
+export function successfulClimbHeading(npc){
+  if(!npc.learning||!finitePoint(npc.position))return null;
+  const movements=npc.memory.experience.filter(e=>e.type==='action'&&
+    ['move','swim','climb'].includes(e.details?.action?.type)&&
+    Number.isFinite(e.at)&&e.at<=npc.elapsed&&npc.elapsed-e.at<90)
+    .sort((a,b)=>b.at-a.at||b.id-a.id);
+  const latest=movements[0],d=latest?.details,r=d?.result;
+  if(!latest||!Number.isSafeInteger(latest.id)||latest.id<=0||
+    movements.some((e,i)=>i>0&&e.at===latest.at&&e.id===latest.id)||
+    d.action.type!=='climb'||d.scene!==npc.scene||r?.startScene!==npc.scene||r.scene!==npc.scene||
+    r.ok!==true||r.code!=='ARRIVED'||!Number.isFinite(r.durationSeconds)||r.durationSeconds<=0||
+    r.movement?.traversal!=='climbing'||!['limited','steady'].includes(r.movement.progress)||
+    r.movement.effort!=='rising'||!finitePoint(d.startPosition)||!finitePoint(d.position)||
+    Math.hypot(npc.position.x-d.position.x,npc.position.y-d.position.y)>20)return null;
+  const x=d.position.x-d.startPosition.x,y=d.position.y-d.startPosition.y,length=Math.hypot(x,y);
+  return length>=20?{x:x/length,y:y/length}:null;
+}
