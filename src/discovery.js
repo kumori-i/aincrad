@@ -1,3 +1,4 @@
+import { learnedCapacityRelease } from './learned-capacity-release.js';
 import { unproductiveClimbApproach, successfulClimbHeading } from './traversal-evidence.js';
 import { beginSurvivalDecision, noteSurvivalDecision, noteCurrentSurvivalDecision, finishSurvivalDecision, closeSurvivalDecision } from './survival-decision-observer.js';
 // Observer failures are deliberately outside policy authority. No callbacks or data are installed in actors.
@@ -425,6 +426,13 @@ function unfinishedHeldTrial(npc,body){
   }
   return null;
 }
+function capacityRelease(npc,candidates){
+  if(!ozarkPersistentWorldAgent(npc)||npc.inventory.items.length!==DISCOVERY_RULES.capacity)return null;
+  const local=candidates.filter(t=>['pull','grasp'].includes(t.steps[0]?.type)&&
+    !npc.inventory.items.includes(t.sourceId)&&localMethodSource(npc,t.sourceId)&&!priorAdverseSource(npc.discovery,t.sourceId));
+  const action=learnedCapacityRelease(npc,local);
+  return action&&!recentlyFailed(npc,'release',action.targetId)&&!availabilityBlocked(npc,'release',action.targetId)?action:null;
+}
 function deferRestRetry(npc,body){
   const event=npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1);
   if(!event||event.details.result?.ok||!['UNSAFE_TO_REST','REST_INTERRUPTED'].includes(event.details.result?.code)||event.at>npc.elapsed||npc.elapsed-event.at>=60)return false;
@@ -519,11 +527,14 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
     if(trialHunger&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
     const reason=depletedAfterRefusal?'Rest was refused while I felt depleted; I can try an observed route and operation sequence that previously brought bodily relief.':'My hunger is urgent; I can test a nearby operation sequence that previously brought relief before resting.';
     if(d.run){const action=learnedStep(npc);if(action)return wrap(action,reason,'food');}
-    if(!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
+    if(!d.run&&npc.inventory.items.length<=DISCOVERY_RULES.capacity){
       const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&(depletedAfterRefusal||distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach));
+      const release=capacityRelease(npc,candidates);
+      if(release)return wrap(release,'A held material was followed by discomfort. I can set it down to make room for a nearby method that previously brought relief.','food');
       survivalObserve(noteSurvivalDecision,survivalScope,'food:urgent-candidates',candidates.length);
       if(depletedAfterRefusal)candidates.sort((a,b)=>distance(npc.position,d.observations[a.sourceId].position)-distance(npc.position,d.observations[b.sourceId].position));
       for(const technique of candidates){
+        if(npc.inventory.items.length>=DISCOVERY_RULES.capacity)break;
         d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
         const action=learnedStep(npc);if(action)return wrap(action,reason,'food');
         // An observed source without a usable observed route must not conceal a
@@ -546,10 +557,13 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(hungry)survivalObserve(noteSurvivalDecision,survivalScope,'enter:ordinary-food');
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},energyFoodNeed?'My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.':'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&(trialHunger||energyFoodNeed)&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
-  if(hungry&&!d.run&&npc.inventory.items.length<DISCOVERY_RULES.capacity){
+  if(hungry&&!d.run&&npc.inventory.items.length<=DISCOVERY_RULES.capacity){
     const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!d.experiments.some(e=>e.materialId&&e.targetId===t.sourceId&&d.samplesPending[e.materialId]!==undefined&&npc.elapsed-d.samplesPending[e.materialId]<DISCOVERY_RULES.feedbackWaitSeconds&&!finishedSourceMaterial(npc,e,t))).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+    const release=capacityRelease(npc,candidates);
+    if(release)return wrap(release,'A held material was followed by discomfort. I can set it down to make room for a nearby method that previously brought relief.','food');
     survivalObserve(noteSurvivalDecision,survivalScope,'food:ordinary-candidates',candidates.length);
     for(const technique of candidates){
+      if(npc.inventory.items.length>=DISCOVERY_RULES.capacity)break;
       d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
       const action=learnedStep(npc);
       if(action)return wrap(action,'Past sampling of this object was followed by sustained bodily relief; I can test whether it happens again.','food');
