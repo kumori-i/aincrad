@@ -22,7 +22,7 @@ for(const {before,after} of seams.slice().reverse()){
 // route detour. Reverse only the survival and food-run observer seams. This
 // source pin changes when an intentional policy change changes both arms; the
 // frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
-assert.equal(sha(original),'efdc3d90cdde38147a7004b598685068abb3fb9dac66855e59619f1bc5233687','exact current policy with observer seams reversed, not a rewritten approximation');
+assert.equal(sha(original),'129faa62e894f433ef49c999d8df75e4dd0ec00b7913b7d0d124c6358d0c3302','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}
@@ -54,7 +54,7 @@ const scenarios=[
  {name:'learned expired run',expectedNote:'run:missing-or-expired',configure:({n})=>{n.discovery.run={techniqueId:'missing',startedAt:n.elapsed-100,cursor:0,awaiting:false};return {handlingCuriosity:false};}},
  {name:'learned current run',expectedNeed:'food',expectedNotes:['run:action','run:travel'],configure:({n})=>{const id=Object.keys(n.discovery.observations)[0];n.discovery.techniques=[{id:'fixture-technique',sourceId:id,confidence:'supported',successes:1,failures:0,steps:[{type:'inspect_object',targetId:'$source'}]}];n.discovery.run={techniqueId:'fixture-technique',startedAt:n.elapsed,cursor:0,awaiting:false};return {handlingCuriosity:false};}},
  {name:'learned run loses its own source observation',expectedNote:'run:missing-or-expired',configure:({n})=>{const id=Object.keys(n.discovery.observations)[0];n.discovery.techniques=[{id:'fixture-unseen',sourceId:id,confidence:'supported',successes:1,failures:0,steps:[{type:'inspect_object',targetId:'$source'}]}];n.discovery.run={techniqueId:'fixture-unseen',startedAt:n.elapsed,cursor:0,awaiting:false};delete n.discovery.observations[id];return {handlingCuriosity:false};}},
- {name:'ordinary food at held capacity',expectedPhase:['ordinaryFood','entered'],absentNote:'food:ordinary-candidates',configure:({n})=>{n.inventory.items=Object.keys(n.discovery.observations).slice(0,4);assert.equal(n.inventory.items.length,4);n.physiology.satietyHours=.5;return {handlingCuriosity:false};}},
+ {name:'ordinary food at held capacity',expectedPhase:['ordinaryFood','entered'],expectedNote:'food:ordinary-candidates',configure:({n})=>{n.inventory.items=Object.keys(n.discovery.observations).slice(0,4);assert.equal(n.inventory.items.length,4);n.physiology.satietyHours=.5;return {handlingCuriosity:false};}},
  {name:'learned source without observed route',expectedNote:'run:route-missing',configure:({n})=>{const id=Object.keys(n.discovery.observations)[0];n.discovery.observations[id].position={x:n.position.x+500,y:n.position.y};n.memory.cells={};n.discovery.techniques=[{id:'fixture-route',sourceId:id,confidence:'supported',successes:1,failures:0,steps:[{type:'inspect_object',targetId:'$source'}]}];n.discovery.run={techniqueId:'fixture-route',startedAt:n.elapsed,cursor:0,awaiting:false};return {handlingCuriosity:false};}},
  // Deliberately supplied UNIT motor evidence, not a claim of a paid walk/native
  // run. The actual recoveryChoice implementation must perform the substitution.
