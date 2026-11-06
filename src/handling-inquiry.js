@@ -30,11 +30,24 @@ const failedGrasp = (npc,e) => e?.primitive === 'grasp' && e.ok === false && phy
 const successfulPull = (npc,e) => e?.primitive === 'pull' && e.ok === true && e.code === 'piece_detached' &&
   objectId(e.materialId) && e.materialId !== e.targetId && e.ingestionId === undefined && e.resultObjectId === undefined && fullMotorDuration(e) && handlingReceipt(npc,e);
 const find = (d,id) => {const rows=d.experiments.filter(e=>e.id===id);return rows.length===1?rows[0]:null;};
+// Aggregate history can veto stale evidence, never supply missing proof. A
+// saved inquiry checks only history before its admission, not later handling.
+function supersedingHandlingSummary(d,failed,before=Infinity){
+  return ['grasp','catch'].some(type=>{
+    const t=d.trials?.[`${failed.targetId}|${type}`];
+    return t&&t.lastAt<before&&(t.lastAt>failed.at||t.lastAt===failed.at&&
+      (type==='catch'||t.lastCode!==failed.code||t.lastOk!==false));
+  });
+}
+
 function proof(npc,q,d=npc.discovery) {
   const failed=find(d,q.failedId),prior=find(d,q.priorId);
-  return q.actorId===npc.id && failedGrasp(npc,failed) && successfulPull(npc,prior) && failed.targetId===q.sourceId &&
-    prior.targetId===q.priorSourceId && prior.id<failed.id && prior.at<=failed.at && failed.at===q.at &&
-    !d.experiments.some(e=>e.primitive==='pull'&&e.targetId===q.sourceId&&e.id<failed.id);
+  if(!failedGrasp(npc,failed)||!successfulPull(npc,prior)||failed.id===prior.id)return false;
+  const later=failed.id>prior.id?failed:prior,earlier=later===failed?prior:failed;
+  return q.actorId===npc.id && failed.targetId===q.sourceId && prior.targetId===q.priorSourceId &&
+    earlier.at<=later.at && later.at===q.at && !supersedingHandlingSummary(d,failed,q.at) &&
+    !d.experiments.some(e=>e.targetId===q.sourceId&&
+      (e.primitive==='pull'&&e.id<later.id||['grasp','catch'].includes(e.primitive)&&e.id>failed.id&&e.id<later.id));
 }
 export function validHandlingInquiries(d,npc) {
   const admissions=d.handlingAdmissions,rows=d.handlingQuestions;
@@ -47,12 +60,12 @@ export function validHandlingInquiries(d,npc) {
       !['pending','attempting','completed','unavailable','retired'].includes(q.state))return false;
     if(q.state==='retired')return q.failedId===null&&q.priorId===null&&q.attemptId===null;
     if(!positive(q.failedId)||!positive(q.priorId)||!proof(npc,q,d))return false;
-    const first=d.experiments.filter(e=>e.primitive==='pull'&&e.targetId===q.sourceId&&e.id>q.failedId&&e.at>=q.at).sort((a,b)=>a.id-b.id)[0];
+    const first=d.experiments.filter(e=>e.primitive==='pull'&&e.targetId===q.sourceId&&e.id>Math.max(q.failedId,q.priorId)&&e.at>=q.at).sort((a,b)=>a.id-b.id)[0];
     if(q.state!=='completed')return q.attemptId===null&&(q.state==='unavailable'||!first);
     const e=find(d,q.attemptId);
     // Any actual subsequent canonical pull consumes the one trial, including an
     // access rejection. Only a measured physical detachment earns that outcome.
-    return positive(q.attemptId)&&e===first&&e?.primitive==='pull'&&e.targetId===q.sourceId&&e.id>q.failedId&&e.at>=q.at;
+    return positive(q.attemptId)&&e===first&&e?.primitive==='pull'&&e.targetId===q.sourceId&&e.id>Math.max(q.failedId,q.priorId)&&e.at>=q.at;
   });
 }
 export function retireHandlingInquiries(npc) {
@@ -63,15 +76,28 @@ export function retireHandlingInquiries(npc) {
 }
 export function recordHandlingOutcome(npc,e,{appearance}) {
   const d=npc.discovery;
-  for(const q of d.handlingQuestions||[])if(['pending','attempting'].includes(q.state)&&e.primitive==='pull'&&e.targetId===q.sourceId&&e.id>q.failedId){q.attemptId=e.id;q.state='completed';}
-  if(!failedGrasp(npc,e)||d.experiments.some(p=>p.primitive==='pull'&&p.targetId===e.targetId&&p.id<e.id)||(d.trials?.[`${e.targetId}|pull`]?.attempts||0)>0||!validHandlingInquiries(d,npc)||d.handlingAdmissions.includes(e.targetId)||d.handlingAdmissions.length>=HANDLING_ADMISSION_LIMIT)return;
-  const target=appearance(e.targetId);if(!target)return;
-  const prior=[...d.experiments].reverse().find(p=>p.id<e.id&&p.targetId!==e.targetId&&successfulPull(npc,p)&&
-    appearanceCuesMatch(appearance(p.targetId)?.cues,target.cues));
-  if(!prior)return;
-  d.handlingAdmissions.push(e.targetId);
-  d.handlingQuestions.push({actorId:npc.id,sourceId:e.targetId,priorSourceId:prior.targetId,at:e.at,cues:{...target.cues},failedId:e.id,priorId:prior.id,attemptId:null,state:'pending'});
-  if(d.handlingQuestions.length>HANDLING_QUESTION_LIMIT)d.handlingQuestions.shift();
+  for(const q of d.handlingQuestions||[])if(['pending','attempting'].includes(q.state)&&e.primitive==='pull'&&e.targetId===q.sourceId&&e.id>Math.max(q.failedId,q.priorId)){q.attemptId=e.id;q.state='completed';}
+  const failedNow=failedGrasp(npc,e),pulledNow=successfulPull(npc,e);
+  if((!failedNow&&!pulledNow)||!validHandlingInquiries(d,npc)||d.handlingAdmissions.length>=HANDLING_ADMISSION_LIMIT)return;
+  // Either personally earned outcome can supply the second half of the same
+  // uncertain contrast. Admit at most one new trial per completed action.
+  const failures=failedNow?[e]:[...d.experiments].reverse().filter(f=>f.id<e.id&&failedGrasp(npc,f));
+  for(const failed of failures){
+    if(d.handlingAdmissions.includes(failed.targetId)||npc.inventory.items.includes(failed.targetId)||
+      supersedingHandlingSummary(d,failed)||
+      (d.trials?.[`${failed.targetId}|pull`]?.attempts||0)>0||
+      d.experiments.some(p=>p.targetId===failed.targetId&&
+        (p.primitive==='pull'&&p.id<e.id||['grasp','catch'].includes(p.primitive)&&p.id>failed.id&&p.id<e.id)))continue;
+    const target=appearance(failed.targetId);if(!target)continue;
+    const prior=pulledNow?e:[...d.experiments].reverse().find(p=>p.id<e.id&&p.targetId!==failed.targetId&&successfulPull(npc,p)&&
+      appearanceCuesMatch(appearance(p.targetId)?.cues,target.cues));
+    if(!prior||prior.targetId===failed.targetId||!appearanceCuesMatch(appearance(prior.targetId)?.cues,target.cues))continue;
+    const question={actorId:npc.id,sourceId:failed.targetId,priorSourceId:prior.targetId,at:e.at,cues:{...target.cues},failedId:failed.id,priorId:prior.id,attemptId:null,state:'pending'};
+    if(!proof(npc,question))continue;
+    d.handlingAdmissions.push(failed.targetId);d.handlingQuestions.push(question);
+    if(d.handlingQuestions.length>HANDLING_QUESTION_LIMIT)d.handlingQuestions.shift();
+    return;
+  }
 }
 export function handlingExperiment(npc,{body,appearance,local,blocked}) {
   const d=npc.discovery;
