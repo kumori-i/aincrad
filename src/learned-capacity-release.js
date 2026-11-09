@@ -6,7 +6,7 @@ import { validateLedgers, adverseEffect, bounded, time } from './receipt-proof.j
 // A supplied means/end choice over this individual's retained outcomes, not
 // knowledge of food kinds or a claim that the sampled item caused discomfort.
 // Losing proof leaves the choice unknown; no new memory or permission persists.
-export function learnedCapacityRelease(npc, candidates) {
+export function learnedCapacityRelease(npc, candidates, { eligible = () => true } = {}) {
   const d=npc?.discovery, held=npc?.inventory?.items, receipts=npc?.memory?.experience;
   if(!time(npc?.elapsed)||!bounded(held,DISCOVERY_RULES.capacity)||held.length!==DISCOVERY_RULES.capacity||
     !bounded(receipts,NPC_RULES.maxExperience)||!bounded(d?.experiments,DISCOVERY_RULES.maxExperiments)||
@@ -24,6 +24,8 @@ export function learnedCapacityRelease(npc, candidates) {
   if(!candidates.some(t=>effects.some(r=>r.effect.effect==='sustained'&&acquisitions.some(a=>
     a.actionId<r.sample.actionId&&a.at+r.sample.durationSeconds<=r.sample.at+1e-8&&
     techniqueProof(t,{experiments:[a,r.sample],effects:[r.effect]})))))return null;
-  const id=held.find(id=>effects.some(r=>r.effect.objectId===id&&adverseEffect(r.effect)));
+  // A deferred release of one identity must not conceal another personally
+  // adverse held item. Eligibility can veto a candidate, never supply proof.
+  const id=held.find(id=>effects.some(r=>r.effect.objectId===id&&adverseEffect(r.effect))&&eligible(id));
   return id?{type:'release',targetId:id}:null;
 }
