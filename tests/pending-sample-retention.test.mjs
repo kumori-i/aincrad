@@ -9,6 +9,7 @@ import { bindOzarkEcology } from '../src/ozark-ecology.js';
 import { observeNpc, requestNpcAction, tickNpc, cancelNpcAction } from '../src/npc.js';
 import { processDiscoveryFeedback, discoveryDecision } from '../src/discovery.js';
 import { projectPhysiology } from '../src/biology.js';
+import { bodySignals } from '../src/interoception.js';
 import { lookupEcologyObject } from '../src/ecology.js';
 import { retainedProofIntegrityError } from '../src/proof-retention.js';
 import { recordEvent } from '../src/npc-events.js';
@@ -238,4 +239,44 @@ test('ordinary memory compaction retains the pending paid pair and direct releas
   // Optional policy retention never becomes a physical action prohibition.
   assert.equal(f.pay({type:'release',targetId:f.id}).code,'object_released');
   assert.ok(!f.n.inventory.items.includes(f.id));
+});
+
+for(const hours of [9,20])test(`food seeking defers same-source reacquisition while its new held trial awaits feedback (${hours} hours appetite)`,()=>{
+  const f=build();
+  for(let i=0;i<1500&&!f.n.discovery.effects.some(e=>e.objectId===f.id&&e.effect==='sustained');i++)f.tick();
+  assert.ok(f.n.discovery.techniques.some(t=>t.sourceId===f.sourceId));
+  f.pay({type:'release',targetId:f.id});
+  const next=f.pay({type:'pull',targetId:f.sourceId}).materialId;
+  f.pay({type:'sample',targetId:next});
+  Object.assign(f.n.physiology,{satietyHours:0,hoursSinceMeal:hours,availableEnergyKcal:2000,
+    waterDeficitMl:0,sleepPressure:10,fatigue:5,stamina:100});
+  f.n.thermal.hot=f.n.thermal.cold=0;projectPhysiology(f.n);observeNpc(f.n,f.env);
+  assert.equal(bodySignals(f.n).hunger,hours===9?'hungry':'ravenous');
+  assert.equal(pendingSampleRetention(f.n,next),true);
+  const choice=discoveryDecision(f.n,{handlingCuriosity:false,chooseOptional:choices=>
+    choices.findIndex(c=>c.action.type==='inspect_object'&&c.action.targetId===next)});
+  assert.notDeepEqual(choice.action,{type:'pull',targetId:f.sourceId},
+    'An unresolved retained trial must not start another learned acquisition of the same source');
+  assert.equal(f.n.discovery.run,null);
+  for(let i=0;i<1500&&!f.n.discovery.effects.some(e=>e.objectId===next&&e.effect==='sustained');i++)f.tick();
+  assert.ok(f.n.discovery.effects.some(e=>e.objectId===next&&e.effect==='sustained'));
+  Object.assign(f.n.physiology,{satietyHours:0,hoursSinceMeal:hours});projectPhysiology(f.n);observeNpc(f.n,f.env);
+  assert.deepEqual(discoveryDecision(f.n).action,{type:'sample',targetId:next},
+    'Actual feedback reopens use of the held item rather than deadlocking food care');
+});
+
+test('urgent hunger can reacquire after finishing a repeatedly supported material even while its final portion is pending',()=>{
+  const f=build();
+  const positives=()=>new Set(f.n.discovery.effects.filter(e=>e.objectId===f.id&&e.effect==='sustained').map(e=>e.ingestionId)).size;
+  for(let i=0;i<1500&&positives()<1;i++)f.tick();
+  f.pay({type:'sample',targetId:f.id});
+  for(let i=0;i<1500&&positives()<2;i++)f.tick();
+  assert.equal(positives(),2);
+  for(let i=0;i<10&&f.n.inventory.items.includes(f.id);i++)f.pay({type:'sample',targetId:f.id});
+  assert.equal(f.n.inventory.items.includes(f.id),false);
+  assert.ok(f.n.discovery.samplesPending[f.id]>0);
+  Object.assign(f.n.physiology,{satietyHours:0,hoursSinceMeal:20,availableEnergyKcal:2000,
+    waterDeficitMl:0,sleepPressure:10,fatigue:5,stamina:100});
+  f.n.thermal.hot=f.n.thermal.cold=0;projectPhysiology(f.n);observeNpc(f.n,f.env);
+  assert.deepEqual(discoveryDecision(f.n).action,{type:'pull',targetId:f.sourceId});
 });
