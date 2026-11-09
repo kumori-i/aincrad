@@ -127,6 +127,14 @@ test('helper is pure, drops only personally sampled adverse identity, and does n
   assert.equal(f.n.inventory.items.length,4);assert.equal(release(f),null,'same-source caution is not direct held-item discard evidence');
 });
 
+test('release eligibility only vetoes personally proven identities and cannot authorize a sibling',()=>{
+  const f=fixture(),before=JSON.stringify(f.n),checked=[];
+  assert.equal(learnedCapacityRelease(f.n,candidates(f),{eligible:id=>{checked.push(id);return false;}}),null);
+  assert.deepEqual(checked,[f.harmId],'unknown siblings are not offered as proven release candidates');
+  assert.equal(learnedCapacityRelease(f.n,candidates(f),{eligible:id=>id!==f.harmId}),null);
+  assert.equal(JSON.stringify(f.n),before);
+});
+
 for(const [name,mutate] of [
   ['missing sample experiment',f=>{const h=harm(f);f.n.discovery.experiments=f.n.discovery.experiments.filter(e=>e.actionId!==h.actionId);}],
   ['missing sample receipt',f=>{const h=harm(f);f.n.memory.experience=f.n.memory.experience.filter(e=>e.id!==h.actionId);}],
@@ -190,6 +198,37 @@ test('cancelled paid release keeps the exact object and no unfinished food run, 
   assert.ok(n.lastResult.durationSeconds>0);assert.equal(n.inventory.items.length,4);assert.equal(n.discovery.run,null);
   assert.deepEqual(lookupEcologyObject(f.env.ecology,f.harmId),before);
   assert.equal(foodRelease(discoveryDecision(n)),false);
+});
+
+test('a cancelled first adverse release does not hide a second eligible held identity',()=>{
+  const f=fixture(),n=f.n;
+  const second=n.inventory.items.find(id=>id!==f.harmId);
+  const material=lookupEcologyObject(f.env.ecology,second);
+  // The same authored spoilage setup as build(), followed by real funded
+  // sampling and delayed recognition, not a supplied adverse effect.
+  material.spoiled=true;material.ageHours=12*24;
+  const swallowed=f.pay({type:'sample',targetId:second});
+  f.until(()=>n.discovery.effects.some(e=>e.ingestionId===swallowed.ingestionId&&e.effect==='discomfort'));
+  f.at(f.goodId);f.appetite();
+  assert.equal(retainedProofIntegrityError(n),null);
+  assert.deepEqual(discoveryDecision(n).action,{type:'release',targetId:f.harmId});
+  assert.equal(requestNpcAction(n,{type:'release',targetId:f.harmId},f.env).code,'ACTION_STARTED');
+  f.tick();cancelNpcAction(n,'PRIORITY_CHANGED');
+  assert.equal(n.inventory.items.length,4);
+  const decision=discoveryDecision(n);
+  assert.equal(decision.need,'food');
+  assert.deepEqual(decision.action,{type:'release',targetId:second});
+  assert.equal(f.pay(decision.action).code,'object_released');
+  assert.ok(n.inventory.items.includes(f.harmId),'cancelled identity remains held');
+  assert.equal(n.inventory.items.length,3);
+  const acquireDecision=discoveryDecision(n);
+  assert.deepEqual(acquireDecision.action,{type:'pull',targetId:f.goodId});
+  const acquired=f.pay(acquireDecision.action);
+  assert.equal(acquired.code,'piece_detached');
+  const sampleDecision=discoveryDecision(n);
+  assert.deepEqual(sampleDecision.action,{type:'sample',targetId:acquired.materialId});
+  assert.equal(f.pay(sampleDecision.action).code,'SWALLOWED');
+  assert.equal(retainedProofIntegrityError(n),null);
 });
 
 test('current save roundtrip preserves paid adverse evidence without executing a release while closed',()=>{

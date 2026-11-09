@@ -431,8 +431,8 @@ function capacityRelease(npc,candidates){
   if(!ozarkPersistentWorldAgent(npc)||npc.inventory.items.length!==DISCOVERY_RULES.capacity)return null;
   const local=candidates.filter(t=>['pull','grasp'].includes(t.steps[0]?.type)&&
     !npc.inventory.items.includes(t.sourceId)&&localMethodSource(npc,t.sourceId)&&!priorAdverseSource(npc.discovery,t.sourceId));
-  const action=learnedCapacityRelease(npc,local);
-  return action&&!recentlyFailed(npc,'release',action.targetId)&&!availabilityBlocked(npc,'release',action.targetId)?action:null;
+  return learnedCapacityRelease(npc,local,{eligible:id=>
+    !recentlyFailed(npc,'release',id)&&!availabilityBlocked(npc,'release',id)});
 }
 function deferRestRetry(npc,body){
   const event=npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1);
