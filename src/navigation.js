@@ -2,12 +2,12 @@ import { CONFIG, NPC_RULES } from './config.js';
 import { distance } from './world.js';
 import { tileKey, tilePoint } from './perception.js';
 
-function observedStart(cells,from,blockedEdges,elapsed,startKey){
+function observedStart(cells,from,blockedEdges,elapsed,startKey,directedBlocks){
   let start=startKey||tileKey(from);
-  const blocked=(a,b)=>(blockedEdges[[a,b].sort().join('>')]?.retryAfter||0)>elapsed;
+  const blocked=(a,b)=>(blockedEdges[[a,b].sort().join('>')]?.retryAfter||0)>elapsed||directedBlocks?.has(`${a}>${b}`);
   // A failed snap to the center of the current coarse tile is also real route evidence.
   // Choose another observed entry node instead of retrying the same obstructed segment.
-  if(!cells[start]?.walkable||blocked(start,start))start=Object.values(cells).filter(c=>c.walkable&&distance(c,from)<NPC_RULES.tileSize*2&&!blocked(c.key,c.key)&&!blocked(tileKey(from),c.key)).sort((a,b)=>distance(a,from)-distance(b,from))[0]?.key;
+  if(!cells[start]?.walkable||blocked(start,start)||directedBlocks?.has(`${tileKey(from)}>${start}`))start=Object.values(cells).filter(c=>c.walkable&&distance(c,from)<NPC_RULES.tileSize*2&&!blocked(c.key,c.key)&&!blocked(tileKey(from),c.key)).sort((a,b)=>distance(a,from)-distance(b,from))[0]?.key;
   return start;
 }
 function observedSearch(cells,from,start){
@@ -18,7 +18,7 @@ function observedSearch(cells,from,start){
   nodes.set(start,{parent:null,point,steps:0,length,returnedLength:search.omitStart?0:length});
   search.queue.push(start);stats.discovered=1;return search;
 }
-function advanceObservedSearch(search,blockedEdges,elapsed,goal,stopOnDiscovery){
+function advanceObservedSearch(search,blockedEdges,elapsed,goal,stopOnDiscovery,directedBlocks){
   const {cells,from,start,nodes,stats,queue,omitStart}=search;
   while(search.cursor<queue.length&&stats.expansions<2500){
     if(stopOnDiscovery&&nodes.has(goal))break;
@@ -30,7 +30,7 @@ function advanceObservedSearch(search,blockedEdges,elapsed,goal,stopOnDiscovery)
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       stats.examinedEdges++;const next=`${x+dx},${y+dy}`;
       const edge=[key,next].sort().join('>');
-      if((blockedEdges[edge]?.retryAfter||0)>elapsed)continue;
+      if((blockedEdges[edge]?.retryAfter||0)>elapsed||directedBlocks?.has(`${key}>${next}`))continue;
       if(cells[next]?.walkable&&!nodes.has(next)){
         const nextPoint=tilePoint(next),segment=distance(node.point,nextPoint);
         nodes.set(next,{parent:key,point:nextPoint,steps:node.steps+1,length:node.length+segment,returnedLength:omitStart&&key===start?distance(from,nextPoint):node.returnedLength+segment});queue.push(next);stats.discovered++;
@@ -56,19 +56,19 @@ function observedRoute(search,to,maxSteps){
   return route.filter((p,i)=>i||distance(search.from,p)>6);
 }
 /** A bounded tile search over observed data. No terrain/world lookup occurs here. */
-export function knownRoute(cells,from,to,maxSteps=30,blockedEdges={},elapsed=0,startKey=null){
-  const start=observedStart(cells,from,blockedEdges,elapsed,startKey),goal=tileKey(to);
+export function knownRoute(cells,from,to,maxSteps=30,blockedEdges={},elapsed=0,startKey=null,directedBlocks=null){
+  const start=observedStart(cells,from,blockedEdges,elapsed,startKey,directedBlocks),goal=tileKey(to);
   if(!start||!cells[goal]?.walkable)return null;
-  const search=observedSearch(cells,from,start);advanceObservedSearch(search,blockedEdges,elapsed,goal,false);
+  const search=observedSearch(cells,from,start);advanceObservedSearch(search,blockedEdges,elapsed,goal,false,directedBlocks);
   return observedRoute(search,to,maxSteps);
 }
 /** One lazy, ephemeral shared search for endpoint admission, never saved or cached. */
-export function createKnownRouteIndex(cells,from,blockedEdges={},elapsed=0,startKey=null){
-  const start=observedStart(cells,from,blockedEdges,elapsed,startKey);
+export function createKnownRouteIndex(cells,from,blockedEdges={},elapsed=0,startKey=null,directedBlocks=null){
+  const start=observedStart(cells,from,blockedEdges,elapsed,startKey,directedBlocks);
   const search=observedSearch(cells,from,start);
   const metrics=(to,maxSteps=30)=>{
     const goal=tileKey(to);
-    if(!search.nodes.has(goal)&&cells[goal]?.walkable)advanceObservedSearch(search,blockedEdges,elapsed,goal,true);
+    if(!search.nodes.has(goal)&&cells[goal]?.walkable)advanceObservedSearch(search,blockedEdges,elapsed,goal,true,directedBlocks);
     return observedMetrics(search,to,maxSteps);
   };
   return {route:(to,maxSteps=30)=>metrics(to,maxSteps)?observedRoute(search,to,maxSteps):null,metrics,get stats(){return Object.freeze({...search.stats});}};

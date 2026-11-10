@@ -1,3 +1,4 @@
+import { timeoutRouteBlocks } from './timeout-route-evidence.js';
 import { pendingSampleRetention } from './pending-sample-retention.js';
 import { learnedCapacityRelease } from './learned-capacity-release.js';
 import { unproductiveClimbApproach, successfulClimbHeading } from './traversal-evidence.js';
@@ -213,7 +214,7 @@ function routeTarget(npc,point){
   const cells=rememberedCells(npc),edges=rememberedEdges(npc);
   const b=bodySignals(npc),slowed=['winded','exhausted'].includes(b.stamina)||b.fatigue==='exhausted'||b.energy==='depleted'||b.sleepiness==='groggy';
   const speed=Math.min(CONFIG.walkSpeed*(slowed?BIOLOGY_RULES.exhaustionWalkMultiplier:1),1/(npc.cognition?.travel?.secondsPerUnit||1/CONFIG.walkSpeed));
-  const routes=createKnownRouteIndex(cells,npc.position,edges,npc.elapsed,npc.navigationAnchor);
+  const routes=createKnownRouteIndex(cells,npc.position,edges,npc.elapsed,npc.navigationAnchor,timeoutRouteBlocks(npc));
   // Invalid endpoints cannot consume the nearest-24 budget ahead of a usable
   // care route. Admission uses the same observed search and exact path costs.
   const choices=Object.values(cells).filter(c=>c.walkable&&distance(c,npc.position)>45&&distance(c,npc.position)<900).sort((a,b)=>distance(a,point)-distance(b,point));

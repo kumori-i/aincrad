@@ -22,7 +22,7 @@ for(const {before,after} of seams.slice().reverse()){
 // route detour and urgent pending-source guard. Reverse only the survival and food-run observer seams. This
 // source pin changes when an intentional policy change changes both arms; the
 // frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
-assert.equal(sha(original),'ae76589ca79e0db80e7afc1ae3dae9560860a3aa319c4da19047b8ca74063733','exact current policy with observer seams reversed, not a rewritten approximation');
+assert.equal(sha(original),'c4576e45400a0473fa524a1f7bc3577aebddcbc0bfa747401181f27f0de775e0','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}
