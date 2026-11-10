@@ -1,3 +1,4 @@
+import { timeoutRouteBlocks } from '../src/timeout-route-evidence.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -67,7 +68,7 @@ const routeTargetEnd=discoverySource.indexOf('// All consumption paths',routeTar
 assert.ok(routeTargetEnd>routeTargetStart);
 const lazyRouteTargetSource=discoverySource.slice(routeTargetStart,routeTargetEnd);
 function compileRouteTarget(source,indexFactory){
-  return new Function('CONFIG','NPC_RULES','BIOLOGY_RULES','bodySignals','distance','rememberedCells','rememberedEdges','createKnownRouteIndex',`${source}\nreturn routeTarget;`)(CONFIG,NPC_RULES,BIOLOGY_RULES,bodySignals,distance,rememberedCells,rememberedEdges,indexFactory);
+  return new Function('CONFIG','NPC_RULES','BIOLOGY_RULES','bodySignals','distance','rememberedCells','rememberedEdges','createKnownRouteIndex','timeoutRouteBlocks',`${source}\nreturn routeTarget;`)(CONFIG,NPC_RULES,BIOLOGY_RULES,bodySignals,distance,rememberedCells,rememberedEdges,indexFactory,timeoutRouteBlocks);
 }
 const eagerRouteTarget=compileRouteTarget(eagerRouteTargetSource,createEagerIndex);
 function captureSelection(npc,goal){

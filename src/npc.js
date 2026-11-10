@@ -1,3 +1,4 @@
+import { noteTimeoutRoutePaid, finishTimeoutRouteEvidence, timeoutRouteBlocks, timeoutDirection } from './timeout-route-evidence.js';
 import { fundNpcEffort, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
 import { noteFoodRunPaid, finishFoodRunAction } from './food-run-observer.js';
 import { motorStalled, resetMotorWindow, recordMotorTrail, finishMotorEvidence, takeRecoveryRoute, markRecovery, isRecovery, recoverySafe } from './movement-recovery.js';
@@ -69,6 +70,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   finishFoodRunAction(npc,active,request,result);
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
   finishMotorEvidence(npc,active,event);
+  finishTimeoutRouteEvidence(npc,active,event);
   npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
 }
 function wetOzarkBody(npc,dt,waterSeconds){
@@ -133,8 +135,8 @@ function observedResourceRoute(npc,known){
   approaches.sort((a,b)=>distance(a,npc.position)+distance(a,known)-distance(b,npc.position)-distance(b,known));
   for(const point of approaches){
     const edge=[tileKey(point),tileKey(known)].sort().join('>');
-    if((edges[edge]?.retryAfter||0)>npc.elapsed)continue;
-    const path=knownRoute(cells,npc.position,point,30,edges,npc.elapsed,anchor);if(!path)continue;
+    if((edges[edge]?.retryAfter||0)>npc.elapsed||timeoutRouteBlocks(npc)?.has(timeoutDirection(point,known)))continue;
+    const path=knownRoute(cells,npc.position,point,30,edges,npc.elapsed,anchor,timeoutRouteBlocks(npc));if(!path)continue;
     const length=path.reduce((sum,p,i)=>sum+distance(i?path[i-1]:npc.position,p),0)+distance(point,known);
     if(length>NPC_RULES.maxActionSeconds*CONFIG.walkSpeed)continue;
     return [...path,{x:known.x,y:known.y}];
@@ -247,7 +249,7 @@ export function requestNpcAction(npc,raw,environment={}){
     }else if(resource){route=observedResourceRoute(npc,known);target={x:known.x,y:known.y};if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);}
     else {
       const cell=cells[tileKey(target)];if(!cell?.walkable||distance(target,cell)>NPC_RULES.tileSize*.71||ozarkAgentWorld(npc)&&(target.x!==cell.x||target.y!==cell.y))return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
-      route=knownRoute(cells,npc.position,target,30,edges,npc.elapsed,anchor);if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
+      route=knownRoute(cells,npc.position,target,30,edges,npc.elapsed,anchor,timeoutRouteBlocks(npc));if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
     }
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
@@ -471,7 +473,7 @@ function tickDiscoveryNpc(npc,dt,environment){
       const signedProgress=((motion.inputDx||0)*dx+(motion.inputDy||0)*dy)/d;
       forward=Math.max(0,signedProgress);
       stalled=motorStalled(active,paid,CONFIG.walkSpeed*paid,signedProgress);
-      if(paid>0)recordMotorTrail(npc,active,before,motion);
+      if(paid>0){recordMotorTrail(npc,active,before,motion);noteTimeoutRoutePaid(npc,active,before,target,paid);}
       active.forwardProgress+=forward;
       active.attemptedDistance+=CONFIG.walkSpeed*paid;
       if(mode==='swim')active.swimSeconds+=(motion.swimSeconds||0);
