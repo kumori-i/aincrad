@@ -284,3 +284,11 @@ not full meals. No food policy, physiological rate or save schema changes here.
 Exact pre-observer discovery source reconstruction and independently bound clone
 parity tests guard the selected results, state, RNG and exception behavior; native
 UI evidence is a separate engineering gate, not a new learning cohort.
+
+## Optional action capture
+
+`PopulationRuntime` exposes explicit start/drain/stop methods for bounded,
+metadata-only local diagnostics. Capture is off in ordinary startup, is not
+saved, cannot train policies, and is removed during runtime disposal. See
+[ACTION-CAPTURE.md](ACTION-CAPTURE.md) for lifecycle, privacy and unresolved-path
+limits. Engine-reported arrivals are not proof of source access.

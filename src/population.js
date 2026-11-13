@@ -1,3 +1,5 @@
+import { hasActionProvenance, enableActionProvenance, drainActionProvenance, disposeActionProvenance } from './action-provenance-observer.js';
+const actionCaptures=new WeakMap();
 import { defineCommunicationMode } from './communication-mode.js';
 import { subscribeConsumption } from './consumption-events.js';
 import { witnessConsumption } from './observational-learning.js';
@@ -48,6 +50,27 @@ export class PopulationRuntime {
   }
   getAgent(id='aster'){return this.state.agents.find(npc=>npc.id===id)||null;}
   controller(id='aster'){return this.controllers.get(id)||null;}
+  /** Explicit local diagnostic opt-in. Never automatically enabled or saved. */
+  startActionCapture(options={}){
+    if(this.disposed)throw new Error('runtime disposed');
+    if(actionCaptures.has(this))throw new Error('runtime capture already started');
+    const actors=[...this.state.agents];
+    if(actors.some(hasActionProvenance))throw new Error('actor capture already owned');
+    const owned=[];
+    try{for(const actor of actors){const session=enableActionProvenance(actor,options);owned.push({actor,session});}}
+    catch(error){for(const {actor,session} of owned)disposeActionProvenance(actor,session);throw error;}
+    actionCaptures.set(this,owned);
+  }
+  drainActionCapture(){
+    const actors=actionCaptures.get(this);if(!actors)return null;
+    return actors.map(({actor,session})=>({actorId:actor.id,capture:drainActionProvenance(actor,session)}));
+  }
+  stopActionCapture(){
+    const actors=actionCaptures.get(this);if(!actors)return null;
+    actionCaptures.delete(this);
+    return actors.map(({actor,session})=>({actorId:actor.id,capture:disposeActionProvenance(actor,session)}));
+  }
+
   setProviderFactory(factory){
     if(this.disposed)return;
     this.providerFactory=factory;
@@ -110,6 +133,9 @@ export class PopulationRuntime {
   }
   dispose(){
     if(this.disposed)return;
+    // Caller must drain/stop before disposal if final diagnostic rows are needed.
+    // Cleanup does not cancel gameplay and retains no final diagnostic payload.
+    this.stopActionCapture();
     this.disposed=true;
     this.unsubscribeConsumption?.();
     for(const controller of this.controllers.values())controller.dispose();
