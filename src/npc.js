@@ -1,3 +1,4 @@
+import { hasActionProvenance, beginActionRequest, endActionRequest, recordActionCompletion } from './action-provenance-observer.js';
 import { noteTimeoutRoutePaid, finishTimeoutRouteEvidence, timeoutRouteBlocks, timeoutDirection } from './timeout-route-evidence.js';
 import { fundNpcEffort, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
 import { noteFoodRunPaid, finishFoodRunAction } from './food-run-observer.js';
@@ -71,6 +72,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
   finishMotorEvidence(npc,active,event);
   finishTimeoutRouteEvidence(npc,active,event);
+  recordActionCompletion(npc,active,request,result,event);
   npc.nextDecisionAt=npc.elapsed+.65;return {eventId:event.id,...result};
 }
 function wetOzarkBody(npc,dt,waterSeconds){
@@ -144,6 +146,12 @@ function observedResourceRoute(npc,known){
   return null;
 }
 export function requestNpcAction(npc,raw,environment={}){
+  if(!hasActionProvenance(npc))return requestNpcActionObservedBody(npc,raw,environment);
+  const scope=beginActionRequest(npc,raw);let result,threw=true;
+  try{result=requestNpcActionObservedBody(npc,raw,environment);threw=false;return result;}
+  finally{endActionRequest(npc,scope,result,threw);}
+}
+function requestNpcActionObservedBody(npc,raw,environment={}){
   if(npc.lifecycle!=='AWAKE')return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   if(npc.mode==='discovery'&&isSleeping(npc))return{ok:false,code:'ASLEEP'};
