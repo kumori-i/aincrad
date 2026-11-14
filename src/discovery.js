@@ -1,3 +1,4 @@
+import { deferDrinkRetry } from './ingestion-retry.js';
 import { timeoutRouteBlocks } from './timeout-route-evidence.js';
 import { pendingSampleRetention } from './pending-sample-retention.js';
 import { learnedCapacityRelease } from './learned-capacity-release.js';
@@ -509,8 +510,9 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   const escape=contactEscape(npc);if(escape)return wrap(escape.action,'A contact I actually experienced hurt; I can move away through terrain I observed.','safety');
   const thirsty=['thirsty','parched','desperate thirst'].includes(body.thirst)||
     ozarkPersistentWorldAgent(npc)&&body.thirst==='dry mouth';
-  if(thirsty&&npc.flask.water>0)return wrap({type:'drink'},'My thirst is asking for remembered water relief.','water');
-  if(thirsty&&npc.scene==='valley'){
+  const drinkDeferred=thirsty&&npc.flask.water>0&&deferDrinkRetry(npc.memory.experience,npc.elapsed,body.thirst);
+  if(thirsty&&npc.flask.water>0&&!drinkDeferred)return wrap({type:'drink'},'My thirst is asking for remembered water relief.','water');
+  if(thirsty&&!drinkDeferred&&npc.scene==='valley'){
     const sources=Object.values(npc.memory.sources).filter(s=>s.available!==false&&(s.retryAfter||0)<=npc.elapsed).sort((a,b)=>distance(a,npc.position)-distance(b,npc.position));
     for(const source of ozarkPersistentWorldAgent(npc)?sources:sources.slice(0,1)){
       if(distance(source,npc.position)<=NPC_RULES.collectionRange)return wrap({type:'fill_flask',sourceId:source.id},'I can reach the water I actually observed.','water');
@@ -529,6 +531,10 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(npc.scene!=='valley'&&(!dangerous||body.thirst==='desperate thirst'||body.hunger==='faint with hunger')&&(thirsty||['hungry','ravenous','faint with hunger'].includes(body.hunger))){const exit=npc.memory.caveExits?.[npc.scene];if(exit){if(distance(npc.position,exit)<100)return wrap({type:'exit_shelter'},'My body needs something outside this refuge.','survival');const move=routeTarget(npc,exit);if(move)return wrap(move,'I remember this route toward the opening.','survival');}}
   const waterEscape=terrainTraversalDecision(npc);
   if(waterEscape?.need==='safety')return wrap(waterEscape.action,waterEscape.reason,'safety');
+  // A rejected swallow is not evidence about nutrition. Keep pending bodily
+  // outcomes intact and reassess shortly, after contact, thermal and terrain care.
+  // Do not turn temporary refusal into unrelated exploration or another ingestion.
+  if(drinkDeferred)return wrap({type:'wait',seconds:1},'My last attempt to drink was refused. I can keep still briefly and reassess before trying again.','water');
   // Preserve immediate relief and depleted-energy rescue; otherwise severe
   // unresolved thirst can interrupt a new food experiment. A survey is only
   // a supplied care priority, never knowledge of an unseen water location.

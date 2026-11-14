@@ -6,7 +6,8 @@ import {createOzarkState} from '../src/ozark-save.js';
 import {createOzarkWorldGeometry} from '../src/ozark-world-geometry.js';
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {bindOzarkEcology} from '../src/ozark-ecology.js';
-import {observeNpc} from '../src/npc.js';
+import {observeNpc,requestNpcAction} from '../src/npc.js';
+import {ingestMaterial,projectPhysiology} from '../src/biology.js';
 import {recordMotorTrail,finishMotorEvidence} from '../src/movement-recovery.js';
 import {survivalDecisionSnapshot} from '../src/survival-decision-observer.js';
 const source=await readFile(new URL('../src/discovery.js',import.meta.url),'utf8');
@@ -19,10 +20,11 @@ for(const {before,after} of seams.slice().reverse()){
  assert.equal(original.split(after).length-1,1,'each reverse seam occurs exactly once');original=original.replace(after,before);
 }
 // Both arms retain the same current policy, including the bounded remembered
-// route detour and urgent pending-source guard. Reverse only the survival and food-run observer seams. This
+// route detour, urgent pending-source guard and receipt-grounded drink retry.
+// Reverse only the survival and food-run observer seams. This
 // source pin changes when an intentional policy change changes both arms; the
 // frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
-assert.equal(sha(original),'c4576e45400a0473fa524a1f7bc3577aebddcbc0bfa747401181f27f0de775e0','exact current policy with observer seams reversed, not a rewritten approximation');
+assert.equal(sha(original),'e50ef56bc08159cbb7741ad8a9f0244c21955547c71b96de4f60b009690c228e','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}
@@ -43,9 +45,23 @@ for(const n of template.agents){bindOzarkWorldAgent(n,geometryA,template);observ
 function clone(geometry){const state=structuredClone(template);bindOzarkEcology(state.environment.ecology,geometry);for(const n of state.agents)bindOzarkWorldAgent(n,geometry,state);return {state,n:state.agents[0]};}
 function detached(value){if(!value||typeof value!=='object')return typeof value==='function'?'[function]':value;const out=Array.isArray(value)?[]:{};for(const [k,d] of Object.entries(Object.getOwnPropertyDescriptors(value))){if(k==='length'&&Array.isArray(value))continue;out[k]=Object.hasOwn(d,'value')?detached(d.value):'[accessor]';}return out;}
 function held(n,{urgent=false,pending=false,harm=false}={}){const id=Object.keys(n.discovery.observations)[0];assert.ok(id);n.inventory.items=[id];n.discovery.effects=[{objectId:id,effect:harm?'discomfort':'sustained',at:n.elapsed}];n.physiology.satietyHours=urgent?0:.5;n.physiology.hoursSinceMeal=urgent?20:8;if(pending)n.discovery.samplesPending[id]=n.elapsed;return id;}
+// Authored engineering setup, with a real admission refusal and its canonical
+// action receipt. No hand-written failure record, learned outcome or slot oracle
+// is supplied to policy. Advancing elapsed here tests the exact retry boundary,
+// not a naturally evolved digestion interval.
+function refusedDrink({n,state},{urgent=false,age=0}={}){
+ n.physiology.waterDeficitMl=urgent?3500:500;n.flask.water=1;
+ for(let i=0;i<24;i++)assert.equal(ingestMaterial(n,{massGrams:1,energyKcal:0,waterMl:0,digestHours:24},{source:'authored observer parity fixture'}).ok,true);
+ projectPhysiology(n);assert.equal(requestNpcAction(n,{type:'drink'},state.environment).code,'TOO_FULL');
+ n.elapsed+=age;return {handlingCuriosity:false};
+}
 const scenarios=[
  {name:'optional default',configure:()=>({handlingCuriosity:false})},
  {name:'early thirsty drink',expectedType:'drink',configure:({n})=>{n.physiology.waterDeficitMl=2000;n.flask.water=100;return {handlingCuriosity:false};}},
+ {name:'actual drink refusal waits',expectedType:'wait',expectedNeed:'water',configure:f=>refusedDrink(f)},
+ {name:'actual drink refusal normal expiry permits retry',expectedType:'drink',configure:f=>refusedDrink(f,{age:10})},
+ {name:'actual drink refusal urgent interval remains bounded',expectedType:'wait',expectedNeed:'water',configure:f=>refusedDrink(f,{urgent:true,age:1.99})},
+ {name:'actual drink refusal urgent expiry permits retry',expectedType:'drink',configure:f=>refusedDrink(f,{urgent:true,age:2})},
  {name:'early rest',expectedType:'rest',configure:({n})=>{n.physiology.stamina=5;return {handlingCuriosity:false};}},
  {name:'ordinary held relief',expectedType:'sample',expectedNote:'enter:ordinary-food',configure:({n})=>{held(n);return {handlingCuriosity:false};}},
  {name:'urgent held relief',expectedType:'sample',expectedNote:'enter:urgent-food',configure:({n})=>{held(n,{urgent:true});return {handlingCuriosity:false};}},
