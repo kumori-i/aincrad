@@ -41,6 +41,20 @@ export function connectorBranch(args){
   throw new Error('--branch requires --prepare-connector and a safe explicit branch name.');
  return value;
 }
+/** Pure manifest serialization: the declared Git blob always describes decoded content.
+ * Extensions alone cannot identify binary data (e.g. compressed JSON fixtures).
+ * Exact UTF-8 roundtrip preserves BOMs and literal replacement characters while
+ * rejecting malformed bytes; non-text controls and known binary formats use base64.
+ */
+export function connectorFile(path,data){
+ if(!Buffer.isBuffer(data))throw new TypeError('Publication file data must be a Buffer.');
+ const text=data.toString('utf8');
+ const binary=/\.(png|jpe?g|gif|webp|ico|bmp|pdf|zip|gz|tgz|bz2|xz|zst|7z|tar|wasm|bin)$/i.test(path)||
+   !Buffer.from(text,'utf8').equals(data)||/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text);
+ const encoding=binary?'base64':'utf-8',content=binary?data.toString('base64'):text;
+ const sha=createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
+ return {path,mode:'100644',sha,size_bytes:data.length,encoding,content};
+}
 async function main(){
  const branch=connectorBranch(process.argv);
  const sourceHead=run('git',['rev-parse','HEAD'],{capture:true,allowFail:true});
@@ -65,9 +79,7 @@ async function main(){
   const prepared=[];
   for(const rel of files){
    const data=await readFile(join(ROOT,rel));
-   const encoding=/\.(png|jpe?g|zip)$/i.test(rel)?'base64':'utf-8';
-   const sha=createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
-   prepared.push({path:rel,mode:'100644',sha,size_bytes:data.length,encoding,content:data.toString(encoding==='base64'?'base64':'utf8')});
+   prepared.push(connectorFile(rel,data));
   }
   await writeFile(resolve(destination),JSON.stringify({repository_full_name:REPO,branch_name:branch,expected_sha:expected,deleted_paths:deletedPaths,files:prepared}));
   console.log(`Prepared validated publication manifest: ${resolve(destination)}. No remote changes made.`);

@@ -199,3 +199,10 @@ The [native coverage contract](food-balance/NATIVE-ACCEPTANCE.md) distinguishes
 whole/water app screenshots, partial-dose renderer assertions, engine-only hourly
 curves and detached decoded-save witness probes. No browser substitute, older
 source evidence or sandbox bypass satisfies the native row.
+
+Connector publication manifests serialize raw file buffers losslessly. Valid UTF-8
+text stays `utf-8` (including BOMs); malformed UTF-8, binary controls and known
+binary formats use `base64`. Declared byte size and Git blob SHA describe the
+**decoded** content, not the JSON string. `publication-encoding.test.mjs` exercises
+this pure serializer and reads existing gzip fixtures without running publication,
+child commands, changing fixtures or contacting GitHub.
