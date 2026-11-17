@@ -443,8 +443,21 @@ function capacityRelease(npc,candidates){
   if(!ozarkPersistentWorldAgent(npc)||npc.inventory.items.length!==DISCOVERY_RULES.capacity)return null;
   const local=candidates.filter(t=>['pull','grasp'].includes(t.steps[0]?.type)&&
     !npc.inventory.items.includes(t.sourceId)&&localMethodSource(npc,t.sourceId)&&!priorAdverseSource(npc.discovery,t.sourceId));
-  return learnedCapacityRelease(npc,local,{eligible:id=>
+  return learnedCapacityRelease(npc,local,{allowUntested:true,eligible:id=>
     !recentlyFailed(npc,'release',id)&&!availabilityBlocked(npc,'release',id)});
+}
+// Carry everything along a personally observed route. Reconsider at each
+// decision; release is admitted only by the separate fresh local-source gate.
+function capacityApproach(npc,candidates){
+  if(!ozarkPersistentWorldAgent(npc)||npc.inventory.items.length!==DISCOVERY_RULES.capacity)return null;
+  for(const t of candidates){
+    const o=memory(npc).observations[t.sourceId];
+    if(!o||!['pull','grasp'].includes(t.steps[0]?.type)||npc.inventory.items.includes(t.sourceId)||
+      priorAdverseSource(npc.discovery,t.sourceId)||distance(npc.position,o.position)<=DISCOVERY_RULES.reach||
+      !learnedCapacityRelease(npc,[t],{allowUntested:true,eligible:id=>!recentlyFailed(npc,'release',id)&&!availabilityBlocked(npc,'release',id)}))continue;
+    const move=routeTarget(npc,o.position);if(move)return move;
+  }
+  return null;
 }
 function deferRestRetry(npc,body){
   const event=npc.memory.experience.filter(e=>e.type==='action'&&['rest','sleep'].includes(e.details.action?.type)).at(-1);
@@ -561,9 +574,11 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
     if(!d.run&&npc.inventory.items.length<=DISCOVERY_RULES.capacity){
       const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!sourceTrialPending(npc,t)&&(depletedAfterRefusal||distance(npc.position,d.observations[t.sourceId].position)<=DISCOVERY_RULES.reach));
       const release=capacityRelease(npc,candidates);
-      if(release)return wrap(release,'A held material was followed by discomfort. I can set it down to make room for a nearby method that previously brought relief.','food');
+      if(release)return wrap(release,'I can set down a held material to make room for a nearby method that previously brought relief; this does not establish the released material’s value or safety.','food');
       survivalObserve(noteSurvivalDecision,survivalScope,'food:urgent-candidates',candidates.length);
       if(depletedAfterRefusal)candidates.sort((a,b)=>distance(npc.position,d.observations[a.sourceId].position)-distance(npc.position,d.observations[b.sourceId].position));
+      const approach=capacityApproach(npc,candidates);
+      if(approach)return wrap(approach,'I can carry my possessions toward a remembered method that brought relief, then reconsider space only when its source is nearby.','food');
       for(const technique of candidates){
         if(npc.inventory.items.length>=DISCOVERY_RULES.capacity)break;
         d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
@@ -592,8 +607,10 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(hungry&&!d.run&&npc.inventory.items.length<=DISCOVERY_RULES.capacity){
     const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!sourceTrialPending(npc,t)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
     const release=capacityRelease(npc,candidates);
-    if(release)return wrap(release,'A held material was followed by discomfort. I can set it down to make room for a nearby method that previously brought relief.','food');
+    if(release)return wrap(release,'I can set down a held material to make room for a nearby method that previously brought relief; this does not establish the released material’s value or safety.','food');
     survivalObserve(noteSurvivalDecision,survivalScope,'food:ordinary-candidates',candidates.length);
+    const approach=capacityApproach(npc,candidates);
+    if(approach)return wrap(approach,'I can carry my possessions toward a remembered method that brought relief, then reconsider space only when its source is nearby.','food');
     for(const technique of candidates){
       if(npc.inventory.items.length>=DISCOVERY_RULES.capacity)break;
       d.run={techniqueId:technique.id,cursor:0,materialId:null,awaiting:false,startedAt:npc.elapsed};
