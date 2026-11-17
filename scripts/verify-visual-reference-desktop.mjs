@@ -17,6 +17,9 @@ import {CHARACTER_ORDINARY_PILOT_PROTOCOL,guardFreshCharacterMotorPilot,projectC
 import {CHARACTER_ORDINARY_PILOT_PROTOCOL as MOTOR_V4_PROTOCOL,
   guardFreshCharacterMotorPilot as guardFreshCharacterMotorV4,
   projectCharacterPilot as projectCharacterMotorV4} from './character-ordinary-motor-v4-protocol.mjs';
+import {CHARACTER_ORDINARY_PILOT_PROTOCOL as FOOD_V5_PROTOCOL,
+  guardFreshCharacterFoodRunPilot,
+  projectCharacterPilot as projectCharacterFoodRunV5} from './character-ordinary-food-run-v5-protocol.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url)),prepareOnly=process.argv.includes('--prepare-only'),
   responseScenario=process.argv.includes('--response-scenario'),ambiguityScenario=process.argv.includes('--ambiguity-scenario'),
@@ -46,6 +49,8 @@ const context={output,profile,application,responseScenario,ambiguityScenario,mot
   motorProtocolPath:join(root,'scripts/character-ordinary-motor-v3-protocol.mjs'),
   motorV4Protocol:MOTOR_V4_PROTOCOL,
   motorV4ProtocolPath:join(root,'scripts/character-ordinary-motor-v4-protocol.mjs'),
+  foodV5Protocol:FOOD_V5_PROTOCOL,
+  foodV5ProtocolPath:join(root,'scripts/character-ordinary-food-run-v5-protocol.mjs'),
   sourceIdentity:nativeSourceIdentity(root),sourceFingerprint:built.sourceFingerprint};
 if(!prepareOnly){assert.equal(context.sourceIdentity.commit,process.env.GITHUB_SHA,'Native CI must exercise the exact approved checkout SHA');assert.equal(context.sourceIdentity.worktreeStatus,'','Native CI requires a clean reviewed source tree');}
 const harness=join(output,'runner.cjs'),phases=motorScenario?['motor-exercise','motor-reopen']:ambiguityScenario?['ambiguity-exercise']:responseScenario?
@@ -59,7 +64,8 @@ function installRunner(context,helpers){
   const {captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
     visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen,
     guardFreshCharacterMotorPilot,projectCharacterPilot,
-    guardFreshCharacterMotorV4,projectCharacterMotorV4}=helpers;
+    guardFreshCharacterMotorV4,projectCharacterMotorV4,
+    guardFreshCharacterFoodRunPilot,projectCharacterFoodRunV5}=helpers;
   const phase=process.argv.find(arg=>arg.startsWith('--phase='))?.slice(8);
   assert(context.phases.includes(phase));
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -276,6 +282,74 @@ function installRunner(context,helpers){
       assert(Object.values(life.interrupted).every(value=>value===0));
     }
     await fs.writeFile(path.join(context.output,phase+'-motor-v4-fresh-guard.json'),
+      JSON.stringify(guard,null,2));
+  }
+  // Exercise the prospective v5 allowlist in an actual native renderer. The
+  // controlled character/motor fixtures do not execute an entire learned
+  // food run, so these checks establish freshness, privacy and read purity.
+  async function v5ProjectionPoint(win,label){
+    async function readTwice(project){
+      const q=window.__ozarkWorld,fixture=window.__visualReferenceFixture,
+        world=JSON.stringify(q.fullSnapshot()),
+        reference=JSON.stringify(q.communicationSnapshot()),
+        character=JSON.stringify(fixture?.characterExport?.()??null),
+        observer=JSON.stringify(q.communicationMeasurementSnapshot()),
+        saved=localStorage.getItem('aincrad.world.v2');
+      const first=await project(),second=await project();
+      return {first,second,unchanged:{world:JSON.stringify(q.fullSnapshot())===world,
+        reference:JSON.stringify(q.communicationSnapshot())===reference,
+        character:JSON.stringify(fixture?.characterExport?.()??null)===character,
+        observer:JSON.stringify(q.communicationMeasurementSnapshot())===observer,
+        storage:localStorage.getItem('aincrad.world.v2')===saved}};
+    }
+    const read=await evaluate(win,'('+readTwice.toString()+')('+projectCharacterFoodRunV5.toString()+')');
+    for(const [key,unchanged]of Object.entries(read.unchanged))
+      assert.equal(unchanged,true,label+' v5 projection changed '+key);
+    const withoutWall=sample=>{const copy=structuredClone(sample);delete copy.wallMs;return copy;};
+    assert.deepEqual(withoutWall(read.first),withoutWall(read.second),
+      label+' repeated v5 projection differs beyond its wall clock');
+    const {validateCharacterPilotProjection}=await import(pathToFileURL(context.foodV5ProtocolPath).href);
+    validateCharacterPilotProjection(read.first);
+    validateCharacterPilotProjection(read.second);
+    assert.equal(read.first.food?.version,1,label+' must expose the bounded food-run sidecar');
+    assert.deepEqual(read.first.food.actors.map(row=>row.id),['aster','mira']);
+    const forbidden=new Set(['weights','bias','features','targetId','sourceId',
+      'materialId','techniqueId','objectId','route','raw','run','records','examples',
+      'stomach','ingestionId','messageHandle','pixels']);
+    const inspect=value=>{
+      if(Array.isArray(value)){for(const row of value)inspect(row);return;}
+      if(value&&typeof value==='object')for(const [key,row]of Object.entries(value)){
+        assert.equal(forbidden.has(key),false,label+' v5 food projection exposed '+key);
+        inspect(row);
+      }
+    };
+    inspect(read.first.food);
+    await fs.writeFile(path.join(context.output,phase+'-food-v5-'+label+'.json'),
+      JSON.stringify(read.first,null,2));
+    return read.first;
+  }
+  async function freshFoodV5(win){
+    const guard=await evaluate(win,'('+guardFreshCharacterFoodRunPilot.toString()+')('+JSON.stringify(context.foodV5Protocol)+')');
+    assert.equal(guard?.ready,true,'Fresh food-v5 guard must accept the actual blank renderer profile');
+    const projection=await v5ProjectionPoint(win,'fresh');
+    assert.equal(projection.elapsed,0);
+    assert.equal(projection.food.foodKeysOmitted,0);
+    assert.equal(projection.food.identityUnavailableActors,0);
+    for(const actor of projection.food.actors){
+      const run=actor.foodRun;
+      assert.equal(run?.version,1);
+      assert.equal(run.sessionResets,0);
+      assert.equal(run.sessionLosses,0);
+      assert.equal(run.saturated,false);
+      assert.deepEqual(run.pending,{selected:0,active:0});
+      const zero=value=>value&&typeof value==='object'?
+        Object.values(value).every(zero):value===0;
+      assert.equal(zero(run.stages),true);
+      assert.equal(zero(run.runEnds),true);
+      assert.deepEqual(actor.energy,{ingestedKcal:0,absorbedKcal:0,
+        metabolizedKcal:0,discardedKcal:0,pendingKcal:0});
+    }
+    await fs.writeFile(path.join(context.output,phase+'-food-v5-fresh-guard.json'),
       JSON.stringify(guard,null,2));
   }
   const durableLearners=reference=>reference.learners.map(({agentId,identity,anchors,partners,counts,character})=>
@@ -520,6 +594,7 @@ function installRunner(context,helpers){
       firstV3.motor.actors.find(row=>row.id==='mira')?.freeHandObserver?.visibleSamples>0,
       'The v3 observer must count the paid first motion and personally visible peer samples');
     const firstV4=await v4ProjectionPoint(win,'motor-first-complete');
+    await v5ProjectionPoint(win,'motor-first-complete');
     assert.deepEqual(firstV4.motor.actors.find(row=>row.id==='aster')?.freeHandObserver?.lifecycle,
       measured.actors.find(row=>row.id==='aster')?.freeHandObserver?.lifecycle,
       'V4 completion must project exactly the paid actor-local lifecycle already observed');
@@ -579,6 +654,7 @@ function installRunner(context,helpers){
     assert.equal(await evaluate(win,'window.__ozarkWorld.snapshot().elapsed'),0);
     await freshMotorV3(win);
     await freshMotorV4(win);
+    await freshFoodV5(win);
     const fixtureContext=context.responseScenario?'{...context,responseScenario:true}':
       context.ambiguityScenario?'{...context,ambiguityScenario:true}':
       context.motorScenario?'{...context,motorScenario:true}':'context';
@@ -593,6 +669,7 @@ function installRunner(context,helpers){
     if(!context.responseScenario){
       await v3ProjectionPoint(win,'fresh-attached');
       await v4ProjectionPoint(win,'fresh-attached');
+      await v5ProjectionPoint(win,'fresh-attached');
     }
     if(context.motorScenario)return motorExercise(win);
     if(context.ambiguityScenario){
@@ -973,6 +1050,11 @@ function installRunner(context,helpers){
     const measured=await measurementPoint(win,'motor-reopen');
     const reopenedV3=await v3ProjectionPoint(win,'motor-reopen');
     const reopenedV4=await v4ProjectionPoint(win,'motor-reopen');
+    const reopenedV5=await v5ProjectionPoint(win,'motor-reopen');
+    assert(reopenedV5.food.actors.every(row=>row.foodRun.sessionResets===0&&
+      row.foodRun.sessionLosses===0&&
+      Object.values(row.foodRun.runEnds).every(value=>value===0)),
+    'The v5 food-run observer must reopen without pending or learned action authority');
     assert(reopenedV3.motor.actors.every(row=>row.freeHandObserver?.selectedAttempts===0&&
       row.freeHandObserver?.visibleSamples===0&&row.gesturePrediction?.updates===0),
       'The v3 observer must start with empty session motor and predictor counts after reopen');
@@ -1144,10 +1226,12 @@ function installRunner(context,helpers){
 const helpers={captureWithReadiness,waitForCaptureFrames,conversationViewportEvidence,currentRouteSnapshot,assertCurrentRoute,assertStructuralRestoredHistory,
   visualReferenceEvidence,installVisualReferenceFixture,probeVisualReferenceReopen,probeFreeHandReopen,
   guardFreshCharacterMotorPilot,projectCharacterPilot,
-  guardFreshCharacterMotorV4,projectCharacterMotorV4};
+  guardFreshCharacterMotorV4,projectCharacterMotorV4,
+  guardFreshCharacterFoodRunPilot,projectCharacterFoodRunV5};
 // Serialized helper expressions are created outside installRunner, so their
 // imported assertion dependency must exist in the generated outer scope.
-const source="const assert = require('node:assert/strict');\n"+'('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';
+const source="const assert = require('node:assert/strict');\n"+
+  '('+installRunner.toString()+')('+JSON.stringify(context)+',{'+Object.entries(helpers).map(([key,fn])=>key+':'+fn.toString()).join(',')+'});\n';
 let nativeProcessesClosed=true,nativeProcessesStarted=0;
 try{
   await writeFile(harness,source);
