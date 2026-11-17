@@ -15,6 +15,7 @@ import { knownRoute, createKnownRouteIndex } from '../src/navigation.js';
 import { tileKey, tilePoint, rememberedCells, rememberedEdges } from '../src/perception.js';
 import { tickOzarkEcology } from '../src/ozark-ecology.js';
 import { recordEvent } from '../src/npc-memory.js';
+import { npcEffortCost } from '../src/npc-effort-funding.js';
 import { createOzarkState, writeOzarkSave, loadOzarkSave, OZARK_SAVE_KEY } from '../src/ozark-save.js';
 
 function fixture({speed=1,drift=0,wall=30,jitter=false}={}){
@@ -113,6 +114,47 @@ test('lazy and direct directed queries agree, ordinary frozen behavior remains s
 test('slow but meaningful net progress does not establish timeout evidence',()=>{
   const f=fixture({wall:Infinity,speed:.03});
   for(let i=0;i<2;i++){assert.equal(runAction(f,{type:'move',target:{x:160,y:0}}).code,'ACTION_TIMEOUT');assert.equal(timeoutRouteBlocks(f.actor),null);}
+});
+test('authored funded adapter preserves slow net arrival against passive current',()=>{
+  // Idealized engine regression, not native river geometry or autonomous survival.
+  // The existing adapter has dry-ground sensing with separately imposed current.
+  // Genuinely funded 30px/s input and -27.8px/s drift leave 2.2px/s net progress;
+  // unlike literal 2.2px/s input, this clears the existing motor-blockage guard.
+  const f=fixture({wall:Infinity,speed:.2,drift:-27.8}),n=f.actor;
+  n.position={x:55,y:0};observeNpc(n,f.environment);
+  const energy=n.physiology.availableEnergyKcal,metabolized=n.physiology.totals.metabolizedKcal;
+  assert.equal(requestNpcAction(n,{type:'move',target:{x:80,y:0}},f.environment).code,'STARTED');
+  const deadline=n.active.expiresAt,segments=new Map(),reached=[];let firstEight=null;
+  for(let count=0;n.active&&count<800;count++){
+    const active=n.active,index=active.index,target=active.route[index],before={...n.position},attempted=active.attemptedDistance;
+    tickNpc(n,CONFIG.fixedStep,f.environment);
+    if(target&&active.index!==index)reached.push({before,target});
+    const paid=(active.attemptedDistance-attempted)/CONFIG.walkSpeed;
+    if(paid<=0)continue;
+    let segment=segments.get(index);
+    if(!segment){segment={origin:before,target,paid:0};segments.set(index,segment);}
+    segment.paid+=paid;
+    if(!firstEight&&segment.paid>=8)firstEight={at:n.elapsed,paid:segment.paid,
+      progress:distance(segment.origin,segment.target)-distance(n.position,segment.target)};
+  }
+  assert.equal(n.active,null);assert.equal(n.lastResult.code,'ARRIVED');assert.equal(n.lastResult.ok,true);
+  assert.ok(firstEight&&firstEight.paid>=8&&firstEight.paid<8+CONFIG.fixedStep+1e-8);
+  assert.ok(firstEight.progress>17&&firstEight.progress<=NPC_RULES.tileSize/4,
+    'eight funded seconds with <=20px net progress can still be useful movement');
+  assert.ok(n.elapsed>firstEight.at&&n.elapsed<deadline,'arrival precedes the unchanged deadline');
+  assert.ok(reached.length>0&&reached.every(r=>distance(r.before,r.target)<3));
+  // Current remains active on waypoint/receipt frames; the receipt position
+  // need not still be inside the waypoint's admission radius.
+  assert.ok(distance(n.position,{x:80,y:0})<3+2*Math.abs(f.control.drift)*CONFIG.fixedStep+1e-8);
+  const paid=f.calls.reduce((sum,c)=>sum+c.paidSeconds,0),effort=npcEffortCost(paid,1);
+  assert.ok(paid>8&&paid<n.lastResult.durationSeconds);
+  assert.ok(f.calls.some(c=>c.paidSeconds>0&&c.inputDx>0&&c.driftDistance>0));
+  assert.ok(n.physiology.totals.metabolizedKcal-metabolized>=effort-1e-8);
+  assert.ok(energy-n.physiology.availableEnergyKcal>=effort-1e-8,'funded effort was not refunded');
+  const receipts=n.memory.experience.filter(e=>e.type==='action');
+  assert.equal(receipts.length,1);assert.equal(receipts[0].id,n.lastResult.eventId);
+  assert.equal(receipts[0].details.result.code,'ARRIVED');
+  assert.equal(timeoutRouteBlocks(n),null);assert.deepEqual(n.memory.blockedEdges,{});
 });
 test('partial physical funding cannot establish the eight-second paid threshold',()=>{
   const f=opposed();f.control.fraction=.25;f.control.drift=-CONFIG.walkSpeed*.2*.25;
