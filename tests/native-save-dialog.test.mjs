@@ -7,7 +7,7 @@ const authorized={CI:'true',AINCRAD_NATIVE_DIALOG_CI:'1',DISPLAY:':99'};
 function harness(platform='linux'){
   const calls=[];let searches=0,clock=0;
   return {calls,options:{pid:1234,action:'save',destination:'/isolated/generated/current.json',screenshot:'/isolated/evidence/dialog.png',platform,env:authorized,
-    run:async(file,args)=>{calls.push({file,args});return {stdout:file==='xdotool'&&args[0]==='search'?(++searches===1?'77\n':''):file==='xdotool'&&args[0]==='getwindowfocus'?'77\n':file==='xprop'&&args[1]==='77'?'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n_NET_WM_PID(CARDINAL) = 1234':''};},now:()=>clock,wait:async ms=>{clock+=ms;},read:async()=>png,write:async()=>{}}};
+    run:async(file,args)=>{calls.push({file,args});return {stdout:file==='osascript'&&args[3]==='verify'?'native-save-prepared\ncurrent.json\n':file==='osascript'&&args[3]==='submit'?'native-save-submitted-once\n':file==='osascript'&&args[3]==='dismissed'?'native-save-dismissed\n':file==='xdotool'&&args[0]==='search'?(++searches===1?'77\n':''):file==='xdotool'&&args[0]==='getwindowfocus'?'77\n':file==='xprop'&&args[1]==='77'?'WM_NAME(STRING) = "Back up current stored Aincrad world before reset"\n_NET_WM_PID(CARDINAL) = 1234':''};},now:()=>clock,wait:async ms=>{clock+=ms;},read:async()=>png,write:async()=>{}}};
 }
 
 test('command contract only: native automation requires explicit isolated CI authorization',async()=>{
@@ -37,10 +37,10 @@ test('command contract only: screenshot failure blocks native Save input',async(
 });
 test('command contract only: macOS uses actual System Events sheet controls and screen capture',async()=>{
   const {calls,options}=harness('darwin');await driveNativeSaveDialog(options);
-  assert.deepEqual(calls.map(c=>c.file),['screencapture','osascript','screencapture','osascript','osascript']);
+  assert.deepEqual(calls.filter(c=>c.file==='osascript').map(c=>c.args[3]),['inspect','probe','save','verify','submit','dismissed']);
   assert.ok(calls[1].args[1].includes('unix id is targetPid'));
   assert.ok(calls[1].args[1].includes('elementName is "Save"'));
-  assert.deepEqual(calls.at(-1).args.slice(-4),['1234','save','current.json','/isolated/generated']);
+  assert.deepEqual(calls.find(c=>c.file==='osascript'&&c.args[3]==='submit').args.slice(-4),['1234','submit','current.json','/isolated/generated']);
   assert.ok(!calls.some(c=>c.file==='tccutil'||c.file==='sqlite3'||c.file==='sudo'));
 });
 
@@ -390,4 +390,21 @@ test('command contract only: GetProperty during initial recognition or with mixe
   assert.equal(calls,1);
   const mixed=dismissalHarness(()=>{throw badWindow({stderr:getPropertyBadWindow+'permission denied\n'});});
   await assert.rejects(driveNativeSaveDialog(mixed.options),/Native dialog command/);assert.equal(mixed.probes(),1);
+});
+
+test('command contract only: macOS mismatched prepared state cannot submit or retry',async()=>{
+ const {calls,options}=harness('darwin'),run=options.run;let record;
+ await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>file==='osascript'&&args[3]==='verify'?{stdout:'native-save-prepared\nwrong.json'}:run(file,args,settings),write:async(_p,s)=>{record=JSON.parse(s);}}),/readback mismatch/);
+ assert.equal(calls.filter(c=>c.file==='osascript'&&c.args[3]==='save').length,1);assert.equal(calls.filter(c=>c.file==='osascript'&&c.args[3]==='submit').length,0);assert.equal(record.status,'failed');
+});
+test('command contract only: macOS submission uncertainty never causes a second click',async()=>{
+ for(const operation of ['save','verify','submit','dismissed']){
+ const {calls,options}=harness('darwin'),run=options.run;let attempts=0;
+ await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{if(file==='osascript'&&args[3]===operation){attempts++;throw Object.assign(new Error('ambiguous after input'),{code:1,stderr:'Filename/path/control mismatch'});}return run(file,args,settings);}}),/Native dialog command/);assert.equal(attempts,1);assert.ok(calls.filter(c=>c.file==='osascript'&&c.args[3]==='submit').length<=1);
+ }
+});
+test('command contract only: macOS prepared and post-submit evidence surrounds exactly one submission',async()=>{
+ const {calls,options}=harness('darwin');await driveNativeSaveDialog(options);
+ const submitted=calls.findIndex(c=>c.file==='osascript'&&c.args[3]==='submit');assert.ok(calls.findIndex(c=>c.args.includes(options.screenshot+'.path-entered.png'))<submitted);assert.ok(calls.findIndex(c=>c.args.includes(options.screenshot+'.after-submit.png'))>submitted);
+ const script=calls.find(c=>c.file==='osascript').args[1];for(const text of ['value of navigationField as text','count sheets of saveSheet','value of filenameField as text','enabled of item 1 of saveButtons','operation is "submit"'])assert.ok(script.includes(text));assert.ok(!script.includes('delay 0.8'));assert.ok(!script.includes('delay 0.5'));
 });

@@ -18,7 +18,11 @@ const macScript = `on run argv
         set end of foundSheets to contents of candidateSheet
       end repeat
     end repeat
-    if (count foundSheets) is 0 then error "NATIVE_DIALOG_NOT_READY"
+    if (count foundSheets) is 0 then
+      if operation is "dismissed" then return "native-save-dismissed"
+      error "NATIVE_DIALOG_NOT_READY"
+    end if
+    if operation is "dismissed" then return "native-save-still-visible"
     if (count foundSheets) is not 1 then error "Ambiguous native sheet target; no input sent"
     set saveSheet to item 1 of foundSheets
     set descendants to entire contents of saveSheet
@@ -52,7 +56,7 @@ const macScript = `on run argv
     set frontmost of p to true
     if operation is "cancel" then
       click item 1 of cancelButtons
-    else if operation is "save" then
+    else if operation is "save" or operation is "verify" or operation is "submit" then
       if (count namedFields) is 1 then
         set filenameField to item 1 of namedFields
       else if (count namedFields) is 0 and (count textFields) is 1 then
@@ -60,15 +64,68 @@ const macScript = `on run argv
       else
         error "Native Save filename field is ambiguous; no input sent"
       end if
-      set value of filenameField to item 3 of argv
-      tell p
-        keystroke "g" using {command down, shift down}
-        delay 0.5
-        keystroke item 4 of argv
-        key code 36
-        delay 0.8
-      end tell
-      click item 1 of saveButtons
+      if operation is "save" then
+        tell p to keystroke "g" using {command down, shift down}
+        set navigationSheet to missing value
+        repeat 40 times
+          set nestedSheets to sheets of saveSheet
+          if (count nestedSheets) > 1 then error "Ambiguous GoTo sheet after input; no further input sent"
+          if (count nestedSheets) is 1 then
+            set navigationSheet to item 1 of nestedSheets
+            exit repeat
+          end if
+          delay 0.1
+        end repeat
+        if navigationSheet is missing value then error "GoTo sheet did not become ready after input"
+        set navigationFields to {}
+        set goButtons to {}
+        repeat with elementRef in entire contents of navigationSheet
+          set e to contents of elementRef
+          if role of e is "AXTextField" or role of e is "AXComboBox" then set end of navigationFields to e
+          if role of e is "AXButton" and name of e is "Go" then set end of goButtons to e
+        end repeat
+        if (count navigationFields) is not 1 or (count goButtons) is not 1 then error "GoTo controls ambiguous after input"
+        set navigationField to item 1 of navigationFields
+        set value of navigationField to item 4 of argv
+        if (value of navigationField as text) is not (item 4 of argv) then error "GoTo path readback mismatch"
+        if enabled of item 1 of goButtons is not true then error "GoTo button disabled"
+        click item 1 of goButtons
+        set navigated to false
+        repeat 40 times
+          if (count sheets of saveSheet) is 0 then
+            set navigated to true
+            exit repeat
+          end if
+          delay 0.1
+        end repeat
+        if not navigated then error "GoTo navigation did not dismiss; no Save submitted"
+        -- Reacquire rather than trust a pre-navigation AX field reference.
+        set namedFields to {}
+        repeat with elementRef in entire contents of saveSheet
+          set e to contents of elementRef
+          if role of e is "AXTextField" then
+            if name of e contains "Save As" or description of e contains "Save As" then set end of namedFields to e
+          end if
+        end repeat
+        if (count namedFields) is not 1 then error "Post-navigation filename field ambiguous"
+        set filenameField to item 1 of namedFields
+        set value of filenameField to item 3 of argv
+      end if
+      if (count sheets of saveSheet) is not 0 then error "Unexpected nested sheet; no Save submitted"
+      if (value of filenameField as text) is not (item 3 of argv) then error "Filename readback mismatch; no Save submitted"
+      set saveButtons to {}
+      repeat with elementRef in entire contents of saveSheet
+        set e to contents of elementRef
+        if role of e is "AXButton" and name of e is "Save" then set end of saveButtons to e
+      end repeat
+      if (count saveButtons) is not 1 then error "Save control changed; no Save submitted"
+      if enabled of item 1 of saveButtons is not true then error "Save control disabled; no Save submitted"
+      if operation is "submit" then
+        click item 1 of saveButtons
+        return "native-save-submitted-once"
+      end if
+      return "native-save-prepared" & linefeed & (value of filenameField as text)
+
     end if
   end tell
 end run`;
@@ -198,6 +255,30 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
       try{await command('osascript',actionArgs);break;}
       catch(error){if(!macPreInputNoSheet(error)||attempt===9)throw error;}
     }
+    if(action==='save'){
+      // Navigation and filename input have occurred. No reacquisition/retry is
+      // safe now: all mismatches are terminal before the single Save click.
+      const verifyArgs=['-e',macScript,String(pid),'verify',basename(destination),dirname(destination)];
+      const verified=await command('osascript',verifyArgs);
+      if(verified.stdout.trim()!=='native-save-prepared\n'+basename(destination))throw new Error('Native Save prepared-state readback mismatch; no Save submitted');
+      diagnostics.preparedState=verified.stdout;
+      diagnostics.pathEnteredScreenshot=screenshot+'.path-entered.png';
+      await command('screencapture',['-x',diagnostics.pathEnteredScreenshot]);
+      const submitted=await command('osascript',['-e',macScript,String(pid),'submit',basename(destination),dirname(destination)]);
+      if(submitted.stdout.trim()!=='native-save-submitted-once')throw new Error('Native Save submission outcome uncertain; never retry');
+      diagnostics.postInputScreenshot=screenshot+'.after-submit.png';
+      await command('screencapture',['-x',diagnostics.postInputScreenshot]);
+      let dismissed=false;
+      for(let i=0;i<40;i++){
+        const observed=await command('osascript',['-e',macScript,String(pid),'dismissed']);
+        if(observed.stdout.trim()==='native-save-dismissed'){dismissed=true;break;}
+        if(observed.stdout.trim()!=='native-save-still-visible')throw new Error('Native Save dismissal observation unknown; never retry');
+        await wait(100);
+      }
+      diagnostics.saveDialogDismissed=dismissed;
+      if(!dismissed)throw new Error('Native Save remained visible after one submission; never retry');
+      diagnostics.navigationEvidence='Exact GoTo path readback and nested sheet dismissal; expected file bytes remain mandatory independent proof';
+    }
   }else if(action==='cancel'){
     await linuxInput(['key','--clearmodifiers','Escape']);
   }else{
@@ -269,6 +350,7 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   await write(screenshot+'.dialog.json',JSON.stringify(diagnostics,null,2));
   return {platform,pid,action,windowId,screenshot,bytes:png.length,realOsDialog:true,semanticVisualReview:'required'};
   }catch(error){
+    if(platform==='darwin'){diagnostics.failureScreenshot=screenshot+'.failure.png';try{await command('screencapture',['-x',diagnostics.failureScreenshot]);}catch{}}
     diagnostics.status='failed';diagnostics.error=String(error.stack||error);
     await write(screenshot+'.dialog.json',JSON.stringify(diagnostics,null,2)).catch(writeError=>{error.diagnosticsWriteError=String(writeError);});
     throw error;
