@@ -1,3 +1,4 @@
+import {normalizeWorldChangeMemory} from './fixtures/change-memory-namespace.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
@@ -35,13 +36,15 @@ test('canonical two-agent baseline preserves a negative outcome and exact save p
   assert.equal(firstSaved.worldLineage.instanceId,firstSaved.playerLessons.worldId);
   assert.equal(secondSaved.worldLineage.instanceId,secondSaved.playerLessons.worldId);
   assert.notEqual(firstSaved.worldLineage.instanceId,secondSaved.worldLineage.instanceId);
-  for(const saved of [firstSaved,secondSaved]){
+  const normalized=[firstSaved,secondSaved].map(original=>{
+    const saved=structuredClone(original);normalizeWorldChangeMemory(saved,original,'<fresh-world-instance>');
     saved.worldLineage.instanceId='<fresh-world-instance>';
     saved.visualReference.worldId='<fresh-world-instance>';
     saved.characterMessages.worldId='<fresh-world-instance>';
     saved.playerLessons.worldId='<fresh-world-instance>';
-  }
-  assert.deepEqual(secondSaved,firstSaved,
+    return saved;
+  });
+  assert.deepEqual(normalized[1],normalized[0],
     'Full actual saved worlds retain exact policy, physical, RNG and evidence parity apart from unique instance identity');
   assert.equal(first.historicalBytesPreserved, true);
   assert.equal(first.loadProofValidated, true);

@@ -1,3 +1,4 @@
+import {bindChangeMemory} from './change-memory.js';
 // The walking pilot can lend its physical world to one fresh discovery actor.
 // This binding deliberately lives outside actor data and therefore cannot be
 // mistaken for a saved-world identity or carried into a restored expedition.
@@ -40,6 +41,7 @@ export function bindOzarkWorldAgent(npc, geometry, state) {
   if (bound && bound !== geometry) throw new TypeError('Ozark agent is already bound to another physical world');
   worlds.set(npc, geometry);
   persistentWorlds.add(npc);
+  bindChangeMemory(npc,state);
   // Engine-only capability. It conveys a supplied motor menu, never a target,
   // position, nutritional value, or recipe to the actor.
   const mode = ozarkWorldMode(state);

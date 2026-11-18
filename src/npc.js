@@ -1,3 +1,4 @@
+import {observeChangeMemory,finishChangeMemory,interruptChangeMemory} from './change-memory.js';
 import {observeConnectedSequence,retireConnectedSequence,noteConnectedSequenceRequest,interruptConnectedSequence} from './connected-sequence.js';
 import {observeMotorRecallSource,retireMotorRecallHistory} from './motor-recall.js';
 import { retireObservedProducerSource,retireProducerHistory } from './producer-inquiry.js';
@@ -52,6 +53,7 @@ export function observeNpc(npc,environment={}){
   npc.sensation=ozarkAgentWorld(npc)?ozarkAgentSensation(npc,environment):environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
   const observation=perceive(npc,environment);
   for(const object of observation.objects||[]){const identity=lookupEcologyObject(environment.ecology,object.id);retireObservedProcedureSource(npc,object.id,identity,environment);retireObservedProducerSource(npc,object.id,identity,environment);observeMotorRecallSource(npc,object.id,identity,environment);observeConnectedSequence(npc,object.id,identity,environment);}
+  observeChangeMemory(npc,observation,environment,id=>lookupEcologyObject(environment.ecology,id));
   rememberObservation(npc,observation);
   if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:npc.sensation.feltTemperature,experiencedAt:npc.elapsed});
   return observation;
@@ -90,6 +92,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
   finishProcedureMove(npc,active,result);
   finishFoodRunAction(npc,active,request,result);
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
+  finishChangeMemory(npc,active,event.id,result);
   finishMotorEvidence(npc,active,event);
   finishTimeoutRouteEvidence(npc,active,event);
   recordActionCompletion(npc,active,request,result,event);
@@ -173,6 +176,7 @@ export function requestNpcAction(npc,raw,environment={}){
   finally{endActionRequest(npc,scope,result,threw);}
 }
 function requestNpcActionObservedBody(npc,raw,environment={}){
+  interruptChangeMemory(npc);
   noteConnectedSequenceRequest(npc,raw);
   let result;
   try{result=requestNpcActionSequenceBody(npc,raw,environment);return result;}

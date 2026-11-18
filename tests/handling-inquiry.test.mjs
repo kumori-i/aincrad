@@ -1,3 +1,4 @@
+import {normalizeActorChangeMemory} from './fixtures/change-memory-namespace.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
@@ -58,6 +59,7 @@ test('matched selector-only ablation reports actual choice and cost without forc
   const results=[];let before;
   for(const enabled of [false,true]){
     const f=fixture(),snapshot=clone({npc:f.a,source:f.source,target:f.target});
+    normalizeActorChangeMemory(snapshot.npc,f.state);
     if(before)assert.deepEqual(snapshot,before);else before=snapshot;
     const cost=f.a.physiology.totals.metabolizedKcal,at=f.a.elapsed,quantity=f.target.quantity;
     const decision=discoveryDecision(f.a,{handlingCuriosity:enabled});const result=f.finish(f.a,decision.action);
