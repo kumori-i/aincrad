@@ -1,0 +1,44 @@
+name: Motor recall ordinary v1 — approved once
+on: create
+permissions:
+  contents: read
+  actions: read
+jobs:
+  motor-recall-ordinary-v1-once:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'experiments/motor-recall-ordinary-v1-once' && github.ref == 'refs/heads/experiments/motor-recall-ordinary-v1-once' && github.run_attempt == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    concurrency:
+      group: motor-recall-ordinary-v1-once
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 0a4eb36b3eaa7fa469a6da9257df588689aa046b
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Synthetic contracts only, no ordinary simulation
+        working-directory: candidate
+        run: node --test tests/motor-recall-ordinary-v1*.test.mjs
+      - name: One continuous unforced pair
+        working-directory: candidate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/motor-recall-ordinary-v1-run.mjs --execute-once
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motor-recall-ordinary-v1-once-linux-${{ runner.arch }}
+          path: candidate/test-results/motor-recall-ordinary-v1/
+          if-no-files-found: warn
+          retention-days: 30
