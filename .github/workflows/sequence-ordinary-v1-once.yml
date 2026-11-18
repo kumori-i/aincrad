@@ -1,0 +1,48 @@
+name: Sequence ordinary v1 — approved once
+on: create
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sequence-pair:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'experiments/sequence-ordinary-v1-once' && github.ref == 'refs/heads/experiments/sequence-ordinary-v1-once' && github.run_attempt == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 135
+    strategy:
+      fail-fast: false
+      matrix:
+        pair: [0, 1]
+    concurrency:
+      group: sequence-ordinary-v1-pair-${{ matrix.pair }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 83b03dbb527c93b39e07263a46b37ad29141cf5b
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Synthetic protocol contracts only
+        working-directory: candidate
+        run: node --test tests/sequence-ordinary-v1*.test.mjs
+      - name: One continuous pair, refuses unfrozen seeds
+        working-directory: candidate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/sequence-ordinary-v1-run.mjs --execute-once ${{ matrix.pair }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sequence-ordinary-v1-pair-${{ matrix.pair }}-linux-${{ runner.arch }}
+          path: candidate/test-results/sequence-ordinary-v1/
+          if-no-files-found: warn
+          retention-days: 30
