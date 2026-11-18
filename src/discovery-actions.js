@@ -1,8 +1,11 @@
-import { fundNpcEffort, npcWorkAllowance, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
+import { receiveProducerAction,retireProducerHistory,retireProducerCustody,consumeProducerRequest,bindProducerAction } from './producer-inquiry.js';
+import { receiveProcedureAction, retireProcedureHistory, retireProcedureCustody, procedureWalkingContext } from './procedure-cycle.js';
+import { fundNpcEffort, npcWorkAllowance, captureNpcRunDeadline, expireNpcRun, procedureRunForActive } from './npc-effort-funding.js';
 import { noteFoodRunPaid } from './food-run-observer.js';
 import { registerMaterialCompletion } from './discovery-completion.js';
 import { publishConsumption } from './consumption-events.js';
 import { recordAquaticCaptureFailure } from './aquatic-ecology.js';
+import { bodySignals } from './interoception.js';
 import { CONFIG } from './config.js';
 import { ozarkAgentWorld,ozarkFiniteAquaticAgent } from './ozark-agent-world.js';
 import { DISCOVERY_RULES } from './discovery-config.js';
@@ -10,7 +13,7 @@ import { objectId } from './discovery-state.js';
 import { distance } from './world.js';
 import { actorLineOfSight } from './perception.js';
 import { lookupEcologyObject,describeEcologyObject,interactEcologyObject,consumeEcologyMaterial,captureEcologyFish,preflightEcologyFishCapture,transferEcologyMaterial } from './ecology.js';
-import { ingestMaterial,exertPhysiology,isSleeping } from './biology.js';
+import { procedureIngestionIdentity,ingestMaterial,exertPhysiology,isSleeping } from './biology.js';
 import { rememberDirectDiscoveryObject,recentDiscoveryAim } from './discovery.js';
 
 export function primitiveDuration(npc,type){
@@ -22,6 +25,27 @@ const ticking = new WeakSet(), settled = new WeakSet();
 const actionActors = new WeakMap();
 const paidWork = new WeakMap();
 const completedWork = new WeakMap(), successfulActions = new WeakMap();
+const producerActions=new WeakMap();
+export function takeProducerActionWitness(npc,token){const p=producerActions.get(token);producerActions.delete(token);return p?.actor===npc&&p.epoch===npc.epoch&&p.memory===npc.memory&&p.discovery===npc.discovery&&p.physiology===npc.physiology&&p.environment.ecology===p.ecology?p:null;}
+const procedureActions=new WeakMap(), procedureIssued=new WeakSet();
+export function takeProcedureActionWitness(npc,token){
+  const p=procedureActions.get(token);procedureActions.delete(token);
+  return p?.actor===npc&&p.epoch===npc.epoch&&p.memory===npc.memory&&p.discovery===npc.discovery&&p.physiology===npc.physiology&&p.environment.ecology===p.ecology? p:null;
+}
+function procedureAction(npc,active,environment,result,ingestion=null){
+  if(procedureIssued.has(active))return;
+  const work=paidWork.get(active);
+  if(!work||npc.active!==active||actionActors.get(active)!==npc)return;
+  if(work.epoch!==npc.epoch||work.memory!==npc.memory||work.discovery!==npc.discovery||work.physiology!==npc.physiology||work.environment!==environment||work.ecology!==environment.ecology||work.scene!==npc.scene||work.world!==ozarkAgentWorld(npc)){procedureIssued.add(active);retireProcedureHistory(npc);retireProducerHistory(npc);return;}
+  const requestChanged=work.request.type!==active.request.type||work.request.targetId!==active.request.targetId;
+  procedureIssued.add(active);
+  const token=Object.freeze({});
+  const proof=Object.freeze({active,actor:npc,epoch:npc.epoch,memory:npc.memory,discovery:npc.discovery,physiology:npc.physiology,environment,ecology:environment.ecology,
+    run:procedureRunForActive(npc,active),motorContext:work.motorContext,needs:work.needs,effort:npc.physiology.fatigue>work.fatigue||npc.physiology.stamina<work.stamina?'rising':'steady',uncertain:!!work.procedureUncertain||requestChanged||work.worked+1e-8<work.seconds||work.motorContext!==procedureWalkingContext(npc),type:work.request.type,targetId:work.request.targetId,sourceIdentity:work.sourceIdentity,identityChanged:!!work.terminalIdentity&&work.sourceIdentity!==work.terminalIdentity,materialId:result.materialId,materialIdentity:result.materialId?lookupEcologyObject(environment.ecology,result.materialId):work.sourceIdentity,ingestion,ok:!requestChanged&&result.ok===true,at:npc.elapsed,seconds:work.worked,sharing:sharedGrasps.has(active)});
+  procedureActions.set(token,proof);const producerToken=Object.freeze({});producerActions.set(producerToken,proof);receiveProducerAction(npc,producerToken);
+  receiveProcedureAction(npc,token);
+}
+
 const completedInspections = new WeakMap(), issuedInspections = new WeakSet();
 const completedDemonstrations = new WeakMap(), issuedDemonstrations = new WeakSet();
 const indicationPermits = new WeakMap(), indications = new WeakMap();
@@ -130,7 +154,11 @@ export function discoveryActionPaidSeconds(npc,active){
   return active&&actionActors.get(active)===npc?paidWork.get(active)?.worked||completedWork.get(active)?.worked||0:0;
 }
 export function retireDiscoveryAction(npc,active){
-  if(active&&actionActors.get(active)===npc)settled.add(active);
+  if(active&&actionActors.get(active)===npc){
+    const work=paidWork.get(active);
+    if(work)procedureAction(npc,active,work.environment,{ok:false,code:'RETIRED'});
+    settled.add(active);
+  }
 }
 // Runtime-only witnesses. Restarted/copied active commands have no measured
 // work witness, and neither old receipts nor primitive constants can supply one.
@@ -157,6 +185,7 @@ const done=(complete,npc,request,result,active)=>{
   const handling=takeDiscoveryActionFeedback(npc,active);
   if(handling)result={...result,handling};
   const work=active&&actionActors.get(active)===npc?paidWork.get(active):null;
+  if(work&&result.ok!==true)procedureAction(npc,active,work.environment,result);
   const identityIntact=work&&work.epoch===npc.epoch&&work.discovery===npc.discovery&&work.physiology===npc.physiology,completedAt=npc.elapsed;
   const completion=complete?complete(npc,request,result,undefined,active?.startPosition,active?.startScene):result;
   const sameOwner=identityIntact&&work.epoch===npc.epoch&&work.discovery===npc.discovery&&work.physiology===npc.physiology&&npc.elapsed===completedAt;
@@ -215,6 +244,7 @@ function sharedCheck(npc,request,environment,sharing){
 }
 /** Physical commands are anatomical operations, never edible-object shortcuts. */
 export function requestDiscoveryAction(npc,raw,environment={},options={}){
+  const producerPermit=consumeProducerRequest(npc,raw);
   const indication=options.indicationAuthority===indicationAuthority?options.indication:null;
   const request=raw&&(DISCOVERY_RULES.allPrimitives.includes(raw.type)||indication&&raw.type==='indicate_object')&&objectId(raw.targetId)?{type:raw.type,targetId:raw.targetId}:null;
   if(!request||request.type==='catch'&&!ozarkFiniteAquaticAgent(npc))return done(options.complete,npc,{type:'observe'},{ok:false,code:'INVALID_PRIMITIVE'});
@@ -228,8 +258,8 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   const seconds=indication?INDICATION_SECONDS:primitiveDuration(npc,request.type),effort=indication?INDICATION_EFFORT:DISCOVERY_RULES.effort[request.type];
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+npcWorkAllowance(seconds,effort),seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   actionActors.set(npc.active,npc);
-  npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active));
-  paidWork.set(npc.active,{epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,seconds,effort,worked:0,elapsed:0,startedAt:npc.elapsed,deadline:npc.active.expiresAt,request:{...request}});
+  npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active),bindProducerAction(npc,producerPermit,npc.active));
+  paidWork.set(npc.active,{motorContext:procedureWalkingContext(npc),needs:Object.freeze({hunger:bodySignals(npc).hunger,energy:bodySignals(npc).energy}),fatigue:npc.physiology.fatigue,stamina:npc.physiology.stamina,scene:npc.scene,world:ozarkAgentWorld(npc),memory:npc.memory,environment,ecology:environment.ecology,sourceIdentity:check.physical,epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,seconds,effort,worked:0,elapsed:0,startedAt:npc.elapsed,deadline:npc.active.expiresAt,request:{...request}});
   if(indication)indications.set(npc.active,indication);
   if(options.sharing){options.sharing.request=request;options.sharing.seconds=seconds;sharedGrasps.set(npc.active,options.sharing);}
   if(request.type==='catch')catchWitnesses.set(npc.active,{actor:npc,discovery:npc.discovery,physiology:npc.physiology,
@@ -265,12 +295,13 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     const requested=Math.min(dt,remaining,Math.max(0,work.seconds-work.worked));
     let worked;
     try{worked=fundNpcEffort(npc,requested,work.effort,options.exert||exertPhysiology).paidSeconds;}
-    catch(error){settled.add(active);terminal=true;throw error;}
+    catch(error){work.procedureUncertain=true;procedureAction(npc,active,environment,{ok:false,code:'WORK_INTERRUPTED'});settled.add(active);terminal=true;throw error;}
     // A throwing or synchronously cancelling hook cannot certify its current
     // work slice. Prior returned slices remain available to interruption receipts.
     const witness=handlingWitnesses.get(active);
     const valid=npc.active===active&&active.request.type===work.request.type&&active.request.targetId===work.request.targetId&&
       (!witness||witness.physiology===npc.physiology&&witness.discovery===npc.discovery);
+    work.procedureUncertain ||= !valid||work.epoch!==npc.epoch||work.memory!==npc.memory||work.scene!==npc.scene||work.world!==ozarkAgentWorld(npc)||work.environment!==environment||work.ecology!==environment.ecology;
     if(witness&&valid)witness.worked+=worked;
     const captureWitness=catchWitnesses.get(active);
     if(captureWitness&&valid)captureWitness.worked+=worked;
@@ -307,6 +338,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
     const measured=handlingWitnesses.get(active);
     if(sharing&&(!measured||active.seconds!==sharing.seconds||measured.seconds!==sharing.seconds||Math.abs(measured.worked-sharing.seconds)>1e-8)){done(options.complete,npc,request,{ok:false,code:'SHARING_INTERRUPTED'},active);return true;}
     const check=sharing?sharedCheck(npc,request,environment,sharing):allowed(npc,request.targetId,environment,request.type==='inspect_object'||!!indication);
+    if(check.ok)work.terminalIdentity=check.physical;
     if(!check.ok){if(request.type==='catch')recordAquaticCaptureFailure(environment.ecology,{miss:false});done(options.complete,npc,request,{...check,durationSeconds:active.worked},active);return true;}
     if(['grasp','pull','catch'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity){
       if(request.type==='catch')recordAquaticCaptureFailure(environment.ecology,{miss:false});
@@ -342,12 +374,13 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       else {
         const ingestion=material.ingestion;
         result={ok:ingestion.ok===true,code:ingestion.code||'SWALLOWED',delayed:ingestion.delayed===true,...(ingestion.ingestionId?{ingestionId:ingestion.ingestionId}:{}),...(ingestion.ok===true&&material.remaining===false?{finishedMaterial:true}:{})};
-        if(result.ok){publishConsumption(environment.ecology,npc,witnessedSource);npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
+        if(result.ok){procedureAction(npc,active,environment,result,procedureIngestionIdentity(npc,ingestion));publishConsumption(environment.ecology,npc,witnessedSource);npc.discovery.samplesPending[request.targetId]=npc.elapsed;npc.presentation.eatUntil=npc.elapsed+2;}
       }
     }else {
       const response=sharing?transferEcologyMaterial(environment.ecology,request.targetId,sharing.donor,npc):interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02,inventory:npc.inventory.items});
       const materialId=response?.materialId||response?.material?.id;
       result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{}),...(objectId(response?.resultObjectId)?{resultObjectId:response.resultObjectId}:{})};
+      if(result.ok&&sharing){retireProcedureCustody(sharing.donor,request.targetId);retireProducerCustody(sharing.donor,request.targetId);}
       if(result.ok&&result.resultObjectId){
         const object=describeEcologyObject(environment.ecology,result.resultObjectId,{actorId:npc.id});
         if(object)rememberDirectDiscoveryObject(npc,object);
@@ -359,6 +392,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       if(result.ok&&request.type==='pull'&&ozarkFiniteAquaticAgent(npc)){const source=describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id});if(source)rememberDirectDiscoveryObject(npc,source);}
       if(result.ok&&request.type==='release')npc.inventory.items=npc.inventory.items.filter(id=>id!==request.targetId);
     }
+    if(request.type!=='sample'&&result.ok)procedureAction(npc,active,environment,result);
     // Swallowing a final portion may exhaust the globally persisted held material.
     if(!indication)npc.inventory.items=npc.inventory.items.filter(id=>lookupEcologyObject(environment.ecology,id)?.heldBy===npc.id);
     if(request.type==='catch'&&!result.ok)recordAquaticCaptureFailure(environment.ecology,{miss:result.code==='fish_missed'});

@@ -51,3 +51,6 @@ export function expireNpcRun(npc,active,elapsed=npc.elapsed) {
   const owned=admittedRuns.get(active);
   if(owned?.npc===npc&&npc.discovery?.run===owned.run&&elapsed>=owned.deadline){endFoodRun(npc,owned.run,'expired');npc.discovery.run=null;}
 }
+
+// Read-only admission ownership, never reconstructed from a public run pointer.
+export function procedureRunForActive(npc,active){const p=admittedRuns.get(active);return p?.npc===npc?p.run:null;}

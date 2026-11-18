@@ -29,6 +29,17 @@ for(const seam of capacitySeams){
  assert.equal(seam.after.split(capacityContext).length-1,1);
  assert.equal(source.split(seam.after).length-1,1,'one expanded seam in current source');
 }
+// Intent tracking is current policy, not an observer seam. Preserve it in
+// both reconstructed arms without editing the historical seam fixture.
+const intentSeams=seams.filter(seam=>seam.before==='const d=memory(npc),run=d.run;if(!run)return null;');
+assert.equal(intentSeams.length,1,'one historical learned-run admission seam');
+for(const seam of intentSeams){
+ const context='const d=memory(npc),run=d.run;';
+ assert.equal(seam.before.split(context).length-1,1);
+ assert.equal(seam.after.split(context).length-1,1);
+ seam.before=seam.before.replace(context,context+'intendProcedure(npc,run);');
+ seam.after=seam.after.replace(context,context+'intendProcedure(npc,run);');
+}
 assert.ok(seams.some(s=>s.after.includes('markFoodRunChoice')),
   'food-run observation seams remain in the exact policy reconstruction');
 const sha=s=>createHash('sha256').update(s).digest('hex');
@@ -38,12 +49,15 @@ for(const {before,after} of seams.slice().reverse()){
 }
 // Both arms retain the same current policy, including the bounded remembered
 // route detour, urgent pending-source guard, receipt-grounded drink retry and
-// custody-grounded capacity release/approach. This intentional policy change
+// custody-grounded capacity release/approach and personal procedure ordering.
+// The private procedure state and bounded producer-retest inquiry remain
+// identical current-policy dependencies in both observer arms.
+// This intentional policy change
 // remains present in both observer arms.
 // Reverse only the survival and food-run observer seams. This
 // source pin changes when an intentional policy change changes both arms; the
 // frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
-assert.equal(sha(original),'8aab12a6a44eac8edd2699034014381190423e995bcc1260582638791f23f532','exact current policy with observer seams reversed, not a rewritten approximation');
+assert.equal(sha(original),'a6877e6d3b19c04ce6a375f96debbb2eb5dabe7b5c5e7220578fa75506a8a7a1','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}

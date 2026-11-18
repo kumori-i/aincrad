@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
 import { BIOLOGY_RULES,BIOLOGY_PROFILES,simulationSeconds } from '../src/biology-config.js';
-import { createPhysiology,validatePhysiology,projectPhysiology,tickPhysiology,ingestMaterial,canIngestMaterial,ingestWater,exertPhysiology,beginSleep,wakePhysiology,harmPhysiology,isSleeping } from '../src/biology.js';
+import { procedureFeedbackWitness,createPhysiology,validatePhysiology,projectPhysiology,tickPhysiology,ingestMaterial,canIngestMaterial,ingestWater,exertPhysiology,beginSleep,wakePhysiology,harmPhysiology,isSleeping } from '../src/biology.js';
 import { createNpc } from '../src/npc-state.js';
 import { bodySignals,restUnsafe } from '../src/interoception.js';
 import { createEnvironment,tickEnvironment } from '../src/environment.js';
@@ -126,4 +126,25 @@ test('native-step digestive cleanup records tiny unabsorbed calories and water i
     assert.ok(f.totals.discardedKcal>=0&&f.totals.discardedKcal<.001);
     if(dt===1/60)assert.ok(f.totals.discardedKcal>0,'Native steps reproduce the former lost remainder');
   }
+});
+
+test('procedure feedback requires continuous original digestive state, not just row identity',()=>{
+ for(const mutate of [null,item=>{item.absorbedKcal+=100;},item=>{item.toxicity=1;},item=>{item.elapsedHours+=.1;},item=>{item.remainingKcal+=100;}]){
+  const a=actor('human',{availableEnergyKcal:700});
+  ingestMaterial(a,{massGrams:60,energyKcal:80,waterMl:20,digestHours:1},{objectId:'object:42',actionId:7});
+  if(mutate)mutate(a.physiology.stomach[0]);
+  advance(a,1.1);
+  assert.ok(a.physiology.feedback.length>0);
+  assert.equal(a.physiology.feedback.some(event=>procedureFeedbackWitness(a,event)!==null),!mutate);
+ }
+});
+
+test('authentic later discomfort retains the original ingestion identity after sustained feedback',()=>{
+ const a=actor('human',{availableEnergyKcal:700});
+ ingestMaterial(a,{massGrams:60,energyKcal:80,waterMl:0,digestHours:1,toxicity:.05},{objectId:'object:42',actionId:7});
+ advance(a,1.1);
+ const relevant=a.physiology.feedback.filter(event=>['sustained','discomfort'].includes(event.effect));
+ assert.deepEqual(relevant.map(event=>event.effect),['sustained','discomfort']);
+ const proofs=relevant.map(event=>procedureFeedbackWitness(a,event));
+ assert.ok(proofs.every(Boolean));assert.equal(proofs[0].identity,proofs[1].identity);
 });

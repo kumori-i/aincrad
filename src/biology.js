@@ -1,3 +1,13 @@
+// Runtime identities only: restored/copied digestive rows cannot issue new
+// procedure evidence, even when they subsequently produce ordinary feedback.
+const procedureIngestions=new WeakMap(), procedureInputs=new WeakMap(), procedureEffects=new WeakMap();
+const biologicalScope=a=>({actor:a,epoch:a.epoch,physiology:a.physiology,memory:a.memory,discovery:a.discovery});
+const sameBiologicalScope=(a,s)=>s?.actor===a&&s.epoch===a.epoch&&s.physiology===a.physiology&&s.memory===a.memory&&s.discovery===a.discovery;
+export function procedureIngestionIdentity(actor,result){const p=procedureIngestions.get(result);return sameBiologicalScope(actor,p)?p.identity:null;}
+export function procedureFeedbackWitness(actor,event){
+  const p=procedureEffects.get(event);
+  return sameBiologicalScope(actor,p)&&Object.keys(p.effect).every(k=>event[k]===p.effect[k])?Object.freeze({identity:p.identity,...p.effect}):null;
+}
 import { BIOLOGY_RULES as R, BIOLOGY_PROFILES, gameHours } from './biology-config.js';
 
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
@@ -104,12 +114,14 @@ export function ingestMaterial(actor,material,provenance={}){
   const eligibility=canIngestMaterial(actor,material);if(!eligibility.ok)return eligibility;
   const f=ensure(actor);if(material?.nutrition)material={...material,...material.nutrition};const mass=material.massGrams;
   const kcal=clamp(number(material.energyKcal,0),0,50000),water=clamp(number(material.waterMl,0),0,20000),toxicity=clamp(number(material.toxicity??material.hazard,0),0,1);
-  const id=`ingestion:${f.nextId++}`;f.stomach.push({id,objectId:text(provenance.objectId),actionId:actionId(provenance.actionId),provenance:text(provenance.source??provenance.provenance)||'interaction',at:number(provenance.at,number(actor.elapsed,0)),remainingKcal:kcal,remainingWaterMl:water,remainingMassGrams:mass,originalKcal:kcal,originalWaterMl:water,originalMassGrams:mass,absorbedKcal:0,absorbedWaterMl:0,harm:0,digestHours:clamp(number(material.digestHours,2),.05,24),elapsedHours:0,toxicity,feedbackSent:false,waterFeedbackSent:false,sustenanceFeedbackSent:false});
+  const id=`ingestion:${f.nextId++}`;const input={id,objectId:text(provenance.objectId),actionId:actionId(provenance.actionId),provenance:text(provenance.source??provenance.provenance)||'interaction',at:number(provenance.at,number(actor.elapsed,0)),remainingKcal:kcal,remainingWaterMl:water,remainingMassGrams:mass,originalKcal:kcal,originalWaterMl:water,originalMassGrams:mass,absorbedKcal:0,absorbedWaterMl:0,harm:0,digestHours:clamp(number(material.digestHours,2),.05,24),elapsedHours:0,toxicity,feedbackSent:false,waterFeedbackSent:false,sustenanceFeedbackSent:false};f.stomach.push(input);
   f.totals.ingestedKcal+=kcal;f.totals.ingestedWaterMl+=water;
   // Only this committed physical ingestion credits appetite; receipts and loads do not.
   if(f.profile==='human')f.satietyHours=Math.min(R.humanSatietyMaximumHours,f.satietyHours+kcal*R.humanSatietyHoursPerKcal);
   projectPhysiology(actor); // Project committed state without advancing digestion or time.
-  return{ok:true,code:'SWALLOWED',ingestionId:id,delayed:true};
+  const result={ok:true,code:'SWALLOWED',ingestionId:id,delayed:true};
+  const proof={...biologicalScope(actor),identity:Object.freeze({}),input,snapshot:Object.freeze({...input}),objectId:input.objectId,actionId:input.actionId,provenance:input.provenance,id};
+  procedureIngestions.set(result,proof);procedureInputs.set(input,proof);return result;
 }
 
 /** Water may be drunk from a validated physical container; it does not add calories. */
@@ -128,6 +140,9 @@ export function exertPhysiology(actor,seconds,effort=1){
 function digest(actor,hours){
   const f=ensure(actor),p=profileOf(f.profile);
   for(const item of f.stomach){
+    const input=procedureInputs.get(item);
+    if(input&&(!sameBiologicalScope(actor,input)||Object.keys(input.snapshot).some(k=>item[k]!==input.snapshot[k])))procedureInputs.delete(item);
+    const authentic=procedureInputs.get(item);
     const remainingTime=Math.max(.001,item.digestHours-item.elapsedHours),portion=Math.min(1,hours/remainingTime),kcal=item.remainingKcal*portion,water=item.remainingWaterMl*portion,mass=item.remainingMassGrams*portion;
     item.remainingKcal-=kcal;item.remainingWaterMl-=water;item.remainingMassGrams-=mass;item.elapsedHours+=hours;
     const space=p.availableCapacityKcal-f.availableEnergyKcal,available=Math.min(space,kcal),stored=Math.min(p.storedCapacityKcal-f.storedEnergyKcal,kcal-available);
@@ -140,11 +155,13 @@ function digest(actor,hours){
     // Early water relief cannot suppress a later, actually absorbed energy effect.
     const effect=harmful&&!item.feedbackSent?'discomfort':!item.feedbackSent&&helpful&&!item.sustenanceFeedbackSent?'sustained':!item.feedbackSent&&wet&&!item.waterFeedbackSent?'water relief':finished&&!item.feedbackSent&&!item.waterFeedbackSent&&!item.sustenanceFeedbackSent?'no noticeable change':null;
     if(effect&&item.elapsedHours+1e-8>=Math.min(R.feedbackDelayHours,item.digestHours)){
-      f.feedback.push({id:`feedback:${f.nextId++}`,ingestionId:item.id,at:number(actor.elapsed,0),objectId:item.objectId,actionId:item.actionId,provenance:item.provenance,effect,hunger:effect==='sustained'?'easing':'unchanged',thirst:wet?'easing':'unchanged',energy:effect==='sustained'?'easing':'unchanged',pain:effect==='discomfort'?(item.toxicity>.4?'hurting':'aching'):'none'});
+      const feedback={id:`feedback:${f.nextId++}`,ingestionId:item.id,at:number(actor.elapsed,0),objectId:item.objectId,actionId:item.actionId,provenance:item.provenance,effect,hunger:effect==='sustained'?'easing':'unchanged',thirst:wet?'easing':'unchanged',energy:effect==='sustained'?'easing':'unchanged',pain:effect==='discomfort'?(item.toxicity>.4?'hurting':'aching'):'none'};f.feedback.push(feedback);
+      if(authentic&&sameBiologicalScope(actor,input)&&input.id===item.id&&input.objectId===item.objectId&&input.actionId===item.actionId&&input.provenance===item.provenance)procedureEffects.set(feedback,{...biologicalScope(actor),identity:input.identity,effect:Object.freeze({...feedback})});
       if(f.feedback.length>R.maxFeedback)f.feedback.splice(0,f.feedback.length-R.maxFeedback);
       if(effect==='sustained')item.sustenanceFeedbackSent=true;if(wet)item.waterFeedbackSent=true;if(effect==='discomfort'||effect==='no noticeable change')item.feedbackSent=true;
       actor.feelings??={};if(effect==='sustained'||effect==='water relief')actor.feelings.relief=Math.max(number(actor.feelings.relief,0),.2);
     }
+    if(authentic)authentic.snapshot=Object.freeze({...item});
   }
   f.stomach=f.stomach.filter(v=>{
     if(v.remainingMassGrams>.001||v.remainingKcal>.001||v.remainingWaterMl>.001)return true;
