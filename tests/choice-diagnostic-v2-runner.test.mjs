@@ -11,7 +11,10 @@ import {analyzeChoiceFiles} from '../scripts/choice-diagnostic-v2-analyze-files.
 const temp=fn=>{const dir=realpathSync(mkdtempSync(join(tmpdir(),'choice-v2-test-')));try{return fn(dir);}finally{rmSync(dir,{recursive:true,force:true});}};
 const env=()=>({GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'kumori-i/aincrad',GITHUB_EVENT_NAME:'create',GITHUB_REF:'refs/heads/'+P.activationRef,GITHUB_RUN_ATTEMPT:'1',GITHUB_WORKFLOW:P.workflow,GITHUB_SHA:'a'.repeat(40),GITHUB_RUN_ID:'123',GITHUB_TOKEN:'never-in-child'});
 test('exact source/hash preflight and arm context reject before any simulation import',()=>{
- assert.equal(sourceFingerprint(resolve('.')),P.runtimeSource);assert.equal(harnessHash('.'),sha256(JSON.stringify(harnessManifest('.'))));assert.equal(P.seed,78217);assert.equal(P.steps,72000);
+ assert.equal(P.runtimeSource,'a4f39099b935133fd959541f9896aa3f34cdd7840b9d876f6d3ea9f94dd86412');
+ // Frozen arm refuses the changed runtime before its started marker or dynamic runtime imports.
+ assert.notEqual(sourceFingerprint(resolve('.')),P.runtimeSource);
+ temp(dir=>{const tag=join(dir,'off-78217'),r=spawnSync(process.execPath,['scripts/choice-diagnostic-v2-arm.mjs',resolve('.'),tag,'off',P.runtimeSource,harnessHash('.')],{env:{...process.env,...env()},encoding:'utf8'});assert.notEqual(r.status,0);assert.match(r.stderr,/AssertionError/);assert.match(r.stderr,/choice-diagnostic-v2-arm.mjs:12/);assert.equal(existsSync(tag+'.started.json'),false);});assert.equal(harnessHash('.'),sha256(JSON.stringify(harnessManifest('.'))));assert.equal(P.seed,78217);assert.equal(P.steps,72000);
  const args=['/source','/out/off-78217','off',P.runtimeSource,'b'.repeat(64)];assert.equal(validateChoiceArm(args,env()).mode,'off');
  assert.equal(validateChoiceArm(['/source','/out/on-78217','on',P.runtimeSource,'b'.repeat(64),'c'.repeat(64)],env()).mode,'on');
  for(const key of Object.keys(env()).filter(k=>k!=='GITHUB_TOKEN'))assert.throws(()=>validateChoiceArm(args,{...env(),[key]:'wrong'}));

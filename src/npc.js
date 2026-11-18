@@ -1,3 +1,4 @@
+import {observeMotorRecallSource,retireMotorRecallHistory} from './motor-recall.js';
 import { retireObservedProducerSource,retireProducerHistory } from './producer-inquiry.js';
 import { lookupEcologyObject } from './ecology.js';
 import { receiveProcedureMovement, retireProcedureHistory, retireObservedProcedureSource, procedureWalkingContext } from './procedure-cycle.js';
@@ -49,7 +50,7 @@ export function observeNpc(npc,environment={}){
   if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[]};
   npc.sensation=ozarkAgentWorld(npc)?ozarkAgentSensation(npc,environment):environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
   const observation=perceive(npc,environment);
-  for(const object of observation.objects||[]){const identity=lookupEcologyObject(environment.ecology,object.id);retireObservedProcedureSource(npc,object.id,identity,environment);retireObservedProducerSource(npc,object.id,identity,environment);}
+  for(const object of observation.objects||[]){const identity=lookupEcologyObject(environment.ecology,object.id);retireObservedProcedureSource(npc,object.id,identity,environment);retireObservedProducerSource(npc,object.id,identity,environment);observeMotorRecallSource(npc,object.id,identity,environment);}
   rememberObservation(npc,observation);
   if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:npc.sensation.feltTemperature,experiencedAt:npc.elapsed});
   return observation;
@@ -61,7 +62,7 @@ export function takeProcedureMovementWitness(actor,token){const p=procedureMoveT
 function finishProcedureMove(npc,active,result){
   const p=procedureMoves.get(active);procedureMoves.delete(active);
   if(!p||p.actor!==npc)return;
-  if(p.epoch!==npc.epoch||p.memory!==npc.memory||p.discovery!==npc.discovery||p.physiology!==npc.physiology||p.environment.ecology!==p.ecology||p.scene!==npc.scene||p.world!==ozarkAgentWorld(npc)){retireProcedureHistory(npc);retireProducerHistory(npc);return;}
+  if(p.epoch!==npc.epoch||p.memory!==npc.memory||p.discovery!==npc.discovery||p.physiology!==npc.physiology||p.environment.ecology!==p.ecology||p.scene!==npc.scene||p.world!==ozarkAgentWorld(npc)){retireProcedureHistory(npc);retireProducerHistory(npc);retireMotorRecallHistory(npc);return;}
   const requestChanged=active.request.type!=='move'||active.request.target?.x!==p.target.x||active.request.target?.y!==p.target.y;
   if(!(p.seconds>0)&&result.ok===true&&!requestChanged&&!p.contextChanged)return;
   const token=Object.freeze({});procedureMoveTokens.set(token,Object.freeze({...p,run:procedureRunForActive(npc,active),at:npc.elapsed,ok:!requestChanged&&result.ok===true,code:result.code,contextChanged:requestChanged||p.contextChanged||p.context!==procedureWalkingContext(npc)}));receiveProcedureMovement(npc,token);

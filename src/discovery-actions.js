@@ -1,3 +1,4 @@
+import {receiveMotorRecallWitness,retireMotorRecallHistory,retireMotorRecallSource,consumeMotorRecallRequest,bindMotorRecallAction,motorRecallPermitValid,motorRecallActiveValid} from './motor-recall.js';
 import { receiveProducerAction,retireProducerHistory,retireProducerCustody,consumeProducerRequest,bindProducerAction } from './producer-inquiry.js';
 import { receiveProcedureAction, retireProcedureHistory, retireProcedureCustody, procedureWalkingContext } from './procedure-cycle.js';
 import { fundNpcEffort, npcWorkAllowance, captureNpcRunDeadline, expireNpcRun, procedureRunForActive } from './npc-effort-funding.js';
@@ -25,6 +26,8 @@ const ticking = new WeakSet(), settled = new WeakSet();
 const actionActors = new WeakMap();
 const paidWork = new WeakMap();
 const completedWork = new WeakMap(), successfulActions = new WeakMap();
+const motorRecallWitnesses=new WeakMap();
+export function takeMotorRecallWitness(n,token){const p=motorRecallWitnesses.get(token);motorRecallWitnesses.delete(token);return p?.actor===n&&p.epoch===n.epoch&&p.memory===n.memory&&p.discovery===n.discovery&&p.physiology===n.physiology&&p.environment.ecology===p.ecology?p:null;}
 const producerActions=new WeakMap();
 export function takeProducerActionWitness(npc,token){const p=producerActions.get(token);producerActions.delete(token);return p?.actor===npc&&p.epoch===npc.epoch&&p.memory===npc.memory&&p.discovery===npc.discovery&&p.physiology===npc.physiology&&p.environment.ecology===p.ecology?p:null;}
 const procedureActions=new WeakMap(), procedureIssued=new WeakSet();
@@ -36,13 +39,14 @@ function procedureAction(npc,active,environment,result,ingestion=null){
   if(procedureIssued.has(active))return;
   const work=paidWork.get(active);
   if(!work||npc.active!==active||actionActors.get(active)!==npc)return;
-  if(work.epoch!==npc.epoch||work.memory!==npc.memory||work.discovery!==npc.discovery||work.physiology!==npc.physiology||work.environment!==environment||work.ecology!==environment.ecology||work.scene!==npc.scene||work.world!==ozarkAgentWorld(npc)){procedureIssued.add(active);retireProcedureHistory(npc);retireProducerHistory(npc);return;}
+  if(work.epoch!==npc.epoch||work.memory!==npc.memory||work.discovery!==npc.discovery||work.physiology!==npc.physiology||work.environment!==environment||work.ecology!==environment.ecology||work.scene!==npc.scene||work.world!==ozarkAgentWorld(npc)){procedureIssued.add(active);retireProcedureHistory(npc);retireProducerHistory(npc);retireMotorRecallHistory(npc);return;}
   const requestChanged=work.request.type!==active.request.type||work.request.targetId!==active.request.targetId;
   procedureIssued.add(active);
   const token=Object.freeze({});
   const proof=Object.freeze({active,actor:npc,epoch:npc.epoch,memory:npc.memory,discovery:npc.discovery,physiology:npc.physiology,environment,ecology:environment.ecology,
     run:procedureRunForActive(npc,active),motorContext:work.motorContext,needs:work.needs,effort:npc.physiology.fatigue>work.fatigue||npc.physiology.stamina<work.stamina?'rising':'steady',uncertain:!!work.procedureUncertain||requestChanged||work.worked+1e-8<work.seconds||work.motorContext!==procedureWalkingContext(npc),type:work.request.type,targetId:work.request.targetId,sourceIdentity:work.sourceIdentity,identityChanged:!!work.terminalIdentity&&work.sourceIdentity!==work.terminalIdentity,materialId:result.materialId,materialIdentity:result.materialId?lookupEcologyObject(environment.ecology,result.materialId):work.sourceIdentity,ingestion,ok:!requestChanged&&result.ok===true,at:npc.elapsed,seconds:work.worked,sharing:sharedGrasps.has(active)});
   procedureActions.set(token,proof);const producerToken=Object.freeze({});producerActions.set(producerToken,proof);receiveProducerAction(npc,producerToken);
+  const motorToken=Object.freeze({});motorRecallWitnesses.set(motorToken,Object.freeze({...proof,code:result.code}));receiveMotorRecallWitness(npc,motorToken);
   receiveProcedureAction(npc,token);
 }
 
@@ -244,13 +248,14 @@ function sharedCheck(npc,request,environment,sharing){
 }
 /** Physical commands are anatomical operations, never edible-object shortcuts. */
 export function requestDiscoveryAction(npc,raw,environment={},options={}){
-  const producerPermit=consumeProducerRequest(npc,raw);
+  const producerPermit=consumeProducerRequest(npc,raw),motorPermit=consumeMotorRecallRequest(npc,raw);
   const indication=options.indicationAuthority===indicationAuthority?options.indication:null;
   const request=raw&&(DISCOVERY_RULES.allPrimitives.includes(raw.type)||indication&&raw.type==='indicate_object')&&objectId(raw.targetId)?{type:raw.type,targetId:raw.targetId}:null;
   if(!request||request.type==='catch'&&!ozarkFiniteAquaticAgent(npc))return done(options.complete,npc,{type:'observe'},{ok:false,code:'INVALID_PRIMITIVE'});
   if(npc.lifecycle!=='AWAKE'||isSleeping(npc))return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   const check=options.sharing?sharedCheck(npc,request,environment,options.sharing):allowed(npc,request.targetId,environment,request.type==='inspect_object'||!!indication);if(!check.ok)return done(options.complete,npc,request,check);
+  if(!motorRecallPermitValid(npc,motorPermit,check.physical,environment))return done(options.complete,npc,request,{ok:false,code:'MOTOR_RECALL_STALE'});
   if(['sample','release'].includes(request.type)&&check.physical.heldBy!==npc.id)return done(options.complete,npc,request,{ok:false,code:'NOT_HELD'});
   if(['grasp','pull','catch'].includes(request.type)&&(npc.inventory.items?.length||0)>=DISCOVERY_RULES.capacity)return done(options.complete,npc,request,{ok:false,code:'HANDS_FULL'});
   const aim=request.type==='catch'?recentDiscoveryAim(npc,request.targetId):null;
@@ -258,7 +263,7 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   const seconds=indication?INDICATION_SECONDS:primitiveDuration(npc,request.type),effort=indication?INDICATION_EFFORT:DISCOVERY_RULES.effort[request.type];
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+npcWorkAllowance(seconds,effort),seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   actionActors.set(npc.active,npc);
-  npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active),bindProducerAction(npc,producerPermit,npc.active));
+  npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active),bindProducerAction(npc,producerPermit,npc.active),bindMotorRecallAction(npc,motorPermit,npc.active,check.physical,environment));
   paidWork.set(npc.active,{motorContext:procedureWalkingContext(npc),needs:Object.freeze({hunger:bodySignals(npc).hunger,energy:bodySignals(npc).energy}),fatigue:npc.physiology.fatigue,stamina:npc.physiology.stamina,scene:npc.scene,world:ozarkAgentWorld(npc),memory:npc.memory,environment,ecology:environment.ecology,sourceIdentity:check.physical,epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,seconds,effort,worked:0,elapsed:0,startedAt:npc.elapsed,deadline:npc.active.expiresAt,request:{...request}});
   if(indication)indications.set(npc.active,indication);
   if(options.sharing){options.sharing.request=request;options.sharing.seconds=seconds;sharedGrasps.set(npc.active,options.sharing);}
@@ -279,6 +284,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
   try{
     const work=paidWork.get(active);
     if(!work)return false;
+    if(!motorRecallActiveValid(npc,active,()=>lookupEcologyObject(environment.ecology,work.request.targetId),environment)){settled.add(active);terminal=true;done(options.complete,npc,work.request,{ok:false,code:'MOTOR_RECALL_STALE',durationSeconds:work.worked},active);return true;}
     const indication=indications.get(active);
     if(indication&&!indicationValid(npc,active,indication,environment)){
       settled.add(active);terminal=true;
@@ -380,7 +386,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       const response=sharing?transferEcologyMaterial(environment.ecology,request.targetId,sharing.donor,npc):interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02,inventory:npc.inventory.items});
       const materialId=response?.materialId||response?.material?.id;
       result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{}),...(objectId(response?.resultObjectId)?{resultObjectId:response.resultObjectId}:{})};
-      if(result.ok&&sharing){retireProcedureCustody(sharing.donor,request.targetId);retireProducerCustody(sharing.donor,request.targetId);}
+      if(result.ok&&sharing){retireProcedureCustody(sharing.donor,request.targetId);retireProducerCustody(sharing.donor,request.targetId);retireMotorRecallSource(sharing.donor,request.targetId);}
       if(result.ok&&result.resultObjectId){
         const object=describeEcologyObject(environment.ecology,result.resultObjectId,{actorId:npc.id});
         if(object)rememberDirectDiscoveryObject(npc,object);
