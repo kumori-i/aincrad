@@ -408,3 +408,24 @@ test('command contract only: macOS prepared and post-submit evidence surrounds e
  const submitted=calls.findIndex(c=>c.file==='osascript'&&c.args[3]==='submit');assert.ok(calls.findIndex(c=>c.args.includes(options.screenshot+'.path-entered.png'))<submitted);assert.ok(calls.findIndex(c=>c.args.includes(options.screenshot+'.after-submit.png'))>submitted);
  const script=calls.find(c=>c.file==='osascript').args[1];for(const text of ['value of navigationField as text','count sheets of saveSheet','value of filenameField as text','enabled of item 1 of saveButtons','operation is "submit"'])assert.ok(script.includes(text));assert.ok(!script.includes('delay 0.8'));assert.ok(!script.includes('delay 0.5'));
 });
+
+test('command contract only: materialized bounded AX lists avoid nested entire-contents specifier iteration',async()=>{
+ const {calls,options}=harness('darwin');await driveNativeSaveDialog(options);
+ const script=calls.find(c=>c.file==='osascript').args[1];
+ assert.doesNotMatch(script,/repeat with elementRef in entire contents/);
+ for(const [list,target]of [['navigationDescendants','navigationSheet'],['filenameDescendants','saveSheet'],['submitDescendants','saveSheet']]){
+  const materialize=script.indexOf('set '+list+' to entire contents of '+target),bound=script.indexOf('(count '+list+') > 512'),loop=script.indexOf('repeat with elementRef in '+list);
+  assert.ok(materialize>=0&&materialize<bound&&bound<loop);
+ }
+});
+
+test('command contract only: failed macOS navigation retains a read-only current hierarchy without more input',async()=>{
+ const {calls,options}=harness('darwin'),run=options.run;let failed=false,record;
+ await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{
+  if(file==='osascript'&&args[3]==='save'){failed=true;calls.push({file,args});throw Object.assign(new Error('nested specifier failure'),{code:1,stderr:'type specifier (-1700)'});}
+  if(failed&&file==='osascript'&&args[3]==='inspect'){calls.push({file,args});return {stdout:'retained nested GoTo hierarchy'};}
+  return run(file,args,settings);
+ },write:async(_p,s)=>{record=JSON.parse(s);}}),/type specifier/);
+ assert.equal(record.failureAccessibilityHierarchy,'retained nested GoTo hierarchy');
+ const input=calls.findIndex(c=>c.file==='osascript'&&c.args[3]==='save');assert.deepEqual(calls.slice(input+1).filter(c=>c.file==='osascript').map(c=>c.args[3]),['inspect']);
+});

@@ -79,7 +79,9 @@ const macScript = `on run argv
         if navigationSheet is missing value then error "GoTo sheet did not become ready after input"
         set navigationFields to {}
         set goButtons to {}
-        repeat with elementRef in entire contents of navigationSheet
+        set navigationDescendants to entire contents of navigationSheet
+        if (count navigationDescendants) > 512 then error "GoTo hierarchy exceeds bounded inspection limit"
+        repeat with elementRef in navigationDescendants
           set e to contents of elementRef
           if role of e is "AXTextField" or role of e is "AXComboBox" then set end of navigationFields to e
           if role of e is "AXButton" and name of e is "Go" then set end of goButtons to e
@@ -101,7 +103,9 @@ const macScript = `on run argv
         if not navigated then error "GoTo navigation did not dismiss; no Save submitted"
         -- Reacquire rather than trust a pre-navigation AX field reference.
         set namedFields to {}
-        repeat with elementRef in entire contents of saveSheet
+        set filenameDescendants to entire contents of saveSheet
+        if (count filenameDescendants) > 512 then error "Post-navigation hierarchy exceeds bounded inspection limit"
+        repeat with elementRef in filenameDescendants
           set e to contents of elementRef
           if role of e is "AXTextField" then
             if name of e contains "Save As" or description of e contains "Save As" then set end of namedFields to e
@@ -114,7 +118,9 @@ const macScript = `on run argv
       if (count sheets of saveSheet) is not 0 then error "Unexpected nested sheet; no Save submitted"
       if (value of filenameField as text) is not (item 3 of argv) then error "Filename readback mismatch; no Save submitted"
       set saveButtons to {}
-      repeat with elementRef in entire contents of saveSheet
+      set submitDescendants to entire contents of saveSheet
+      if (count submitDescendants) > 512 then error "Pre-submit hierarchy exceeds bounded inspection limit"
+      repeat with elementRef in submitDescendants
         set e to contents of elementRef
         if role of e is "AXButton" and name of e is "Save" then set end of saveButtons to e
       end repeat
@@ -351,6 +357,11 @@ export async function driveNativeSaveDialog({pid, action, destination, screensho
   return {platform,pid,action,windowId,screenshot,bytes:png.length,realOsDialog:true,semanticVisualReview:'required'};
   }catch(error){
     if(platform==='darwin'){diagnostics.failureScreenshot=screenshot+'.failure.png';try{await command('screencapture',['-x',diagnostics.failureScreenshot]);}catch{}}
+    if(platform==='darwin'&&action==='save'&&diagnostics.commands.some(c=>c.file==='osascript'&&['save','verify','submit'].includes(c.args[3]))){
+      // Read only: preserve the actual post-input nested hierarchy for a later
+      // evidence-backed selector repair. Never act on this failure snapshot.
+      try{diagnostics.failureAccessibilityHierarchy=(await command('osascript',['-e',macScript,String(pid),'inspect'])).stdout;}catch(readError){diagnostics.failureAccessibilityError=String(readError.message);}
+    }
     diagnostics.status='failed';diagnostics.error=String(error.stack||error);
     await write(screenshot+'.dialog.json',JSON.stringify(diagnostics,null,2)).catch(writeError=>{error.diagnosticsWriteError=String(writeError);});
     throw error;
