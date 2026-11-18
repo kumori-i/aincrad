@@ -1,3 +1,4 @@
+import { forwardProducerRequest } from './producer-inquiry.js';
 import { bindCommunicationMode, defineCommunicationMode, legacyCommunication } from './communication-mode.js';
 import { namingProposal, beginNamingProposal, acceptNamingProposal, objectName } from './category-names.js';
 import { forwardNpcRunTravel } from './npc-effort-funding.js';
@@ -176,7 +177,7 @@ export class NpcController {
     this.perform(decision.action);if(n.active&&['food','water','thermal','rest'].includes(decision.need))n.active.goal=decision.need;
   }
   perform(raw){
-    const n=this.npc,action=cognitiveAction(n,raw);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
+    const n=this.npc,action=cognitiveAction(n,raw);forwardProducerRequest(n,raw,action);if(!action)return requestNpcAction(n,{type:'observe',duration:-1},this.environment);
     normalizeFoodRunChoice(n,raw,action);
     if([...FOOD_SHARING_ACTIONS,'say','ask_human','journal_reply','write_note','read_note'].includes(action.type)){const result=this.social?.action?.(n,{...action,offline:raw.model!==true&&(this.provider.kind==='local-learner'||raw.offline===true),...(raw.model===true?{model:true}:{})})||{ok:false,code:'SOCIAL_UNAVAILABLE'};learnOutcome(n,action,result,policyContext(n),{...n.position});n.nextDecisionAt=n.elapsed+.65;return result;}
     forwardNpcRunTravel(n,raw,action);

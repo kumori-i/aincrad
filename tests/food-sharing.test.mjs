@@ -11,6 +11,7 @@ import { lookupEcologyObject, consumeEcologyMaterial } from '../src/ecology.js';
 import { retainedProofIntegrityError } from '../src/proof-retention.js';
 import { recordEvent } from '../src/npc-memory.js';
 import { processDiscoveryFeedback } from '../src/discovery.js';
+import { procedureCycleStatus } from '../src/procedure-cycle.js';
 import { tickDiscoveryAction } from '../src/discovery-actions.js';
 
 const geometry=createOzarkWorldGeometry();
@@ -202,4 +203,17 @@ test('grounded withdrawal revokes consent and bounded observer gestures cannot r
  assert.equal(lookupEcologyObject(e.ecology,item).heldBy,a.id);
  assert.equal(social.foodSharing.gestures().at(-1).gesture,'withdraw');
  social.dispose();assert.deepEqual(social.foodSharing.gestures(),[]);
+});
+
+test('authentic handoff retires donor pending procedure custody before delayed outcome',()=>{
+ const f=fixture();
+ assert.equal(f.finish(f.a,{type:'sample',targetId:f.item}).ok,true);
+ assert.equal(procedureCycleStatus(f.a).pending,1);
+ const offerId=f.offer();
+ assert.equal(f.controllers[1].perform({type:'accept_food',offerId}).code,'ACTION_STARTED');
+ f.advance(3);
+ assert.equal(lookupEcologyObject(f.e.ecology,f.item).heldBy,f.b.id);
+ assert.equal(procedureCycleStatus(f.a).pending,0);
+ f.advance(100);processDiscoveryFeedback(f.a);
+ assert.equal(procedureCycleStatus(f.a).methods,0);
 });

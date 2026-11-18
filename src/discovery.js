@@ -1,3 +1,5 @@
+import { producerExperiment,reassessProducerInquiries,PRODUCER_QUESTION } from './producer-inquiry.js';
+import { orderProcedureCandidates, intendProcedure, reassessProcedureOutcomes } from './procedure-cycle.js';
 import { deferDrinkRetry } from './ingestion-retry.js';
 import { timeoutRouteBlocks } from './timeout-route-evidence.js';
 import { pendingSampleRetention } from './pending-sample-retention.js';
@@ -115,6 +117,7 @@ function conditionMatches(proof,effect){
   return proof?.type==='condition'&&Number.isFinite(proof.at)&&proof.at>=effect.at&&proof.details.code==='DISCOVERY_EFFECT'&&f?.id===effect.id&&f.ingestionId===effect.ingestionId&&f.actionId===effect.actionId&&f.effect===effect.effect&&f.objectId===effect.objectId&&f.source==='experienced'&&f.at===effect.at;
 }
 export function processDiscoveryFeedback(npc,{recordEffect=null,foodLearning=true}={}){
+  reassessProcedureOutcomes(npc);reassessProducerInquiries(npc);
   if(processingFeedback.has(npc))return;
   const d=memory(npc);processingFeedback.add(npc);
   try{for(const event of [...(npc.physiology?.feedback||[])]){
@@ -475,7 +478,7 @@ function deferRestRetry(npc,body){
 }
 function learnedStep(npc){
   survivalNote(npc,'visit:learned-run');
-  const d=memory(npc),run=d.run;if(!run)return survivalReturn(npc,'run:missing-or-expired',null);
+  const d=memory(npc),run=d.run;intendProcedure(npc,run);if(!run)return survivalReturn(npc,'run:missing-or-expired',null);
   const technique=d.techniques.find(t=>t.id===run.techniqueId);if(!technique||technique.confidence==='revised'||npc.elapsed-run.startedAt>90){endFoodRun(npc,run,technique&&technique.confidence!=='revised'?'expired':'unavailable');d.run=null;return survivalReturn(npc,'run:missing-or-expired',null);}
   if(run.awaiting)return survivalReturn(npc,'run:awaiting',null);if(run.cursor>=technique.steps.length){endFoodRun(npc,run,'complete');d.run=null;return survivalReturn(npc,'run:complete',null);}
   const step=technique.steps[run.cursor],id=step.targetId==='$source'?technique.sourceId:run.materialId;
@@ -605,7 +608,16 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(hungry&&knownHeld)return wrap({type:'sample',targetId:knownHeld},energyFoodNeed?'My energy feels diminished; an earlier portion of this held object brought relief, so I can test another portion.':'An earlier portion of this held object brought bodily relief; I can test another portion.','food');
   if(hungry&&(trialHunger||energyFoodNeed)&&!d.run){const unfinished=unfinishedHeldTrial(npc,body);if(unfinished)return wrap(unfinished,'I already hold the result of a learned operation sequence; I can cautiously test its first portion before acquiring more.','food');}
   if(hungry&&!d.run&&npc.inventory.items.length<=DISCOVERY_RULES.capacity){
-    const candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!sourceTrialPending(npc,t)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+    let candidates=d.techniques.filter(t=>t.confidence!=='revised'&&t.failures<=t.successes+2&&!recentlyFailed(npc,t.steps[0].type,t.sourceId)&&!availabilityBlocked(npc,t.steps[0].type,t.sourceId)&&d.observations[t.sourceId]?.scene===npc.scene&&!sourceTrialPending(npc,t)).sort((a,b)=>a.failures-b.failures||distance(d.observations[a.sourceId].position,npc.position)-distance(d.observations[b.sourceId].position,npc.position));
+    let procedureRoutes;
+    candidates=orderProcedureCandidates(npc,candidates,t=>{
+      const point=d.observations[t.sourceId].position;
+      if(distance(npc.position,point)<=DISCOVERY_RULES.reach)return 0;
+      procedureRoutes ||= createKnownRouteIndex(rememberedCells(npc),npc.position,rememberedEdges(npc),npc.elapsed,npc.navigationAnchor,timeoutRouteBlocks(npc));
+      // Full remembered path, NOT the capped next waypoint emitted by
+      // routeTarget. Its greedy execution/rerouting may cost more or less.
+      return procedureRoutes.route(point,30)?procedureRoutes.metrics(point,30)?.returnedLength:null;
+    });
     const release=capacityRelease(npc,candidates);
     if(release)return wrap(release,'I can set down a held material to make room for a nearby method that previously brought relief; this does not establish the released material’s value or safety.','food');
     survivalObserve(noteSurvivalDecision,survivalScope,'food:ordinary-candidates',candidates.length);
@@ -648,6 +660,8 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
       const move=routeTarget(npc,object.position);if(move)return wrap(move,`I can approach a source I recognize to try ${author}'s reported procedure.`);
     }
   }
+  const producer=foodLearning&&producerExperiment(npc,{body,local:id=>localMethodSource(npc,id),eligible:id=>sampleEligible(npc,id,body,foodLearning),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});
+  if(producer)return wrap(producer,PRODUCER_QUESTION);
   const inquiry=observationalExperiment(npc,{body,currentlySeen:id=>{const o=d.observations[id],s=firsthandSightings.get(npc)?.get(id);return !!s&&s.at===o?.observedAt&&s.scene===npc.scene;},eligible:id=>sampleEligible(npc,id,body,foodLearning),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});
   if(inquiry)return wrap(inquiry,'I saw another body consume from this exact source. A small paid experiment may test its effect on me; the observed act is not proof of benefit.');
   const handling=handlingCuriosity&&handlingExperiment(npc,{body,appearance:id=>freshMethodAppearance(npc,id),local:id=>localMethodSource(npc,id),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});

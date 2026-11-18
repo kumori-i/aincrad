@@ -12,6 +12,7 @@ import { CONFIG } from '../src/config.js';
 import { advancePlayerLessonFixedSteps } from './player-lesson-fixed-steps.mjs';
 import { verifyPlayerLessonCaptureProgress } from './player-lesson-capture-contract.mjs';
 import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
+import { capturePaidPoseWithTiming } from './player-capture-timing.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile,
   currentRouteSnapshot } from './carcass-native-contract.mjs';
 
@@ -120,6 +121,8 @@ const { app, session } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const {createHash}=require('node:crypto');
+const capturePaidPoseWithTiming = ${capturePaidPoseWithTiming.toString()};
 const context = ${JSON.stringify(context)};
 const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
 assert.ok(['author', 'act', 'reopen'].includes(phase));
@@ -223,19 +226,22 @@ async function capture(win, name, {paidPose=false,prepared=null,before=null}={})
   const preparation=prepared ?? await prepareCapture(win);
   const ui=paidPose&&before?{...preparation.ui,status:before.status,nearby:before.nearby}:preparation.ui;
   let witness=null,attempt=0;
+  const captureTiming={stage:'not-started'};
   const {png,metadata} = await captureWithReadiness({
     maxAttempts:paidPose?1:4,
     prepare:async()=>++attempt===1?preparation.readiness:(await prepareCapture(win)).readiness,
     capture:async()=>{
       if(!paidPose)return win.webContents.capturePage();
       witness={before:before ?? await captureLessonState(win)};
-      const image=await win.webContents.capturePage();
-      witness.after=await captureLessonState(win);
-      return image;
+      return capturePaidPoseWithTiming({capturePage:()=>win.webContents.capturePage(),
+        readAfter:()=>captureLessonState(win),witness,timing:captureTiming});
     },
     retain:async(bytes,attempt)=>{const prefix=path.join(context.output,name+'.attempt-'+attempt.attempt);
+      // Snapshot synchronously: a late unresolved capture cannot rewrite timeout evidence.
+      const evidence=JSON.stringify({phase,name,...attempt,paidPoseWitness:witness,
+        captureTiming:paidPose?captureTiming:null},null,2);
       if(bytes!==undefined)await fs.writeFile(prefix+'.png',bytes);
-      await fs.writeFile(prefix+'.json',JSON.stringify({phase,name,...attempt,paidPoseWitness:witness},null,2));},
+      await fs.writeFile(prefix+'.json',evidence);},
   });
   assert.ok(png.length>10000,'Actual native world screenshot must be nonempty');
   await fs.writeFile(path.join(context.output,name),png);
@@ -521,6 +527,38 @@ async function actPhase(win) {
   assert.equal(original.environment.ecology.plants.find(row=>row.id===authored.sourceId).quantity,authored.sourceQuantity);
   assert.equal(examplesOf(original,'aster').length,0);
   assert.equal(examplesOf(original,'mira').length,0);
+  // Fixed pre-time evaluation corpus, never supplied to teaching.
+  const heldoutCapture=await evaluate(win,'(async () => {' +
+    'const state=window.__ozarkWorld.fullSnapshot();' +
+    'const sensorModule=await import("./src/communication-pixels.js");' +
+    'const geometryModule=await import("./src/ozark-world-geometry.js");' +
+    'const bindingModule=await import("./src/ozark-agent-world.js");' +
+    'const perceptionModule=await import("./src/visual-reference-perception.js");' +
+    'const geometry=geometryModule.createOzarkWorldGeometry();' +
+    'for(const npc of state.agents)bindingModule.bindOzarkWorldAgent(npc,geometry,state);' +
+    'const sensor=sensorModule.createCommunicationPixelSensor(document);' +
+    'const actor=state.agents.find(row=>row.id==="aster");' +
+    'const ids=' + JSON.stringify([authored.heldoutAppleId,authored.heldoutBrambleId]) + ';' +
+    'try {const rows=ids.map(id=>{const crop=sensor.captureVisible(actor,state,id);' +
+    'if(!crop||crop.features.length!==48||crop.pixels.length!==768||' +
+    'crop.features.some(v=>!Number.isFinite(v)||v<0||v>1))throw new Error("Held-out real Canvas crop missing: "+id);' +
+    'return {id,features:crop.features,pixels:crop.pixels,observedAt:crop.observedAt};});' +
+    'return {rows,elapsed:state.elapsed,actorId:actor.id,actorPosition:actor.position};' +
+    '}catch(error){return {error:String(error),exactSnapshot:state,' +
+    'sight:perceptionModule.senseReferenceObjects(actor,state)};}' +
+    'finally{sensor.dispose();}})()');
+  await fs.writeFile(path.join(context.output,'heldout-pretime-capture.json'),JSON.stringify(heldoutCapture,null,2));
+  assert.equal(heldoutCapture.error,undefined,'Pre-time crop failed; exact snapshot retained');
+  assert.equal(heldoutCapture.actorId,'aster');
+  assert.equal(heldoutCapture.elapsed,original.elapsed);
+  assert.equal(new Set([authored.sourceId,authored.brambleId,
+    ...heldoutCapture.rows.map(row=>row.id)]).size,4);
+  const heldoutInputJSON=JSON.stringify(heldoutCapture.rows);
+  const heldoutInputSha256=createHash('sha256').update(heldoutInputJSON).digest('hex');
+  await fs.writeFile(path.join(context.output,'heldout-input-sha256.json'),
+    JSON.stringify({sha256:heldoutInputSha256,capturedBeforeStart:true},null,2));
+  assert.deepEqual(await evaluate(win,'window.__ozarkWorld.fullSnapshot()'),original,
+    'Read-only held-out capture cannot alter the world or teach an example');
   assert.equal(await evaluate(win,'window.__ozarkWorld.start()'),true);
   const beforeCharacter=await evaluate(win,'window.__ozarkWorld.fullSnapshot().characterMessages');
   await trustedTypeWord(win,'nava');
@@ -571,25 +609,17 @@ async function actPhase(win) {
   assert.deepEqual(learnedRows.map(row=>row.word),['nava','movo']);
   assert.equal(examplesOf(twice,'mira').length,0);
   assert.deepEqual(twice.characterMessages,beforeCharacter);
-  // Evaluation only: these are fresh real Canvas crops from distinct existing
-  // instances. IDs select audit crops, not distinct feature inputs by fiat.
-  // The original paid crop's 48 pooled features are the learner's comparison;
-  // object IDs never enter a learner update.
+  // Evaluate fixed, identity-disjoint pre-time own-Canvas inputs only after
+  // both actual paid lessons. These copies never enter a teaching operation.
+  assert.equal(JSON.stringify(heldoutCapture.rows),heldoutInputJSON);
+  assert.equal(createHash('sha256').update(JSON.stringify(heldoutCapture.rows)).digest('hex'),heldoutInputSha256);
   const heldout=await evaluate(win,'(async () => {' +
     'const state=window.__ozarkWorld.fullSnapshot();' +
-    'const sensorModule=await import("./src/communication-pixels.js");' +
     'const bankModule=await import("./src/player-lesson-bank.js");' +
-    'const geometryModule=await import("./src/ozark-world-geometry.js");' +
-    'const bindingModule=await import("./src/ozark-agent-world.js");' +
-    'const geometry=geometryModule.createOzarkWorldGeometry();' +
-    'for(const npc of state.agents)bindingModule.bindOzarkWorldAgent(npc,geometry,state);' +
-    'const sensor=sensorModule.createCommunicationPixelSensor(document);' +
-    'const actor=state.agents.find(row=>row.id==="aster");' +
     'const bank=state.playerLessons.agents.find(row=>row.agentId==="aster").examples;' +
     'const swapped=bank.map(row=>({...row,word:row.word==="nava"?"movo":"nava"}));' +
-    'const ids=[' + JSON.stringify(authored.heldoutAppleId) + ',' + JSON.stringify(authored.heldoutBrambleId) + '];' +
-    'const rows=ids.map(id=>{const crop=sensor.captureVisible(actor,state,id);' +
-    'if(!crop||crop.features.length!==48||crop.pixels.length!==768)throw new Error("Held-out real Canvas crop missing: "+id);' +
+    'const crops=' + heldoutInputJSON + ';' +
+    'const rows=crops.map(crop=>{const id=crop.id;' +
     'const distances=bank.map(example=>Math.sqrt(example.features.reduce((sum,value,index)=>' +
     'sum+(value-crop.features[index])**2,0)/48));' +
     'const exactTrainingFeatureMatches=bank.filter(example=>' +
@@ -597,7 +627,9 @@ async function actPhase(win) {
     'return {id,featuresLength:crop.features.length,observedAt:crop.observedAt,' +
     'nearestTrainingRms:Math.min(...distances),exactTrainingFeatureMatches,' +
     'actual:bankModule.predictPlayerWord(bank,crop.features),' +
-    'shuffled:bankModule.predictPlayerWord(swapped,crop.features)};});sensor.dispose();return rows;})()');
+    'shuffled:bankModule.predictPlayerWord(swapped,crop.features)};});return rows;})()');
+  assert.deepEqual((await evaluate(win,'window.__ozarkWorld.fullSnapshot()')).playerLessons,
+    twice.playerLessons,'Held-out predictions cannot train the runtime bank');
   assert.deepEqual(heldout.map(row=>row.id),[authored.heldoutAppleId,authored.heldoutBrambleId]);
   for(const row of heldout){
     assert.equal(row.featuresLength,48);
@@ -614,12 +646,12 @@ async function actPhase(win) {
   }
   const exactTrainingInputRows=heldout.filter(row=>row.exactTrainingFeatureMatches>0).length;
   await fs.writeFile(path.join(context.output,'heldout-evaluation.json'),
-    JSON.stringify({rows:heldout,uniformChance:.5,exactTrainingInputRows,
+    JSON.stringify({rows:heldout,inputSha256:heldoutInputSha256,captureTiming:'before-start',uniformChance:.5,exactTrainingInputRows,
       nonIdenticalTrainingInputRows:heldout.length-exactTrainingInputRows,
       comparison:'Exact equality and RMS use the 48 pooled numeric features retained by the learner, not full pixel arrays.',
       trainedIds:[authored.sourceId,authored.brambleId],
       heldoutIds:[authored.heldoutAppleId,authored.heldoutBrambleId],
-      disclosure:'Two real paid examples on existing apple/bramble instances; fresh own-Canvas crops on different existing object IDs. Different IDs can yield identical 48-feature inputs. Exact input matches are counted, and the fixed swapped-word control and chance 1/2 are descriptive. No held-out outcome is used to choose or train an action.'},null,2));
+      disclosure:'Two real paid examples on existing apple/bramble instances; fixed pre-time own-Canvas crops on different existing object IDs, retained outside runtime teaching. Evaluation no longer asserts post-learning visibility. Different IDs can yield identical 48-feature inputs. Exact input matches are counted, and the fixed swapped-word control and chance 1/2 are descriptive. No held-out outcome is used to choose or train an action.'},null,2));
   await openLessonJournal(win);
   const journalImage=await captureJournal(win,'02-player-word-learning-journal.png');
   assert.deepEqual((await evaluate(win,'window.__ozarkWorld.fullSnapshot()')).playerLessons,

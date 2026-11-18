@@ -1,6 +1,9 @@
+import { retireObservedProducerSource,retireProducerHistory } from './producer-inquiry.js';
+import { lookupEcologyObject } from './ecology.js';
+import { receiveProcedureMovement, retireProcedureHistory, retireObservedProcedureSource, procedureWalkingContext } from './procedure-cycle.js';
 import { hasActionProvenance, beginActionRequest, endActionRequest, recordActionCompletion } from './action-provenance-observer.js';
 import { noteTimeoutRoutePaid, finishTimeoutRouteEvidence, timeoutRouteBlocks, timeoutDirection } from './timeout-route-evidence.js';
-import { fundNpcEffort, captureNpcRunDeadline, expireNpcRun } from './npc-effort-funding.js';
+import { fundNpcEffort, captureNpcRunDeadline, expireNpcRun, procedureRunForActive } from './npc-effort-funding.js';
 import { noteFoodRunPaid, finishFoodRunAction } from './food-run-observer.js';
 import { motorStalled, resetMotorWindow, recordMotorTrail, finishMotorEvidence, takeRecoveryRoute, markRecovery, isRecovery, recoverySafe } from './movement-recovery.js';
 import { CONFIG, NPC_RULES, NPC_PRESETS, BODY_RULES, CAVES, CAVE_SPAWN, CAVE_EXIT } from './config.js';
@@ -45,9 +48,23 @@ export function observeNpc(npc,environment={}){
   if(npc.mode==='discovery'&&isSleeping(npc))return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:{...sensedEnvironment(npc),visibility:'eyes closed'},flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{items:[...npc.inventory.items],capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[],objects:[],sleepSenses:{contact:'none',sound:'indistinct'}};
   if(npc.lifecycle==='COLLAPSED')return {at:npc.elapsed,scene:npc.scene,position:{...npc.position},lifecycle:npc.lifecycle,body:bodySignals(npc),environment:sensedEnvironment(npc),flask:{water:npc.flask.water,capacity:npc.flask.capacity},inventory:{apples:npc.inventory.apples.length,capacity:npc.inventory.capacity},cells:[],sources:[],foods:[],shelters:[]};
   npc.sensation=ozarkAgentWorld(npc)?ozarkAgentSensation(npc,environment):environmentConditions(environment,{position:npc.position,scene:npc.scene,wetness:npc.thermal.wetness});
-  const observation=perceive(npc,environment);rememberObservation(npc,observation);
+  const observation=perceive(npc,environment);
+  for(const object of observation.objects||[]){const identity=lookupEcologyObject(environment.ecology,object.id);retireObservedProcedureSource(npc,object.id,identity,environment);retireObservedProducerSource(npc,object.id,identity,environment);}
+  rememberObservation(npc,observation);
   if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:npc.sensation.feltTemperature,experiencedAt:npc.elapsed});
   return observation;
+}
+// Private, admission-bound paid propulsion. Public movement receipts include
+// drift and cannot supply this evidence. Failed/zero-progress work is retained.
+const procedureMoves=new WeakMap(),procedureMoveTokens=new WeakMap();
+export function takeProcedureMovementWitness(actor,token){const p=procedureMoveTokens.get(token);procedureMoveTokens.delete(token);return p?.actor===actor&&p.epoch===actor.epoch&&p.memory===actor.memory&&p.discovery===actor.discovery&&p.physiology===actor.physiology&&p.environment.ecology===p.ecology&&p.scene===actor.scene&&p.world===ozarkAgentWorld(actor)?p:null;}
+function finishProcedureMove(npc,active,result){
+  const p=procedureMoves.get(active);procedureMoves.delete(active);
+  if(!p||p.actor!==npc)return;
+  if(p.epoch!==npc.epoch||p.memory!==npc.memory||p.discovery!==npc.discovery||p.physiology!==npc.physiology||p.environment.ecology!==p.ecology||p.scene!==npc.scene||p.world!==ozarkAgentWorld(npc)){retireProcedureHistory(npc);retireProducerHistory(npc);return;}
+  const requestChanged=active.request.type!=='move'||active.request.target?.x!==p.target.x||active.request.target?.y!==p.target.y;
+  if(!(p.seconds>0)&&result.ok===true&&!requestChanged&&!p.contextChanged)return;
+  const token=Object.freeze({});procedureMoveTokens.set(token,Object.freeze({...p,run:procedureRunForActive(npc,active),at:npc.elapsed,ok:!requestChanged&&result.ok===true,code:result.code,contextChanged:requestChanged||p.contextChanged||p.context!==procedureWalkingContext(npc)}));receiveProcedureMovement(npc,token);
 }
 function complete(npc,request,result,context=policyContext(npc),startPosition={...npc.position},startScene=npc.scene){
   const active=npc.active;
@@ -68,6 +85,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
     if(ozarkPersistentWorldAgent(npc))result.movement.traversal=active.swimSeconds>0?'swimming':active.climbSeconds>0?'climbing':active.passiveDriftSeconds>0&&forward<3?'adrift':active.waterSeconds>0?'wading':'walking';
   }
   if(active?.startScene)startScene=active.startScene;
+  finishProcedureMove(npc,active,result);
   finishFoodRunAction(npc,active,request,result);
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
   finishMotorEvidence(npc,active,event);
@@ -261,6 +279,7 @@ function requestNpcActionObservedBody(npc,raw,environment={}){
     }
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
+    if(npc.mode==='discovery'&&ozarkPersistentWorldAgent(npc)&&request.type==='move')procedureMoves.set(npc.active,{scene:npc.scene,world:ozarkAgentWorld(npc),target:Object.freeze({...request.target}),actor:npc,epoch:npc.epoch,memory:npc.memory,discovery:npc.discovery,physiology:npc.physiology,environment,ecology:environment.ecology,context:procedureWalkingContext(npc),contextChanged:false,seconds:0,propelled:0});
     if(npc.mode==='discovery')npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,raw,npc.active,{travel:true}));
     if(recoveryRoute)markRecovery(npc.active);
     if(ozarkAgentWorld(npc))Object.assign(npc.active,{startWetness:npc.thermal.wetness,startStamina:npc.physiology.stamina,startFatigue:npc.physiology.fatigue,forwardProgress:0,attemptedDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,passiveDriftSeconds:0});
@@ -472,8 +491,17 @@ function tickDiscoveryNpc(npc,dt,environment){
     // Old adapters must not silently ignore payment and propel without funding.
     // Canonical geometry and test adapters explicitly support this contract.
     if(ozark.fundedAdvance===true&&duration>0){
+      let funded=0;
       const motion=ozark.advance(npc.position,dx,dy,duration,false,mode,
-        (seconds,effort)=>fundNpcEffort(npc,seconds,effort).paidSeconds);
+        (seconds,effort)=>{const paid=fundNpcEffort(npc,seconds,effort).paidSeconds;funded+=paid;return paid;});
+      const personal=procedureMoves.get(active);
+      if(personal&&(personal.epoch!==npc.epoch||personal.scene!==npc.scene||personal.world!==ozarkAgentWorld(npc)||personal.memory!==npc.memory||personal.discovery!==npc.discovery||personal.physiology!==npc.physiology||personal.environment!==environment||personal.ecology!==environment.ecology||npc.active!==active||active.request.type!=='move'||active.request.target?.x!==personal.target.x||active.request.target?.y!==personal.target.y||!Number.isFinite(motion.paidSeconds)||Math.abs(funded-motion.paidSeconds)>=1e-8))personal.contextChanged=true;
+      if(personal&&npc.active===active&&funded>0){
+        personal.seconds+=funded;
+        const propelled=Math.hypot(motion.inputDx,motion.inputDy);
+        if(Number.isFinite(propelled))personal.propelled+=propelled;else personal.contextChanged=true;
+        personal.contextChanged ||= personal.context!==procedureWalkingContext(npc);
+      }
       integrated=duration;waterSeconds+=motion.waterSeconds||0;
       const paid=Number.isFinite(motion.paidSeconds)?motion.paidSeconds:0;
       if(npc.active===active&&paid>0)noteFoodRunPaid(npc,active,paid);

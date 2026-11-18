@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {capturePaidPoseWithTiming} from '../scripts/player-capture-timing.mjs';
 import assert from 'node:assert/strict';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
@@ -430,7 +431,7 @@ test('preprepared paid capture has no renderer IPC or readiness sleep before cap
   const captureSource=source.slice(source.indexOf('async function capture(win, name,'),
     source.indexOf('async function captureJournal('));
   const calls=[],png=Buffer.alloc(11000),before={status:'paid',nearby:'pointing'},after={};
-  const context={assert,phase:'act',context:{output:'/evidence'},path:{join:(...parts)=>parts.join('/')},
+  const context={assert,capturePaidPoseWithTiming,phase:'act',context:{output:'/evidence'},path:{join:(...parts)=>parts.join('/')},
     fs:{writeFile:async()=>{}},prepareCapture:async()=>{throw new Error('Late readiness');},
     captureLessonState:async()=>{calls.push('after-state');return after;},
     verifyPlayerLessonCaptureProgress:(a,b)=>{assert.equal(a,before);assert.equal(b,after);return {pngVisualReviewRequired:true};},
@@ -664,4 +665,26 @@ test('close checkpoint uses trusted pause and retained pending bytes; read purit
   },win:{}};
   await runInNewContext('(async()=>{'+readAssertion+'})()',context);
   assert.equal(evaluations,1);assert.equal(reads,2);assert.equal(world.elapsed,8);
+});
+
+test('held-out corpus is captured before time and remains evaluation-only after earned lessons', async () => {
+  const source=await readFile('scripts/verify-player-lesson-desktop.mjs','utf8');
+  const act=source.slice(source.indexOf('async function actPhase('),source.indexOf('async function reopenPhase('));
+  const capture=act.indexOf('const heldoutCapture='),start=act.indexOf('window.__ozarkWorld.start()');
+  const paid=act.indexOf("assert.deepEqual(learnedRows.map(row=>row.word),['nava','movo'])");
+  const prediction=act.indexOf('bankModule.predictPlayerWord(bank,crop.features)');
+  assert.ok(capture>0&&capture<start&&start<paid&&paid<prediction);
+  const captureCode=act.slice(capture,start);
+  assert.match(captureCode,/sensor.captureVisible\(actor,state,id\)/);
+  assert.match(captureCode,/features.length!==48\|\|crop.pixels.length!==768/);
+  assert.match(captureCode,/exactSnapshot:state/);
+  assert.match(captureCode,/senseReferenceObjects\(actor,state\)/);
+  assert.match(captureCode,/new Set\(\[authored.sourceId,authored.brambleId,/);
+  assert.match(captureCode,/heldoutCapture.actorId,'aster'/);
+  assert.match(captureCode,/Read-only held-out capture cannot alter the world or teach an example/);
+  assert.doesNotMatch(captureCode,/predictPlayerWord|train|recordExample|localStorage\.setItem/);
+  assert.match(act,/heldoutInputSha256=createHash\('sha256'\)/);
+  assert.match(act,/Held-out predictions cannot train the runtime bank/);
+  assert.match(act,/captureTiming:'before-start'/);
+  assert.match(act,/Evaluation no longer asserts post-learning visibility/);
 });
