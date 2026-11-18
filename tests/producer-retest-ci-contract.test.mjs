@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import{readFileSync,writeFileSync,mkdirSync,mkdtempSync,realpathSync,rmSync,symlinkSync}from'node:fs';import{tmpdir}from'node:os';import{join,resolve}from'node:path';import{gzipSync}from'node:zlib';import{spawnSync}from'node:child_process';
+import{readFileSync,writeFileSync,mkdirSync,mkdtempSync,realpathSync,rmSync,existsSync,symlinkSync}from'node:fs';import{tmpdir}from'node:os';import{join,resolve}from'node:path';import{gzipSync}from'node:zlib';import{spawnSync}from'node:child_process';
 import{PRODUCER_RETEST_CI_PROTOCOL as P}from'../scripts/producer-retest-ci-protocol.mjs';
 import{validateBaseline,extractBaseline,sourceFingerprint,validateArmArguments}from'../scripts/producer-retest-ci-source.mjs';
 import{sha256,namespaceComparable,NORMALIZED_PATHS}from'../scripts/producer-retest-ci-namespace.mjs';
@@ -7,7 +7,10 @@ const archive=readFileSync(new URL('./fixtures/producer-retest-baseline-v1.json.
 const env=()=>({GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'kumori-i/aincrad',GITHUB_EVENT_NAME:'create',GITHUB_REF:'refs/heads/'+P.activationRef,GITHUB_RUN_ATTEMPT:'1',GITHUB_WORKFLOW:P.workflow});
 const modified=fn=>{const data=structuredClone(validateBaseline(archive));fn(data);const bytes=gzipSync(Buffer.from(JSON.stringify(data)));return [bytes,sha256(bytes)];};
 test('frozen fresh seed and immutable baseline bytes extract exact same source, no simulation',()=>{
- assert.equal(P.seed,77201);assert.equal(P.seconds,1200);assert.equal(P.fixedStep,1/60);assert.equal(sha256(archive),P.baselineArchiveSha256);assert.equal(sourceFingerprint(resolve('.')),P.candidateSource);
+ assert.equal(P.seed,77201);assert.equal(P.seconds,1200);assert.equal(P.fixedStep,1/60);assert.equal(sha256(archive),P.baselineArchiveSha256);assert.equal(P.candidateSource,'a4f39099b935133fd959541f9896aa3f34cdd7840b9d876f6d3ea9f94dd86412');
+ // Historical protocol stays pinned; this new runtime must fail before a run starts.
+ assert.notEqual(sourceFingerprint(resolve('.')),P.candidateSource);
+ const rejected=realpathSync(mkdtempSync(join(tmpdir(),'producer-frozen-reject-')));try{const tag=join(rejected,'candidate-77201');const run=spawnSync(process.execPath,['scripts/producer-retest-ci-arm.mjs',resolve('.'),tag,'77201',P.candidateSource,'a'.repeat(64)],{env:{...process.env,...env()},encoding:'utf8'});assert.notEqual(run.status,0);assert.match(run.stderr,/Source mismatch before run/);assert.equal(existsSync(tag+'.started.json'),false);}finally{rmSync(rejected,{recursive:true,force:true});}
  const dir=realpathSync(mkdtempSync(join(tmpdir(),'producer-source-')));try{const root=extractBaseline(archive,dir);assert.equal(sourceFingerprint(root),P.baselineSource);assert.equal(JSON.parse(readFileSync(join(root,'package.json'))).type,'module');}finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('tampered archive, path traversal, duplicates, nonmodule package, missing and extra sources fail closed',()=>{

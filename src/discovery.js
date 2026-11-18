@@ -1,3 +1,4 @@
+import {motorRecallExperiment,MOTOR_RECALL_REASON} from './motor-recall.js';
 import { producerExperiment,reassessProducerInquiries,PRODUCER_QUESTION } from './producer-inquiry.js';
 import { orderProcedureCandidates, intendProcedure, reassessProcedureOutcomes } from './procedure-cycle.js';
 import { deferDrinkRetry } from './ingestion-retry.js';
@@ -666,6 +667,8 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   if(inquiry)return wrap(inquiry,'I saw another body consume from this exact source. A small paid experiment may test its effect on me; the observed act is not proof of benefit.');
   const handling=handlingCuriosity&&handlingExperiment(npc,{body,appearance:id=>freshMethodAppearance(npc,id),local:id=>localMethodSource(npc,id),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});
   if(handling)return wrap(handling,HANDLING_QUESTION);
+  const recall=handlingCuriosity&&motorRecallExperiment(npc,{body,local:id=>localMethodSource(npc,id),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});
+  if(recall)return wrap(recall,MOTOR_RECALL_REASON);
   const objects=Object.values(d.observations).filter(o=>(o.scene===npc.scene||npc.inventory.items.includes(o.id))&&o.observedAt<=npc.elapsed&&npc.elapsed-o.observedAt<8&&(npc.inventory.items.includes(o.id)||actorLineOfSight(npc,npc.position,o.position)));
   const choices=[];
   for(const object of objects){

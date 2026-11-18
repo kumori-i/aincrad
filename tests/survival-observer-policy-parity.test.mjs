@@ -57,7 +57,18 @@ for(const {before,after} of seams.slice().reverse()){
 // Reverse only the survival and food-run observer seams. This
 // source pin changes when an intentional policy change changes both arms; the
 // frozen closer-choice oracle remains in lazy-route-admission.test.mjs.
-assert.equal(sha(original),'a6877e6d3b19c04ce6a375f96debbb2eb5dabe7b5c5e7220578fa75506a8a7a1','exact current policy with observer seams reversed, not a rewritten approximation');
+// Same-source motor recall is policy authority, retained in BOTH imports below.
+// Its exact added import/decision block is removed only to prove historical ancestry.
+const motorImport="import {motorRecallExperiment,MOTOR_RECALL_REASON} from './motor-recall.js';\n";
+const motorDecision="  const recall=handlingCuriosity&&motorRecallExperiment(npc,{body,local:id=>localMethodSource(npc,id),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});\n  if(recall)return wrap(recall,MOTOR_RECALL_REASON);\n";
+const handlingAnchor='  if(handling)return wrap(handling,HANDLING_QUESTION);\n';
+assert.equal(original.split(motorImport).length-1,1,'one motor policy import');
+assert.equal(original.split(motorDecision).length-1,1,'one motor policy decision block');
+assert.equal(original.split(handlingAnchor).length-1,1,'one exact restoration anchor');
+const historical=original.replace(motorImport,'').replace(motorDecision,'');
+assert.equal(motorImport+historical.replace(handlingAnchor,handlingAnchor+motorDecision),original,'exact motor policy seam roundtrip');
+assert.equal(sha(historical),'a6877e6d3b19c04ce6a375f96debbb2eb5dabe7b5c5e7220578fa75506a8a7a1','unchanged historical observer-free policy before motor recall');
+assert.equal(sha(original),'a1de1467d7375a87d44ee7e2ca13dbf3a32ac6c5e9817cb9683dd02a437d9918','exact current policy with observer seams reversed, not a rewritten approximation');
 let reapplied=original;for(const {before,after} of seams){assert.equal(reapplied.split(before).length-1,1);reapplied=reapplied.replace(before,after);}assert.equal(reapplied,source);
 function url(s){return `data:text/javascript;base64,${Buffer.from(s).toString('base64')}`;}
 function absolute(s){return s.replace(/from '(\.\/[^']+)'/g,(_,p)=>`from '${new URL(`../src/${p.slice(2)}`,import.meta.url).href}'`);}

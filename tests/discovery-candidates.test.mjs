@@ -36,8 +36,21 @@ assert.equal(restoredFoodObserver, source, 'only declared food-run observer seam
 const withoutProducerForward = text => text
   .replace("import { forwardProducerRequest } from './producer-inquiry.js';\n", '')
   .replace('forwardProducerRequest(n,raw,action);', '');
-assert.equal(sha(withoutProducerForward(sourceWithoutFoodObserver)), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7');
-assert.equal(sha(sourceWithoutFoodObserver), '496803690f7e69a13625e2e577105156854d3f28037ef61e0abd07f281ff23bb',
+// Motor recall forwarding is also policy authority in BOTH executed arms.
+// Strip it only for historical ancestry assertions, never for the baseline import.
+const withoutMotorForward = text => {
+  const imported = "import {forwardMotorRecallRequest} from './motor-recall.js';\n";
+  const call = 'forwardMotorRecallRequest(n,raw,action);';
+  assert.equal(text.split(imported).length-1,1,'exactly one motor authority import');
+  assert.equal(text.split(call).length-1,1,'exactly one motor authority call');
+  const removed=text.replace(imported,'').replace(call,'');
+  assert.equal(imported+removed.replace('forwardProducerRequest(n,raw,action);',
+    'forwardProducerRequest(n,raw,action);'+call),text,'motor seam roundtrip');
+  return removed;
+};
+assert.equal(sha(withoutMotorForward(sourceWithoutFoodObserver)), '496803690f7e69a13625e2e577105156854d3f28037ef61e0abd07f281ff23bb');
+assert.equal(sha(withoutProducerForward(withoutMotorForward(sourceWithoutFoodObserver))), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7');
+assert.equal(sha(sourceWithoutFoodObserver), '2f7512043b2d47539fd7769bbdd75bf618da295fd9b7f003ac58be79734fd237',
   'exact current policy without food-run observer');
 // Paired instrumentation regression rebased onto the approved renewable/sharing
 // controller (a841114). This compares current behavior with/without capture,
@@ -78,8 +91,9 @@ const baselineSource = sourceWithoutFoodObserver
   .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
   .replace(',chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null', '')
   .replace('this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
-assert.equal(sha(withoutProducerForward(baselineSource)), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c');
-assert.equal(sha(baselineSource), '45d28a52573b3738093840e92e78b04bf3d5c9e7d231581b1da7147309a1e505', 'current policy baseline controller bytes');
+assert.equal(sha(withoutMotorForward(baselineSource)), '45d28a52573b3738093840e92e78b04bf3d5c9e7d231581b1da7147309a1e505');
+assert.equal(sha(withoutProducerForward(withoutMotorForward(baselineSource))), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c');
+assert.equal(sha(baselineSource), 'c9853bb29612bed38626798d96533890cfa33b06b5a06b4c12b71084b0b6937c', 'current policy baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));

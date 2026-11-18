@@ -11,10 +11,10 @@ import {tickDiscoveryAction} from '../../src/discovery-actions.js';
 const geometry=createOzarkWorldGeometry();
 // Authored finite sources and starting conditions. Every motor/payment, portion,
 // wetness transition and delayed effect below comes from the real bound engine.
-export function fixture({cancelSample=false,cloneFeedback=false,inspectCycle=false}={}){
+export function fixture({cancelSample=false,cloneFeedback=false,inspectCycle=false,exploratoryFirst=false}={}){
  const state=createOzarkState(geometry),n=state.agents[0],e=state.environment;bindOzarkEcology(e.ecology,geometry);
  const [a,b]=e.ecology.plants.filter(p=>p.kind==='apple_tree').slice(0,2);
- Object.assign(a,{position:{x:400,y:720},quantity:4});Object.assign(b,{position:{x:600,y:720},quantity:4});
+ Object.assign(a,{position:{x:400,y:720},quantity:exploratoryFirst?5:4});Object.assign(b,{position:{x:600,y:720},quantity:4});
  n.position={x:400,y:720};bindOzarkWorldAgent(n,geometry,state);observeNpc(n,e);
  const advance=(seconds,step=.25)=>{for(let t=0;t<seconds-1e-8;t+=step){tickNpc(n,Math.min(step,seconds-t),e);if(cloneFeedback)n.physiology.feedback=n.physiology.feedback.map(event=>({...event}));processDiscoveryFeedback(n);if(inspectCycle){procedureCycleStatus(n);procedureCycleStatus(n);}}};
  const at=position=>{n.position={...position};n.navigationAnchor=null;observeNpc(n,e);};
@@ -22,15 +22,29 @@ export function fixture({cancelSample=false,cloneFeedback=false,inspectCycle=fal
  const needs=()=>{Object.assign(n.physiology,{availableEnergyKcal:700,waterDeficitMl:0,stamina:90,fatigue:10,sleepPressure:10,satietyHours:1.5});projectPhysiology(n);};
  const soak=()=>{needs();at({x:-1220,y:260});advance(6);assert.equal(procedureWalkingContext(n),'walk:ordinary:soaked');};
  const sample=id=>{if(cancelSample){const kind=cancelSample;cancelSample=false;requestNpcAction(n,{type:'sample',targetId:id},e);if(kind!=='first-hook'&&kind!=='throw-hook')advance(.5);assert.ok(n.active);if(kind==='throw-hook'){assert.throws(()=>tickDiscoveryAction(n,.25,e,{exert(actor,seconds,effort){exertPhysiology(actor,seconds,effort);throw Error('procedure fixture throw');}}),/procedure fixture throw/);cancelNpcAction(n);}else if(kind==='changed-target'){n.active.request.targetId='object:999999';cancelNpcAction(n);}else if(kind==='first-hook'||kind==='later-hook')tickDiscoveryAction(n,.25,e,{exert(actor,seconds,effort){exertPhysiology(actor,seconds,effort);cancelNpcAction(actor);}});else cancelNpcAction(n);}
- assert.equal(finish({type:'sample',targetId:id}).code,'SWALLOWED');advance(100);assert.equal(finish({type:'release',targetId:id}).code,'object_released');};
+ if(exploratoryFirst)assert.equal(procedureWalkingContext(n),'walk:ordinary:dry');
+ assert.equal(finish({type:'sample',targetId:id}).code,'SWALLOWED');
+ if(exploratoryFirst)assert.equal(procedureWalkingContext(n),'walk:ordinary:dry');
+ advance(100);assert.equal(finish({type:'release',targetId:id}).code,'object_released');};
  // Real repeated grasp of this exact remaining piece, not manufactured material.
  soak();at(b.position);assert.equal(finish({type:'pull',targetId:b.id}).code,'piece_detached');const piece=n.inventory.items.at(-1);assert.equal(finish({type:'release',targetId:piece}).code,'object_released');
+ // The longer exploratory prelude uses a dry context reached by actual body
+ // evolution, isolating this control from the separate context-change gate.
+ const prepareContext=()=>{if(!exploratoryFirst){soak();return;}needs();at({x:200,y:720});advance(60);needs();};
  // Interleave operations to avoid presenting practice chronology as source cost.
  for(let i=0;i<2;i++){
-   soak();at(a.position);assert.equal(finish({type:'pull',targetId:a.id}).code,'piece_detached');sample(n.inventory.items.at(-1));
-   soak();at(b.position);assert.equal(finish({type:'grasp',targetId:piece}).code,'object_held');sample(piece);
+   prepareContext();at(a.position);assert.equal(finish({type:'pull',targetId:a.id}).code,'piece_detached');
+   const material=n.inventory.items.at(-1);
+   // Authored exploratory prelude before the first source sample. Both extra
+   // operations pay real work; neither is silently included in a clean quote.
+   if(exploratoryFirst&&i===0){
+     assert.equal(finish({type:'inspect_object',targetId:material}).code,'OBJECT_OBSERVED');
+     assert.equal(finish({type:'pull',targetId:material}).code,'nothing_detached');
+   }
+   sample(material);
+   prepareContext();at(b.position);assert.equal(finish({type:'grasp',targetId:piece}).code,'object_held');sample(piece);
  }
  const prepare=()=>{needs();n.discovery.run=null;at({x:200,y:720});};
- return {n,e,a,b,piece,advance,at,finish,needs,soak,prepare};
+ return {n,e,a,b,piece,advance,at,finish,needs,soak,prepare,prepareContext};
 }
 export function choice(f){const result=discoveryDecision(f.n);return {result,status:procedureCycleStatus(f.n),source:f.n.discovery.techniques.find(t=>t.id===f.n.discovery.run?.techniqueId)?.sourceId};}
