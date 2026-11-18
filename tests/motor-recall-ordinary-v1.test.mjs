@@ -35,6 +35,11 @@ test('new frozen pins and strict admission; local invocation rejected before sou
  const r=spawnSync(process.execPath,['scripts/motor-recall-ordinary-v1-arm.mjs',...args],{env:{GITHUB_ACTIONS:'false'},encoding:'utf8'});assert.notEqual(r.status,0);assert.match(r.stderr,/AssertionError/);
  const safe=childEnvironment(env());for(const k of ['GITHUB_TOKEN','GH_TOKEN','ACTIONS_RUNTIME_TOKEN','GIT_CONFIG_COUNT','GIT_CONFIG_KEY_0','GIT_CONFIG_VALUE_0','NODE_OPTIONS'])assert.equal(safe[k],undefined);
 });
+test('frozen historical motor protocol refuses changed runtime before start or simulation imports',()=>temp(dir=>{
+ const root=resolve('.'),tag=join(dir,'candidate-'+P.seed),source=sourceFingerprint(root);assert.notEqual(source,P.candidateSource);
+ const result=spawnSync(process.execPath,['scripts/motor-recall-ordinary-v1-arm.mjs',root,root,tag,'candidate',P.candidateSource,harnessHash(root),'c'.repeat(64)],{env:childEnvironment(env()),encoding:'utf8'});
+ assert.notEqual(result.status,0);assert.match(result.stderr,/AssertionError/);assert.ok(result.stderr.includes(source));assert.ok(result.stderr.includes(P.candidateSource));assert.equal(existsSync(tag+'.started.json'),false);assert.equal(existsSync(tag+'.events.jsonl'),false);
+}));
 test('git checkout attestation rejects credentials, wrong heads/trees and dirty tracked bytes',()=>{
  const run=(_cmd,args)=>({code:args[0]==='config'?1:0,stdout:args[0]==='config'?'':args[0]==='status'?'':args[0]==='remote'?'https://github.com/kumori-i/aincrad.git\n':args[1]==='HEAD'?P.baselineCommit+'\n':P.baselineTree+'\n',stderr:''});
  assert.deepEqual(verifyCheckout('/unused',P.baselineCommit,P.baselineTree,run),{commit:P.baselineCommit,tree:P.baselineTree});

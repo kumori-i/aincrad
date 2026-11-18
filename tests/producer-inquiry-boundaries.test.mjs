@@ -159,7 +159,9 @@ test('observed identity replacement of the motivating material retires an alread
 test('evicting bounded question details cannot renew a genuinely admitted producer opportunity',()=>{
  const f=fixture(),sources=f.e.ecology.plants.filter(p=>p.kind==='apple_tree'&&p!==f.source).slice(0,16);assert.equal(sources.length,16);
  const learn=source=>{
-  Object.assign(source,{position:{...f.n.position},quantity:4});observeNpc(f.n,f.e);f.needs();
+  // Authored stock remains supplied; visit the indexed physical source instead of moving it.
+  f.n.position={...source.position};source.quantity=4;
+  assert.ok(observeNpc(f.n,f.e).objects.some(o=>o.id===source.id));f.needs();
   assert.equal(f.finish({type:'pull',targetId:source.id}).code,'piece_detached');const item=f.n.inventory.items.at(-1);
   assert.equal(f.finish({type:'release',targetId:item}).code,'object_released');
   assert.equal(f.finish({type:'grasp',targetId:item}).code,'object_held');
