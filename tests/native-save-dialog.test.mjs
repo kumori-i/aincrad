@@ -429,3 +429,17 @@ test('command contract only: failed macOS navigation retains a read-only current
  assert.equal(record.failureAccessibilityHierarchy,'retained nested GoTo hierarchy');
  const input=calls.findIndex(c=>c.file==='osascript'&&c.args[3]==='save');assert.deepEqual(calls.slice(input+1).filter(c=>c.file==='osascript').map(c=>c.args[3]),['inspect']);
 });
+
+test('command contract only: compact GoTo Return has strict live focus, identity and exact path guards',async()=>{
+ const {calls,options}=harness('darwin');await driveNativeSaveDialog(options);const script=calls.find(c=>c.file==='osascript').args[1];
+ const compact=script.slice(script.indexOf('-- Observed compact Cocoa GoTo'),script.indexOf('set navigated to false'));
+ for(const guard of ['(count goMarkers) is not 1','(count liveParentSheets) is not 1','item 1 of liveParentSheets is not saveSheet','(count liveNestedSheets) is not 1','item 1 of liveNestedSheets is not navigationSheet','unix id of p is not targetPid or frontmost of p is not true','(value of attribute "AXFocused" of navigationField) is not true','(value of navigationField as text) is not (item 4 of argv)'])assert.ok(compact.indexOf(guard)>=0&&compact.indexOf(guard)<compact.indexOf('tell p to key code 36'));
+ assert.equal((script.match(/key code 36/g)||[]).length,1);assert.ok(script.includes('if (count goButtons) is 1 then'));assert.ok(script.includes('if enabled of item 1 of goButtons is not true'));assert.ok(!compact.includes('try'));
+});
+test('command contract only: compact GoTo unknown or false focus never triggers fallback or repeated input',async()=>{
+ for(const message of ['Compact GoTo field is not focused; no Return sent','AXFocused attribute unsupported','Compact GoTo parent identity changed; no Return sent','Compact GoTo path changed; no Return sent','Compact GoTo marker ambiguous; no Return sent']){
+ const {calls,options}=harness('darwin'),run=options.run;let attempts=0;
+ await assert.rejects(driveNativeSaveDialog({...options,run:async(file,args,settings)=>{if(file==='osascript'&&args[3]==='save'){attempts++;calls.push({file,args});throw Object.assign(new Error(message),{code:1,stderr:message});}return run(file,args,settings);}}),/Native dialog command/);
+ assert.equal(attempts,1);assert.equal(calls.filter(c=>c.file==='osascript'&&c.args[3]==='submit').length,0);
+ }
+});

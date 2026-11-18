@@ -79,19 +79,43 @@ const macScript = `on run argv
         if navigationSheet is missing value then error "GoTo sheet did not become ready after input"
         set navigationFields to {}
         set goButtons to {}
+        set goMarkers to {}
         set navigationDescendants to entire contents of navigationSheet
         if (count navigationDescendants) > 512 then error "GoTo hierarchy exceeds bounded inspection limit"
         repeat with elementRef in navigationDescendants
           set e to contents of elementRef
           if role of e is "AXTextField" or role of e is "AXComboBox" then set end of navigationFields to e
           if role of e is "AXButton" and name of e is "Go" then set end of goButtons to e
+          if role of e is "AXStaticText" and name of e is "Go to Folder" then set end of goMarkers to e
         end repeat
-        if (count navigationFields) is not 1 or (count goButtons) is not 1 then error "GoTo controls ambiguous after input"
+        if (count navigationFields) is not 1 or (count goButtons) > 1 then error "GoTo controls ambiguous after input"
         set navigationField to item 1 of navigationFields
         set value of navigationField to item 4 of argv
         if (value of navigationField as text) is not (item 4 of argv) then error "GoTo path readback mismatch"
-        if enabled of item 1 of goButtons is not true then error "GoTo button disabled"
-        click item 1 of goButtons
+        if (count goButtons) is 1 then
+          if enabled of item 1 of goButtons is not true then error "GoTo button disabled"
+          click item 1 of goButtons
+        else
+          -- Observed compact Cocoa GoTo has no Go button. Apple documents
+          -- pathname + Return; keyboard input needs proven live target focus.
+          -- https://support.apple.com/en-gb/guide/mac-help/-mchlp1236/mac
+          if (count goMarkers) is not 1 then error "Compact GoTo marker ambiguous; no Return sent"
+          set liveParentSheets to {}
+          repeat with candidateWindow in windows of p
+            repeat with candidateSheet in sheets of candidateWindow
+              set end of liveParentSheets to contents of candidateSheet
+            end repeat
+          end repeat
+          if (count liveParentSheets) is not 1 then error "Compact GoTo parent changed; no Return sent"
+          if item 1 of liveParentSheets is not saveSheet then error "Compact GoTo parent identity changed; no Return sent"
+          set liveNestedSheets to sheets of saveSheet
+          if (count liveNestedSheets) is not 1 then error "Compact GoTo nested sheet changed; no Return sent"
+          if item 1 of liveNestedSheets is not navigationSheet then error "Compact GoTo nested identity changed; no Return sent"
+          if unix id of p is not targetPid or frontmost of p is not true then error "Compact GoTo process focus changed; no Return sent"
+          if (value of attribute "AXFocused" of navigationField) is not true then error "Compact GoTo field is not focused; no Return sent"
+          if (value of navigationField as text) is not (item 4 of argv) then error "Compact GoTo path changed; no Return sent"
+          tell p to key code 36
+        end if
         set navigated to false
         repeat 40 times
           if (count sheets of saveSheet) is 0 then
