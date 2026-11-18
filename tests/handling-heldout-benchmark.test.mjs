@@ -1,3 +1,4 @@
+import {normalizeWorldChangeMemory} from './fixtures/change-memory-namespace.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
@@ -88,7 +89,9 @@ test('fixed held-out handling matrix records one actual paid choice per matched 
     for (const enabled of [false, true]) {
       const f = fixture(condition), beforeState = structuredClone(f.state);
       // Fresh-world UUIDs are nondeterministic identity only, not policy inputs.
-      // Normalize only these four exact fields, never any actor, RNG or evidence.
+      // Bind the new actor-memory namespace before normalizing that exact field;
+      // all other actor, RNG and evidence bytes remain compared.
+      normalizeWorldChangeMemory(beforeState,f.state,'paired-world');
       beforeState.worldLineage.instanceId = 'paired-world';
       beforeState.playerLessons.worldId = 'paired-world';
       beforeState.visualReference.worldId = 'paired-world';

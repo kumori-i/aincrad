@@ -1,3 +1,4 @@
+import {startChangeMemory,finishChangeMemory,retireChangeCustody} from './change-memory.js';
 import {receiveConnectedSequence,retireConnectedSequence,interruptConnectedSequence,consumeConnectedSequence,connectedSequenceSource,connectedSequencePermitValid,bindConnectedSequence,connectedSequenceActiveValid} from './connected-sequence.js';
 import {receiveMotorRecallWitness,retireMotorRecallHistory,retireMotorRecallSource,consumeMotorRecallRequest,bindMotorRecallAction,motorRecallPermitValid,motorRecallActiveValid} from './motor-recall.js';
 import { receiveProducerAction,retireProducerHistory,retireProducerCustody,consumeProducerRequest,bindProducerAction } from './producer-inquiry.js';
@@ -220,6 +221,7 @@ const done=(complete,npc,request,result,active)=>{
     completedWork.set(active,Object.freeze({eventId:completion.eventId,worked:work.worked,type:work.request.type,targetId:work.request.targetId}));
     if(sameOwner&&result.ok===true&&work.worked+1e-8>=work.seconds)successfulActions.set(active,{epoch:work.epoch,discovery:work.discovery,physiology:work.physiology});
   }
+  if(sameOwner&&Number.isInteger(completion?.eventId))finishChangeMemory(npc,active,completion.eventId,result);
   return completion;
 };
 function allowed(npc,id,environment,inspection=false){
@@ -275,6 +277,7 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   const seconds=indication?INDICATION_SECONDS:primitiveDuration(npc,request.type),effort=indication?INDICATION_EFFORT:DISCOVERY_RULES.effort[request.type];
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+npcWorkAllowance(seconds,effort),seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   actionActors.set(npc.active,npc);
+  startChangeMemory(npc,npc.active,environment,check.physical);
   npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active),bindProducerAction(npc,producerPermit,npc.active),bindMotorRecallAction(npc,motorPermit,npc.active,check.physical,environment),bindConnectedSequence(npc,sequencePermit,npc.active,check.physical,sequenceSource,environment));
   paidWork.set(npc.active,{motorContext:procedureWalkingContext(npc),needs:Object.freeze({hunger:bodySignals(npc).hunger,energy:bodySignals(npc).energy}),fatigue:npc.physiology.fatigue,stamina:npc.physiology.stamina,scene:npc.scene,world:ozarkAgentWorld(npc),memory:npc.memory,environment,ecology:environment.ecology,sourceIdentity:check.physical,sourceOwnerAtStart:check.physical.heldBy,sourceCues:JSON.stringify(describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id})?.appearance??null),epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,seconds,effort,worked:0,elapsed:0,startedAt:npc.elapsed,deadline:npc.active.expiresAt,request:{...request}});
   if(indication)indications.set(npc.active,indication);
@@ -400,7 +403,7 @@ export function tickDiscoveryAction(npc,dt,environment={},options={}){
       const response=sharing?transferEcologyMaterial(environment.ecology,request.targetId,sharing.donor,npc):interactEcologyObject(environment.ecology,request.targetId,request.type,{actorId:npc.id,position:{...npc.position},scene:npc.scene,power:1,amount:.02,inventory:npc.inventory.items});
       const materialId=response?.materialId||response?.material?.id;
       result={ok:response?.ok===true,code:response?.code||'NO_CHANGE',...(objectId(materialId)?{materialId}:{}),...(objectId(response?.resultObjectId)?{resultObjectId:response.resultObjectId}:{})};
-      if(result.ok&&sharing){retireProcedureCustody(sharing.donor,request.targetId);retireProducerCustody(sharing.donor,request.targetId);retireMotorRecallSource(sharing.donor,request.targetId);interruptConnectedSequence(sharing.donor);interruptConnectedSequence(npc);}
+      if(result.ok&&sharing){retireChangeCustody(sharing.donor,request.targetId);retireChangeCustody(npc,request.targetId);retireProcedureCustody(sharing.donor,request.targetId);retireProducerCustody(sharing.donor,request.targetId);retireMotorRecallSource(sharing.donor,request.targetId);interruptConnectedSequence(sharing.donor);interruptConnectedSequence(npc);}
       if(result.ok&&result.resultObjectId){
         const object=describeEcologyObject(environment.ecology,result.resultObjectId,{actorId:npc.id});
         if(object)rememberDirectDiscoveryObject(npc,object);

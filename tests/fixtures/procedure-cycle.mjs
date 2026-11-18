@@ -45,6 +45,6 @@ export function fixture({cancelSample=false,cloneFeedback=false,inspectCycle=fal
    prepareContext();at(b.position);assert.equal(finish({type:'grasp',targetId:piece}).code,'object_held');sample(piece);
  }
  const prepare=()=>{needs();n.discovery.run=null;at({x:200,y:720});};
- return {n,e,a,b,piece,advance,at,finish,needs,soak,prepare,prepareContext};
+ return {state,n,e,a,b,piece,advance,at,finish,needs,soak,prepare,prepareContext};
 }
 export function choice(f){const result=discoveryDecision(f.n);return {result,status:procedureCycleStatus(f.n),source:f.n.discovery.techniques.find(t=>t.id===f.n.discovery.run?.techniqueId)?.sourceId};}

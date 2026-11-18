@@ -1,3 +1,4 @@
+import {normalizeWorldChangeMemory} from './fixtures/change-memory-namespace.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -775,14 +776,9 @@ test('disabling only passive measurement preserves full world, model, replay and
     `data:text/javascript;base64,${Buffer.from(isolated).toString('base64')}`);
   const normalizeWorldId=value=>{
     const copy=structuredClone(value),worldId=copy.worldLineage.instanceId;
-    const walk=node=>{
-      if(!node||typeof node!=='object')return;
-      for(const [key,part] of Object.entries(node)){
-        if((key==='instanceId'||key==='worldId')&&part===worldId)node[key]='same-world';
-        else walk(part);
-      }
-    };
-    walk(copy);return copy;
+    normalizeWorldChangeMemory(copy,value,'same-world');
+    for(const key of ['visualReference','characterMessages','playerLessons'])if(copy[key]){assert.equal(copy[key].worldId,worldId);copy[key].worldId='same-world';}
+    copy.worldLineage.instanceId='same-world';return copy;
   };
   const rows=[];
   for(const attach of [attachVisualReferenceLearning,withoutMeasurement]){

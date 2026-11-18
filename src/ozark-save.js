@@ -1,3 +1,4 @@
+import {validChangeMemory} from './change-memory.js';
 import { validCategoryNames, validCategoryCorrespondence } from './category-names.js';
 import { validFoodWarningMessages, validFoodWarningReports } from './food-warning.js';
 import { validVisualSamples } from './visual-group-memory.js';
@@ -301,6 +302,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if(raw.discovery.changeMemory!==undefined&&!validChangeMemory(raw.discovery.changeMemory,raw))fail(`${id} has invalid personal change memory`);
   if(raw.discovery.visualSamples!==undefined&&!validVisualSamples(raw.discovery.visualSamples,raw))fail(`${id} has invalid visual samples`);
   if(raw.categoryNames!==undefined&&!validCategoryNames(raw.categoryNames,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid tentative category names`);
   if(raw.lexicon!==undefined&&!validLexicon(raw.lexicon,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid individual names`);
@@ -317,6 +319,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
   if(!sameExact(raw.discovery.reports.filter(r=>r.warning!==undefined),canonical.discovery.reports.filter(r=>r.warning!==undefined)))fail(`${id} would lose adverse warning testimony`);
+  if(raw.discovery.changeMemory!==undefined&&!sameExact(raw.discovery.changeMemory,canonical.discovery.changeMemory))fail(`${id} would lose personal change memory`);
   if(raw.discovery.visualSamples!==undefined&&!sameExact(raw.discovery.visualSamples,canonical.discovery.visualSamples))fail(`${id} would lose visual samples`);
   if(raw.categoryNames!==undefined&&!sameExact(raw.categoryNames,canonical.categoryNames))fail(`${id} would lose tentative category name evidence`);
   if(raw.lexicon!==undefined&&!sameExact(raw.lexicon,canonical.lexicon))fail(`${id} would lose individual name evidence`);
@@ -495,6 +498,7 @@ function validateOzarkState(raw, geometry, { restoring = true } = {}) {
   const records = new Map(raw.agents.map(actor => [actor?.id, actor]));
   if (records.size !== AGENT_IDS.length ||
       AGENT_IDS.some(id => !records.has(id))) fail('both original agents are required');
+  for(const actor of raw.agents){const m=actor.discovery?.changeMemory;if(m&&(m.worldId!==raw.worldLineage?.instanceId||m.incarnation!==raw.worldLineage?.agents?.find(a=>a.agentId===actor.id)?.serial))fail('personal change memory lineage mismatch');}
   const agents = AGENT_IDS.map(id =>
     checkActor(records.get(id), id, raw.elapsed, geometry, restoring));
   // Historical feature triples may migrate from either no extension or the

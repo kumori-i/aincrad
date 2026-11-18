@@ -1,3 +1,4 @@
+import {normalizeActorChangeMemory} from './fixtures/change-memory-namespace.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,choice} from './fixtures/procedure-cycle.mjs';
@@ -86,7 +87,7 @@ test('independent authored arms retain identical activated discovery actions and
   const selected=choice(f);assert.equal(selected.source,f.piece);
   if(enabled){const d=procedureEligibilityDiagnostics(f.n);assert.equal(d.reason,'ordered-known-prefix');assert.equal(d.prefixLength,2);}
   else assert.equal(procedureEligibilityDiagnostics(f.n),null);
-  outputs.push({selected,actor:structuredClone(f.n),rng:f.n.rng});
+  outputs.push({selected,actor:normalizeActorChangeMemory(structuredClone(f.n),f.state),rng:f.n.rng});
  }
  assert.deepEqual(outputs[0],outputs[1]);
 });
