@@ -1,0 +1,36 @@
+name: Choice diagnostic v2 — approved once
+# Inert on ordinary branches. Never recreating this activation branch or rerunning
+# a started job is part of the frozen protocol; history guard also fails closed.
+on: create
+permissions:
+  contents: read
+  actions: read
+jobs:
+  choice-diagnostic-v2-once:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'experiments/choice-diagnostic-v2-once' && github.ref == 'refs/heads/experiments/choice-diagnostic-v2-once' && github.run_attempt == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    concurrency:
+      group: choice-diagnostic-v2-once
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Source-only protocol contracts, never an ordinary run
+        run: node --test tests/choice-diagnostic-v2*.test.mjs
+      - name: One continuous fresh pair behind fail-closed activation history
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/choice-diagnostic-v2-run.mjs --execute-once
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: choice-diagnostic-v2-once-linux-${{ runner.arch }}
+          path: test-results/choice-diagnostic-v2/
+          if-no-files-found: warn
+          retention-days: 30
