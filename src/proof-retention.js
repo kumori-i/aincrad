@@ -1,3 +1,4 @@
+import {pruneChangeMemory} from './change-memory.js';
 import { extractionOriginError, ownExtractionOrigins } from './food-source-caution.js';
 import { matchingFinishedMaterial } from './discovery-completion.js';
 import { retireHandlingInquiries } from './handling-inquiry.js';
@@ -686,6 +687,7 @@ export function applyProofRetention(npc, plan) {
     endFoodRun(npc, npc.discovery.run, 'proof-retired');
     npc.discovery.run = null;
   }
+  pruneChangeMemory(npc);
   originalPlans.delete(plan);
   return true;
 }

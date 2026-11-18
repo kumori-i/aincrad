@@ -80,7 +80,11 @@ test('controller forwards original one-use permission',()=>{
  const f=fixture();f.train();f.pull();const c=new NpcController(f.n,{environment:f.e});assert.equal(c.perform(f.choose()).code,'ACTION_STARTED');while(f.n.active)f.advance(.25);assert.equal(connectedSequenceStatus(f.n).question.phase,'completed');c.dispose();
 });
 test('observer reads remain detached and preserve world actor and RNG parity',()=>{
- const a=fixture(),b=fixture({read:true});for(const f of [a,b]){f.train();f.pull();const before=structuredClone(f.n),s=connectedSequenceStatus(f.n);for(let i=0;i<20;i++)assert.deepEqual(connectedSequenceStatus(f.n),s);assert.deepEqual(f.n,before);assert.throws(()=>s.question.phase='fake');f.finish(f.choose());}assert.deepEqual(a.n,b.n);assert.deepEqual(a.e,b.e);
+ const a=fixture(),b=fixture({read:true});for(const f of [a,b]){f.train();f.pull();const before=structuredClone(f.n),s=connectedSequenceStatus(f.n);for(let i=0;i<20;i++)assert.deepEqual(connectedSequenceStatus(f.n),s);assert.deepEqual(f.n,before);assert.throws(()=>s.question.phase='fake');f.finish(f.choose());}
+ // Independently created fixture worlds have distinct opaque namespaces. Bind
+ // each retained namespace to its actual world before normalizing only that ID.
+ const actors=[a,b].map(f=>{const n=structuredClone(f.n);assert.equal(n.discovery.changeMemory.worldId,f.state.worldLineage.instanceId);n.discovery.changeMemory.worldId='paired-fixture-world';return n;});
+ assert.deepEqual(actors[0],actors[1]);assert.deepEqual(a.e,b.e);
 });
 test('save/reload cannot reconstruct private learning or live permission',()=>{
  const f=fixture();f.train();f.pull();let raw=null;assert.equal(writeOzarkSave({getItem:()=>raw,setItem:(_k,v)=>{raw=v;}},f.state,geometry),true);const opened=loadOzarkSave({getItem:()=>raw},geometry);assert.equal(opened.blocked,false);assert.equal(connectedSequenceStatus(opened.state.agents[0]),null);

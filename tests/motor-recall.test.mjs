@@ -81,7 +81,11 @@ test('scope change during actual work cannot certify recalled detachment',()=>{
  for(const key of ['memory','discovery','physiology','epoch']){const f=fixture(),r=f.choose();requestNpcAction(f.n,r,f.e);f.advance(.25);f.n[key]=key==='epoch'?f.n[key]+1:structuredClone(f.n[key]);f.advance(.25);assert.equal(f.n.active,null);assert.equal(motorRecallStatus(f.n),null);}
 });
 test('observer on/off produces identical ordinary paid outcomes and RNG',()=>{
- const a=fixture(),b=fixture({read:true});a.finish(a.choose());b.finish(b.choose());assert.deepEqual(a.n,b.n);assert.deepEqual(motorRecallStatus(a.n),motorRecallStatus(b.n));
+ const a=fixture(),b=fixture({read:true});a.finish(a.choose());b.finish(b.choose());
+ // Both fixtures independently create a world namespace. Check ownership, then
+ // normalize this opaque ID only; retain all evidence, choices and RNG bytes.
+ const actors=[a,b].map(f=>{const n=structuredClone(f.n);assert.equal(n.discovery.changeMemory.worldId,f.state.worldLineage.instanceId);n.discovery.changeMemory.worldId='paired-fixture-world';return n;});
+ assert.deepEqual(actors[0],actors[1]);assert.deepEqual(motorRecallStatus(a.n),motorRecallStatus(b.n));
 });
 test('save and reload retain public evidence but never reconstruct recall authority',()=>{
  const f=fixture();let raw=null;const disk={getItem:()=>raw,setItem:(_key,value)=>{raw=value;}};
