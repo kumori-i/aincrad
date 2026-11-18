@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import{readFileSync,writeFileSync,mkdirSync,mkdtempSync,rmSync,symlinkSync}from'node:fs';import{tmpdir}from'node:os';import{join,resolve}from'node:path';import{gzipSync}from'node:zlib';import{spawnSync}from'node:child_process';
+import{readFileSync,writeFileSync,mkdirSync,mkdtempSync,realpathSync,rmSync,symlinkSync}from'node:fs';import{tmpdir}from'node:os';import{join,resolve}from'node:path';import{gzipSync}from'node:zlib';import{spawnSync}from'node:child_process';
 import{PRODUCER_RETEST_CI_PROTOCOL as P}from'../scripts/producer-retest-ci-protocol.mjs';
 import{validateBaseline,extractBaseline,sourceFingerprint,validateArmArguments}from'../scripts/producer-retest-ci-source.mjs';
 import{sha256,namespaceComparable,NORMALIZED_PATHS}from'../scripts/producer-retest-ci-namespace.mjs';
@@ -8,7 +8,7 @@ const env=()=>({GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'kumori-i/aincrad',GITHU
 const modified=fn=>{const data=structuredClone(validateBaseline(archive));fn(data);const bytes=gzipSync(Buffer.from(JSON.stringify(data)));return [bytes,sha256(bytes)];};
 test('frozen fresh seed and immutable baseline bytes extract exact same source, no simulation',()=>{
  assert.equal(P.seed,77201);assert.equal(P.seconds,1200);assert.equal(P.fixedStep,1/60);assert.equal(sha256(archive),P.baselineArchiveSha256);assert.equal(sourceFingerprint(resolve('.')),P.candidateSource);
- const dir=mkdtempSync(join(tmpdir(),'producer-source-'));try{const root=extractBaseline(archive,dir);assert.equal(sourceFingerprint(root),P.baselineSource);assert.equal(JSON.parse(readFileSync(join(root,'package.json'))).type,'module');}finally{rmSync(dir,{recursive:true,force:true});}
+ const dir=realpathSync(mkdtempSync(join(tmpdir(),'producer-source-')));try{const root=extractBaseline(archive,dir);assert.equal(sourceFingerprint(root),P.baselineSource);assert.equal(JSON.parse(readFileSync(join(root,'package.json'))).type,'module');}finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('tampered archive, path traversal, duplicates, nonmodule package, missing and extra sources fail closed',()=>{
  const damaged=Buffer.from(archive);damaged[10]^=1;assert.throws(()=>validateBaseline(damaged));
@@ -20,7 +20,7 @@ test('tampered archive, path traversal, duplicates, nonmodule package, missing a
  assert.throws(()=>validateBaseline(gzipSync(Buffer.alloc(9*1024*1024)),sha256(gzipSync(Buffer.alloc(9*1024*1024)))));
 });
 test('symlink source and extraction parent are forbidden',()=>{
- const dir=mkdtempSync(join(tmpdir(),'producer-links-'));try{mkdirSync(join(dir,'real'));symlinkSync(join(dir,'real'),join(dir,'alias'));assert.throws(()=>extractBaseline(archive,join(dir,'alias')));symlinkSync(join(dir,'real'),join(dir,'src'));assert.throws(()=>sourceFingerprint(dir));rmSync(join(dir,'src'));mkdirSync(join(dir,'src'));writeFileSync(join(dir,'file.js'),'x');symlinkSync(join(dir,'file.js'),join(dir,'src','a.js'));assert.throws(()=>sourceFingerprint(dir));}finally{rmSync(dir,{recursive:true,force:true});}
+ const dir=realpathSync(mkdtempSync(join(tmpdir(),'producer-links-')));try{mkdirSync(join(dir,'real'));symlinkSync(join(dir,'real'),join(dir,'alias'));assert.throws(()=>extractBaseline(archive,join(dir,'alias')),/No extraction parent symlinks/);const canonicalParent=realpathSync(join(dir,'alias'));assert.equal(sourceFingerprint(extractBaseline(archive,canonicalParent)),P.baselineSource);symlinkSync(join(dir,'real'),join(dir,'src'));assert.throws(()=>sourceFingerprint(dir));rmSync(join(dir,'src'));mkdirSync(join(dir,'src'));writeFileSync(join(dir,'file.js'),'x');symlinkSync(join(dir,'file.js'),join(dir,'src','a.js'));assert.throws(()=>sourceFingerprint(dir));}finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('arm admission is exact CI context, source pair, new seed and candidate initial matching',()=>{
  const args=['/source','/out/baseline-77201','77201',P.baselineSource];assert.equal(validateArmArguments(args,env()).arm,'baseline');
