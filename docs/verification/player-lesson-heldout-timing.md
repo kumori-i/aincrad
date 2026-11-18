@@ -22,3 +22,15 @@ retain the exact queried snapshot and ordinary sight result before aborting.
 No runtime or ordinary producer-retest protocol changes are included. Hosted
 native Linux/macOS execution is still required; source-only checks cannot prove
 native Canvas success.
+
+## Capture-stage diagnostic instrumentation
+
+The subsequent macOS run completed both pre-time crops but timed out during the
+first paid screenshot. Its capture callback included both `capturePage()` and
+the after-witness renderer IPC, so the old timeout could not distinguish them.
+New attempt telemetry records each operation's start/completion using the main
+process monotonic clock. These are not simulation-time or renderer timestamps.
+The attempt record is serialized before asynchronous evidence writes so late
+completion cannot revise a retained timeout. The five-second total deadline,
+single paid-capture attempt, paid-work assertions and visual review requirement
+are unchanged. Instrumentation supplies diagnosis, not a pass or a retry.

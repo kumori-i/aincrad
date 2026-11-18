@@ -12,6 +12,7 @@ import { CONFIG } from '../src/config.js';
 import { advancePlayerLessonFixedSteps } from './player-lesson-fixed-steps.mjs';
 import { verifyPlayerLessonCaptureProgress } from './player-lesson-capture-contract.mjs';
 import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
+import { capturePaidPoseWithTiming } from './player-capture-timing.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile,
   currentRouteSnapshot } from './carcass-native-contract.mjs';
 
@@ -121,6 +122,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {createHash}=require('node:crypto');
+const capturePaidPoseWithTiming = ${capturePaidPoseWithTiming.toString()};
 const context = ${JSON.stringify(context)};
 const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
 assert.ok(['author', 'act', 'reopen'].includes(phase));
@@ -224,19 +226,22 @@ async function capture(win, name, {paidPose=false,prepared=null,before=null}={})
   const preparation=prepared ?? await prepareCapture(win);
   const ui=paidPose&&before?{...preparation.ui,status:before.status,nearby:before.nearby}:preparation.ui;
   let witness=null,attempt=0;
+  const captureTiming={stage:'not-started'};
   const {png,metadata} = await captureWithReadiness({
     maxAttempts:paidPose?1:4,
     prepare:async()=>++attempt===1?preparation.readiness:(await prepareCapture(win)).readiness,
     capture:async()=>{
       if(!paidPose)return win.webContents.capturePage();
       witness={before:before ?? await captureLessonState(win)};
-      const image=await win.webContents.capturePage();
-      witness.after=await captureLessonState(win);
-      return image;
+      return capturePaidPoseWithTiming({capturePage:()=>win.webContents.capturePage(),
+        readAfter:()=>captureLessonState(win),witness,timing:captureTiming});
     },
     retain:async(bytes,attempt)=>{const prefix=path.join(context.output,name+'.attempt-'+attempt.attempt);
+      // Snapshot synchronously: a late unresolved capture cannot rewrite timeout evidence.
+      const evidence=JSON.stringify({phase,name,...attempt,paidPoseWitness:witness,
+        captureTiming:paidPose?captureTiming:null},null,2);
       if(bytes!==undefined)await fs.writeFile(prefix+'.png',bytes);
-      await fs.writeFile(prefix+'.json',JSON.stringify({phase,name,...attempt,paidPoseWitness:witness},null,2));},
+      await fs.writeFile(prefix+'.json',evidence);},
   });
   assert.ok(png.length>10000,'Actual native world screenshot must be nonempty');
   await fs.writeFile(path.join(context.output,name),png);

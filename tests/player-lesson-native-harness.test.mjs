@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {capturePaidPoseWithTiming} from '../scripts/player-capture-timing.mjs';
 import assert from 'node:assert/strict';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
@@ -430,7 +431,7 @@ test('preprepared paid capture has no renderer IPC or readiness sleep before cap
   const captureSource=source.slice(source.indexOf('async function capture(win, name,'),
     source.indexOf('async function captureJournal('));
   const calls=[],png=Buffer.alloc(11000),before={status:'paid',nearby:'pointing'},after={};
-  const context={assert,phase:'act',context:{output:'/evidence'},path:{join:(...parts)=>parts.join('/')},
+  const context={assert,capturePaidPoseWithTiming,phase:'act',context:{output:'/evidence'},path:{join:(...parts)=>parts.join('/')},
     fs:{writeFile:async()=>{}},prepareCapture:async()=>{throw new Error('Late readiness');},
     captureLessonState:async()=>{calls.push('after-state');return after;},
     verifyPlayerLessonCaptureProgress:(a,b)=>{assert.equal(a,before);assert.equal(b,after);return {pngVisualReviewRequired:true};},
