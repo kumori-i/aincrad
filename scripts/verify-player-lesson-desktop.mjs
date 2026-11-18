@@ -12,6 +12,7 @@ import { CONFIG } from '../src/config.js';
 import { advancePlayerLessonFixedSteps } from './player-lesson-fixed-steps.mjs';
 import { verifyPlayerLessonCaptureProgress } from './player-lesson-capture-contract.mjs';
 import { captureWithReadiness, waitForCaptureFrames } from './native-capture-readiness.mjs';
+import { createPlayerJournalProgress, waitForPlayerJournalFrames } from './player-journal-readiness-progress.mjs';
 import { capturePaidPoseWithTiming } from './player-capture-timing.mjs';
 import { nativeSourceIdentity, captureNativeChild, archiveNativeProfile,
   currentRouteSnapshot } from './carcass-native-contract.mjs';
@@ -121,7 +122,9 @@ const { app, session } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const {createHash}=require('node:crypto');
+const {createHash,randomUUID}=require('node:crypto');
+const createPlayerJournalProgress = ${createPlayerJournalProgress.toString()};
+let journalProgress=null;
 const capturePaidPoseWithTiming = ${capturePaidPoseWithTiming.toString()};
 const context = ${JSON.stringify(context)};
 const phase = process.argv.find(arg => arg.startsWith('--phase='))?.slice(8);
@@ -270,13 +273,19 @@ async function captureJournal(win,name) {
   assert.match(ui.text,/nava · 1 own-image example/);
   assert.match(ui.text,/movo · 1 own-image example/);
   assert.match(ui.text,/This session, [0-9]+ completed own-image examples/);
+  const token=randomUUID(),progress=createPlayerJournalProgress(token);
+  journalProgress=progress;
   const {png,metadata}=await captureWithReadiness({
-    prepare:async()=>{const readiness=await evaluate(win,'(' + ${JSON.stringify(waitForCaptureFrames.toString())} + ')()');
-      await delay(100);return readiness;},
-    capture:()=>win.webContents.capturePage(),
+    prepare:async()=>{const attempt=progress.next();const readiness=await evaluate(win,'(' + ${JSON.stringify(waitForPlayerJournalFrames.toString())} + ')(' + JSON.stringify(token) + ',' + attempt + ')');
+      progress.mark('evaluate-complete');progress.mark('delay-start');
+      await delay(100);progress.mark('delay-complete');return readiness;},
+    capture:async()=>{progress.mark('capture-start');const image=await win.webContents.capturePage();progress.mark('capture-complete');return image;},
     retain:async(bytes,attempt)=>{const prefix=path.join(context.output,name+'.attempt-'+attempt.attempt);
+      // Freeze serialized evidence before the first asynchronous write. Late
+      // prepare/capture completion cannot alter a terminal failure record.
+      const record=JSON.stringify({phase,name,...attempt,progress:progress.snapshot(attempt.status==='error'||attempt.status==='ready'||attempt.attempt===attempt.maxAttempts)},null,2);
       if(bytes!==undefined)await fs.writeFile(prefix+'.png',bytes);
-      await fs.writeFile(prefix+'.json',JSON.stringify({phase,name,...attempt},null,2));},
+      await fs.writeFile(prefix+'.json',record);},
   });
   assert.ok(png.length>10000);
   await fs.writeFile(path.join(context.output,name),png);
@@ -775,7 +784,7 @@ async function closeNormally(win) {
   clearTimeout(deadline);allowQuit=true;app.quit();
 }
 app.on('browser-window-created',(_event,win)=>{
-  win.webContents.on('console-message',(_event,...details)=>rendererEvents.push({kind:'console',details}));
+  win.webContents.on('console-message',(_event,...details)=>{if(!journalProgress?.console(_event,...details))rendererEvents.push({kind:'console',details});});
   win.webContents.on('did-fail-load',(_event,...details)=>rendererEvents.push({kind:'load-failure',details}));
   win.webContents.on('render-process-gone',(_event,details)=>rendererEvents.push({kind:'renderer-gone',details}));
   win.webContents.once('did-finish-load',async()=>{
