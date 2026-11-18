@@ -8,7 +8,7 @@ const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8',
 export async function startServer({port=4173,assetRoot=resolve(ROOT,'dist/renderer')}={}){
   const root=await realpath(assetRoot);
   const manifest=JSON.parse(await readFile(resolve(root,'asset-manifest.json'),'utf8'));
-  if(manifest.version!==1||!Array.isArray(manifest.files)||manifest.files.length>128)throw new Error('Invalid desktop renderer build. Run npm run build.');
+  if(manifest.version!==1||!Array.isArray(manifest.files)||manifest.files.length>256)throw new Error('Invalid desktop renderer build. Run npm run build.');
   const allowed=new Set(manifest.files.map(file=>file.path));
   if(![...allowed].every(name=>typeof name==='string'&&/^(?:index\.html|style\.css|icon\.svg|src\/[\w-]+\.js)$/.test(name)))throw new Error('Invalid renderer asset list.');
   const server=http.createServer(async(req,res)=>{

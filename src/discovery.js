@@ -1,3 +1,4 @@
+import {preferConnectedSequence,issueConnectedSequence,CONNECTED_SEQUENCE_REASON} from './connected-sequence.js';
 import {motorRecallExperiment,MOTOR_RECALL_REASON} from './motor-recall.js';
 import { producerExperiment,reassessProducerInquiries,PRODUCER_QUESTION } from './producer-inquiry.js';
 import { orderProcedureCandidates, intendProcedure, reassessProcedureOutcomes } from './procedure-cycle.js';
@@ -716,7 +717,8 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   // curiosity stage. Its fixed novelty bias is authored, not success credit.
   const freeHand=freeHandExplorationChoice(npc);
   if(freeHand)choices.push(freeHand);
-  if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
+  const sequence=handlingCuriosity&&preferConnectedSequence(npc,choices);if(sequence)sequence.score+=1; // Supplied feasibility preference, not utility credit.
+  if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];if(selected===sequence&&issueConnectedSequence(npc,selected.action))return wrap(selected.action,CONNECTED_SEQUENCE_REASON);return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
   }finally{survivalObserve(closeSurvivalDecision,survivalScope);}
 }
