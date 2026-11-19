@@ -7,7 +7,17 @@ export const PROTOCOL=Object.freeze({
  steps:216000,fixedStep:1/60,startAt:0,armTimeoutMs:60*60*1000,
  baseline:Object.freeze({commit:'0f10bdd3321d87aeafbfd5d2f09095b9b8fb059f',tree:'ae3dcf1637e83c271ff8ee4b8a03a1d89a559b44'}),
  candidate:Object.freeze({commit:'1fb64ad879ab7155b023f4bb3bc44c6a776204f1',tree:'1ffe3090b09fb80a4a18f7a5c7a27d66e17ef8aa'}),
- seeds:null,freeze:null,
+ seeds:Object.freeze([436152993, 661401960]),
+ freeze:Object.freeze({
+  approved:true,
+  inventorySha256:'a80a269e6121add418465fac8f997e597d2486d18869e43e8935d96cfadbe627',
+  selectionReviewSha256:'0133075b1d5fca9b5d8d31bfd6b488a4f868b936c08f2b61c197944c777f5684',
+  harnessSha256:'de942faf50ab5f63538ebb86c0fe7ca6cb86fd2bbfc7dff5a3e40afb603e4f8e',
+  sourceSha256:Object.freeze({
+   baseline:'a272d4b87d91f98458606aac7c7b90e3cdadc38557556482cd2a289ecd070514',
+   candidate:'ac79b69199c44921eb36f500259ce2d99e405d0273d1867e1c792f9eb6211e2f',
+  }),
+ }),
 });
 export function frozenArm(pair,arm,p=PROTOCOL){
  assert([0,1].includes(pair)&&['baseline','candidate'].includes(arm),'invalid pair or arm');
