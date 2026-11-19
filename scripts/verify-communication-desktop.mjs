@@ -1,3 +1,4 @@
+import { createCaptureProgress, waitForCaptureProgress } from './communication-capture-progress.mjs';
 /** Isolated native UI acceptance. --prepare-only creates artifacts, never native evidence. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -34,7 +35,7 @@ const harness = join(output, 'runner.cjs');
 const phases = ['exercise', 'reopen', 'reset'];
 
 // Runs in Electron main. Real application owns protocol, profile and security.
-function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames, conversationViewportEvidence) {
+function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames, conversationViewportEvidence, createCaptureProgress, waitForCaptureProgress) {
   const { app, session, ipcMain } = require('electron');
   const modelRequests={decide:0,name:0};
   const register=ipcMain.handle.bind(ipcMain);
@@ -53,19 +54,34 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
     for (let i = 0; i < 1000; i++) { if (await evaluate(win, expression)) return; await delay(50); }
     throw new Error('Condition missing: ' + expression);
   }
+  let captureSequence=0;
   async function capture(win, name, conversation = false) {
+    const progress=createCaptureProgress({token:phase+':'+(++captureSequence)});
+    const consoleProgress=(_event,...details)=>progress.receive(_event?.message??details[0]?.message??details[1]);
+    const windowState=()=>{try{return {focused:win.isFocused(),visible:win.isVisible()};}catch{return {focused:null,visible:null};}};
+    win.webContents.on('console-message',consoleProgress);
+    try {
     const { png, metadata } = await captureWithReadiness({
       prepare: async () => {
-        const value = await evaluate(win, '(' + waitForCaptureFrames.toString() + ')()');
-        await delay(100);
+        const token=progress.next();progress.mark('readiness-execute-start',windowState());
+        const value = await evaluate(win, '(' + waitForCaptureProgress.toString() + ')('+JSON.stringify(token)+')');
+        progress.mark('readiness-execute-complete',windowState());
+        await delay(100);progress.mark('readiness-settle-delay-complete');
         if (conversation) value.conversationViewport = await evaluate(win,
           '(' + conversationViewportEvidence.toString() + ')(document,window)');
-        return value;
+        progress.mark('prepare-complete');return value;
       },
-      capture: () => win.webContents.capturePage(),
-      retain: async (bytes, attempt) => { const prefix = path.join(context.output, name + '.attempt-' + attempt.attempt); if (bytes) await fs.writeFile(prefix + '.png', bytes); await fs.writeFile(prefix + '.json', JSON.stringify(attempt, null, 2)); },
+      capture: async () => {progress.mark('capture-page-start',windowState());const image=await win.webContents.capturePage();progress.mark('capture-page-complete',windowState());return image;},
+      retain: async (bytes, attempt) => {
+        progress.mark('retain:'+attempt.status,windowState());
+        attempt.progress=progress.snapshot(attempt.status==='error'||attempt.status==='ready');
+        // Serialize before any await: late renderer/capture completion cannot rewrite failure evidence.
+        const frozen=JSON.stringify(attempt,null,2),prefix=path.join(context.output,name+'.attempt-'+attempt.attempt);
+        if(bytes)await fs.writeFile(prefix+'.png',bytes);await fs.writeFile(prefix+'.json',frozen);
+      },
     });
     assert(png.length > 10000); await fs.writeFile(path.join(context.output, name), png); screenshots.push({ name, ...metadata });
+    } finally {progress.snapshot(true);win.webContents.removeListener('console-message',consoleProgress);}
   }
   const raw = win => evaluate(win, "localStorage.getItem('aincrad.world.v2')");
   const click = (win, id) => evaluate(win, 'document.getElementById(' + JSON.stringify(id) + ').click()');
@@ -344,7 +360,7 @@ function installNativeRunner(context, captureWithReadiness, waitForCaptureFrames
 }
 let closed = true, nativeProcessesStarted = 0;
 try {
-  await writeFile(harness, '(' + installNativeRunner.toString() + ')(' + JSON.stringify(context) + ',' + captureWithReadiness.toString() + ',' + waitForCaptureFrames.toString() + ',' + conversationViewportEvidence.toString() + ');\n');
+  await writeFile(harness, '(' + installNativeRunner.toString() + ')(' + JSON.stringify(context) + ',' + captureWithReadiness.toString() + ',' + waitForCaptureFrames.toString() + ',' + conversationViewportEvidence.toString() + ',' + createCaptureProgress.toString() + ',' + waitForCaptureProgress.toString() + ');\n');
   const harnessSha256 = createHash('sha256').update(await readFile(harness)).digest('hex');
   const prepared = { ...context, harness, harnessSha256, phases, nativeExecutionPerformed: false, sandboxBypassFlags: [], excludedCoverage: ['Screenshots require visual inspection.', 'This validates main-world inspector integration and save behavior, not learned survival benefit.'] };
   await writeFile(join(output, 'prepared.json'), JSON.stringify(prepared, null, 2));

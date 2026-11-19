@@ -4,7 +4,7 @@ import {createOzarkState,writeOzarkSave,loadOzarkSave,getOzarkSaveValidationFail
 import {bindOzarkWorldAgent} from '../src/ozark-agent-world.js';
 import {observeNpc,requestNpcAction,tickNpc,cancelNpcAction} from '../src/npc.js';
 import {processDiscoveryFeedback,discoveryDecision,freshMethodAppearance} from '../src/discovery.js';
-import {bodySignals} from '../src/interoception.js';import {projectPhysiology} from '../src/biology.js';
+import {bodySignals} from '../src/interoception.js';import {projectPhysiology,ingestMaterial} from '../src/biology.js';
 import {motorRecallStatus,motorRecallExperiment,receiveMotorRecallWitness,MOTOR_RECALL_REASON} from '../src/motor-recall.js';
 import {NpcController} from '../src/controller.js';
 const geometry=createOzarkWorldGeometry();
@@ -114,4 +114,61 @@ test('epoch retirement clears private proof but never refunds the live actor adm
  const f=fixture();f.choose();f.n.epoch++;assert.equal(f.choose(),null);f.comfortable();
  f.finish({type:'pull',targetId:f.source.id});f.finish({type:'release',targetId:f.n.inventory.items.at(-1)});f.finish({type:'grasp',targetId:f.source.id});
  assert.equal(motorRecallStatus(f.n).admissions,1);assert.equal(motorRecallStatus(f.n).questions.length,0);assert.equal(f.choose(),null);
+});
+
+// Authored care controls, not ordinary trajectories or outcome tuning. Private
+// recall proof still comes from the paid grass actions above. Physiological
+// boundary values are test inputs; no conservation/save claim is made for them.
+const careCases=[
+ {key:'digestion',allowed:'settled',blocked:'full',set:(n,b)=>{n.physiology.stomach=[];assert.equal(ingestMaterial(n,{massGrams:b?701:699,energyKcal:0,waterMl:0,digestHours:24},{source:'authored care boundary'}).ok,true);}},
+ {key:'stamina',allowed:'breathing hard',blocked:'winded',set:(n,b)=>{n.physiology.stamina=b?29:31;}},
+ {key:'fatigue',allowed:'tired',blocked:'weary',set:(n,b)=>{n.physiology.fatigue=b?51:49;}},
+ {key:'sleepiness',allowed:'drowsy',blocked:'sleepy',set:(n,b)=>{n.physiology.sleep.inertiaHours=0;n.physiology.sleepPressure=(b?61:59)+(n.physiology.circadianAlertness||0)*12;}},
+ {key:'energy',allowed:'low',blocked:'depleted',set:(n,b)=>{n.physiology.availableEnergyKcal=(b?14:16)*1400/(100*(.55+.45*n.physiology.condition/100));}},
+ {key:'pain',allowed:'none',blocked:'aching',set:(n,b)=>{n.physiology.health=b?89:91;}},
+ {key:'hunger',allowed:'hungry',blocked:'ravenous',set:(n,b)=>{n.physiology.satietyHours=0;n.physiology.hoursSinceMeal=b?16.1:15.9;}},
+ {key:'thirst',allowed:'thirsty',blocked:'parched',set:(n,b)=>{n.physiology.waterDeficitMl=b?1751:1749;}},
+ {key:'thermal',allowed:'comfortable',blocked:'overheated',set:(n,b)=>{n.thermal.hot=b?41:39;n.thermal.cold=0;n.sensation.feltTemperature=18;}},
+ {key:'thermal',allowed:'comfortable',blocked:'shivering',set:(n,b)=>{n.thermal.cold=b?41:39;n.thermal.hot=0;n.sensation.feltTemperature=18;}}
+];
+const setCare=(f,c,blocked)=>{c.set(f.n,blocked);projectPhysiology(f.n);assert.equal(bodySignals(f.n)[c.key],blocked?c.blocked:c.allowed,c.key);};
+test('all motor care dimensions defer selection and ordinary decision without consuming a ready question',()=>{
+ for(const c of careCases){const f=fixture();setCare(f,c,false);setCare(f,c,true);const before=motorRecallStatus(f.n);
+  assert.equal(f.choose(),null,c.key);assert.notEqual(discoveryDecision(f.n,{foodLearning:false}).reason,MOTOR_RECALL_REASON,c.key);assert.deepEqual(motorRecallStatus(f.n),before,c.key);
+  setCare(f,c,false);assert.ok(f.choose(),c.key+' becomes eligible again before selection');
+ }
+});
+test('every care dimension is rechecked at dispatch and the next active work slice',()=>{
+ for(const c of careCases)for(const active of [false,true]){const f=fixture(),r=f.choose();assert.ok(r);
+  if(active){assert.equal(requestNpcAction(f.n,r,f.e).code,'ACTION_STARTED');f.advance(.25);}
+  setCare(f,c,true);const stock=f.source.biomassGrams,items=[...f.n.inventory.items],paid=f.n.active?.worked||0;
+  if(active){f.advance(.25);assert.equal(f.n.lastResult.code,'MOTOR_RECALL_STALE',c.key);assert.equal(f.n.lastResult.durationSeconds,paid,c.key+' no additional funded work');}
+  else assert.equal(requestNpcAction(f.n,r,f.e).code,'MOTOR_RECALL_STALE',c.key);
+  assert.equal(f.n.active,null);assert.equal(f.source.biomassGrams,stock);assert.deepEqual(f.n.inventory.items,items);setCare(f,c,false);assert.equal(f.choose(),null,'selected opportunity is not refunded');
+ }
+});
+test('safe but low reserves are permitted by design, not evidence of safety or benefit',()=>{
+ for(const energy of [25,50]){const f=fixture();f.n.physiology.availableEnergyKcal=energy*1400/(100*(.55+.45*f.n.physiology.condition/100));projectPhysiology(f.n);
+  assert.equal(bodySignals(f.n).energy,energy===25?'low':'waning');assert.equal(bodySignals(f.n).hunger,'content');
+  const decision=discoveryDecision(f.n,{foodLearning:false});assert.equal(decision.reason,MOTOR_RECALL_REASON);assert.equal(f.finish(decision.action).code,'piece_detached');assert.equal(f.n.physiology.totals.ingestedKcal,0);
+ }
+});
+test('available water and necessary rest or sleep precede a ready motor question',()=>{
+ for(const [mutate,type]of [[n=>{n.physiology.waterDeficitMl=900;n.flask.water=1;},'drink'],[n=>{n.physiology.stamina=29;},'rest'],[n=>{n.physiology.fatigue=51;},'rest'],[n=>{n.physiology.sleep.inertiaHours=0;n.physiology.sleepPressure=65+(n.physiology.circadianAlertness||0)*12;},'sleep']]){
+  const f=fixture();mutate(f.n);projectPhysiology(f.n);const before=motorRecallStatus(f.n);const decision=discoveryDecision(f.n,{foodLearning:false});assert.equal(decision.action.type,type);assert.deepEqual(motorRecallStatus(f.n),before);
+ }
+});
+test('retained exact-source adverse records retire recall, unrelated adverse records do not',()=>{
+ // These are explicit existing record-filter controls, not newly earned injuries
+ // or a claim that nutritional discomfort proves the physical pull is unsafe.
+ for(const same of [false,true]){const f=fixture();f.n.discovery.effects.push({objectId:same?f.source.id:'object:unrelated',effect:'discomfort',at:f.n.elapsed});
+  const r=f.choose();if(same){assert.equal(r,null);assert.equal(motorRecallStatus(f.n).questions[0].phase,'retired');f.n.discovery.effects=[];assert.equal(f.choose(),null,'removing retained evidence cannot refund retired opportunity');}else assert.ok(r);
+ }
+});
+test('every named veto status blocks recall selection, including the more severe bands',()=>{
+ const f=fixture(),body=bodySignals(f.n),before=motorRecallStatus(f.n);
+ // Isolated qualitative-input coverage complements real body crossings above.
+ const vetoes={digestion:['full','overfull'],stamina:['winded','exhausted'],fatigue:['weary','exhausted'],sleepiness:['sleepy','struggling to stay awake'],energy:['depleted'],pain:['aching','hurting','severe'],hunger:['ravenous','faint with hunger'],thirst:['parched','desperate thirst'],thermal:['overheated','shivering','dangerously hot','dangerously cold']};
+ for(const [key,values]of Object.entries(vetoes))for(const value of values){assert.equal(f.choose({body:{...body,[key]:value}}),null,key+':'+value);assert.deepEqual(motorRecallStatus(f.n),before);}
+ assert.ok(f.choose());
 });
