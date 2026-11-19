@@ -21,7 +21,7 @@ const foodRunSeams = JSON.parse(readFileSync(new URL('./fixtures/discovery-candi
 // Preserve sequence interruption in both executed observer arms; frozen fixture stays unchanged.
 const socialContext='.includes(action.type)){const result=this.social?';
 const socialSeams=foodRunSeams.filter(s=>s.before.includes(socialContext));assert.equal(socialSeams.length,1);
-for(const s of socialSeams)for(const side of ['before','after']){assert.equal(s[side].split(socialContext).length-1,1);s[side]=s[side].replace(socialContext,'.includes(action.type)){interruptConnectedSequence(n);const result=this.social?');}
+for(const s of socialSeams)for(const side of ['before','after']){assert.equal(s[side].split(socialContext).length-1,1);s[side]=s[side].replace(socialContext,'.includes(action.type)){interruptChangeMemory(n);interruptConnectedSequence(n);const result=this.social?');}
 let sourceWithoutFoodObserver = source;
 for (const { before, after } of foodRunSeams.slice().reverse()) {
   assert.equal(sourceWithoutFoodObserver.split(after).length - 1, 1,
@@ -43,6 +43,16 @@ const withoutProducerForward = text => text
 // Motor recall forwarding is also policy authority in BOTH executed arms.
 // Strip it only for historical ancestry assertions, never for the baseline import.
 // Historical hash reconstruction only; never remove authority from an executed arm.
+// Change-memory interruption remains in BOTH executed observer arms. Strip only
+// exact reversible seams for historical ancestry hashes, never baseline imports.
+const withoutChangeMemory = text => {
+ const imported="import {interruptChangeMemory} from './change-memory.js';\n";
+ const call='interruptChangeMemory(n);';
+ assert.equal(text.split(imported).length-1,1);assert.equal(text.split(call).length-1,1);
+ const old=text.replace(imported,'').replace(call,'');
+ assert.equal(imported+old.replace('.includes(action.type)){interruptConnectedSequence(n);','.includes(action.type)){'+call+'interruptConnectedSequence(n);'),text);
+ return old;
+};
 const withoutSequenceForward = text => {
  const seams=[
   ["import {forwardConnectedSequence,interruptConnectedSequence} from './connected-sequence.js';\n",''],
@@ -63,9 +73,9 @@ const withoutMotorForward = text => {
     'forwardProducerRequest(n,raw,action);'+call),text,'motor seam roundtrip');
   return removed;
 };
-assert.equal(sha(withoutMotorForward(withoutSequenceForward(sourceWithoutFoodObserver))), '496803690f7e69a13625e2e577105156854d3f28037ef61e0abd07f281ff23bb');
-assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(sourceWithoutFoodObserver)))), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7');
-assert.equal(sha(withoutSequenceForward(sourceWithoutFoodObserver)), '2f7512043b2d47539fd7769bbdd75bf618da295fd9b7f003ac58be79734fd237',
+assert.equal(sha(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(sourceWithoutFoodObserver)))), '496803690f7e69a13625e2e577105156854d3f28037ef61e0abd07f281ff23bb');
+assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(sourceWithoutFoodObserver))))), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7');
+assert.equal(sha(withoutSequenceForward(withoutChangeMemory(sourceWithoutFoodObserver))), '2f7512043b2d47539fd7769bbdd75bf618da295fd9b7f003ac58be79734fd237',
   'immutable pre-sequence policy without food-run observer');
 // Paired instrumentation regression rebased onto the approved renewable/sharing
 // controller (a841114). This compares current behavior with/without capture,
@@ -106,9 +116,9 @@ const baselineSource = sourceWithoutFoodObserver
   .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
   .replace(',chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null', '')
   .replace('this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
-assert.equal(sha(withoutMotorForward(withoutSequenceForward(baselineSource))), '45d28a52573b3738093840e92e78b04bf3d5c9e7d231581b1da7147309a1e505');
-assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(baselineSource)))), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c');
-assert.equal(sha(withoutSequenceForward(baselineSource)), 'c9853bb29612bed38626798d96533890cfa33b06b5a06b4c12b71084b0b6937c', 'immutable pre-sequence baseline controller bytes');
+assert.equal(sha(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(baselineSource)))), '45d28a52573b3738093840e92e78b04bf3d5c9e7d231581b1da7147309a1e505');
+assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(baselineSource))))), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c');
+assert.equal(sha(withoutSequenceForward(withoutChangeMemory(baselineSource))), 'c9853bb29612bed38626798d96533890cfa33b06b5a06b4c12b71084b0b6937c', 'immutable pre-sequence baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));

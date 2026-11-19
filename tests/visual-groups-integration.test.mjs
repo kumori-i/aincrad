@@ -1,3 +1,4 @@
+import {normalizeWorldChangeMemory} from './fixtures/change-memory-namespace.mjs';
 const historicalClone=value=>legacyFixture(globalThis.structuredClone(value));
 import { legacyFixture } from './fixtures/legacy-communication.mjs';
 // These tests preserve the explicit historical English/naming channel.
@@ -126,7 +127,8 @@ test('enabled and disabled observer have exact ordinary-controller world parity'
   }
   const normalized=world=>{
     const copy=structuredClone(world);
-    copy.worldLineage.instanceId='<fresh-world-instance>';
+    normalizeWorldChangeMemory(copy,world,'<fresh-world-instance>');
+  copy.worldLineage.instanceId='<fresh-world-instance>';
     copy.visualReference.worldId='<fresh-world-instance>';
     copy.characterMessages.worldId='<fresh-world-instance>';
     copy.playerLessons.worldId='<fresh-world-instance>';

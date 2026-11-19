@@ -1,3 +1,4 @@
+import {normalizeWorldChangeMemory} from './fixtures/change-memory-namespace.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
@@ -41,6 +42,7 @@ function comparableWorld(state){
   assert.equal(copy.worldLineage.instanceId,copy.visualReference.worldId);
   assert.equal(copy.worldLineage.instanceId,copy.characterMessages.worldId);
   assert.equal(copy.worldLineage.instanceId,copy.playerLessons.worldId);
+  normalizeWorldChangeMemory(copy,state,'<fresh-world-instance>');
   copy.worldLineage.instanceId='<fresh-world-instance>';
   copy.visualReference.worldId='<fresh-world-instance>';
   copy.characterMessages.worldId='<fresh-world-instance>';

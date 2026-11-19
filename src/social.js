@@ -1,3 +1,4 @@
+import {interruptChangeMemory} from './change-memory.js';
 import { bindCommunicationMode, defineCommunicationMode } from './communication-mode.js';
 import { CategoryNameRuntime } from './category-name-runtime.js';
 import { namedObject } from './category-names.js';
@@ -310,6 +311,7 @@ export class SocialCoordinator {
 
   action(npc, action) {
     if (!AGENT_IDS.has(npc?.id) || !this.agents().includes(npc)) return {ok: false, code: 'UNKNOWN_SPEAKER'};
+    interruptChangeMemory(npc);
     if (!aliveAndAwake(npc)) return {ok: false, code: 'SPEAKER_UNAVAILABLE'};
     if (!action || typeof action !== 'object') return {ok: false, code: 'INVALID_SOCIAL_ACTION'};
     if (FOOD_SHARING_ACTIONS.includes(action.type)) return this.foodSharing.action(npc,action);
