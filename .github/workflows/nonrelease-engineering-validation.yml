@@ -1,0 +1,77 @@
+name: Loose current non-release engineering validation
+on: create
+permissions:
+  contents: read
+jobs:
+  engineering:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'validation/loose-current-engineering-v1' && github.ref == 'refs/heads/validation/loose-current-engineering-v1' && github.run_attempt == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    concurrency:
+      group: loose-current-nonrelease-engineering-v1
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Attest exact clean source before engineering checks
+        env:
+          EVIDENCE: ${{ runner.temp }}/aincrad-engineering-validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+          cat > "$RUNNER_TEMP/aincrad-engineering-attest.cjs" <<'NODE'
+          const fs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),os=require('node:os');
+          const git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8'}).trim();
+          const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
+          const files={};for(const p of git('ls-files','-z').split('\0').filter(Boolean).sort())files[p]=sha(fs.readFileSync(p));
+          const out={phase:process.argv[2],at:new Date().toISOString(),head:git('rev-parse','HEAD'),tree:git('rev-parse','HEAD^{tree}'),status:git('status','--porcelain'),sourceSha256:sha(JSON.stringify(files)),files,host:{platform:process.platform,arch:process.arch,node:process.version,release:os.release()},github:{sha:process.env.GITHUB_SHA,ref:process.env.GITHUB_REF,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT},scope:'Engineering check/build only; no ordinary/native trial; non-release validation'};
+          fs.writeFileSync(process.env.EVIDENCE+'/'+out.phase+'.json',JSON.stringify(out,null,2)+'\n');
+          if(out.status||out.head!==process.env.GITHUB_SHA)throw Error('Unexpected source identity or dirty worktree');
+          NODE
+          node "$RUNNER_TEMP/aincrad-engineering-attest.cjs" before
+      - name: Full engineering check and build with exact exit statuses
+        env:
+          EVIDENCE: ${{ runner.temp }}/aincrad-engineering-validation
+        shell: bash
+        run: |
+          set +e
+          npm run check > "$EVIDENCE/check.log" 2>&1
+          check_rc=$?
+          printf '{"exitCode":%d}\n' "$check_rc" > "$EVIDENCE/check-exit.json"
+          npm run build > "$EVIDENCE/build.log" 2>&1
+          build_rc=$?
+          printf '{"exitCode":%d}\n' "$build_rc" > "$EVIDENCE/build-exit.json"
+          if [ "$check_rc" -ne 0 ]; then exit "$check_rc"; fi
+          exit "$build_rc"
+      - name: Attest unchanged source and final engineering verdict
+        if: always()
+        env:
+          EVIDENCE: ${{ runner.temp }}/aincrad-engineering-validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/aincrad-engineering-attest.cjs" after
+          node <<'NODE'
+          const fs=require('node:fs'),p=process.env.EVIDENCE;
+          const read=n=>JSON.parse(fs.readFileSync(p+'/'+n+'.json'));
+          const before=read('before'),after=read('after'),check=read('check-exit'),build=read('build-exit');
+          const passed=check.exitCode===0&&build.exitCode===0&&before.head===after.head&&before.tree===after.tree&&before.sourceSha256===after.sourceSha256&&before.status===''&&after.status==='';
+          fs.writeFileSync(p+'/verdict.json',JSON.stringify({passed,check,build,beforeSource:before.sourceSha256,afterSource:after.sourceSha256,localFullGate:'UNKNOWN/uncredited',hostedFullGate:passed?'PASS':'FAIL',release:false,ordinaryActivation:false},null,2));
+          if(!passed)process.exitCode=1;
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: loose-current-nonrelease-engineering-v1-engineering-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/aincrad-engineering-validation/*.json
+            ${{ runner.temp }}/aincrad-engineering-validation/*.log
+          if-no-files-found: warn
+          retention-days: 30
