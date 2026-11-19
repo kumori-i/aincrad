@@ -60,18 +60,31 @@ for(const {before,after} of seams.slice().reverse()){
 // Same-source motor recall is policy authority, retained in BOTH imports below.
 // Its exact added import/decision block is removed only to prove historical ancestry.
 // Reverse exact sequence seams for historical hashes ONLY; retain original in both policy arms.
+// Hash-only backprojection. Keep the new optional policy in BOTH executed
+// arms below; frozen observer seams and historical pins are not edited.
+const revisitSeams=[
+ ["import {revisitChoice,issueRevisit} from './voluntary-revisit.js';\n",''],
+ ["  const revisit=handlingCuriosity&&revisitChoice(npc,{route:p=>routeTarget(npc,p),routeLength:p=>createKnownRouteIndex(rememberedCells(npc),npc.position,rememberedEdges(npc),npc.elapsed,npc.navigationAnchor,timeoutRouteBlocks(npc)).metrics(p,30)?.returnedLength});\n  if(revisit)choices.push(revisit);\n  if(traversal&&!choices.length)","  if(traversal&&!choices.length)"],
+ ["index<choices.length&&(choices[index]!==revisit||issueRevisit(npc,choices[index].action))","index<choices.length"],
+ ["let selected=choices.sort((a,b)=>b.score-a.score)[0];if(selected===revisit&&!issueRevisit(npc,selected.action)){choices.splice(choices.indexOf(revisit),1);selected=choices[0];if(!selected)return wrap({type:'wait',seconds:5},'The optional remembered-place attempt is no longer available.');}","const selected=choices.sort((a,b)=>b.score-a.score)[0];"],
+];
+let beforeRevisit=original;
+for(const [after,before]of revisitSeams){assert.equal(beforeRevisit.split(after).length-1,1);beforeRevisit=beforeRevisit.replace(after,before);}
+let restoredRevisit=beforeRevisit;
+for(const [after,before]of revisitSeams.slice().reverse()){if(before){assert.equal(restoredRevisit.split(before).length-1,1);restoredRevisit=restoredRevisit.replace(before,after);}else restoredRevisit=after+restoredRevisit;}
+assert.equal(restoredRevisit,original,'only exact revisit ancestry seams reverse');
 const sequenceImport="import {preferConnectedSequence,issueConnectedSequence,CONNECTED_SEQUENCE_REASON} from './connected-sequence.js';\n";
 const sequencePreference="  const sequence=handlingCuriosity&&preferConnectedSequence(npc,choices);if(sequence)sequence.score+=1; // Supplied feasibility preference, not utility credit.\n";
 const sequenceIssue="if(selected===sequence&&issueConnectedSequence(npc,selected.action))return wrap(selected.action,CONNECTED_SEQUENCE_REASON);";
-for(const seam of [sequenceImport,sequencePreference,sequenceIssue])assert.equal(original.split(seam).length-1,1);
-const beforeSequence=original.replace(sequenceImport,'').replace(sequencePreference,'').replace(sequenceIssue,'');
-assert.equal(sequenceImport+beforeSequence.replace("  if(choices.length){const selected=",sequencePreference+"  if(choices.length){const selected=").replace("choices.sort((a,b)=>b.score-a.score)[0];return","choices.sort((a,b)=>b.score-a.score)[0];"+sequenceIssue+"return"),original);
+for(const seam of [sequenceImport,sequencePreference,sequenceIssue])assert.equal(beforeRevisit.split(seam).length-1,1);
+const beforeSequence=beforeRevisit.replace(sequenceImport,'').replace(sequencePreference,'').replace(sequenceIssue,'');
+assert.equal(sequenceImport+beforeSequence.replace("  if(choices.length){const selected=",sequencePreference+"  if(choices.length){const selected=").replace("choices.sort((a,b)=>b.score-a.score)[0];return","choices.sort((a,b)=>b.score-a.score)[0];"+sequenceIssue+"return"),beforeRevisit);
 const motorImport="import {motorRecallExperiment,MOTOR_RECALL_REASON} from './motor-recall.js';\n";
 const motorDecision="  const recall=handlingCuriosity&&motorRecallExperiment(npc,{body,local:id=>localMethodSource(npc,id),blocked:(type,id)=>recentlyFailed(npc,type,id)||availabilityBlocked(npc,type,id)});\n  if(recall)return wrap(recall,MOTOR_RECALL_REASON);\n";
 const handlingAnchor='  if(handling)return wrap(handling,HANDLING_QUESTION);\n';
-assert.equal(original.split(motorImport).length-1,1,'one motor policy import');
-assert.equal(original.split(motorDecision).length-1,1,'one motor policy decision block');
-assert.equal(original.split(handlingAnchor).length-1,1,'one exact restoration anchor');
+assert.equal(beforeRevisit.split(motorImport).length-1,1,'one motor policy import');
+assert.equal(beforeRevisit.split(motorDecision).length-1,1,'one motor policy decision block');
+assert.equal(beforeRevisit.split(handlingAnchor).length-1,1,'one exact restoration anchor');
 const historical=beforeSequence.replace(motorImport,'').replace(motorDecision,'');
 assert.equal(motorImport+historical.replace(handlingAnchor,handlingAnchor+motorDecision),beforeSequence,'exact motor policy seam roundtrip');
 assert.equal(sha(historical),'a6877e6d3b19c04ce6a375f96debbb2eb5dabe7b5c5e7220578fa75506a8a7a1','unchanged historical observer-free policy before motor recall');

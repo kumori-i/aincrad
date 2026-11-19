@@ -1,3 +1,4 @@
+import {validRevisitSpent} from './voluntary-revisit.js';
 import {validChangeMemory} from './change-memory.js';
 import { validFoodWarningReport, cleanFoodWarning } from './food-warning.js';
 import { matchingFinishedMaterial, validFinishedMaterialRow } from './discovery-completion.js';
@@ -114,6 +115,7 @@ export function validateDiscoveryMemory(raw,npc=null,rawExperience=npc?.memory?.
   for(const k of ['lastAttemptAt','reportCursor','foodDiscoveries'])d[k]=num(raw[k]);d.lastDialogueAt=Number.isFinite(raw.lastDialogueAt)?Math.max(-60,Math.min(1e10,raw.lastDialogueAt)):-60;
   d.search={home:point(raw.search?.home),startedAt:num(raw.search?.startedAt)};d.run=null;if(raw.inquiries!==undefined&&validInquiries(raw.inquiries,d,npc?.elapsed??1e10,npc?.id))d.inquiries=structuredClone(raw.inquiries);
   if(raw.handlingAdmissions!==undefined||raw.handlingQuestions!==undefined){const candidate={...d,handlingAdmissions:raw.handlingAdmissions,handlingQuestions:raw.handlingQuestions};if(npc&&validHandlingInquiries(candidate,npc)){d.handlingAdmissions=structuredClone(raw.handlingAdmissions);d.handlingQuestions=structuredClone(raw.handlingQuestions);}}
+  if(raw.revisitSpent!==undefined&&validRevisitSpent(raw.revisitSpent))d.revisitSpent=[...raw.revisitSpent];
   if(raw.changeMemory!==undefined&&validChangeMemory(raw.changeMemory,npc,d,rawExperience))d.changeMemory=structuredClone(raw.changeMemory);
   return d;
 }

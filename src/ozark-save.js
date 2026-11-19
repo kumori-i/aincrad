@@ -1,3 +1,4 @@
+import {validRevisitSpent} from './voluntary-revisit.js';
 import {validChangeMemory} from './change-memory.js';
 import { validCategoryNames, validCategoryCorrespondence } from './category-names.js';
 import { validFoodWarningMessages, validFoodWarningReports } from './food-warning.js';
@@ -302,6 +303,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   // interrupted-action receipt. No original sample, action or effect may be
   // silently sliced, repaired, or replaced by feedback from a separate queue.
   const waterSourceAt = id => ozarkWaterSource(id, geometry);
+  if(raw.discovery.revisitSpent!==undefined&&!validRevisitSpent(raw.discovery.revisitSpent))fail(`${id} has invalid spent revisit budget`);
   if(raw.discovery.changeMemory!==undefined&&!validChangeMemory(raw.discovery.changeMemory,raw))fail(`${id} has invalid personal change memory`);
   if(raw.discovery.visualSamples!==undefined&&!validVisualSamples(raw.discovery.visualSamples,raw))fail(`${id} has invalid visual samples`);
   if(raw.categoryNames!==undefined&&!validCategoryNames(raw.categoryNames,raw,{pointValid:(point,at)=>observationReachable(point,at,id,raw.position,raw.elapsed,geometry)}))fail(`${id} has invalid tentative category names`);
@@ -319,6 +321,7 @@ function checkActor(raw, id, worldElapsed, geometry, restoring) {
   const canonical = validateNpc(raw, { restoring: false, canStandAt,
     waterSourceAt });
   if(!sameExact(raw.discovery.reports.filter(r=>r.warning!==undefined),canonical.discovery.reports.filter(r=>r.warning!==undefined)))fail(`${id} would lose adverse warning testimony`);
+  if(raw.discovery.revisitSpent!==undefined&&!sameExact(raw.discovery.revisitSpent,canonical.discovery.revisitSpent))fail(`${id} would lose spent revisit budget`);
   if(raw.discovery.changeMemory!==undefined&&!sameExact(raw.discovery.changeMemory,canonical.discovery.changeMemory))fail(`${id} would lose personal change memory`);
   if(raw.discovery.visualSamples!==undefined&&!sameExact(raw.discovery.visualSamples,canonical.discovery.visualSamples))fail(`${id} would lose visual samples`);
   if(raw.categoryNames!==undefined&&!sameExact(raw.categoryNames,canonical.categoryNames))fail(`${id} would lose tentative category name evidence`);
