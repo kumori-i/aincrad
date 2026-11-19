@@ -496,9 +496,12 @@ export function createOzarkWorldGeometry({ structures = true } = {}) {
       throw new Error(`Ozark ${name} spawn is no longer dry and passable`);
     }
   }
+  // Pure segment check for passive surface material. No actor or clock enters.
+  const canSweepSwimFootprint = (from,to,radius) => finitePoint(from)&&finitePoint(to)&&
+    Number.isFinite(radius)&&radius>0&&clearSweep(from,to,radius,'swim').walkable===true;
   const result = Object.freeze({
     profile: PROFILE, bounds: BOUNDS, spawn: PLAYER_SPAWN,
-    agentSpawns: SPAWNS, sample, cartographicSample: sampleTerrain, classify, canOccupy, advance, move,
+    agentSpawns: SPAWNS, sample, cartographicSample: sampleTerrain, classify, canOccupy, canSweepSwimFootprint, advance, move,
     fundedAdvance: true,
     lineOfSight, observe, groundAt,
     ...(structures ? { structureVersion: 1,
