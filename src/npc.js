@@ -1,3 +1,4 @@
+import {observeRevisit,consumeRevisit,validRevisit,revisitRouteValid,bindRevisit,revisitActiveValid,finishRevisit} from './voluntary-revisit.js';
 import {observeChangeMemory,finishChangeMemory,interruptChangeMemory} from './change-memory.js';
 import {observeConnectedSequence,retireConnectedSequence,noteConnectedSequenceRequest,interruptConnectedSequence} from './connected-sequence.js';
 import {observeMotorRecallSource,retireMotorRecallHistory} from './motor-recall.js';
@@ -54,6 +55,7 @@ export function observeNpc(npc,environment={}){
   const observation=perceive(npc,environment);
   for(const object of observation.objects||[]){const identity=lookupEcologyObject(environment.ecology,object.id);retireObservedProcedureSource(npc,object.id,identity,environment);retireObservedProducerSource(npc,object.id,identity,environment);observeMotorRecallSource(npc,object.id,identity,environment);observeConnectedSequence(npc,object.id,identity,environment);}
   observeChangeMemory(npc,observation,environment,id=>lookupEcologyObject(environment.ecology,id));
+  observeRevisit(npc,observation,environment,id=>lookupEcologyObject(environment.ecology,id));
   rememberObservation(npc,observation);
   if(npc.scene!=='valley'&&npc.memory.shelters[npc.scene])Object.assign(npc.memory.shelters[npc.scene],{experiencedTemperature:npc.sensation.feltTemperature,experiencedAt:npc.elapsed});
   return observation;
@@ -89,6 +91,7 @@ function complete(npc,request,result,context=policyContext(npc),startPosition={.
     if(ozarkPersistentWorldAgent(npc))result.movement.traversal=active.swimSeconds>0?'swimming':active.climbSeconds>0?'climbing':active.passiveDriftSeconds>0&&forward<3?'adrift':active.waterSeconds>0?'wading':'walking';
   }
   if(active?.startScene)startScene=active.startScene;
+  finishRevisit(npc,active,result);
   finishProcedureMove(npc,active,result);
   finishFoodRunAction(npc,active,request,result);
   npc.active=null;npc.bodyMode='awake';const event=learnOutcome(npc,request,{...result,startScene,scene:npc.scene},context,startPosition);
@@ -183,6 +186,8 @@ function requestNpcActionObservedBody(npc,raw,environment={}){
   finally{if(result?.ok!==true)interruptConnectedSequence(npc);}
 }
 function requestNpcActionSequenceBody(npc,raw,environment={}){
+  const revisit=consumeRevisit(npc,raw);
+  if(!validRevisit(npc,revisit,raw,environment))return {ok:false,code:'REVISIT_STALE'};
   if(npc.lifecycle!=='AWAKE')return {ok:false,code:'UNCONSCIOUS'};
   if(npc.active)return {ok:false,code:'ACTION_BUSY'};
   if(npc.mode==='discovery'&&isSleeping(npc))return{ok:false,code:'ASLEEP'};
@@ -290,10 +295,12 @@ function requestNpcActionSequenceBody(npc,raw,environment={}){
       const cell=cells[tileKey(target)];if(!cell?.walkable||distance(target,cell)>NPC_RULES.tileSize*.71||ozarkAgentWorld(npc)&&(target.x!==cell.x||target.y!==cell.y))return complete(npc,request,{ok:false,code:'UNOBSERVED_TARGET'},context,startPosition);
       route=knownRoute(cells,npc.position,target,30,edges,npc.elapsed,anchor,timeoutRouteBlocks(npc));if(!route)return complete(npc,request,{ok:false,code:'NO_KNOWN_ROUTE'},context,startPosition);
     }
+    if(!revisitRouteValid(npc,revisit,route))return complete(npc,request,{ok:false,code:'REVISIT_ROUTE_LIMIT'},context,startPosition);
     if(distance(npc.position,target)<6)return complete(npc,request,{ok:true,code:'ARRIVED',distance:0},context,startPosition);
     npc.active={request,context,startPosition,startScene,route,index:0,startedAt:npc.elapsed,expiresAt:npc.elapsed+(request.duration||NPC_RULES.maxActionSeconds),startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,blockedFor:0,travelled:0};
     if(npc.mode==='discovery'&&ozarkPersistentWorldAgent(npc)&&request.type==='move')procedureMoves.set(npc.active,{scene:npc.scene,world:ozarkAgentWorld(npc),target:Object.freeze({...request.target}),actor:npc,epoch:npc.epoch,memory:npc.memory,discovery:npc.discovery,physiology:npc.physiology,environment,ecology:environment.ecology,context:procedureWalkingContext(npc),contextChanged:false,seconds:0,propelled:0});
     if(npc.mode==='discovery')npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,raw,npc.active,{travel:true}));
+    bindRevisit(npc,revisit,npc.active);
     if(recoveryRoute)markRecovery(npc.active);
     if(ozarkAgentWorld(npc))Object.assign(npc.active,{startWetness:npc.thermal.wetness,startStamina:npc.physiology.stamina,startFatigue:npc.physiology.fatigue,forwardProgress:0,attemptedDistance:0,waterSeconds:0,swimSeconds:0,climbSeconds:0,fallRiskSeconds:0,passiveDriftSeconds:0});
   }else npc.active={request,context,startPosition,startScene,startedAt:npc.elapsed,expiresAt:npc.elapsed+request.seconds,startHydration:npc.hydration,startNourishment:npc.nourishment,startRisk:npc.riskCost,startEnergy:npc.energy,startStamina:npc.stamina,startFatigue:npc.fatigue,startSleepPressure:npc.sleepPressure};
@@ -488,6 +495,7 @@ function tickDiscoveryNpc(npc,dt,environment){
     if(remaining>1e-12){const drift=ozark.advance(npc.position,0,0,remaining,false);waterSeconds+=drift.waterSeconds||0;active.passiveDriftSeconds+=(drift.waterSeconds||0);}
     integrated=dt;active.waterSeconds+=waterSeconds;wetOzarkBody(npc,dt,waterSeconds);
   };
+  if(!revisitActiveValid(npc,active,environment)){finishPassive();complete(npc,active.request,{ok:false,code:'REVISIT_INTERRUPTED',distance:active.travelled||0,...losses},active.context,active.startPosition,active.startScene);return;}
   if(isRecovery(active)&&!recoverySafe(npc)){finishPassive();complete(npc,active.request,{ok:false,code:'PRIORITY_CHANGED',distance:active.travelled||0,...losses},active.context,active.startPosition,active.startScene);return;}
   // A deadline cannot be bypassed by an already reached waypoint. Passive
   // current still owns the entire elapsed step, even when work is finished.
