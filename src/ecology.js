@@ -37,6 +37,7 @@ function plantConditions(e,p){
 }
 const cellKey=(o)=>`${o.scene}:${Math.floor(o.position.x/R.spatialCell)}:${Math.floor(o.position.y/R.spatialCell)}`;
 function invalidateIndex(e){indexes.delete(e);}
+export {invalidateIndex as refreshEcologySpatialIndex};
 function buildIndex(e){
   const index={ids:new Map(),cells:new Map(),species:{},elapsed:e.elapsed,plants:e.plants,animals:e.animals,materials:e.materials,aquaticRevision:aquaticRevision(e),lengths:[e.plants.length,e.animals.length,e.materials.length]};
   for(const o of [...e.plants,...e.animals,...e.materials,...(e.aquatic?.fish||[])]){

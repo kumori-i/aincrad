@@ -1,5 +1,6 @@
 import { publishConsumption } from './consumption-events.js';
-import { describeEcologyObject } from './ecology.js';
+import { describeEcologyObject,refreshEcologySpatialIndex } from './ecology.js';
+import {advectLooseSurfaceMaterial} from './loose-surface-material.js';
 // The fresh Ozark ecosystem uses the same finite object, physiology, and
 // transfer records as the historical valley. Its geography is selected only
 // by the saved Ozark identity and the authoritative full-map geometry.
@@ -672,9 +673,11 @@ function tickAnimals(e,dt,environment,agents,callbacks,geometry){
     e.ledger.animalWaterLostMl+=Math.max(0,totals.waterLostMl-before.waterLostMl);
   }
 }
-function materialStep(e,dt,agents){
+function materialStep(e,dt,agents,geometry){
+  let moved=false;
   for(const m of [...e.materials]){
     if(decayAquaticMaterial(e,m,dt,agents,(mass,kcal,point)=>addDetritus(e,mass,kcal,point)))continue;
+    moved=advectLooseSurfaceMaterial(m,dt,geometry)||moved;
     m.ageHours+=gameHours(dt);m.spoiled=m.ageHours>=MATERIALS[m.materialType].spoilDays*24;
     if(m.spoiled){const fraction=Math.min(1,gameHours(dt)/(R.materialDecayDays*24));
       const mass=m.massGrams*fraction,calories=m.energyKcal*fraction;
@@ -687,7 +690,8 @@ function materialStep(e,dt,agents){
       if(aquaticEnabled(e))for(const actor of agents)if(Array.isArray(actor.inventory?.items))actor.inventory.items=actor.inventory.items.filter(id=>id!==m.id);
     }
   }
-  recruitJuveniles(e,geometryForOzarkEcology(e));
+  if(moved)refreshEcologySpatialIndex(e);
+  recruitJuveniles(e,geometry);
   const fraction=gameDays(dt)/10;
   for(const row of e.regions){
     const mass=row.massGrams*fraction,calories=row.energyKcal*fraction;
@@ -709,7 +713,7 @@ export function tickOzarkEcology(ecology,dt,environment={},agents=[],callbacks={
   while(ecology.pending>=STEP){ecology.pending-=STEP;ecology.elapsed+=STEP;
     growPlants(ecology,STEP,environment,geometry);
     tickAnimals(ecology,STEP,environment,agents,callbacks,geometry);
-    materialStep(ecology,STEP,agents);
+    materialStep(ecology,STEP,agents,geometry);
     tickAquaticEcology(ecology,STEP,geometry,{deposit:(mass,kcal,point)=>addDetritus(ecology,mass,kcal,point)});
   }
 }

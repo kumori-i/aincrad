@@ -1,0 +1,5 @@
+# Loose grass in flowing water
+
+A detached grass piece can move with surface current after ordinary paid release. Grass uses a small authored transport coefficient; this is not a buoyancy claim about other materials. Held pieces, unsupported materials, dry ground and standing ponds do not gain transport. Actors still see only ordinary public positions and must make a new observation to update stale memory. A later grasp pays normal effort, checks actual reach and custody, and stops transport when it succeeds.
+
+The fixed half-second ecology tick uses the world's existing flow direction and depth-dependent speed. A bounded sweep uses the native conservative terrain envelope and exact rock/trunk segment check with the same 10-unit occupiable footprint as save validation, without actor movement or effort APIs; a blocked step stays at the last valid surface-water point. The object retains its ID, material, stock, age/decay path and ownership, and its exact position already belongs to the existing save schema. There is no autonomous preference, reward, nourishment, tool or crafting rule.
