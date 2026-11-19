@@ -74,3 +74,84 @@ test('in-flight interposition preserves unknown paid completion and blocks older
   f.advance();requestNpcAction(f.n,{type:'strike',targetId:f.source.id},f.e);assert.equal(changeMemoryStatus(f.n).pending.prediction,null,'unknown paid work is not skipped for two older concordant capsules');
  }
 });
+
+test('paid pull preserves same-batch ordinary sight of surviving source separately from successor',()=>{
+ const f=fixture();f.advance();const before=observeNpc(f.n,f.e).objects.find(o=>o.id===f.source.id);
+ assert.equal(f.finish('pull').ok,true);
+ const row=f.n.discovery.changeMemory.rows.at(-1),source=row.sourceObservation;
+ assert.equal(source.targetId,f.source.id);assert.notEqual(row.afterTargetId,source.targetId);
+ assert.equal(source.sample.at,row.after.at);assert.deepEqual(source.sample.actorPosition,row.after.actorPosition);
+ assert.ok(source.sample.count<before.count);assert.ok(validChangeMemory(f.n.discovery.changeMemory,f.n));
+ const snapshot=changeMemoryStatus(f.n);snapshot.memory.rows.at(-1).sourceObservation.sample.count=999;
+ assert.notEqual(source.sample.count,999,'observer projection is detached');
+});
+test('source replacement, missing source, changed custody, and interposition keep archival source explicitly unknown',()=>{
+ for(const mode of ['replacement','missing','custody','interposed']){
+  const f=fixture();assert.equal(requestNpcAction(f.n,{type:'pull',targetId:f.source.id},f.e).ok,true);
+  while(f.n.active)f.advance();
+  if(mode==='replacement')f.e.ecology.plants=f.e.ecology.plants.map(o=>o===f.source?{...o}:o);
+  if(mode==='missing')f.e.ecology.plants=f.e.ecology.plants.filter(o=>o!==f.source);
+  if(mode==='custody')f.source.heldBy=f.state.agents[1].id; // authored foreign-custody negative
+  if(mode==='interposed')requestNpcAction(f.n,{type:'wait',seconds:1},f.e);
+  f.advance();observeNpc(f.n,f.e);
+  const row=f.n.discovery.changeMemory.rows.at(-1);
+  assert.equal(row.sourceObservation,null,mode);
+  assert.ok(validChangeMemory(f.n.discovery.changeMemory,f.n),mode);
+ }
+});
+test('optional source association remains version-1 compatible and rejects foreign or forged mixed-batch samples',()=>{
+ const f=fixture();f.advance();observeNpc(f.n,f.e);assert.equal(f.finish('pull').ok,true);
+ const original=structuredClone(f.n.discovery.changeMemory);assert.ok(original.rows.at(-1).sourceObservation);
+ for(const mutate of [
+  r=>r.sourceObservation.targetId=r.afterTargetId,
+  r=>r.sourceObservation.sample.at-=.1,
+  r=>r.sourceObservation.sample.actorPosition.x+=1,
+  r=>r.sourceObservation.sample.environment.shade='bad',
+  r=>r.sourceObservation.sample.health=100,
+  r=>r.state='interrupted',
+ ]){
+  f.n.discovery.changeMemory=structuredClone(original);mutate(f.n.discovery.changeMemory.rows.at(-1));
+  assert.equal(validChangeMemory(f.n.discovery.changeMemory,f.n),false);
+  let raw=null;assert.equal(writeOzarkSave({getItem:()=>raw,setItem:(_k,v)=>{raw=v;}},f.state,geometry),false);
+ }
+ for(const old of [false,true]){
+  const g=fixture();g.advance();observeNpc(g.n,g.e);assert.equal(g.finish('pull').ok,true);
+  const expected=g.n.discovery.changeMemory;
+  if(old)delete expected.rows.at(-1).sourceObservation;
+  let raw=null;const storage={getItem:()=>raw,setItem:(_k,v)=>{raw=v;}};
+  assert.equal(writeOzarkSave(storage,g.state,geometry),true,JSON.stringify(getOzarkSaveValidationFailure(g.state)));
+  const loaded=loadOzarkSave(storage,geometry).state;
+  assert.deepEqual(loaded.agents[0].discovery.changeMemory,expected);
+  assert.equal(changeMemoryStatus(loaded.agents[0]).pending,null);
+ }
+});
+test('supplemental source record at full cap preserves legacy memory, shared proof, policy, physics and RNG',async()=>{
+ const {mkdtempSync,cpSync,readFileSync,writeFileSync,rmSync}=await import('node:fs'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{pathToFileURL}=await import('node:url'),{spawnSync}=await import('node:child_process');
+ const tmp=mkdtempSync(join(tmpdir(),'supplemental-source-parity-'));
+ try{
+  cpSync('src',join(tmp,'src'),{recursive:true});writeFileSync(join(tmp,'package.json'),'{"type":"module"}');
+  const path=join(tmp,'src/change-memory.js'),code=readFileSync(path,'utf8');
+  const anchor=' if(row.afterTargetId!==e.targetId){';
+  assert.equal(code.split(anchor).length,2);
+  writeFileSync(path,code.replace(anchor,' if(false&&row.afterTargetId!==e.targetId){'));
+  const program=root=>`const root=${JSON.stringify(root)};
+  const {createOzarkWorldGeometry}=await import(root+'ozark-world-geometry.js'),{createOzarkState}=await import(root+'ozark-save.js'),{bindOzarkWorldAgent}=await import(root+'ozark-agent-world.js'),{observeNpc,requestNpcAction,tickNpc}=await import(root+'npc.js'),{projectPhysiology}=await import(root+'biology.js'),{discoveryDecision}=await import(root+'discovery.js'),{changeMemoryStatus}=await import(root+'change-memory.js'),{createHash}=await import('node:crypto');
+  const assert=(await import('node:assert/strict')).default,geometry=createOzarkWorldGeometry();
+  ${fixture.toString()};const f=fixture();
+  for(let i=0;i<18;i++){
+   // Bounded authored comparison, not autonomous behavior. Identical states in both arms.
+   f.source.biomassGrams=220;Object.assign(f.n.physiology,{availableEnergyKcal:1300,satietyHours:3,waterDeficitMl:0,stamina:90,fatigue:10,sleepPressure:10});projectPhysiology(f.n);
+   observeNpc(f.n,f.e);assert.equal(f.finish('pull').ok,true);
+   const last=f.n.inventory.items.at(-1);assert.ok(last);
+   requestNpcAction(f.n,{type:'release',targetId:last},f.e);while(f.n.active)f.advance();f.advance();observeNpc(f.n,f.e);
+   changeMemoryStatus(f.n);
+  }
+  const m=f.n.discovery.changeMemory;assert.equal(m.rows.length,16);const withSupplement=m.rows.filter(r=>r.sourceObservation&&r.sourceObservation.targetId===f.source.id).length;
+  const choice=discoveryDecision(f.n,{foodLearning:false});
+  assert.equal(m.worldId,f.state.worldLineage.instanceId);m.worldId='compared-world';for(const r of m.rows)delete r.sourceObservation;
+  console.log(JSON.stringify({actor:f.n,choice,ecology:createHash('sha256').update(JSON.stringify(f.e)).digest('hex'),withSupplement}));`;
+  const results=[];for(const dir of [process.cwd(),tmp]){const r=spawnSync(process.execPath,['--input-type=module','-e',program(pathToFileURL(join(dir,'src/')).href)],{encoding:'utf8',timeout:120000,maxBuffer:8*1024*1024});assert.equal(r.status,0,r.stderr);results.push(JSON.parse(r.stdout));}
+  assert.ok(results[0].withSupplement>0);assert.equal(results[1].withSupplement,0);
+  for(const r of results)delete r.withSupplement;assert.deepEqual(results[0],results[1]);
+ }finally{rmSync(tmp,{recursive:true,force:true});}
+});

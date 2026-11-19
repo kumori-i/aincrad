@@ -16,6 +16,20 @@ const point=x=>exact(x,['x','y'])&&Number.isFinite(x.x)&&Number.isFinite(x.y)&&M
 const copy=x=>structuredClone(x);
 const bytes=x=>JSON.stringify(x);
 const fields=['position','motion','appearance','count'];
+const rowFields=['serial','epoch','predictionResult','experimentId','actionId','startedAt','completedAt','dispatchPosition','dispatchEnvironment','afterTargetId','before','after','state','changes','prediction'];
+// Supplementary archival sight is deliberately outside the prediction payload.
+function predictionBytes({sourceObservation:_source,...row}){return bytes(row);}
+function validSourceObservation(r,e){
+ if(!Object.hasOwn(r,'sourceObservation'))return true; // older v1 rows
+ if(r.afterTargetId===e.targetId)return false; // same-target row already has its ordinary post-sight
+ const source=r.sourceObservation;
+ if(source===null)return true; // unknown, not absent or destroyed
+ return r.state==='comparable'&&r.after&&exact(source,['targetId','sample'])&&source.targetId===e.targetId&&
+  validSample(source.sample)&&source.sample.at===r.after.at&&
+  bytes(source.sample.actorPosition)===bytes(r.after.actorPosition)&&
+  bytes(source.sample.environment)===bytes(r.after.environment);
+}
+
 const environmentSample=e=>Object.fromEntries(['timeOfDay','weather','shade'].map(k=>[k,e?.[k]??'unknown']));
 function sample(n,o,environment){return {environment:environmentSample(environment),at:n.elapsed,actorPosition:{...n.position},position:{...o.position},motion:o.motion??null,appearance:copy(o.appearance),count:o.count??null};}
 function validSample(s){return exact(s,['environment','at','actorPosition',...fields])&&exact(s.environment,['timeOfDay','weather','shade'])&&['night','dawn','morning','afternoon','evening','unknown'].includes(s.environment.timeOfDay)&&['clear','cloudy','rainy','windy','unknown'].includes(s.environment.weather)&&['shaded','exposed','unknown'].includes(s.environment.shade)&&number(s.at)&&point(s.actorPosition)&&point(s.position)&&(s.motion===null||typeof s.motion==='string'&&s.motion.length<=80)&&plain(s.appearance)&&Object.keys(s.appearance).every(k=>['shape','color','texture','motion','sound','size','smell','details'].includes(k)&&typeof s.appearance[k]==='string'&&s.appearance[k].length<=100)&&(s.count===null||Number.isInteger(s.count)&&s.count>=0&&s.count<=1000);}
@@ -27,9 +41,10 @@ export function validChangeMemory(m,n,d=n?.discovery,experience=n?.memory?.exper
  if(!exact(m,['version','ownerId','worldId','incarnation','nextSerial','rows'])||m.version!==1||typeof m.worldId!=='string'||!/^[-a-zA-Z0-9]+$/.test(m.worldId)||!integer(m.incarnation)||m.ownerId!==n?.id||!integer(m.nextSerial)||!Array.isArray(m.rows)||m.rows.length>CHANGE_MEMORY_LIMIT||!d||!Array.isArray(experience))return false;
  let prior=0;const actions=new Set(),experiments=new Set();
  for(const r of m.rows){
-  if(!exact(r,['serial','epoch','predictionResult','experimentId','actionId','startedAt','completedAt','dispatchPosition','dispatchEnvironment','afterTargetId','before','after','state','changes','prediction'])||!Number.isSafeInteger(r.epoch)||r.epoch<0||r.epoch>n.epoch||!integer(r.serial)||r.serial<=prior||r.serial>=m.nextSerial||!integer(r.experimentId)||!integer(r.actionId)||!point(r.dispatchPosition)||!exact(r.dispatchEnvironment,['timeOfDay','weather','shade'])||!number(r.startedAt)||!number(r.completedAt)||r.startedAt>r.completedAt||r.completedAt>n.elapsed||!validSample(r.before)||r.before.at>r.startedAt||r.startedAt-r.before.at>WINDOW||!Array.isArray(r.changes)||!['comparable','missing','interposed','replaced','self-moved','environment-changed','interrupted'].includes(r.state))return false;
+  if(!exact(r,Object.hasOwn(r??{},'sourceObservation')?[...rowFields,'sourceObservation']:rowFields)||!Number.isSafeInteger(r.epoch)||r.epoch<0||r.epoch>n.epoch||!integer(r.serial)||r.serial<=prior||r.serial>=m.nextSerial||!integer(r.experimentId)||!integer(r.actionId)||!point(r.dispatchPosition)||!exact(r.dispatchEnvironment,['timeOfDay','weather','shade'])||!number(r.startedAt)||!number(r.completedAt)||r.startedAt>r.completedAt||r.completedAt>n.elapsed||!validSample(r.before)||r.before.at>r.startedAt||r.startedAt-r.before.at>WINDOW||!Array.isArray(r.changes)||!['comparable','missing','interposed','replaced','self-moved','environment-changed','interrupted'].includes(r.state))return false;
   if(!validSample({...r.before,actorPosition:r.dispatchPosition,environment:r.dispatchEnvironment}))return false;
   const e=ref(r,d,experience);if(!e||actions.has(r.actionId)||experiments.has(r.experimentId)||r.completedAt-r.startedAt+1e-8<e.durationSeconds||e.at!==r.completedAt||r.afterTargetId!==(e.materialId??e.resultObjectId??e.targetId))return false;
+  if(!validSourceObservation(r,e))return false;
   actions.add(r.actionId);experiments.add(r.experimentId);
   if(['missing','interposed','replaced'].includes(r.state)&&r.after!==null)return false;
   if(r.state==='self-moved'&&(!r.after||bytes(r.before.actorPosition)===bytes(r.dispatchPosition)&&bytes(r.dispatchPosition)===bytes(r.after.actorPosition)))return false;
@@ -48,15 +63,19 @@ function scope(n,environment){
  if(s&&(!intact(n,s)||s.environment!==environment||s.ecology!==environment.ecology)){states.delete(n);s=null;}
  if(!s){s={id:n.id,epoch:n.epoch,memory:n.memory,discovery:n.discovery,physiology:n.physiology,scene:n.scene,environment,ecology:environment.ecology,sights:new Map(),support:new Map(),pending:null};states.set(n,s);}return s;
 }
-function append(n,s,p,after,state){
+function append(n,s,p,after,state,source=null){
  const e=n.discovery.experiments.find(e=>e.actionId===p.actionId);if(!e||!p.before)return;
  let m=n.discovery.changeMemory;const binding=bindings.get(n);if(m&&(!validChangeMemory(m,n)||m.worldId!==binding?.worldId||m.incarnation!==binding?.incarnation))return;
  if(!m){const b=bindings.get(n);if(!b)return;m=n.discovery.changeMemory={version:1,ownerId:n.id,worldId:b.worldId,incarnation:b.incarnation,nextSerial:1,rows:[]};}
  if(m.nextSerial>=Number.MAX_SAFE_INTEGER)return;
  const observed=state==='comparable'?changes(p.before,after):[];
  const row={serial:m.nextSerial++,epoch:n.epoch,predictionResult:p.prediction===null||state!=='comparable'?'unknown':bytes(p.prediction.outcome)===bytes(outcome(p.before,after,(p.postId??p.targetId)===p.targetId))?'matched':'mismatched',experimentId:e.id,actionId:e.actionId,startedAt:p.startedAt,completedAt:e.at,dispatchPosition:copy(p.dispatchPosition),dispatchEnvironment:copy(p.dispatchEnvironment),afterTargetId:p.postId??p.targetId,before:copy(p.before),after:after?copy(after):null,state,changes:observed,prediction:copy(p.prediction)};
+ if(row.afterTargetId!==e.targetId){
+  row.sourceObservation=state==='comparable'&&source&&source.identity===p.identity&&source.owner===p.owner
+   ?{targetId:e.targetId,sample:copy(source.sample)}:null;
+ }
  m.rows.push(row);if(m.rows.length>CHANGE_MEMORY_LIMIT)m.rows.shift();
- s.support.set(row.serial,{row,bytes:bytes(row),identity:p.identity,owner:p.owner,type:e.primitive,targetId:e.targetId});
+ s.support.set(row.serial,{row,bytes:predictionBytes(row),identity:p.identity,owner:p.owner,type:e.primitive,targetId:e.targetId});
  for(const serial of s.support.keys())if(!m.rows.some(r=>r.serial===serial))s.support.delete(serial);
 }
 // Called only from observeNpc's actual ordinary perception batch, not result refreshes.
@@ -72,7 +91,7 @@ export function observeChangeMemory(n,observation,environment,identityOf){
   if(sight&&(sight.identity!==(p.postIdentity??p.identity)||sight.owner!==(p.actionId?p.postOwner:p.owner))){if(p.actionId)append(n,s,p,null,'replaced');s.pending=null;}
   else if(p.actionId&&n.elapsed>p.completedAt){
    if(n.elapsed>p.completedAt+WINDOW){append(n,s,p,null,'missing');s.pending=null;}
-   else if(sight){const state=p.interrupted||!p.proven?'interrupted':p.dispatchConfound??(bytes(sight.sample.actorPosition)!==bytes(p.before.actorPosition)?'self-moved':bytes(sight.sample.environment)!==bytes(p.before.environment)?'environment-changed':'comparable');append(n,s,p,sight.sample,state);s.pending=null;}
+   else if(sight){const state=p.interrupted||!p.proven?'interrupted':p.dispatchConfound??(bytes(sight.sample.actorPosition)!==bytes(p.before.actorPosition)?'self-moved':bytes(sight.sample.environment)!==bytes(p.before.environment)?'environment-changed':'comparable');append(n,s,p,sight.sample,state,visible.get(p.targetId));s.pending=null;}
   }
  }
  s.sights=visible;
@@ -94,7 +113,7 @@ export function startChangeMemory(n,active,environment,physical){
  const dispatchConfound=bytes(dispatchPosition)!==bytes(before.sample.actorPosition)?'self-moved':bytes(dispatchEnvironment)!==bytes(before.sample.environment)?'environment-changed':null;
  let prediction=null;const m=n.discovery.changeMemory;
  if(!dispatchConfound&&m&&validChangeMemory(m,n)){
-  const candidates=m.rows.filter(row=>{const b=s.support.get(row.serial);return b&&b.row===row&&b.bytes===bytes(row)&&b.identity===physical&&b.owner===before.owner&&b.type===active.request.type&&row.completedAt<n.elapsed&&bytes(row.before.appearance)===bytes(before.sample.appearance)&&bytes(row.before.environment)===bytes(before.sample.environment)&&row.before.motion===before.sample.motion&&row.before.count===before.sample.count;}).slice(-2);
+  const candidates=m.rows.filter(row=>{const b=s.support.get(row.serial);return b&&b.row===row&&b.bytes===predictionBytes(row)&&b.identity===physical&&b.owner===before.owner&&b.type===active.request.type&&row.completedAt<n.elapsed&&bytes(row.before.appearance)===bytes(before.sample.appearance)&&bytes(row.before.environment)===bytes(before.sample.environment)&&row.before.motion===before.sample.motion&&row.before.count===before.sample.count;}).slice(-2);
   if(candidates.length===2&&candidates.every(r=>r.state==='comparable'&&r.after.at<n.elapsed)&&bytes(outcome(candidates[0].before,candidates[0].after,candidates[0].afterTargetId===active.request.targetId))===bytes(outcome(candidates[1].before,candidates[1].after,candidates[1].afterTargetId===active.request.targetId)))prediction={at:n.elapsed,support:candidates.map(r=>r.serial),outcome:outcome(candidates[0].before,candidates[0].after,candidates[0].afterTargetId===active.request.targetId)};
  }
  s.pending={active,dispatchPosition,dispatchEnvironment,dispatchConfound,identity:physical,owner:before.owner,targetId:active.request.targetId,before:copy(before.sample),startedAt:n.elapsed,prediction,actionId:null};
