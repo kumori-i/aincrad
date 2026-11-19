@@ -35,6 +35,15 @@ for (const { before, after } of foodRunSeams) {
   restoredFoodObserver = restoredFoodObserver.replace(before, after);
 }
 assert.equal(restoredFoodObserver, source, 'only declared food-run observer seams are removed');
+// Revisit forwarding stays in BOTH executed observer arms. Only these exact,
+// reversible seams are stripped for the immutable historical ancestry hashes.
+const withoutRevisitForward = text => {
+ const imported="import {forwardRevisit} from './voluntary-revisit.js';\n",call='forwardRevisit(n,raw,action);';
+ assert.equal(text.split(imported).length-1,1);assert.equal(text.split(call).length-1,1);
+ const old=text.replace(imported,'').replace(call,'');
+ assert.equal(imported+old.replace('forwardProducerRequest(n,raw,action);',call+'forwardProducerRequest(n,raw,action);'),text);
+ return old;
+};
 // Producer request forwarding is policy authority, retained in BOTH observer
 // arms. Removing only its exact import/call reproduces the previous pins.
 const withoutProducerForward = text => text
@@ -73,9 +82,9 @@ const withoutMotorForward = text => {
     'forwardProducerRequest(n,raw,action);'+call),text,'motor seam roundtrip');
   return removed;
 };
-assert.equal(sha(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(sourceWithoutFoodObserver)))), '496803690f7e69a13625e2e577105156854d3f28037ef61e0abd07f281ff23bb');
-assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(sourceWithoutFoodObserver))))), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7');
-assert.equal(sha(withoutSequenceForward(withoutChangeMemory(sourceWithoutFoodObserver))), '2f7512043b2d47539fd7769bbdd75bf618da295fd9b7f003ac58be79734fd237',
+assert.equal(sha(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(withoutRevisitForward(sourceWithoutFoodObserver))))), '496803690f7e69a13625e2e577105156854d3f28037ef61e0abd07f281ff23bb');
+assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(withoutRevisitForward(sourceWithoutFoodObserver)))))), 'c703fc0209e6c2745bc5500d426786e9c9e917a150e0bbb15b16a5b05267d7b7');
+assert.equal(sha(withoutSequenceForward(withoutChangeMemory(withoutRevisitForward(sourceWithoutFoodObserver)))), '2f7512043b2d47539fd7769bbdd75bf618da295fd9b7f003ac58be79734fd237',
   'immutable pre-sequence policy without food-run observer');
 // Paired instrumentation regression rebased onto the approved renewable/sharing
 // controller (a841114). This compares current behavior with/without capture,
@@ -116,9 +125,9 @@ const baselineSource = sourceWithoutFoodObserver
   .replace('this.experimentalDiscovery=experimentalDiscovery;', '')
   .replace(',chooseOptional:this.experimentalDiscovery?.choose?choices=>this.experimentalDiscovery.choose(n,choices):null,optionalAction:this.experimentalDiscovery?.optionalAction?()=>this.experimentalDiscovery.optionalAction(n):null', '')
   .replace('this.experimentalDiscovery?.decision?.(n,decision);const performed=this.experimentalDiscovery?.performOptional?.(n,decision.action)??this.perform(decision.action);this.experimentalDiscovery?.performed?.(n,decision.action,performed,n.active);', 'this.perform(decision.action);');
-assert.equal(sha(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(baselineSource)))), '45d28a52573b3738093840e92e78b04bf3d5c9e7d231581b1da7147309a1e505');
-assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(baselineSource))))), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c');
-assert.equal(sha(withoutSequenceForward(withoutChangeMemory(baselineSource))), 'c9853bb29612bed38626798d96533890cfa33b06b5a06b4c12b71084b0b6937c', 'immutable pre-sequence baseline controller bytes');
+assert.equal(sha(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(withoutRevisitForward(baselineSource))))), '45d28a52573b3738093840e92e78b04bf3d5c9e7d231581b1da7147309a1e505');
+assert.equal(sha(withoutProducerForward(withoutMotorForward(withoutSequenceForward(withoutChangeMemory(withoutRevisitForward(baselineSource)))))), '9fcfb157b33ef41f49f3d8eb3220528c453aa03d86c8eb9ddc280e20cfd51e4c');
+assert.equal(sha(withoutSequenceForward(withoutChangeMemory(withoutRevisitForward(baselineSource)))), 'c9853bb29612bed38626798d96533890cfa33b06b5a06b4c12b71084b0b6937c', 'immutable pre-sequence baseline controller bytes');
 const baselineImports = baselineSource.replace(/from '(\.\/[^']+)'/g, (_, path) => `from '${new URL(`../src/${path.slice(2)}`, import.meta.url).href}'`);
 const { NpcController: BaselineController } = await import(`data:text/javascript;base64,${Buffer.from(baselineImports).toString('base64')}`);
 const food = report => report.candidates.find(candidate => candidate.id.startsWith('food:'));

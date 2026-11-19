@@ -1,3 +1,4 @@
+import {startRevisitEvidence,finishRevisitEvidence} from './voluntary-revisit.js';
 import {startChangeMemory,finishChangeMemory,retireChangeCustody} from './change-memory.js';
 import {receiveConnectedSequence,retireConnectedSequence,interruptConnectedSequence,consumeConnectedSequence,connectedSequenceSource,connectedSequencePermitValid,bindConnectedSequence,connectedSequenceActiveValid} from './connected-sequence.js';
 import {receiveMotorRecallWitness,retireMotorRecallHistory,retireMotorRecallSource,consumeMotorRecallRequest,bindMotorRecallAction,motorRecallPermitValid,motorRecallActiveValid} from './motor-recall.js';
@@ -222,6 +223,7 @@ const done=(complete,npc,request,result,active)=>{
     if(sameOwner&&result.ok===true&&work.worked+1e-8>=work.seconds)successfulActions.set(active,{epoch:work.epoch,discovery:work.discovery,physiology:work.physiology});
   }
   if(sameOwner&&Number.isInteger(completion?.eventId))finishChangeMemory(npc,active,completion.eventId,result);
+  if(sameOwner&&Number.isInteger(completion?.eventId))finishRevisitEvidence(npc,active,completion.eventId);
   return completion;
 };
 function allowed(npc,id,environment,inspection=false){
@@ -278,6 +280,7 @@ export function requestDiscoveryAction(npc,raw,environment={},options={}){
   npc.active={kind:'interaction',request,startedAt:npc.elapsed,expiresAt:npc.elapsed+npcWorkAllowance(seconds,effort),seconds,worked:0,startPosition:{...npc.position},startScene:npc.scene,startRisk:npc.riskCost||0};
   actionActors.set(npc.active,npc);
   startChangeMemory(npc,npc.active,environment,check.physical);
+  startRevisitEvidence(npc,npc.active,environment,check.physical);
   npc.active.expiresAt=Math.min(npc.active.expiresAt,captureNpcRunDeadline(npc,request,npc.active),bindProducerAction(npc,producerPermit,npc.active),bindMotorRecallAction(npc,motorPermit,npc.active,check.physical,environment),bindConnectedSequence(npc,sequencePermit,npc.active,check.physical,sequenceSource,environment));
   paidWork.set(npc.active,{motorContext:procedureWalkingContext(npc),needs:Object.freeze({hunger:bodySignals(npc).hunger,energy:bodySignals(npc).energy}),fatigue:npc.physiology.fatigue,stamina:npc.physiology.stamina,scene:npc.scene,world:ozarkAgentWorld(npc),memory:npc.memory,environment,ecology:environment.ecology,sourceIdentity:check.physical,sourceOwnerAtStart:check.physical.heldBy,sourceCues:JSON.stringify(describeEcologyObject(environment.ecology,request.targetId,{actorId:npc.id})?.appearance??null),epoch:npc.epoch,discovery:npc.discovery,physiology:npc.physiology,seconds,effort,worked:0,elapsed:0,startedAt:npc.elapsed,deadline:npc.active.expiresAt,request:{...request}});
   if(indication)indications.set(npc.active,indication);

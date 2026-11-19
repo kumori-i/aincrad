@@ -1,3 +1,4 @@
+import {revisitChoice,issueRevisit} from './voluntary-revisit.js';
 import {preferConnectedSequence,issueConnectedSequence,CONNECTED_SEQUENCE_REASON} from './connected-sequence.js';
 import {motorRecallExperiment,MOTOR_RECALL_REASON} from './motor-recall.js';
 import { producerExperiment,reassessProducerInquiries,PRODUCER_QUESTION } from './producer-inquiry.js';
@@ -695,6 +696,8 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   // Only optional terrain curiosity yields to generic nearby body operations
   // in the new feature. Safety escapes and bodily care already returned above;
   // no target kind, food benefit or catch-specific score participates here.
+  const revisit=handlingCuriosity&&revisitChoice(npc,{route:p=>routeTarget(npc,p),routeLength:p=>createKnownRouteIndex(rememberedCells(npc),npc.position,rememberedEdges(npc),npc.elapsed,npc.navigationAnchor,timeoutRouteBlocks(npc)).metrics(p,30)?.returnedLength});
+  if(revisit)choices.push(revisit);
   if(traversal&&!choices.length)return wrap(traversal.action,traversal.reason,traversal.need);
   // Movement competes with object trials. Repeatedly striking/inspecting a familiar
   // patch cannot block an unfamiliar nearby object or a remembered frontier forever.
@@ -712,13 +715,13 @@ export function discoveryDecision(npc,{foodLearning=true,handlingCuriosity=true,
   // Runtime-only opt-in experiment may choose an already eligible optional
   // operation. Every bodily-care/procedure/safety gate above remains prior.
   // This callback is never stored in actor data or reconstructed from a save.
-  if(typeof chooseOptional==='function'&&choices.length){const index=chooseOptional(choices);if(Number.isInteger(index)&&index>=0&&index<choices.length)return wrap(choices[index].action,'An experimental learned signal influenced this optional physical trial; its outcome remains untested.');}
+  if(typeof chooseOptional==='function'&&choices.length){const index=chooseOptional(choices);if(Number.isInteger(index)&&index>=0&&index<choices.length&&(choices[index]!==revisit||issueRevisit(npc,choices[index].action)))return wrap(choices[index].action,'An experimental learned signal influenced this optional physical trial; its outcome remains untested.');}
   // A small target-free motor trial competes only at the ordinary optional
   // curiosity stage. Its fixed novelty bias is authored, not success credit.
   const freeHand=freeHandExplorationChoice(npc);
   if(freeHand)choices.push(freeHand);
   const sequence=handlingCuriosity&&preferConnectedSequence(npc,choices);if(sequence)sequence.score+=1; // Supplied feasibility preference, not utility credit.
-  if(choices.length){const selected=choices.sort((a,b)=>b.score-a.score)[0];if(selected===sequence&&issueConnectedSequence(npc,selected.action))return wrap(selected.action,CONNECTED_SEQUENCE_REASON);return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
+  if(choices.length){let selected=choices.sort((a,b)=>b.score-a.score)[0];if(selected===revisit&&!issueRevisit(npc,selected.action)){choices.splice(choices.indexOf(revisit),1);selected=choices[0];if(!selected)return wrap({type:'wait',seconds:5},'The optional remembered-place attempt is no longer available.');}if(selected===sequence&&issueConnectedSequence(npc,selected.action))return wrap(selected.action,CONNECTED_SEQUENCE_REASON);return wrap(selected.action,selected.reason||'An unfamiliar object and an untested body operation offer an experiment; I do not yet know the consequence.');}
   return wrap({type:'wait',seconds:5},'I am allowing time for changes and sensations before another bounded experiment.');
   }finally{survivalObserve(closeSurvivalDecision,survivalScope);}
 }
