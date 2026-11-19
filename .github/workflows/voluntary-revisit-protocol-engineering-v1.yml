@@ -1,0 +1,64 @@
+name: Voluntary revisit protocol non-release engineering
+on: create
+permissions:
+  contents: read
+jobs:
+  engineering:
+    if: github.event_name == 'create' && github.event.ref_type == 'branch' && github.event.ref == 'validation/voluntary-revisit-protocol-engineering-v1' && github.ref == 'refs/heads/validation/voluntary-revisit-protocol-engineering-v1' && github.run_attempt == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: protocol
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 0f10bdd3321d87aeafbfd5d2f09095b9b8fb059f
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 1fb64ad879ab7155b023f4bb3bc44c6a776204f1
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Record pristine inputs
+        working-directory: protocol
+        env:
+          OUT: ${{ runner.temp }}/revisit-protocol-engineering
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUT"
+          node scripts/revisit-observer/engineering-stamp.mjs before > "$OUT/before.json"
+          node --input-type=module -e 'import {PROTOCOL as P} from "./scripts/revisit-observer/protocol.mjs"; if(P.seeds!==null||P.freeze!==null) throw Error("Engineering branch must remain inert")'
+      - name: Run full check build and exact dual authored parity
+        working-directory: protocol
+        env:
+          OUT: ${{ runner.temp }}/revisit-protocol-engineering
+        run: |
+          set +e
+          npm run check > "$OUT/check.log" 2>&1; check=$?
+          npm run build > "$OUT/build.log" 2>&1; build=$?
+          node scripts/revisit-observer/parity.mjs ../baseline ../candidate > "$OUT/parity.log" 2>&1; parity=$?
+          printf '{"check":%s,"build":%s,"authoredParity":%s}\n' "$check" "$build" "$parity" > "$OUT/exits.json"
+          if [ "$check" != 0 ] || [ "$build" != 0 ] || [ "$parity" != 0 ]; then exit 1; fi
+      - name: Re-attest unchanged inputs
+        if: always()
+        working-directory: protocol
+        env:
+          OUT: ${{ runner.temp }}/revisit-protocol-engineering
+        run: |
+          set -euo pipefail
+          node scripts/revisit-observer/engineering-stamp.mjs after > "$OUT/after.json"
+          node --input-type=module -e 'import fs from "node:fs"; import assert from "node:assert/strict"; const read=x=>JSON.parse(fs.readFileSync(process.env.OUT+"/"+x+".json")); assert.deepEqual(read("before").checkouts,read("after").checkouts); assert.deepEqual(read("exits"),{check:0,build:0,authoredParity:0});'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: voluntary-revisit-protocol-engineering-${{ github.run_id }}
+          path: ${{ runner.temp }}/revisit-protocol-engineering/
+          if-no-files-found: error
+          retention-days: 30
